@@ -11,11 +11,12 @@ import {
 } from "../utils/tokens.js";
 import { loadUserState } from "../services/state.service.js";
 import { asyncHandler } from "../utils/async.js";
-import { getPlanUsage, serializePlan } from "../services/plans.service.js";
+import { getPlanUsage, serializePlan, settleExpiredSubscription } from "../services/plans.service.js";
 import { startCheckout, stripeEnabled } from "../services/stripe.service.js";
 import { getLatestCancellation, serializeCancellation } from "../services/cancellation.service.js";
 
 async function userWithPlan(user) {
+  await settleExpiredSubscription(user);
   const plan = user.planId ? await Plan.findByPk(user.planId) : null;
   const usage = await getPlanUsage(user);
   const cancellation = await getLatestCancellation(user.id);

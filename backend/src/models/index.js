@@ -38,6 +38,8 @@ export const User = sequelize.define("users", {
   stripeCustomerId: { type: DataTypes.STRING(80), allowNull: true },
   stripeSubscriptionId: { type: DataTypes.STRING(80), allowNull: true },
   billingInterval: { type: DataTypes.ENUM("month", "year"), allowNull: false, defaultValue: "month" },
+  cancelAtPeriodEnd: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+  currentPeriodEnd: { type: DataTypes.DATE, allowNull: true },
 });
 
 export const RefreshToken = sequelize.define("refresh_tokens", {

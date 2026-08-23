@@ -97,7 +97,7 @@ export async function getPlanUsage(user) {
   const guestCount = await countOwnedGuests(user.id);
   const eventLimit = plan?.eventLimit ?? 0;
   const guestLimit = plan?.guestLimit ?? 0;
-  const active = user.subscriptionStatus === "active";
+  const active = isSubscriptionUsable(user);
   return {
     eventCount,
     guestCount,
@@ -113,10 +113,28 @@ export function assertCanSendInvitations(_user) {
   return;
 }
 
+export function isSubscriptionUsable(user) {
+  if (user?.isAdmin) return true;
+  if (user?.subscriptionStatus !== "active") return false;
+  if (user.cancelAtPeriodEnd && user.currentPeriodEnd && new Date(user.currentPeriodEnd) <= new Date()) {
+    return false;
+  }
+  return true;
+}
+
+export async function settleExpiredSubscription(user) {
+  if (!user || user.isAdmin) return user;
+  if (user.subscriptionStatus === "active" && user.cancelAtPeriodEnd && user.currentPeriodEnd && new Date(user.currentPeriodEnd) <= new Date()) {
+    user.subscriptionStatus = "canceled";
+    await user.save();
+  }
+  return user;
+}
+
 function requireActivePlan(user, plan) {
   if (user.isAdmin) return null;
-  if (user.subscriptionStatus !== "active") {
-    throw planError("Tu suscripción no está activa. Mejora o reactiva tu plan para continuar.");
+  if (!isSubscriptionUsable(user)) {
+    throw planError("Tu periodo ya terminó o la cuenta no se renovó. Reactiva tu plan para crear eventos o agregar invitados.");
   }
   if (!plan) {
     throw planError("Necesitas un plan activo para usar la plataforma. Elige uno para continuar.");

@@ -1,5 +1,5 @@
 import { CancellationRequest, Plan, User } from "../models/index.js";
-import { cancelStripeSubscription } from "./stripe.service.js";
+import { scheduleCancelAtPeriodEnd } from "./stripe.service.js";
 
 export function serializeCancellation(row) {
   return {
@@ -17,6 +17,8 @@ export function serializeCancellation(row) {
           businessName: row.user.businessName || "",
           phone: row.user.phone || "",
           subscriptionStatus: row.user.subscriptionStatus,
+          cancelAtPeriodEnd: !!row.user.cancelAtPeriodEnd,
+          currentPeriodEnd: row.user.currentPeriodEnd || null,
           plan: row.user.plan
             ? { id: row.user.plan.id, name: row.user.plan.name, slug: row.user.plan.slug }
             : null,
@@ -49,6 +51,11 @@ export async function requestCancellation(user, reason) {
   if (user.subscriptionStatus === "canceled") {
     const err = new Error("Esta cuenta ya no tiene una suscripción activa.");
     err.status = 400;
+    throw err;
+  }
+  if (user.cancelAtPeriodEnd) {
+    const err = new Error("Esta suscripción ya no se renovará. Termina el periodo pagado y luego deja de crecer.");
+    err.status = 409;
     throw err;
   }
   const pending = await getPendingCancellation(user.id);
@@ -90,9 +97,7 @@ export async function decideCancellation(row, admin, { approve, note }) {
     throw err;
   }
   if (approve) {
-    await cancelStripeSubscription(user);
-    user.subscriptionStatus = "canceled";
-    await user.save();
+    await scheduleCancelAtPeriodEnd(user);
     row.status = "approved";
   } else {
     row.status = "rejected";
@@ -107,4 +112,15 @@ export async function decideCancellation(row, admin, { approve, note }) {
     ],
   });
   return row;
+}
+
+export async function markOpenCancellationsFromStripe(userId) {
+  await CancellationRequest.update(
+    {
+      status: "approved",
+      adminNote: "Cancelada o programada desde Stripe. El periodo pagado se respeta hasta su fecha de corte.",
+      decidedAt: new Date(),
+    },
+    { where: { userId, status: "pending" } },
+  );
 }

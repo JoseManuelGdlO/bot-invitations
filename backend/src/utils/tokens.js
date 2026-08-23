@@ -44,6 +44,8 @@ export function serializeUser(user, plan = null, usage = null, extras = {}) {
     state: user.state || "",
     subscriptionStatus: user.subscriptionStatus || "active",
     billingInterval: user.billingInterval || "month",
+    cancelAtPeriodEnd: !!user.cancelAtPeriodEnd,
+    currentPeriodEnd: user.currentPeriodEnd || null,
     plan: plan
       ? {
           id: plan.id,

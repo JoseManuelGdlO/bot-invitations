@@ -22,7 +22,7 @@ export const Route = createFileRoute("/admin/cancelaciones")({
 
 const STATUS_LABEL: Record<CancellationRequest["status"], string> = {
   pending: "Pendiente de tu visto bueno",
-  approved: "Aceptada y cancelada",
+  approved: "Aceptada: no se renueva",
   rejected: "Rechazada",
   withdrawn: "Retirada por el cliente",
 };
@@ -51,7 +51,7 @@ function AdminCancellations() {
         method: "POST",
         body: JSON.stringify({ note: notes[id] || "" }),
       });
-      toast.success(action === "approve" ? "Suscripción cancelada" : "Solicitud rechazada");
+      toast.success(action === "approve" ? "Se dejará de renovar al terminar el periodo" : "Solicitud rechazada");
       load(status);
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "No se pudo resolver la solicitud");
@@ -65,8 +65,8 @@ function AdminCancellations() {
       <p className="text-xs font-medium uppercase tracking-[0.14em] text-gold">Backoffice</p>
       <h1 className="mt-1 font-display text-4xl">Cancelaciones</h1>
       <p className="mt-1 text-sm text-muted-foreground">
-        El cliente solo pide la baja. La suscripción se cancela en Stripe cuando tú la aceptas. Los envíos de
-        invitaciones de eventos ya creados no se detienen.
+        Si aceptas, Stripe deja de renovar y el cliente termina el periodo que ya pagó. Los envíos de invitaciones no
+        se detienen. Cuando se venza, para crear o agregar más tendrá que pagar.
       </p>
 
       <div className="mt-6 max-w-xs">
@@ -137,7 +137,7 @@ function AdminCancellations() {
                   <div className="flex flex-wrap gap-2">
                     <Button onClick={() => decide(row.id, "approve")} disabled={busy === row.id}>
                       {busy === row.id ? <Loader2 className="size-4 animate-spin" /> : null}
-                      Aceptar y cancelar
+                      Aceptar: termina al final del periodo
                     </Button>
                     <Button variant="outline" onClick={() => decide(row.id, "reject")} disabled={busy === row.id}>
                       Rechazar

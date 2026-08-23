@@ -137,6 +137,8 @@ export interface SessionUser {
   state?: string;
   subscriptionStatus?: string;
   billingInterval?: BillingInterval;
+  cancelAtPeriodEnd?: boolean;
+  currentPeriodEnd?: string | null;
   plan?: Pick<SubscriptionPlan, "id" | "slug" | "name" | "priceMxn" | "eventLimit" | "guestLimit"> | null;
   usage?: PlanUsage;
   cancellation?: CancellationRequest | null;

@@ -130,7 +130,21 @@ function priceIdFor(plan, interval) {
   return interval === "year" ? plan.stripeYearlyPriceId : plan.stripePriceId;
 }
 
-export async function applySubscription({ userId, planId, customerId, subscriptionId, status, interval }) {
+function periodEndFrom(object) {
+  const ts = object?.current_period_end || object?.items?.data?.[0]?.current_period_end;
+  return ts ? new Date(Number(ts) * 1000) : null;
+}
+
+export async function applySubscription({
+  userId,
+  planId,
+  customerId,
+  subscriptionId,
+  status,
+  interval,
+  cancelAtPeriodEnd,
+  currentPeriodEnd,
+}) {
   const user = userId ? await User.findByPk(userId) : await User.findOne({ where: { stripeCustomerId: customerId } });
   if (!user) return null;
   if (planId) user.planId = planId;
@@ -138,7 +152,15 @@ export async function applySubscription({ userId, planId, customerId, subscripti
   if (subscriptionId) user.stripeSubscriptionId = subscriptionId;
   if (status) user.subscriptionStatus = mapStripeStatus(status);
   if (interval) user.billingInterval = normalizeInterval(interval);
+  if (typeof cancelAtPeriodEnd === "boolean") user.cancelAtPeriodEnd = cancelAtPeriodEnd;
+  if (currentPeriodEnd) user.currentPeriodEnd = currentPeriodEnd;
+  if (user.subscriptionStatus === "canceled") user.cancelAtPeriodEnd = true;
+  if (user.subscriptionStatus === "active" && cancelAtPeriodEnd === false) user.cancelAtPeriodEnd = false;
   await user.save();
+  if (user.cancelAtPeriodEnd || user.subscriptionStatus === "canceled") {
+    const { markOpenCancellationsFromStripe } = await import("./cancellation.service.js");
+    await markOpenCancellationsFromStripe(user.id);
+  }
   return user;
 }
 
@@ -176,10 +198,13 @@ export async function startCheckout(user, plan, { successPath, cancelPath, inter
         items: [{ id: item.id, price: priceId }],
         metadata: { userId: user.id, planId: plan.id, interval: billingInterval },
         proration_behavior: "create_prorations",
+        cancel_at_period_end: false,
       });
     }
     user.planId = plan.id;
     user.billingInterval = billingInterval;
+    user.cancelAtPeriodEnd = false;
+    user.subscriptionStatus = "active";
     await user.save();
     return { checkoutUrl: null, updated: true };
   }
@@ -239,15 +264,34 @@ export async function createPortalSession(user) {
   return session.url;
 }
 
-export async function cancelStripeSubscription(user) {
+export async function scheduleCancelAtPeriodEnd(user) {
   const stripe = getStripe();
-  if (!stripe || !user.stripeSubscriptionId) return { canceledInStripe: false };
+  const fallback = () => {
+    const date = new Date();
+    const days = user.billingInterval === "year" ? 365 : 30;
+    date.setDate(date.getDate() + days);
+    return date;
+  };
+  if (!stripe || !user.stripeSubscriptionId) {
+    user.cancelAtPeriodEnd = true;
+    user.currentPeriodEnd = user.currentPeriodEnd || fallback();
+    await user.save();
+    return { scheduled: false, periodEnd: user.currentPeriodEnd };
+  }
   try {
-    await stripe.subscriptions.cancel(user.stripeSubscriptionId);
-    return { canceledInStripe: true };
+    const subscription = await stripe.subscriptions.update(user.stripeSubscriptionId, {
+      cancel_at_period_end: true,
+    });
+    user.cancelAtPeriodEnd = true;
+    user.currentPeriodEnd = periodEndFrom(subscription) || user.currentPeriodEnd || fallback();
+    await user.save();
+    return { scheduled: true, periodEnd: user.currentPeriodEnd };
   } catch (err) {
-    if (isMissing(err)) return { canceledInStripe: false };
-    throw err;
+    if (!isMissing(err)) throw err;
+    user.cancelAtPeriodEnd = true;
+    user.currentPeriodEnd = user.currentPeriodEnd || fallback();
+    await user.save();
+    return { scheduled: false, periodEnd: user.currentPeriodEnd };
   }
 }
 
@@ -263,6 +307,7 @@ export async function confirmCheckoutSession(sessionId) {
     subscriptionId: session.subscription,
     status: "active",
     interval: session.metadata?.interval,
+    cancelAtPeriodEnd: false,
   });
   return session;
 }
@@ -284,6 +329,7 @@ export async function handleStripeEvent(event) {
       subscriptionId: object.subscription,
       status: "active",
       interval: object.metadata?.interval,
+      cancelAtPeriodEnd: false,
     });
     return;
   }
@@ -302,6 +348,8 @@ export async function handleStripeEvent(event) {
       subscriptionId: object.id,
       status: object.status,
       interval,
+      cancelAtPeriodEnd: Boolean(object.cancel_at_period_end) || object.status === "canceled",
+      currentPeriodEnd: periodEndFrom(object),
     });
     return;
   }

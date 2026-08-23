@@ -96,10 +96,20 @@ export function PlanLimitBanner({
   );
 }
 
+function periodLabel(value?: string | null) {
+  if (!value) return null;
+  return new Date(value).toLocaleDateString("es-MX", { day: "numeric", month: "long", year: "numeric" });
+}
+
 export function PendingPaymentBanner({ session }: { session: SessionUser | null }) {
   const { startCheckout } = useStore();
   const [loading, setLoading] = useState(false);
-  if (!session || session.isAdmin || session.subscriptionStatus === "active") return null;
+  if (!session || session.isAdmin) return null;
+
+  const ending = session.subscriptionStatus === "active" && session.cancelAtPeriodEnd;
+  const expired = session.subscriptionStatus !== "active";
+  if (!ending && !expired) return null;
+  const until = periodLabel(session.currentPeriodEnd);
 
   const pay = async () => {
     if (!session.plan?.id) {
@@ -119,15 +129,26 @@ export function PendingPaymentBanner({ session }: { session: SessionUser | null 
   return (
     <div className="rounded-2xl border border-gold/40 bg-gold-soft/50 p-5">
       <p className="text-sm font-medium">
-        {session.subscriptionStatus === "canceled" ? "Tu suscripción está cancelada" : "Tu suscripción aún no está activa"}
+        {ending
+          ? "Tu cuenta no se va a renovar"
+          : session.subscriptionStatus === "canceled"
+            ? "Tu periodo ya terminó"
+            : "Tu cuenta no se renovó"}
       </p>
       <p className="mt-1 text-sm text-muted-foreground">
-        Los envíos de invitaciones de tus eventos actuales no se detienen. Para crear otro evento o agregar invitados,
-        reactiva tu plan.
+        {ending
+          ? `Sigues usando el plan${until ? ` hasta el ${until}` : " hasta que termine el periodo pagado"}. Los envíos de invitaciones no se detienen. Cuando se venza, para crear eventos o agregar invitados tendrás que pagar.`
+          : "Los envíos de invitaciones de tus eventos actuales no se detienen. Para crear otro evento o agregar invitados, vuelve a pagar."}
       </p>
-      <Button className="mt-4" size="sm" onClick={pay} disabled={loading}>
-        Completar pago
-      </Button>
+      {expired ? (
+        <Button className="mt-4" size="sm" onClick={pay} disabled={loading}>
+          Pagar para seguir creciendo
+        </Button>
+      ) : (
+        <Button asChild className="mt-4" size="sm" variant="outline">
+          <Link to="/eventos/suscripcion">Ver suscripción</Link>
+        </Button>
+      )}
     </div>
   );
 }
