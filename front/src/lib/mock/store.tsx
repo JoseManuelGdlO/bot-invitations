@@ -63,9 +63,13 @@ interface Ctx extends State {
       phone: string;
       state: string;
       businessName: string;
+      interval?: "month" | "year";
     },
   ) => Promise<{ checkoutUrl?: string | null }>;
-  startCheckout: (planId: string) => Promise<{ checkoutUrl?: string | null; updated?: boolean }>;
+  startCheckout: (
+    planId: string,
+    interval?: "month" | "year",
+  ) => Promise<{ checkoutUrl?: string | null; updated?: boolean }>;
   openBillingPortal: () => Promise<void>;
   forgotPassword: (email: string) => Promise<void>;
   resetPassword: (token: string, password: string) => Promise<void>;
@@ -165,10 +169,10 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         await afterAuth(res);
         return { checkoutUrl: res.checkoutUrl };
       },
-      startCheckout: async (planId) => {
+      startCheckout: async (planId, interval = "month") => {
         return api<{ checkoutUrl?: string | null; updated?: boolean }>("/billing/checkout", {
           method: "POST",
-          body: JSON.stringify({ planId }),
+          body: JSON.stringify({ planId, interval }),
         });
       },
       openBillingPortal: async () => {

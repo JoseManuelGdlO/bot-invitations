@@ -34,6 +34,7 @@ function AdminPlans() {
           name: plan.name,
           tagline: plan.tagline,
           priceMxn: Number(plan.priceMxn),
+          annualDiscountPercent: Number(plan.annualDiscountPercent ?? 20),
           eventLimit: Number(plan.eventLimit),
           guestLimit: Number(plan.guestLimit),
           highlighted: !!plan.highlighted,
@@ -101,6 +102,23 @@ function AdminPlans() {
                   value={plan.guestLimit}
                   onChange={(e) => set(plan.id, "guestLimit", Number(e.target.value))}
                 />
+              </div>
+              <div className="space-y-2">
+                <Label>Descuento anual (%)</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  max={80}
+                  value={plan.annualDiscountPercent ?? 20}
+                  onChange={(e) => set(plan.id, "annualDiscountPercent", Number(e.target.value))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Precio anual resultante</Label>
+                <p className="rounded-md border border-border bg-secondary/40 px-3 py-2 text-sm">
+                  ${Math.round((plan.priceMxn * 12 * (100 - (plan.annualDiscountPercent ?? 20))) / 100).toLocaleString("es-MX")}{" "}
+                  MXN / año
+                </p>
               </div>
             </div>
             <div className="mt-5 flex justify-end">

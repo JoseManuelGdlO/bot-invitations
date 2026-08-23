@@ -10,6 +10,7 @@ export const PLAN_DEFS = [
     guestLimit: 300,
     highlighted: false,
     sortOrder: 1,
+    annualDiscountPercent: 20,
   },
   {
     slug: "estudio",
@@ -20,6 +21,7 @@ export const PLAN_DEFS = [
     guestLimit: 1000,
     highlighted: true,
     sortOrder: 2,
+    annualDiscountPercent: 20,
   },
   {
     slug: "atelier",
@@ -30,16 +32,28 @@ export const PLAN_DEFS = [
     guestLimit: 3000,
     highlighted: false,
     sortOrder: 3,
+    annualDiscountPercent: 20,
   },
 ];
 
+export function annualDiscountOf(plan) {
+  return Math.min(80, Math.max(0, Number(plan.annualDiscountPercent) || 0));
+}
+
+export function yearlyPriceMxn(plan) {
+  return Math.max(0, Math.round(Number(plan.priceMxn) * 12 * (1 - annualDiscountOf(plan) / 100)));
+}
+
 export function serializePlan(plan) {
+  const discount = annualDiscountOf(plan);
   return {
     id: plan.id,
     slug: plan.slug,
     name: plan.name,
     tagline: plan.tagline,
     priceMxn: plan.priceMxn,
+    yearlyPriceMxn: yearlyPriceMxn(plan),
+    annualDiscountPercent: discount,
     eventLimit: plan.eventLimit,
     guestLimit: plan.guestLimit,
     highlighted: !!plan.highlighted,

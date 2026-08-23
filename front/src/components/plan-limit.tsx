@@ -15,8 +15,12 @@ export function isUpgradeError(err: unknown) {
   return err instanceof ApiError && err.status === 402;
 }
 
-async function checkoutPlan(startCheckout: (planId: string) => Promise<{ checkoutUrl?: string | null; updated?: boolean }>, planId: string) {
-  const res = await startCheckout(planId);
+async function checkoutPlan(
+  startCheckout: (planId: string, interval?: "month" | "year") => Promise<{ checkoutUrl?: string | null; updated?: boolean }>,
+  planId: string,
+  interval: "month" | "year" = "month",
+) {
+  const res = await startCheckout(planId, interval);
   if (res.checkoutUrl) {
     window.location.href = res.checkoutUrl;
     return;
@@ -57,7 +61,7 @@ export function PlanLimitBanner({
         toast.error("No hay un plan superior disponible");
         return;
       }
-      await checkoutPlan(startCheckout, next.id);
+      await checkoutPlan(startCheckout, next.id, session.billingInterval === "year" ? "year" : "month");
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "No se pudo abrir el pago");
     } finally {
@@ -104,7 +108,7 @@ export function PendingPaymentBanner({ session }: { session: SessionUser | null 
     }
     setLoading(true);
     try {
-      await checkoutPlan(startCheckout, session.plan.id);
+      await checkoutPlan(startCheckout, session.plan.id, session.billingInterval === "year" ? "year" : "month");
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "No se pudo abrir el pago");
     } finally {
@@ -131,7 +135,7 @@ export function PlanUsageHint({ session }: { session: SessionUser | null }) {
   return (
     <p className="truncate text-[11px] text-muted-foreground">
       {usage.eventCount}/{usage.eventLimit} eventos · {usage.guestCount.toLocaleString("es-MX")}/
-      {usage.guestLimit.toLocaleString("es-MX")} invitados
+      {usage.guestLimit.toLocaleString("es-MX")} invitados · {session.billingInterval === "year" ? "anual" : "mensual"}
     </p>
   );
 }

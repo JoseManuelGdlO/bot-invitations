@@ -49,7 +49,8 @@ export const listPlans = asyncHandler(async (_req, res) => {
 });
 
 export const register = asyncHandler(async (req, res) => {
-  const { name, email, password, planId, phone, state, businessName } = req.body || {};
+  const { name, email, password, planId, phone, state, businessName, interval } = req.body || {};
+  const billingInterval = interval === "year" ? "year" : "month";
   if (!name?.trim() || !email?.trim() || !password || String(password).length < 6) {
     return res.status(400).json({ error: "Nombre, correo y contraseña (mín. 6) son requeridos." });
   }
@@ -70,13 +71,14 @@ export const register = asyncHandler(async (req, res) => {
     phone: phone.trim(),
     state: state.trim(),
     planId: plan.id,
+    billingInterval,
     subscriptionStatus: stripeEnabled() ? "pending" : "active",
   });
   const tokens = await issueTokens(res, user, false);
   let checkoutUrl = null;
   if (stripeEnabled()) {
     try {
-      const checkout = await startCheckout(user, plan);
+      const checkout = await startCheckout(user, plan, { interval: billingInterval });
       checkoutUrl = checkout.checkoutUrl;
     } catch (err) {
       console.error("[stripe] checkout en registro", err.message);

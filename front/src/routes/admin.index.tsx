@@ -67,9 +67,12 @@ function AdminHome() {
             <div key={plan.id} className="rounded-2xl border border-border bg-card p-5 shadow-soft">
               <p className="font-display text-2xl">{plan.name}</p>
               <p className="mt-1 text-sm text-muted-foreground">{plan.tagline}</p>
-              <p className="mt-4 font-display text-3xl">${plan.priceMxn.toLocaleString("es-MX")}</p>
+              <p className="mt-4 font-display text-3xl">${plan.priceMxn.toLocaleString("es-MX")}<span className="text-base text-muted-foreground"> / mes</span></p>
               <p className="mt-2 text-sm text-muted-foreground">
                 {plan.eventLimit} eventos · {plan.guestLimit.toLocaleString("es-MX")} invitados
+                {plan.yearlyPriceMxn
+                  ? ` · anual $${plan.yearlyPriceMxn.toLocaleString("es-MX")} (−${plan.annualDiscountPercent ?? 20}%)`
+                  : ""}
               </p>
             </div>
           ))}

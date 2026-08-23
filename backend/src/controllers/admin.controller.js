@@ -148,11 +148,15 @@ export const updatePlan = asyncHandler(async (req, res) => {
   const plan = await Plan.findByPk(req.params.planId);
   if (!plan) return res.status(404).json({ error: "Plan no encontrado." });
   const previousPrice = plan.priceMxn;
-  const allowed = ["name", "tagline", "priceMxn", "eventLimit", "guestLimit", "highlighted"];
+  const previousDiscount = plan.annualDiscountPercent;
+  const allowed = ["name", "tagline", "priceMxn", "eventLimit", "guestLimit", "highlighted", "annualDiscountPercent"];
   for (const key of allowed) {
     if (req.body?.[key] !== undefined) plan[key] = req.body[key];
   }
-  const priceChanged = req.body?.priceMxn !== undefined && Number(req.body.priceMxn) !== Number(previousPrice);
+  const priceChanged =
+    (req.body?.priceMxn !== undefined && Number(req.body.priceMxn) !== Number(previousPrice)) ||
+    (req.body?.annualDiscountPercent !== undefined &&
+      Number(req.body.annualDiscountPercent) !== Number(previousDiscount));
   await plan.save();
   const { ensureStripePrice, stripeEnabled } = await import("../services/stripe.service.js");
   if (stripeEnabled()) {

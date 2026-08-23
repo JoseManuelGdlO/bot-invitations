@@ -16,8 +16,9 @@ import { useStore } from "@/lib/mock/store";
 import { toast } from "sonner";
 import { api, ApiError } from "@/lib/api/client";
 import { pageHead } from "@/lib/seo";
-import type { SubscriptionPlan } from "@/lib/mock/types";
+import type { BillingInterval, SubscriptionPlan } from "@/lib/mock/types";
 import { cn } from "@/lib/utils";
+import { BillingToggle, yearlyAmount } from "@/components/billing-toggle";
 
 export const Route = createFileRoute("/registro")({
   validateSearch: (s: Record<string, unknown>) => ({
@@ -81,6 +82,7 @@ function Registro() {
   const [password, setPassword] = useState("");
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [planId, setPlanId] = useState("");
+  const [interval, setInterval] = useState<BillingInterval>("month");
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -111,7 +113,16 @@ function Registro() {
     }
     setLoading(true);
     try {
-      const { checkoutUrl } = await register({ name, email, password, planId, phone, state, businessName });
+      const { checkoutUrl } = await register({
+        name,
+        email,
+        password,
+        planId,
+        phone,
+        state,
+        businessName,
+        interval,
+      });
       if (checkoutUrl) {
         toast.success("Cuenta creada", { description: "Te llevamos a Stripe para pagar tu plan." });
         window.location.href = checkoutUrl;
@@ -209,6 +220,10 @@ function Registro() {
           </>
         ) : (
           <>
+            <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm text-muted-foreground">¿Cómo quieres pagar?</p>
+              <BillingToggle value={interval} onChange={setInterval} />
+            </div>
             <div className="grid gap-3">
               {plans.map((plan) => (
                 <button
@@ -225,7 +240,11 @@ function Registro() {
                       <p className="font-display text-2xl">{plan.name}</p>
                       <p className="mt-0.5 text-sm text-muted-foreground">{plan.tagline}</p>
                     </div>
-                    <p className="font-display text-2xl">${plan.priceMxn.toLocaleString("es-MX")}</p>
+                    <p className="font-display text-2xl">
+                      {interval === "year"
+                        ? `$${yearlyAmount(plan).toLocaleString("es-MX")}`
+                        : `$${plan.priceMxn.toLocaleString("es-MX")}`}
+                    </p>
                   </div>
                   <ul className="mt-3 flex flex-wrap gap-4 text-sm text-muted-foreground">
                     <li className="flex items-center gap-1.5">
@@ -235,7 +254,10 @@ function Registro() {
                       <Users className="size-3.5 text-gold" /> {plan.guestLimit.toLocaleString("es-MX")} invitados
                     </li>
                     <li className="flex items-center gap-1.5">
-                      <Check className="size-3.5 text-success" /> MXN / mes
+                      <Check className="size-3.5 text-success" />{" "}
+                      {interval === "year"
+                        ? `MXN / año · ${plan.annualDiscountPercent ?? 20}% off`
+                        : "MXN / mes"}
                     </li>
                   </ul>
                 </button>

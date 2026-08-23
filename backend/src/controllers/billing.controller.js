@@ -39,6 +39,7 @@ export const checkout = asyncHandler(async (req, res) => {
   const result = await startCheckout(req.user, plan, {
     successPath: "/registro/exito",
     cancelPath: "/eventos",
+    interval: req.body?.interval === "year" ? "year" : "month",
   });
   res.json(result);
 });

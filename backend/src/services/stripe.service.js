@@ -1,6 +1,8 @@
 import Stripe from "stripe";
+import { Op } from "sequelize";
 import { Plan, User } from "../models/index.js";
 import { env } from "../config/env.js";
+import { yearlyPriceMxn } from "./plans.service.js";
 
 let client = null;
 
@@ -12,6 +14,25 @@ export function getStripe() {
   if (!env.stripe.secret) return null;
   if (!client) client = new Stripe(env.stripe.secret);
   return client;
+}
+
+function normalizeInterval(value) {
+  return value === "year" ? "year" : "month";
+}
+
+async function upsertRecurringPrice(stripe, plan, { interval, amountMxn, currentId, rotate }) {
+  if (currentId && !rotate) return currentId;
+  const price = await stripe.prices.create({
+    product: plan.stripeProductId,
+    currency: "mxn",
+    unit_amount: Number(amountMxn) * 100,
+    recurring: { interval },
+    metadata: { planId: plan.id, slug: plan.slug, interval },
+  });
+  if (currentId) {
+    await stripe.prices.update(currentId, { active: false }).catch(() => undefined);
+  }
+  return price.id;
 }
 
 export async function ensureStripePrice(plan, { rotate = false } = {}) {
@@ -30,19 +51,18 @@ export async function ensureStripePrice(plan, { rotate = false } = {}) {
       description: plan.tagline,
     });
   }
-  if (!plan.stripePriceId || rotate) {
-    const price = await stripe.prices.create({
-      product: plan.stripeProductId,
-      currency: "mxn",
-      unit_amount: Number(plan.priceMxn) * 100,
-      recurring: { interval: "month" },
-      metadata: { planId: plan.id, slug: plan.slug },
-    });
-    if (plan.stripePriceId) {
-      await stripe.prices.update(plan.stripePriceId, { active: false }).catch(() => undefined);
-    }
-    plan.stripePriceId = price.id;
-  }
+  plan.stripePriceId = await upsertRecurringPrice(stripe, plan, {
+    interval: "month",
+    amountMxn: plan.priceMxn,
+    currentId: plan.stripePriceId,
+    rotate,
+  });
+  plan.stripeYearlyPriceId = await upsertRecurringPrice(stripe, plan, {
+    interval: "year",
+    amountMxn: yearlyPriceMxn(plan),
+    currentId: plan.stripeYearlyPriceId,
+    rotate,
+  });
   await plan.save();
   return plan;
 }
@@ -79,25 +99,37 @@ function mapStripeStatus(status) {
   return "pending";
 }
 
-export async function applySubscription({ userId, planId, customerId, subscriptionId, status }) {
+function priceIdFor(plan, interval) {
+  return interval === "year" ? plan.stripeYearlyPriceId : plan.stripePriceId;
+}
+
+export async function applySubscription({ userId, planId, customerId, subscriptionId, status, interval }) {
   const user = userId ? await User.findByPk(userId) : await User.findOne({ where: { stripeCustomerId: customerId } });
   if (!user) return null;
   if (planId) user.planId = planId;
   if (customerId) user.stripeCustomerId = customerId;
   if (subscriptionId) user.stripeSubscriptionId = subscriptionId;
   if (status) user.subscriptionStatus = mapStripeStatus(status);
+  if (interval) user.billingInterval = normalizeInterval(interval);
   await user.save();
   return user;
 }
 
-export async function startCheckout(user, plan, { successPath, cancelPath } = {}) {
+export async function startCheckout(user, plan, { successPath, cancelPath, interval = "month" } = {}) {
   const stripe = getStripe();
   if (!stripe) {
     const err = new Error("Stripe no está configurado. Agrega STRIPE_SECRET_KEY.");
     err.status = 503;
     throw err;
   }
+  const billingInterval = normalizeInterval(interval);
   await ensureStripePrice(plan);
+  const priceId = priceIdFor(plan, billingInterval);
+  if (!priceId) {
+    const err = new Error("Este plan aún no tiene precio de Stripe.");
+    err.status = 503;
+    throw err;
+  }
   const customerId = await ensureCustomer(user);
 
   if (user.stripeSubscriptionId && user.subscriptionStatus === "active") {
@@ -105,12 +137,13 @@ export async function startCheckout(user, plan, { successPath, cancelPath } = {}
     const item = subscription.items.data[0];
     if (item) {
       await stripe.subscriptions.update(user.stripeSubscriptionId, {
-        items: [{ id: item.id, price: plan.stripePriceId }],
-        metadata: { userId: user.id, planId: plan.id },
+        items: [{ id: item.id, price: priceId }],
+        metadata: { userId: user.id, planId: plan.id, interval: billingInterval },
         proration_behavior: "create_prorations",
       });
     }
     user.planId = plan.id;
+    user.billingInterval = billingInterval;
     await user.save();
     return { checkoutUrl: null, updated: true };
   }
@@ -119,11 +152,11 @@ export async function startCheckout(user, plan, { successPath, cancelPath } = {}
     mode: "subscription",
     customer: customerId,
     locale: "es",
-    line_items: [{ price: plan.stripePriceId, quantity: 1 }],
+    line_items: [{ price: priceId, quantity: 1 }],
     success_url: `${env.clientUrl}${successPath || "/registro/exito"}?session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${env.clientUrl}${cancelPath || "/registro?pago=cancelado"}`,
-    metadata: { userId: user.id, planId: plan.id },
-    subscription_data: { metadata: { userId: user.id, planId: plan.id } },
+    metadata: { userId: user.id, planId: plan.id, interval: billingInterval },
+    subscription_data: { metadata: { userId: user.id, planId: plan.id, interval: billingInterval } },
     allow_promotion_codes: true,
   });
   return { checkoutUrl: session.url, updated: false };
@@ -154,8 +187,16 @@ export async function confirmCheckoutSession(sessionId) {
     customerId: session.customer,
     subscriptionId: session.subscription,
     status: "active",
+    interval: session.metadata?.interval,
   });
   return session;
+}
+
+async function planByPriceId(priceId) {
+  if (!priceId) return null;
+  return Plan.findOne({
+    where: { [Op.or]: [{ stripePriceId: priceId }, { stripeYearlyPriceId: priceId }] },
+  });
 }
 
 export async function handleStripeEvent(event) {
@@ -167,6 +208,7 @@ export async function handleStripeEvent(event) {
       customerId: object.customer,
       subscriptionId: object.subscription,
       status: "active",
+      interval: object.metadata?.interval,
     });
     return;
   }
@@ -176,13 +218,15 @@ export async function handleStripeEvent(event) {
     event.type === "customer.subscription.created"
   ) {
     const priceId = object.items?.data?.[0]?.price?.id;
-    const plan = priceId ? await Plan.findOne({ where: { stripePriceId: priceId } }) : null;
+    const interval = object.items?.data?.[0]?.price?.recurring?.interval || object.metadata?.interval;
+    const plan = await planByPriceId(priceId);
     await applySubscription({
       userId: object.metadata?.userId,
       planId: object.metadata?.planId || plan?.id,
       customerId: object.customer,
       subscriptionId: object.id,
       status: object.status,
+      interval,
     });
     return;
   }

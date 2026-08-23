@@ -43,6 +43,7 @@ export function serializeUser(user, plan = null, usage = null) {
     phone: user.phone || "",
     state: user.state || "",
     subscriptionStatus: user.subscriptionStatus || "active",
+    billingInterval: user.billingInterval || "month",
     plan: plan
       ? {
           id: plan.id,

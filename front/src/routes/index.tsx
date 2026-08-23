@@ -5,8 +5,9 @@ import logo from "@/assets/alanna-logo.png";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api/client";
 import { pageHead, faqJsonLd, businessJsonLd } from "@/lib/seo";
-import type { SubscriptionPlan } from "@/lib/mock/types";
+import type { BillingInterval, SubscriptionPlan } from "@/lib/mock/types";
 import { useStore } from "@/lib/mock/store";
+import { BillingToggle, PlanPrice } from "@/components/billing-toggle";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -25,14 +26,15 @@ export const Route = createFileRoute("/")({
 });
 
 const fallbackPlans: SubscriptionPlan[] = [
-  { id: "esencial", slug: "esencial", name: "Esencial", tagline: "Para planners que empiezan con bodas íntimas.", priceMxn: 500, eventLimit: 2, guestLimit: 300, highlighted: false },
-  { id: "estudio", slug: "estudio", name: "Estudio", tagline: "El ritmo de un estudio con varias fechas al año.", priceMxn: 1200, eventLimit: 6, guestLimit: 1000, highlighted: true },
-  { id: "atelier", slug: "atelier", name: "Atelier", tagline: "Para equipos con temporada completa de eventos.", priceMxn: 2400, eventLimit: 15, guestLimit: 3000, highlighted: false },
+  { id: "esencial", slug: "esencial", name: "Esencial", tagline: "Para planners que empiezan con bodas íntimas.", priceMxn: 500, yearlyPriceMxn: 4800, annualDiscountPercent: 20, eventLimit: 2, guestLimit: 300, highlighted: false },
+  { id: "estudio", slug: "estudio", name: "Estudio", tagline: "El ritmo de un estudio con varias fechas al año.", priceMxn: 1200, yearlyPriceMxn: 11520, annualDiscountPercent: 20, eventLimit: 6, guestLimit: 1000, highlighted: true },
+  { id: "atelier", slug: "atelier", name: "Atelier", tagline: "Para equipos con temporada completa de eventos.", priceMxn: 2400, yearlyPriceMxn: 23040, annualDiscountPercent: 20, eventLimit: 15, guestLimit: 3000, highlighted: false },
 ];
 
 function Landing() {
   const { session, startCheckout } = useStore();
   const [plans, setPlans] = useState<SubscriptionPlan[]>(fallbackPlans);
+  const [interval, setInterval] = useState<BillingInterval>("month");
 
   useEffect(() => {
     api<SubscriptionPlan[]>("/plans")
@@ -134,8 +136,11 @@ function Landing() {
           <p className="text-xs font-medium uppercase tracking-[0.16em] text-gold">Suscripciones</p>
           <h2 className="mt-2 font-display text-4xl">Elige según tus eventos e invitados</h2>
           <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
-            Cada plan incluye el asistente, importación, conversaciones y exportaciones. Pagas por el volumen que tu estudio realmente atiende.
+            Cada plan incluye el asistente, importación, conversaciones y exportaciones. Paga el mes o el año completo.
           </p>
+          <div className="mt-6">
+            <BillingToggle value={interval} onChange={setInterval} />
+          </div>
           <div className="mt-8 grid gap-5 lg:grid-cols-3">
             {plans.map((plan) => (
               <article
@@ -147,10 +152,9 @@ function Landing() {
                 ) : null}
                 <h3 className="font-display text-3xl">{plan.name}</h3>
                 <p className="mt-1 text-sm text-muted-foreground">{plan.tagline}</p>
-                <p className="mt-5 font-display text-4xl">
-                  ${plan.priceMxn.toLocaleString("es-MX")}
-                  <span className="ml-1 text-base text-muted-foreground">MXN / mes</span>
-                </p>
+                <div className="mt-5">
+                  <PlanPrice plan={plan} interval={interval} />
+                </div>
                 <ul className="mt-5 space-y-2 text-sm">
                   <li className="flex items-center gap-2">
                     <CalendarHeart className="size-4 text-gold" /> {plan.eventLimit} eventos
@@ -168,7 +172,7 @@ function Landing() {
                     variant={plan.highlighted ? "default" : "outline"}
                     onClick={async () => {
                       try {
-                        const res = await startCheckout(plan.id);
+                        const res = await startCheckout(plan.id, interval);
                         if (res.checkoutUrl) window.location.href = res.checkoutUrl;
                         else window.location.assign("/eventos");
                       } catch {

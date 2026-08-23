@@ -19,6 +19,8 @@ export const Plan = sequelize.define("plans", {
   sortOrder: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
   stripeProductId: { type: DataTypes.STRING(80), allowNull: true },
   stripePriceId: { type: DataTypes.STRING(80), allowNull: true },
+  stripeYearlyPriceId: { type: DataTypes.STRING(80), allowNull: true },
+  annualDiscountPercent: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 20 },
 });
 
 export const User = sequelize.define("users", {
@@ -35,6 +37,7 @@ export const User = sequelize.define("users", {
   isAdmin: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
   stripeCustomerId: { type: DataTypes.STRING(80), allowNull: true },
   stripeSubscriptionId: { type: DataTypes.STRING(80), allowNull: true },
+  billingInterval: { type: DataTypes.ENUM("month", "year"), allowNull: false, defaultValue: "month" },
 });
 
 export const RefreshToken = sequelize.define("refresh_tokens", {

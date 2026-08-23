@@ -101,12 +101,16 @@ export interface ActivityItem {
   kind: "confirm" | "reject" | "message" | "system";
 }
 
+export type BillingInterval = "month" | "year";
+
 export interface SubscriptionPlan {
   id: string;
   slug: string;
   name: string;
   tagline: string;
   priceMxn: number;
+  yearlyPriceMxn?: number;
+  annualDiscountPercent?: number;
   eventLimit: number;
   guestLimit: number;
   highlighted: boolean;
@@ -131,6 +135,7 @@ export interface SessionUser {
   phone?: string;
   state?: string;
   subscriptionStatus?: string;
+  billingInterval?: BillingInterval;
   plan?: Pick<SubscriptionPlan, "id" | "slug" | "name" | "priceMxn" | "eventLimit" | "guestLimit"> | null;
   usage?: PlanUsage;
 }
