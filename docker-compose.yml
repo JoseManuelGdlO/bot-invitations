@@ -29,6 +29,8 @@ services:
       WORKER_INTERVAL_MS: ${WORKER_INTERVAL_MS:-5000}
       ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@alannaconfirmaciones.com.mx}
       ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
 
   front:
     build:

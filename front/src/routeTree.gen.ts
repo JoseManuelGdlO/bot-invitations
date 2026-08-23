@@ -22,6 +22,7 @@ import { Route as AdminPlanesRouteImport } from './routes/admin.planes'
 import { Route as EventosIndexRouteImport } from './routes/eventos.index'
 import { Route as EventosEventIdRouteImport } from './routes/eventos.$eventId'
 import { Route as EventosNuevoRouteImport } from './routes/eventos.nuevo'
+import { Route as RegistroExitoRouteImport } from './routes/registro.exito'
 import { Route as EventosEventIdIndexRouteImport } from './routes/eventos.$eventId.index'
 import { Route as EventosEventIdAutomatizacionRouteImport } from './routes/eventos.$eventId.automatizacion'
 import { Route as EventosEventIdConfiguracionRouteImport } from './routes/eventos.$eventId.configuracion'
@@ -98,6 +99,11 @@ const EventosNuevoRoute = EventosNuevoRouteImport.update({
   path: '/nuevo',
   getParentRoute: () => EventosRoute,
 } as any)
+const RegistroExitoRoute = RegistroExitoRouteImport.update({
+  id: '/exito',
+  path: '/exito',
+  getParentRoute: () => RegistroRoute,
+} as any)
 const EventosEventIdIndexRoute = EventosEventIdIndexRouteImport.update({
   id: '/',
   path: '/',
@@ -160,12 +166,13 @@ export interface FileRoutesByFullPath {
   '/eventos': typeof EventosRouteWithChildren
   '/iniciar-sesion': typeof IniciarSesionRoute
   '/recuperar-contrasena': typeof RecuperarContrasenaRoute
-  '/registro': typeof RegistroRoute
+  '/registro': typeof RegistroRouteWithChildren
   '/restablecer-contrasena': typeof RestablecerContrasenaRoute
   '/admin/clientes': typeof AdminClientesRoute
   '/admin/planes': typeof AdminPlanesRoute
   '/eventos/$eventId': typeof EventosEventIdRouteWithChildren
   '/eventos/nuevo': typeof EventosNuevoRoute
+  '/registro/exito': typeof RegistroExitoRoute
   '/admin/': typeof AdminIndexRoute
   '/eventos/': typeof EventosIndexRoute
   '/eventos/$eventId/automatizacion': typeof EventosEventIdAutomatizacionRoute
@@ -183,11 +190,12 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/iniciar-sesion': typeof IniciarSesionRoute
   '/recuperar-contrasena': typeof RecuperarContrasenaRoute
-  '/registro': typeof RegistroRoute
+  '/registro': typeof RegistroRouteWithChildren
   '/restablecer-contrasena': typeof RestablecerContrasenaRoute
   '/admin/clientes': typeof AdminClientesRoute
   '/admin/planes': typeof AdminPlanesRoute
   '/eventos/nuevo': typeof EventosNuevoRoute
+  '/registro/exito': typeof RegistroExitoRoute
   '/admin': typeof AdminIndexRoute
   '/eventos': typeof EventosIndexRoute
   '/eventos/$eventId/automatizacion': typeof EventosEventIdAutomatizacionRoute
@@ -208,12 +216,13 @@ export interface FileRoutesById {
   '/eventos': typeof EventosRouteWithChildren
   '/iniciar-sesion': typeof IniciarSesionRoute
   '/recuperar-contrasena': typeof RecuperarContrasenaRoute
-  '/registro': typeof RegistroRoute
+  '/registro': typeof RegistroRouteWithChildren
   '/restablecer-contrasena': typeof RestablecerContrasenaRoute
   '/admin/clientes': typeof AdminClientesRoute
   '/admin/planes': typeof AdminPlanesRoute
   '/eventos/$eventId': typeof EventosEventIdRouteWithChildren
   '/eventos/nuevo': typeof EventosNuevoRoute
+  '/registro/exito': typeof RegistroExitoRoute
   '/admin/': typeof AdminIndexRoute
   '/eventos/': typeof EventosIndexRoute
   '/eventos/$eventId/automatizacion': typeof EventosEventIdAutomatizacionRoute
@@ -241,6 +250,7 @@ export interface FileRouteTypes {
     | '/admin/planes'
     | '/eventos/$eventId'
     | '/eventos/nuevo'
+    | '/registro/exito'
     | '/admin/'
     | '/eventos/'
     | '/eventos/$eventId/automatizacion'
@@ -263,6 +273,7 @@ export interface FileRouteTypes {
     | '/admin/clientes'
     | '/admin/planes'
     | '/eventos/nuevo'
+    | '/registro/exito'
     | '/admin'
     | '/eventos'
     | '/eventos/$eventId/automatizacion'
@@ -288,6 +299,7 @@ export interface FileRouteTypes {
     | '/admin/planes'
     | '/eventos/$eventId'
     | '/eventos/nuevo'
+    | '/registro/exito'
     | '/admin/'
     | '/eventos/'
     | '/eventos/$eventId/automatizacion'
@@ -308,7 +320,7 @@ export interface RootRouteChildren {
   EventosRoute: typeof EventosRouteWithChildren
   IniciarSesionRoute: typeof IniciarSesionRoute
   RecuperarContrasenaRoute: typeof RecuperarContrasenaRoute
-  RegistroRoute: typeof RegistroRoute
+  RegistroRoute: typeof RegistroRouteWithChildren
   RestablecerContrasenaRoute: typeof RestablecerContrasenaRoute
 }
 
@@ -404,6 +416,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/eventos/nuevo'
       preLoaderRoute: typeof EventosNuevoRouteImport
       parentRoute: typeof EventosRoute
+    }
+    '/registro/exito': {
+      id: '/registro/exito'
+      path: '/exito'
+      fullPath: '/registro/exito'
+      preLoaderRoute: typeof RegistroExitoRouteImport
+      parentRoute: typeof RegistroRoute
     }
     '/eventos/$eventId/': {
       id: '/eventos/$eventId/'
@@ -537,13 +556,25 @@ const EventosRouteChildren: EventosRouteChildren = {
 const EventosRouteWithChildren =
   EventosRoute._addFileChildren(EventosRouteChildren)
 
+interface RegistroRouteChildren {
+  RegistroExitoRoute: typeof RegistroExitoRoute
+}
+
+const RegistroRouteChildren: RegistroRouteChildren = {
+  RegistroExitoRoute: RegistroExitoRoute,
+}
+
+const RegistroRouteWithChildren = RegistroRoute._addFileChildren(
+  RegistroRouteChildren,
+)
+
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRouteWithChildren,
   EventosRoute: EventosRouteWithChildren,
   IniciarSesionRoute: IniciarSesionRoute,
   RecuperarContrasenaRoute: RecuperarContrasenaRoute,
-  RegistroRoute: RegistroRoute,
+  RegistroRoute: RegistroRouteWithChildren,
   RestablecerContrasenaRoute: RestablecerContrasenaRoute,
 }
 export const routeTree = rootRouteImport

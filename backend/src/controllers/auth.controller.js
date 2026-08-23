@@ -12,6 +12,7 @@ import {
 import { loadUserState } from "../services/state.service.js";
 import { asyncHandler } from "../utils/async.js";
 import { getPlanUsage, serializePlan } from "../services/plans.service.js";
+import { startCheckout, stripeEnabled } from "../services/stripe.service.js";
 
 async function userWithPlan(user) {
   const plan = user.planId ? await Plan.findByPk(user.planId) : null;
@@ -69,10 +70,19 @@ export const register = asyncHandler(async (req, res) => {
     phone: phone.trim(),
     state: state.trim(),
     planId: plan.id,
-    subscriptionStatus: "active",
+    subscriptionStatus: stripeEnabled() ? "pending" : "active",
   });
   const tokens = await issueTokens(res, user, false);
-  res.status(201).json(tokens);
+  let checkoutUrl = null;
+  if (stripeEnabled()) {
+    try {
+      const checkout = await startCheckout(user, plan);
+      checkoutUrl = checkout.checkoutUrl;
+    } catch (err) {
+      console.error("[stripe] checkout en registro", err.message);
+    }
+  }
+  res.status(201).json({ ...tokens, checkoutUrl });
 });
 
 export const login = asyncHandler(async (req, res) => {

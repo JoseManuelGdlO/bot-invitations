@@ -31,7 +31,7 @@ const fallbackPlans: SubscriptionPlan[] = [
 ];
 
 function Landing() {
-  const { session } = useStore();
+  const { session, startCheckout } = useStore();
   const [plans, setPlans] = useState<SubscriptionPlan[]>(fallbackPlans);
 
   useEffect(() => {
@@ -162,11 +162,29 @@ function Landing() {
                     <Check className="size-4 text-success" /> Asistente, importación y lista final
                   </li>
                 </ul>
-                <Button className="mt-6" variant={plan.highlighted ? "default" : "outline"} asChild>
-                  <Link to="/registro" search={{ plan: plan.slug }}>
-                    Contratar {plan.name}
-                  </Link>
-                </Button>
+                {session && !session.isAdmin ? (
+                  <Button
+                    className="mt-6"
+                    variant={plan.highlighted ? "default" : "outline"}
+                    onClick={async () => {
+                      try {
+                        const res = await startCheckout(plan.id);
+                        if (res.checkoutUrl) window.location.href = res.checkoutUrl;
+                        else window.location.assign("/eventos");
+                      } catch {
+                        window.location.assign("/iniciar-sesion");
+                      }
+                    }}
+                  >
+                    Cambiar a {plan.name}
+                  </Button>
+                ) : (
+                  <Button className="mt-6" variant={plan.highlighted ? "default" : "outline"} asChild>
+                    <Link to="/registro" search={{ plan: plan.slug }}>
+                      Contratar {plan.name}
+                    </Link>
+                  </Button>
+                )}
               </article>
             ))}
           </div>

@@ -17,6 +17,8 @@ export const Plan = sequelize.define("plans", {
   guestLimit: { type: DataTypes.INTEGER, allowNull: false },
   highlighted: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
   sortOrder: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
+  stripeProductId: { type: DataTypes.STRING(80), allowNull: true },
+  stripePriceId: { type: DataTypes.STRING(80), allowNull: true },
 });
 
 export const User = sequelize.define("users", {
@@ -31,6 +33,8 @@ export const User = sequelize.define("users", {
   planId: { type: DataTypes.CHAR(36), allowNull: true },
   subscriptionStatus: { type: DataTypes.ENUM("pending", "active", "canceled"), allowNull: false, defaultValue: "active" },
   isAdmin: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+  stripeCustomerId: { type: DataTypes.STRING(80), allowNull: true },
+  stripeSubscriptionId: { type: DataTypes.STRING(80), allowNull: true },
 });
 
 export const RefreshToken = sequelize.define("refresh_tokens", {

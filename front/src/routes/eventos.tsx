@@ -1,7 +1,9 @@
 import { Link, Outlet, createFileRoute, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useEffect } from "react";
-import { CalendarHeart, LayoutDashboard, LogOut, MessagesSquare, Settings2, Shield } from "lucide-react";
+import { CalendarHeart, CreditCard, LayoutDashboard, LogOut, MessagesSquare, Settings2, Shield } from "lucide-react";
 import { PlanUsageHint } from "@/components/plan-limit";
+import { toast } from "sonner";
+import { ApiError } from "@/lib/api/client";
 import logo from "@/assets/alanna-logo.png";
 import { initialsFrom, useStore } from "@/lib/mock/store";
 import { cn } from "@/lib/utils";
@@ -12,7 +14,7 @@ export const Route = createFileRoute("/eventos")({
 });
 
 function AppShell() {
-  const { session, hydrated, logout, events } = useStore();
+  const { session, hydrated, logout, events, openBillingPortal } = useStore();
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
@@ -119,6 +121,21 @@ function AppShell() {
                 {session.plan ? `Plan ${session.plan.name}` : session.role}
               </p>
               <PlanUsageHint session={session} />
+              {!session.isAdmin ? (
+                <button
+                  type="button"
+                  className="mt-1 flex items-center gap-1 text-[11px] text-gold hover:underline"
+                  onClick={async () => {
+                    try {
+                      await openBillingPortal();
+                    } catch (err) {
+                      toast.error(err instanceof ApiError ? err.message : "No se pudo abrir el portal de pagos");
+                    }
+                  }}
+                >
+                  <CreditCard className="size-3" /> Gestionar suscripción
+                </button>
+              ) : null}
             </div>
             <button
               onClick={() => {

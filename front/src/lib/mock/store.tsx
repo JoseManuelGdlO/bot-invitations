@@ -64,7 +64,9 @@ interface Ctx extends State {
       state: string;
       businessName: string;
     },
-  ) => Promise<void>;
+  ) => Promise<{ checkoutUrl?: string | null }>;
+  startCheckout: (planId: string) => Promise<{ checkoutUrl?: string | null; updated?: boolean }>;
+  openBillingPortal: () => Promise<void>;
   forgotPassword: (email: string) => Promise<void>;
   resetPassword: (token: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -153,11 +155,25 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         return res.user;
       },
       register: async (payload) => {
-        const res = await api<{ accessToken: string; user: SessionUser }>("/auth/register", {
-          method: "POST",
-          body: JSON.stringify(payload),
-        });
+        const res = await api<{ accessToken: string; user: SessionUser; checkoutUrl?: string | null }>(
+          "/auth/register",
+          {
+            method: "POST",
+            body: JSON.stringify(payload),
+          },
+        );
         await afterAuth(res);
+        return { checkoutUrl: res.checkoutUrl };
+      },
+      startCheckout: async (planId) => {
+        return api<{ checkoutUrl?: string | null; updated?: boolean }>("/billing/checkout", {
+          method: "POST",
+          body: JSON.stringify({ planId }),
+        });
+      },
+      openBillingPortal: async () => {
+        const res = await api<{ portalUrl: string }>("/billing/portal", { method: "POST" });
+        if (res.portalUrl) window.location.href = res.portalUrl;
       },
       forgotPassword: async (email) => {
         await api("/auth/forgot-password", { method: "POST", body: JSON.stringify({ email }) });

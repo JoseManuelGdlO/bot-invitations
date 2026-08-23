@@ -22,6 +22,7 @@ import { cn } from "@/lib/utils";
 export const Route = createFileRoute("/registro")({
   validateSearch: (s: Record<string, unknown>) => ({
     plan: typeof s.plan === "string" ? s.plan : undefined,
+    pago: typeof s.pago === "string" ? s.pago : undefined,
   }),
   head: () =>
     pageHead({
@@ -70,7 +71,7 @@ const MEXICO_STATES = [
 function Registro() {
   const { register } = useStore();
   const navigate = useNavigate();
-  const { plan: planSlug } = Route.useSearch();
+  const { plan: planSlug, pago } = Route.useSearch();
   const [step, setStep] = useState(0);
   const [name, setName] = useState("");
   const [businessName, setBusinessName] = useState("");
@@ -110,7 +111,12 @@ function Registro() {
     }
     setLoading(true);
     try {
-      await register({ name, email, password, planId, phone, state, businessName });
+      const { checkoutUrl } = await register({ name, email, password, planId, phone, state, businessName });
+      if (checkoutUrl) {
+        toast.success("Cuenta creada", { description: "Te llevamos a Stripe para pagar tu plan." });
+        window.location.href = checkoutUrl;
+        return;
+      }
       toast.success("Cuenta creada", { description: selected ? `Activamos el plan ${selected.name}.` : undefined });
       navigate({ to: "/eventos" });
     } catch (err) {
@@ -137,6 +143,12 @@ function Registro() {
           ? "Empieza a confirmar invitados de bodas y eventos con tu propio espacio."
           : "El plan define cuántos eventos e invitados puedes gestionar cada mes."}
       </p>
+
+      {pago === "cancelado" ? (
+        <p className="mt-6 rounded-xl border border-gold/40 bg-gold-soft/50 px-4 py-3 text-sm">
+          El pago se canceló. Puedes elegir un plan e intentarlo de nuevo.
+        </p>
+      ) : null}
 
       <form onSubmit={submit} className="mt-8 space-y-5">
         {step === 0 ? (
@@ -235,7 +247,7 @@ function Registro() {
               </Button>
               <Button type="submit" className="flex-1" size="lg" disabled={loading || !planId}>
                 {loading ? <Loader2 className="size-4 animate-spin" /> : null}
-                Confirmar y crear cuenta
+                Pagar y crear cuenta
               </Button>
             </div>
           </>

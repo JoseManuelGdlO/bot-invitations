@@ -13,7 +13,7 @@ import { StatCard } from "@/components/stat-card";
 import { EventCard } from "@/components/event-card";
 import { statsFor, useStore } from "@/lib/mock/store";
 import { cn } from "@/lib/utils";
-import { PlanLimitBanner } from "@/components/plan-limit";
+import { PendingPaymentBanner, PlanLimitBanner } from "@/components/plan-limit";
 
 export const Route = createFileRoute("/eventos/")({
   head: () => ({
@@ -62,7 +62,8 @@ function EventsDashboard() {
           </Button>
         ) : null}
       </div>
-      <div className="mt-6">
+      <div className="mt-6 space-y-4">
+        <PendingPaymentBanner session={session} />
         <PlanLimitBanner session={session} kind="event" />
       </div>
 

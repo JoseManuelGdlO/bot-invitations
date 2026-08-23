@@ -9,6 +9,7 @@ import * as eventData from "../controllers/event-data.controller.js";
 import * as team from "../controllers/team.controller.js";
 import * as analytics from "../controllers/analytics.controller.js";
 import * as admin from "../controllers/admin.controller.js";
+import * as billing from "../controllers/billing.controller.js";
 import { requireAdmin } from "../middleware/admin.js";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } });
@@ -26,6 +27,9 @@ router.use(requireAuth);
 
 router.get("/auth/me", auth.me);
 router.get("/dashboard", auth.dashboard);
+router.post("/billing/checkout", billing.checkout);
+router.post("/billing/portal", billing.portal);
+router.get("/billing/session/:sessionId", billing.confirmSession);
 router.get("/activity", analytics.listActivity);
 
 router.get("/events", events.listEvents);

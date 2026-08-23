@@ -45,4 +45,8 @@ export const env = {
   },
   resetUrl: process.env.FRONTEND_RESET_URL || "http://localhost:8080/restablecer-contrasena",
   workerIntervalMs: Number(process.env.WORKER_INTERVAL_MS || 5000),
+  stripe: {
+    secret: process.env.STRIPE_SECRET_KEY || "",
+    webhookSecret: process.env.STRIPE_WEBHOOK_SECRET || "",
+  },
 };
