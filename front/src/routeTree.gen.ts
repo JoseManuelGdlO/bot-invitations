@@ -11,6 +11,10 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as EventosRouteImport } from './routes/eventos'
+import { Route as IniciarSesionRouteImport } from './routes/iniciar-sesion'
+import { Route as RecuperarContrasenaRouteImport } from './routes/recuperar-contrasena'
+import { Route as RegistroRouteImport } from './routes/registro'
+import { Route as RestablecerContrasenaRouteImport } from './routes/restablecer-contrasena'
 import { Route as EventosIndexRouteImport } from './routes/eventos.index'
 import { Route as EventosEventIdRouteImport } from './routes/eventos.$eventId'
 import { Route as EventosNuevoRouteImport } from './routes/eventos.nuevo'
@@ -33,6 +37,26 @@ const IndexRoute = IndexRouteImport.update({
 const EventosRoute = EventosRouteImport.update({
   id: '/eventos',
   path: '/eventos',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const IniciarSesionRoute = IniciarSesionRouteImport.update({
+  id: '/iniciar-sesion',
+  path: '/iniciar-sesion',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RecuperarContrasenaRoute = RecuperarContrasenaRouteImport.update({
+  id: '/recuperar-contrasena',
+  path: '/recuperar-contrasena',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RegistroRoute = RegistroRouteImport.update({
+  id: '/registro',
+  path: '/registro',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const RestablecerContrasenaRoute = RestablecerContrasenaRouteImport.update({
+  id: '/restablecer-contrasena',
+  path: '/restablecer-contrasena',
   getParentRoute: () => rootRouteImport,
 } as any)
 const EventosIndexRoute = EventosIndexRouteImport.update({
@@ -109,6 +133,10 @@ const EventosEventIdResumenRoute = EventosEventIdResumenRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/eventos': typeof EventosRouteWithChildren
+  '/iniciar-sesion': typeof IniciarSesionRoute
+  '/recuperar-contrasena': typeof RecuperarContrasenaRoute
+  '/registro': typeof RegistroRoute
+  '/restablecer-contrasena': typeof RestablecerContrasenaRoute
   '/eventos/$eventId': typeof EventosEventIdRouteWithChildren
   '/eventos/nuevo': typeof EventosNuevoRoute
   '/eventos/': typeof EventosIndexRoute
@@ -125,6 +153,10 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/iniciar-sesion': typeof IniciarSesionRoute
+  '/recuperar-contrasena': typeof RecuperarContrasenaRoute
+  '/registro': typeof RegistroRoute
+  '/restablecer-contrasena': typeof RestablecerContrasenaRoute
   '/eventos/nuevo': typeof EventosNuevoRoute
   '/eventos': typeof EventosIndexRoute
   '/eventos/$eventId/automatizacion': typeof EventosEventIdAutomatizacionRoute
@@ -142,6 +174,10 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/eventos': typeof EventosRouteWithChildren
+  '/iniciar-sesion': typeof IniciarSesionRoute
+  '/recuperar-contrasena': typeof RecuperarContrasenaRoute
+  '/registro': typeof RegistroRoute
+  '/restablecer-contrasena': typeof RestablecerContrasenaRoute
   '/eventos/$eventId': typeof EventosEventIdRouteWithChildren
   '/eventos/nuevo': typeof EventosNuevoRoute
   '/eventos/': typeof EventosIndexRoute
@@ -161,6 +197,10 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/eventos'
+    | '/iniciar-sesion'
+    | '/recuperar-contrasena'
+    | '/registro'
+    | '/restablecer-contrasena'
     | '/eventos/$eventId'
     | '/eventos/nuevo'
     | '/eventos/'
@@ -177,6 +217,10 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/iniciar-sesion'
+    | '/recuperar-contrasena'
+    | '/registro'
+    | '/restablecer-contrasena'
     | '/eventos/nuevo'
     | '/eventos'
     | '/eventos/$eventId/automatizacion'
@@ -193,6 +237,10 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/eventos'
+    | '/iniciar-sesion'
+    | '/recuperar-contrasena'
+    | '/registro'
+    | '/restablecer-contrasena'
     | '/eventos/$eventId'
     | '/eventos/nuevo'
     | '/eventos/'
@@ -211,6 +259,10 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   EventosRoute: typeof EventosRouteWithChildren
+  IniciarSesionRoute: typeof IniciarSesionRoute
+  RecuperarContrasenaRoute: typeof RecuperarContrasenaRoute
+  RegistroRoute: typeof RegistroRoute
+  RestablecerContrasenaRoute: typeof RestablecerContrasenaRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -227,6 +279,34 @@ declare module '@tanstack/react-router' {
       path: '/eventos'
       fullPath: '/eventos'
       preLoaderRoute: typeof EventosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/iniciar-sesion': {
+      id: '/iniciar-sesion'
+      path: '/iniciar-sesion'
+      fullPath: '/iniciar-sesion'
+      preLoaderRoute: typeof IniciarSesionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/recuperar-contrasena': {
+      id: '/recuperar-contrasena'
+      path: '/recuperar-contrasena'
+      fullPath: '/recuperar-contrasena'
+      preLoaderRoute: typeof RecuperarContrasenaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/registro': {
+      id: '/registro'
+      path: '/registro'
+      fullPath: '/registro'
+      preLoaderRoute: typeof RegistroRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/restablecer-contrasena': {
+      id: '/restablecer-contrasena'
+      path: '/restablecer-contrasena'
+      fullPath: '/restablecer-contrasena'
+      preLoaderRoute: typeof RestablecerContrasenaRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/eventos/': {
@@ -371,7 +451,21 @@ const EventosRouteWithChildren =
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   EventosRoute: EventosRouteWithChildren,
+  IniciarSesionRoute: IniciarSesionRoute,
+  RecuperarContrasenaRoute: RecuperarContrasenaRoute,
+  RegistroRoute: RegistroRoute,
+  RestablecerContrasenaRoute: RestablecerContrasenaRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)
   ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { startInstance } from './start.ts'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+    config: Awaited<ReturnType<typeof startInstance.getOptions>>
+  }
+}

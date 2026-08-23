@@ -17,6 +17,7 @@ export const Route = createFileRoute("/eventos/$eventId/mensajes")({
       { name: "description", content: "Biblioteca de plantillas y respuestas frecuentes del evento." },
       { property: "og:title", content: "Centro de mensajes · Alanna Confirmaciones" },
       { property: "og:description", content: "Plantillas por categoría y respuestas frecuentes." },
+      { name: "robots", content: "noindex, nofollow" },
     ],
   }),
   component: Mensajes,
@@ -67,7 +68,10 @@ function Mensajes() {
                         <p className="font-medium">{t.title}</p>
                         <div className="flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
                           <button
-                            onClick={() => toast.success("Plantilla copiada")}
+                            onClick={() => {
+                              void navigator.clipboard.writeText(t.body);
+                              toast.success("Plantilla copiada");
+                            }}
                             className="rounded-md p-1.5 text-muted-foreground hover:bg-secondary"
                           >
                             <Copy className="size-4" />

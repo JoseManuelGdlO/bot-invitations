@@ -1,0 +1,28 @@
+import dotenv from "dotenv";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
+dotenv.config({ path: path.join(root, ".env") });
+
+export const env = {
+  port: Number(process.env.PORT || 4000),
+  nodeEnv: process.env.NODE_ENV || "development",
+  clientUrl: process.env.CLIENT_URL || "http://localhost:8080",
+  db: {
+    host: process.env.DB_HOST || "127.0.0.1",
+    port: Number(process.env.DB_PORT || 3306),
+    name: process.env.DB_NAME || "alanna",
+    user: process.env.DB_USER || "alanna",
+    password: process.env.DB_PASSWORD || "alanna",
+  },
+  jwt: {
+    accessSecret: process.env.JWT_ACCESS_SECRET || "dev-access",
+    refreshSecret: process.env.JWT_REFRESH_SECRET || "dev-refresh",
+    accessExpires: process.env.JWT_ACCESS_EXPIRES || "8h",
+    refreshDays: Number(process.env.JWT_REFRESH_EXPIRES_DAYS || 7),
+    rememberDays: Number(process.env.JWT_REFRESH_REMEMBER_DAYS || 30),
+  },
+  resetUrl: process.env.FRONTEND_RESET_URL || "http://localhost:8080/restablecer-contrasena",
+  workerIntervalMs: Number(process.env.WORKER_INTERVAL_MS || 5000),
+};

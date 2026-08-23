@@ -22,6 +22,7 @@ export const Route = createFileRoute("/eventos/$eventId/estadisticas")({
       { name: "description", content: "Gráficas de confirmaciones, respuestas y actividad del evento." },
       { property: "og:title", content: "Estadísticas · Alanna Confirmaciones" },
       { property: "og:description", content: "Gráficas de confirmaciones y actividad del evento." },
+      { name: "robots", content: "noindex, nofollow" },
     ],
   }),
   component: Estadisticas,
@@ -31,7 +32,7 @@ const days = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"];
 
 function Estadisticas() {
   const { eventId } = Route.useParams();
-  const { guests, conversations } = useEvent(eventId);
+  const { guests, conversations, analytics } = useEvent(eventId);
   const s = statsFor(guests);
 
   const donut = [
@@ -40,18 +41,18 @@ function Estadisticas() {
     { name: "No asistirán", value: s.rejectedPeople, color: "var(--chart-3)" },
   ];
 
-  const weights = [0.11, 0.18, 0.14, 0.21, 0.16, 0.12, 0.08];
-  const bars = days.map((d, i) => ({
-    day: d,
-    confirmaciones: Math.max(1, Math.round(s.confirmedPeople * (weights[i] ?? 0.14))),
-  }));
+  const bars = analytics?.dailyConfirmations?.length
+    ? analytics.dailyConfirmations
+    : days.map((d) => ({ day: d, confirmaciones: 0 }));
 
-  const timeline = [
-    { label: "Mensajes iniciales enviados", value: s.invitations, at: "Hace 3 semanas" },
-    { label: "Primeras respuestas recibidas", value: Math.round(s.invitations * 0.6), at: "Hace 2 semanas" },
-    { label: "Recordatorios automáticos", value: Math.round(s.invitations * 0.4), at: "Hace 6 días" },
-    { label: "Confirmaciones cerradas por el asistente", value: s.confirmed, at: "Esta semana" },
-  ];
+  const timeline = analytics?.timeline?.length
+    ? analytics.timeline
+    : [
+        { label: "Mensajes iniciales enviados", value: guests.filter((g) => g.lastMessage).length, at: "Registrado" },
+        { label: "Primeras respuestas recibidas", value: guests.filter((g) => g.lastReply).length, at: "Registrado" },
+        { label: "Conversaciones abiertas", value: conversations.length, at: "Actual" },
+        { label: "Confirmaciones cerradas", value: s.confirmed, at: "Actual" },
+      ];
 
   return (
     <main className="mx-auto w-full max-w-7xl flex-1 px-5 py-8 md:px-8">
@@ -63,7 +64,7 @@ function Estadisticas() {
         <StatCard label="Sin respuesta" value={s.noReply} />
         <StatCard label="Conversaciones activas" value={conversations.length} tone="gold" />
         <StatCard label="Tasa de respuesta" value={`${s.responseRate}%`} tone="gold" />
-        <StatCard label="Tiempo promedio de respuesta" value="2 h 14 m" />
+        <StatCard label="Tiempo promedio de respuesta" value={analytics?.averageResponseTime || "—"} />
       </div>
 
       <div className="mt-8 grid gap-6 lg:grid-cols-3">

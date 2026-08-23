@@ -24,6 +24,7 @@ export const Route = createFileRoute("/eventos/")({
       },
       { property: "og:title", content: "Panel general · Alanna Confirmaciones" },
       { property: "og:description", content: "Todos tus eventos y confirmaciones en un panel." },
+      { name: "robots", content: "noindex, nofollow" },
     ],
   }),
   component: EventsDashboard,

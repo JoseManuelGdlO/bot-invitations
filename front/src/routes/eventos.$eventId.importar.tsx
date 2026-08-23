@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { CheckCircle2, FileSpreadsheet, Loader2, UploadCloud } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
@@ -20,7 +20,7 @@ import {
 } from "@/components/ui/table";
 import { useStore } from "@/lib/mock/store";
 import { cn } from "@/lib/utils";
-import type { Guest } from "@/lib/mock/types";
+import type { ImportPreview } from "@/lib/mock/types";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/eventos/$eventId/importar")({
@@ -30,6 +30,7 @@ export const Route = createFileRoute("/eventos/$eventId/importar")({
       { name: "description", content: "Sube tu lista de invitados y mapea las columnas del archivo." },
       { property: "og:title", content: "Importar Excel · Alanna Confirmaciones" },
       { property: "og:description", content: "Carga y mapeo de columnas de la lista de invitados." },
+      { name: "robots", content: "noindex, nofollow" },
     ],
   }),
   component: Importar,
@@ -69,57 +70,45 @@ const previewRows = [
 
 function Importar() {
   const { eventId } = Route.useParams();
-  const { importGuests, logActivity } = useStore();
+  const { previewImport, confirmImport } = useStore();
   const navigate = useNavigate();
   const [phase, setPhase] = useState<"upload" | "processing" | "mapping" | "done">("upload");
   const [progress, setProgress] = useState(0);
   const [dragging, setDragging] = useState(false);
   const [mapping, setMapping] = useState(defaultMap);
+  const [preview, setPreview] = useState<ImportPreview | null>(null);
+  const [importedCount, setImportedCount] = useState(0);
+  const fileRef = useRef<HTMLInputElement>(null);
 
-  const startProcessing = () => {
+  const startProcessing = async (file: File) => {
     setPhase("processing");
-    setProgress(0);
-    let p = 0;
-    const t = setInterval(() => {
-      p += 12;
-      setProgress(Math.min(100, p));
-      if (p >= 100) {
-        clearInterval(t);
-        setTimeout(() => setPhase("mapping"), 400);
-      }
-    }, 180);
+    setProgress(20);
+    try {
+      const data = await previewImport(eventId, file);
+      setProgress(100);
+      setPreview(data);
+      setMapping(Object.keys(data.suggestedMapping).length ? data.suggestedMapping : defaultMap);
+      setTimeout(() => setPhase("mapping"), 250);
+    } catch {
+      setPhase("upload");
+      toast.error("No se pudo leer el archivo");
+    }
   };
 
-  const doImport = () => {
-    const rows: Guest[] = previewRows.map((r, i) => ({
-      id: `${eventId}-imp${Date.now()}-${i}`,
-      eventId,
-      rep: r[0]!,
-      phone: r[1]!,
-      invited: Number(r[2]),
-      confirmed: 0,
-      table: r[3]!,
-      family: r[4]!,
-      guestType: r[5]!,
-      notes: r[6]!,
-      tag: "Sin etiqueta",
-      status: "sin_contactar",
-      whatsapp: "pendiente",
-      lastMessage: "",
-      lastReply: "",
-      lastReplyAt: "",
-      followUp: "",
-    }));
-    importGuests(eventId, rows);
-    logActivity({
-      id: `act-${Date.now()}`,
-      eventId,
-      text: `Se importaron ${rows.length} invitaciones desde Excel`,
-      at: "hace un momento",
-      kind: "system",
-    });
-    setPhase("done");
-    toast.success(`${rows.length} invitaciones importadas`);
+  const doImport = async () => {
+    if (!preview) return;
+    try {
+      const res = await confirmImport(eventId, {
+        columns: preview.columns,
+        rows: preview.rows,
+        mapping,
+      });
+      setImportedCount(res.imported);
+      setPhase("done");
+      toast.success(`${res.imported} invitaciones importadas`);
+    } catch {
+      toast.error("No se pudo importar el archivo");
+    }
   };
 
   return (
@@ -134,7 +123,8 @@ function Importar() {
           onDrop={(e) => {
             e.preventDefault();
             setDragging(false);
-            startProcessing();
+            const file = e.dataTransfer.files[0];
+            if (file) void startProcessing(file);
           }}
           className={cn(
             "flex flex-col items-center justify-center rounded-2xl border-2 border-dashed p-16 text-center transition-all duration-300",
@@ -147,7 +137,17 @@ function Importar() {
             Arrastra tu archivo aquí o selecciónalo desde tu equipo
           </p>
           <p className="mt-1 text-xs text-muted-foreground">Formatos aceptados: .xlsx · .xls · .csv</p>
-          <Button className="mt-6" onClick={startProcessing}>
+          <input
+            ref={fileRef}
+            type="file"
+            accept=".xlsx,.xls,.csv"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) void startProcessing(file);
+            }}
+          />
+          <Button className="mt-6" onClick={() => fileRef.current?.click()}>
             <FileSpreadsheet className="size-4" /> Seleccionar archivo
           </Button>
         </div>
@@ -157,7 +157,7 @@ function Importar() {
         <div className="rounded-2xl border border-border bg-card p-16 text-center shadow-soft">
           <Loader2 className="mx-auto size-8 animate-spin text-gold" />
           <h2 className="mt-4 font-display text-2xl">Procesando archivo…</h2>
-          <p className="mt-1 text-sm text-muted-foreground">invitados-boda.xlsx · 24 KB</p>
+          <p className="mt-1 text-sm text-muted-foreground">{preview?.filename || "Procesando archivo"}</p>
           <Progress value={progress} className="mx-auto mt-6 h-2 max-w-md" />
           <p className="mt-3 text-xs text-muted-foreground">
             Detectando columnas y validando números de WhatsApp…
@@ -173,15 +173,15 @@ function Importar() {
               <h2 className="font-display text-2xl">Archivo procesado</h2>
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
-              invitados-boda.xlsx · 5 filas detectadas · 7 columnas
+              {preview?.filename} · {preview?.rows.length ?? 0} filas detectadas · {preview?.columns.length ?? 0} columnas
             </p>
             <div className="mt-5 overflow-x-auto rounded-xl border border-border">
               <Table>
                 <TableHeader>
-                  <TableRow>{excelColumns.map((c) => <TableHead key={c}>{c}</TableHead>)}</TableRow>
+                  <TableRow>{(preview?.columns ?? excelColumns).map((c) => <TableHead key={c}>{c}</TableHead>)}</TableRow>
                 </TableHeader>
                 <TableBody>
-                  {previewRows.map((r, i) => (
+                  {(preview?.rows ?? previewRows).slice(0, 8).map((r, i) => (
                     <TableRow key={i}>
                       {r.map((c, j) => (
                         <TableCell key={j} className="whitespace-nowrap text-muted-foreground">
@@ -201,7 +201,7 @@ function Importar() {
               Indica qué representa cada columna de tu archivo.
             </p>
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
-              {excelColumns.map((c) => (
+              {(preview?.columns ?? excelColumns).map((c) => (
                 <div key={c} className="flex items-center gap-3 rounded-xl border border-border p-3">
                   <div className="w-32 shrink-0">
                     <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Columna Excel</p>
@@ -234,7 +234,7 @@ function Importar() {
           </span>
           <h2 className="mt-4 font-display text-3xl">Invitados importados</h2>
           <p className="mt-2 text-sm text-muted-foreground">
-            5 invitaciones nuevas se agregaron a este evento y están listas para contactar.
+            {importedCount} invitaciones nuevas se agregaron a este evento y están listas para contactar.
           </p>
           <div className="mt-6 flex justify-center gap-3">
             <Button onClick={() => navigate({ to: "/eventos/$eventId/invitados", params: { eventId } })}>

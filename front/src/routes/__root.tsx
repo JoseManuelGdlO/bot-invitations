@@ -86,7 +86,11 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
           "Plataforma para confirmar invitados de bodas y eventos con conversaciones asistidas por IA.",
       },
       { property: "og:type", content: "website" },
+      { property: "og:image", content: "/favicon.png" },
       { name: "twitter:card", content: "summary_large_image" },
+      ...(import.meta.env.VITE_GSC_VERIFICATION
+        ? [{ name: "google-site-verification", content: String(import.meta.env.VITE_GSC_VERIFICATION) }]
+        : []),
     ],
     links: [
       { rel: "stylesheet", href: appCss },
@@ -98,6 +102,17 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       },
       { rel: "icon", href: "/favicon.png", type: "image/png" },
     ],
+    scripts: import.meta.env.VITE_GA4_MEASUREMENT_ID
+      ? [
+          {
+            src: `https://www.googletagmanager.com/gtag/js?id=${import.meta.env.VITE_GA4_MEASUREMENT_ID}`,
+            async: true,
+          },
+          {
+            children: `window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${import.meta.env.VITE_GA4_MEASUREMENT_ID}');`,
+          },
+        ]
+      : [],
   }),
   shellComponent: RootShell,
   component: RootComponent,

@@ -100,3 +100,54 @@ export interface ActivityItem {
   at: string;
   kind: "confirm" | "reject" | "message" | "system";
 }
+
+export interface SubscriptionPlan {
+  id: string;
+  slug: string;
+  name: string;
+  tagline: string;
+  priceMxn: number;
+  eventLimit: number;
+  guestLimit: number;
+  highlighted: boolean;
+}
+
+export interface SessionUser {
+  id?: string;
+  email: string;
+  name: string;
+  role: string;
+  businessName?: string;
+  phone?: string;
+  state?: string;
+  subscriptionStatus?: string;
+  plan?: Pick<SubscriptionPlan, "id" | "slug" | "name" | "priceMxn" | "eventLimit" | "guestLimit"> | null;
+}
+
+export interface TeamMember {
+  id: string;
+  name: string;
+  email: string;
+  role: string;
+  initials: string;
+}
+
+export interface RolePermission {
+  id: string;
+  role: string;
+  permission: string;
+  enabled: boolean;
+}
+
+export interface EventAnalytics {
+  dailyConfirmations: { day: string; confirmaciones: number }[];
+  timeline: { label: string; value: number; at: string }[];
+  averageResponseTime: string;
+}
+
+export interface ImportPreview {
+  filename: string;
+  columns: string[];
+  rows: string[][];
+  suggestedMapping: Record<string, string>;
+}

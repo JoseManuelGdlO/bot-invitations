@@ -2,7 +2,7 @@ import { createFileRoute } from "@tanstack/react-router";
 import { Download, FileSpreadsheet, FileText, Sheet as SheetIcon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/status-badge";
-import { statsFor, useEvent } from "@/lib/mock/store";
+import { statsFor, useEvent, useStore } from "@/lib/mock/store";
 import { formatDate } from "@/lib/mock/format";
 import { toast } from "sonner";
 
@@ -13,6 +13,7 @@ export const Route = createFileRoute("/eventos/$eventId/lista-final")({
       { name: "description", content: "Resumen final de confirmaciones y exportación de la lista del evento." },
       { property: "og:title", content: "Lista final de invitados · Alanna" },
       { property: "og:description", content: "Resumen final de confirmaciones del evento." },
+      { name: "robots", content: "noindex, nofollow" },
     ],
   }),
   component: ListaFinal,
@@ -21,8 +22,17 @@ export const Route = createFileRoute("/eventos/$eventId/lista-final")({
 function ListaFinal() {
   const { eventId } = Route.useParams();
   const { event, guests } = useEvent(eventId);
+  const { exportGuests } = useStore();
   const s = statsFor(guests);
   const confirmed = guests.filter((g) => g.confirmed > 0);
+  const runExport = async (format: "xlsx" | "csv" | "pdf") => {
+    try {
+      await exportGuests(eventId, format, "final");
+      toast.success("Archivo descargado");
+    } catch {
+      toast.error("No se pudo exportar");
+    }
+  };
 
   return (
     <main className="mx-auto w-full max-w-5xl flex-1 px-5 py-8 md:px-8">
@@ -48,16 +58,16 @@ function ListaFinal() {
         </div>
 
         <div className="mt-8 flex flex-wrap justify-center gap-3">
-          <Button onClick={() => toast.success("Excel generado (demo)")}>
+          <Button onClick={() => runExport("xlsx")}>
             <FileSpreadsheet className="size-4" /> Exportar Excel
           </Button>
-          <Button variant="outline" onClick={() => toast.success("CSV generado (demo)")}>
+          <Button variant="outline" onClick={() => runExport("csv")}>
             <SheetIcon className="size-4" /> Exportar CSV
           </Button>
-          <Button variant="outline" onClick={() => toast.success("Lista final descargada (demo)")}>
+          <Button variant="outline" onClick={() => runExport("xlsx")}>
             <Download className="size-4" /> Descargar lista final
           </Button>
-          <Button variant="outline" onClick={() => toast.success("Reporte generado (demo)")}>
+          <Button variant="outline" onClick={() => runExport("pdf")}>
             <FileText className="size-4" /> Generar reporte
           </Button>
         </div>

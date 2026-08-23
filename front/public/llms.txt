@@ -1,0 +1,23 @@
+# Alanna Confirmaciones
+
+> Copiloto inteligente para wedding planners que confirma invitados de bodas, XV años y eventos mediante conversaciones asistidas.
+
+Alanna ayuda a equipos de eventos a importar listas de invitados, lanzar campañas de confirmación y dar seguimiento a cada conversación hasta registrar cuántas personas asistirán.
+
+## Páginas públicas
+
+- [Iniciar sesión](https://alanna.app/): acceso al panel de confirmaciones
+- [Crear cuenta](https://alanna.app/registro): registro de wedding planners
+- [Recuperar contraseña](https://alanna.app/recuperar-contrasena): restablecer acceso
+
+## Producto
+
+- Panel de eventos con KPIs de confirmación
+- Importación de Excel/CSV
+- Conversaciones y plantillas por evento
+- Asistente configurable (tono, reglas y seguimientos)
+- Lista final exportable
+
+## Notas para crawlers
+
+Las rutas /eventos están autenticadas y no deben indexarse.

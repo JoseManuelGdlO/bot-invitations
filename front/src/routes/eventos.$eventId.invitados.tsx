@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
 import { Download, MessageSquare, Search, Send, SlidersHorizontal } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -32,6 +32,7 @@ export const Route = createFileRoute("/eventos/$eventId/invitados")({
       { name: "description", content: "Tabla CRM con todas las invitaciones y su estado de confirmación." },
       { property: "og:title", content: "Invitados · Alanna Confirmaciones" },
       { property: "og:description", content: "Todas las invitaciones y su estado de confirmación." },
+      { name: "robots", content: "noindex, nofollow" },
     ],
   }),
   component: Invitados,
@@ -40,10 +41,12 @@ export const Route = createFileRoute("/eventos/$eventId/invitados")({
 function Invitados() {
   const { eventId } = Route.useParams();
   const { guests } = useEvent(eventId);
-  const { updateGuest } = useStore();
+  const { updateGuest, remindGuest, exportGuests } = useStore();
+  const navigate = useNavigate();
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("todos");
-  const [selected, setSelected] = useState<Guest | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
+  const selected = guests.find((g) => g.id === selectedId) ?? null;
 
   const rows = useMemo(
     () =>
@@ -79,7 +82,17 @@ function Invitados() {
             ))}
           </SelectContent>
         </Select>
-        <Button variant="outline" onClick={() => toast.success("Exportación generada (demo)")}>
+        <Button
+          variant="outline"
+          onClick={async () => {
+            try {
+              await exportGuests(eventId, "xlsx");
+              toast.success("Exportación generada");
+            } catch {
+              toast.error("No se pudo exportar");
+            }
+          }}
+        >
           <Download className="size-4" /> Exportar
         </Button>
       </div>
@@ -109,7 +122,7 @@ function Invitados() {
               <TableRow
                 key={g.id}
                 className="cursor-pointer transition-colors"
-                onClick={() => setSelected(g)}
+                onClick={() => setSelectedId(g.id)}
               >
                 <TableCell className="whitespace-nowrap">
                   <div className="flex items-center gap-2.5">
@@ -137,7 +150,7 @@ function Invitados() {
                     onClick={(e) => {
                       e.stopPropagation();
                       toast.success(`Mensaje enviado a ${g.rep}`);
-                      updateGuest(g.id, { status: "enviado", whatsapp: "enviado", lastMessage: "Recordatorio · hoy" });
+                      remindGuest(g.id);
                     }}
                   >
                     <Send className="size-4" />
@@ -149,7 +162,7 @@ function Invitados() {
         </Table>
       </div>
 
-      <Sheet open={!!selected} onOpenChange={(o) => !o && setSelected(null)}>
+      <Sheet open={!!selected} onOpenChange={(o) => !o && setSelectedId(null)}>
         <SheetContent className="w-full sm:max-w-md">
           {selected ? (
             <>
@@ -158,20 +171,32 @@ function Invitados() {
               </SheetHeader>
               <div className="space-y-4 px-4 pb-6 text-sm">
                 <StatusBadge status={selected.status} />
-                {[
-                  ["Teléfono", selected.phone],
-                  ["Invitados asignados", String(selected.invited)],
-                  ["Confirmados", String(selected.confirmed)],
-                  ["Mesa", selected.table],
-                  ["Familia", selected.family],
-                  ["Tipo de invitado", selected.guestType],
-                  ["Etiqueta", selected.tag],
-                  ["Seguimiento", selected.followUp || "—"],
-                  ["Notas", selected.notes || "Sin notas"],
-                ].map(([k, v]) => (
-                  <div key={k} className="flex justify-between gap-6 border-b border-border/60 pb-2">
-                    <span className="text-muted-foreground">{k}</span>
-                    <span className="text-right font-medium">{v}</span>
+                {(
+                  [
+                    ["phone", "Teléfono"],
+                    ["invited", "Invitados asignados"],
+                    ["confirmed", "Confirmados"],
+                    ["table", "Mesa"],
+                    ["family", "Familia"],
+                    ["guestType", "Tipo de invitado"],
+                    ["tag", "Etiqueta"],
+                    ["followUp", "Seguimiento"],
+                    ["notes", "Notas"],
+                  ] as const
+                ).map(([key, label]) => (
+                  <div key={key} className="flex items-center justify-between gap-6 border-b border-border/60 pb-2">
+                    <span className="text-muted-foreground">{label}</span>
+                    <Input
+                      className="h-8 max-w-48 text-right"
+                      type={key === "invited" || key === "confirmed" ? "number" : "text"}
+                      value={String(selected[key] ?? "")}
+                      onChange={(e) =>
+                        updateGuest(selected.id, {
+                          [key]:
+                            key === "invited" || key === "confirmed" ? Number(e.target.value) || 0 : e.target.value,
+                        })
+                      }
+                    />
                   </div>
                 ))}
                 {selected.lastReply ? (
@@ -190,12 +215,22 @@ function Invitados() {
                         whatsapp: "respondido",
                       });
                       toast.success("Invitación confirmada manualmente");
-                      setSelected(null);
+                      setSelectedId(null);
                     }}
                   >
                     Marcar confirmado
                   </Button>
-                  <Button variant="outline" className="flex-1" onClick={() => toast.info("Abriendo conversación (demo)")}>
+                  <Button
+                    variant="outline"
+                    className="flex-1"
+                    onClick={() =>
+                      navigate({
+                        to: "/eventos/$eventId/conversaciones",
+                        params: { eventId },
+                        search: { guestId: selected.id },
+                      })
+                    }
+                  >
                     <MessageSquare className="size-4" /> Conversación
                   </Button>
                 </div>

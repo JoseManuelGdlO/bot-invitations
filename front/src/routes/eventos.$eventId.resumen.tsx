@@ -15,6 +15,7 @@ export const Route = createFileRoute("/eventos/$eventId/resumen")({
       { name: "description", content: "KPIs, progreso de confirmación y actividad del evento." },
       { property: "og:title", content: "Resumen del evento · Alanna Confirmaciones" },
       { property: "og:description", content: "KPIs y progreso de confirmación del evento." },
+      { name: "robots", content: "noindex, nofollow" },
     ],
   }),
   component: Resumen,

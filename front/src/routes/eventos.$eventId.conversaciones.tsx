@@ -10,12 +10,16 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/eventos/$eventId/conversaciones")({
+  validateSearch: (s: Record<string, unknown>) => ({
+    guestId: typeof s.guestId === "string" ? s.guestId : undefined,
+  }),
   head: () => ({
     meta: [
       { title: "Conversaciones · Alanna Confirmaciones" },
       { name: "description", content: "Bandeja estilo WhatsApp con las conversaciones del evento." },
       { property: "og:title", content: "Conversaciones · Alanna Confirmaciones" },
       { property: "og:description", content: "Bandeja de conversaciones asistidas por IA." },
+      { name: "robots", content: "noindex, nofollow" },
     ],
   }),
   component: Conversaciones,
@@ -23,12 +27,20 @@ export const Route = createFileRoute("/eventos/$eventId/conversaciones")({
 
 function Conversaciones() {
   const { eventId } = Route.useParams();
+  const { guestId } = Route.useSearch();
   const { conversations, guests, event } = useEvent(eventId);
   const { sendMessage, toggleAI, updateGuest } = useStore();
-  const [activeId, setActiveId] = useState<string | null>(conversations[0]?.id ?? null);
+  const initial = conversations.find((c) => c.guestId === guestId)?.id ?? conversations[0]?.id ?? null;
+  const [activeId, setActiveId] = useState<string | null>(initial);
   const [q, setQ] = useState("");
   const [draft, setDraft] = useState("");
   const endRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const found = guestId ? conversations.find((c) => c.guestId === guestId) : null;
+    if (found) setActiveId(found.id);
+    else if (!activeId && conversations[0]) setActiveId(conversations[0].id);
+  }, [guestId, conversations, activeId]);
 
   const list = useMemo(() => {
     return conversations
@@ -59,14 +71,6 @@ function Conversaciones() {
       at: new Date().toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" }),
     });
     setDraft("");
-    setTimeout(() => {
-      sendMessage(active.conv.id, {
-        id: `m-${Date.now() + 1}`,
-        from: "guest",
-        text: "¡Perfecto, muchas gracias!",
-        at: new Date().toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" }),
-      });
-    }, 1400);
   };
 
   return (

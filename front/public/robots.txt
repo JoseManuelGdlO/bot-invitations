@@ -1,8 +1,12 @@
 User-agent: Googlebot
 Allow: /
+Disallow: /eventos
+Disallow: /page/
 
 User-agent: Bingbot
 Allow: /
+Disallow: /eventos
+Disallow: /page/
 
 User-agent: Twitterbot
 Allow: /
@@ -12,3 +16,7 @@ Allow: /
 
 User-agent: *
 Allow: /
+Disallow: /eventos
+Disallow: /page/
+
+Sitemap: https://alanna.app/sitemap.xml

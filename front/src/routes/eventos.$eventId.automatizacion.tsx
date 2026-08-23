@@ -27,6 +27,7 @@ export const Route = createFileRoute("/eventos/$eventId/automatizacion")({
       { name: "description", content: "Configura la personalidad, el mensaje inicial y las reglas del asistente." },
       { property: "og:title", content: "Asistente de Confirmaciones · Alanna" },
       { property: "og:description", content: "Personalidad, mensaje inicial y reglas de seguimiento." },
+      { name: "robots", content: "noindex, nofollow" },
     ],
   }),
   component: Automatizacion,
@@ -38,7 +39,7 @@ const tones = ["Elegante", "Casual", "Amable", "Cercano", "Formal", "Divertido"]
 function Automatizacion() {
   const { eventId } = Route.useParams();
   const { data, event, guests } = useEvent(eventId);
-  const { updateAI } = useStore();
+  const { updateAI, session } = useStore();
   const ai = data.ai;
   const [message, setMessage] = useState(ai.openingMessage);
   const [newRule, setNewRule] = useState("");
@@ -55,7 +56,7 @@ function Automatizacion() {
       .replace(/{{fecha}}/g, formatDate(event.date))
       .replace(/{{lugar}}/g, event.venue)
       .replace(/{{hora}}/g, event.time)
-      .replace(/{{planner}}/g, "Jose Manuel");
+      .replace(/{{planner}}/g, session?.name.split(" ")[0] ?? "Planner");
   };
 
   return (

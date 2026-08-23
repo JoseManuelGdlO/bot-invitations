@@ -2,7 +2,7 @@ import { Link, Outlet, createFileRoute, useNavigate, useRouterState } from "@tan
 import { useEffect } from "react";
 import { CalendarHeart, LayoutDashboard, LogOut, MessagesSquare, Settings2 } from "lucide-react";
 import logo from "@/assets/alanna-logo.png";
-import { useStore } from "@/lib/mock/store";
+import { initialsFrom, useStore } from "@/lib/mock/store";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -16,7 +16,7 @@ function AppShell() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
 
   useEffect(() => {
-    if (hydrated && !session) navigate({ to: "/" });
+    if (hydrated && !session) navigate({ to: "/iniciar-sesion" });
   }, [hydrated, session, navigate]);
 
   if (!hydrated || !session) {
@@ -37,7 +37,7 @@ function AppShell() {
         <div className="flex items-center gap-2.5 px-5 py-6">
           <img
             src={logo}
-            alt="Alanna"
+            alt="Logotipo de Alanna Confirmaciones"
             width={32}
             height={32}
             className="size-8 rounded-lg bg-primary object-contain p-1"
@@ -101,11 +101,13 @@ function AppShell() {
         <div className="border-t border-sidebar-border p-3">
           <div className="flex items-center gap-2.5 rounded-lg px-2 py-2">
             <span className="flex size-8 items-center justify-center rounded-full bg-gold-soft text-xs font-semibold text-gold-foreground">
-              JM
+              {initialsFrom(session.name)}
             </span>
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium">{session.name}</p>
-              <p className="truncate text-[11px] text-muted-foreground">{session.role}</p>
+              <p className="truncate text-[11px] text-muted-foreground">
+                {session.plan ? `Plan ${session.plan.name}` : session.role}
+              </p>
             </div>
             <button
               onClick={() => {
@@ -125,7 +127,7 @@ function AppShell() {
         <header className="flex shrink-0 items-center gap-3 border-b border-border bg-card/60 px-4 py-3 backdrop-blur md:hidden">
           <img
             src={logo}
-            alt="Alanna"
+            alt="Logotipo de Alanna Confirmaciones"
             width={20}
             height={20}
             className="size-5 rounded-md bg-primary object-contain p-0.5"

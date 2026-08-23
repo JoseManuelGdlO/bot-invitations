@@ -15,6 +15,7 @@ import {
 import { useStore } from "@/lib/mock/store";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { ApiError } from "@/lib/api/client";
 
 export const Route = createFileRoute("/eventos/nuevo")({
   head: () => ({
@@ -23,6 +24,7 @@ export const Route = createFileRoute("/eventos/nuevo")({
       { name: "description", content: "Crea un nuevo evento y configura su lista de invitados." },
       { property: "og:title", content: "Crear evento · Alanna Confirmaciones" },
       { property: "og:description", content: "Wizard para crear un evento y su lista de invitados." },
+      { name: "robots", content: "noindex, nofollow" },
     ],
   }),
   component: NewEvent,
@@ -56,7 +58,7 @@ function NewEvent() {
 
   const set = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
-  const finish = (withList: boolean) => {
+  const finish = async (withList: boolean) => {
     const id =
       form.name
         .toLowerCase()
@@ -64,22 +66,29 @@ function NewEvent() {
         .replace(/[\u0300-\u036f]/g, "")
         .replace(/[^a-z0-9]+/g, "-")
         .replace(/^-|-$/g, "") || `evento-${Date.now()}`;
-    addEvent({
-      id,
-      name: form.name || "Nuevo evento",
-      shortName: form.shortName || form.name.slice(0, 3).toUpperCase(),
-      type: form.type,
-      hosts: form.hosts || "Anfitriones",
-      date: form.date || "2027-01-01",
-      time: form.time,
-      venue: form.venue || "Por definir",
-      address: form.address,
-      estimatedGuests: Number(form.estimatedGuests) || 0,
-      cover: form.cover,
-      status: "borrador",
-    });
-    toast.success("Evento creado", { description: "Ya puedes configurar su asistente." });
-    navigate({ to: withList ? "/eventos/$eventId/importar" : "/eventos/$eventId/resumen", params: { eventId: id } });
+    try {
+      const created = await addEvent({
+        id,
+        name: form.name || "Nuevo evento",
+        shortName: form.shortName || form.name.slice(0, 3).toUpperCase(),
+        type: form.type,
+        hosts: form.hosts || "Anfitriones",
+        date: form.date || "2027-01-01",
+        time: form.time,
+        venue: form.venue || "Por definir",
+        address: form.address,
+        estimatedGuests: Number(form.estimatedGuests) || 0,
+        cover: form.cover,
+        status: "borrador",
+      });
+      toast.success("Evento creado", { description: "Ya puedes configurar su asistente." });
+      navigate({
+        to: withList ? "/eventos/$eventId/importar" : "/eventos/$eventId/resumen",
+        params: { eventId: created.id },
+      });
+    } catch (err) {
+      toast.error(err instanceof ApiError ? err.message : "No se pudo crear el evento");
+    }
   };
 
   return (
