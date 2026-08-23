@@ -37,7 +37,7 @@ export const checkout = asyncHandler(async (req, res) => {
   const plan = await Plan.findByPk(req.body?.planId);
   if (!plan) return res.status(400).json({ error: "Selecciona un plan válido." });
   const result = await startCheckout(req.user, plan, {
-    successPath: "/registro/exito",
+    successPath: "/pago/exito",
     cancelPath: "/eventos",
     interval: req.body?.interval === "year" ? "year" : "month",
   });

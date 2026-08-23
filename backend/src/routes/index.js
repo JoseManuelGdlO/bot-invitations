@@ -22,6 +22,7 @@ router.post("/auth/refresh", auth.refresh);
 router.post("/auth/logout", auth.logout);
 router.post("/auth/forgot-password", auth.forgotPassword);
 router.post("/auth/reset-password", auth.resetPassword);
+router.get("/billing/session/:sessionId", billing.confirmSession);
 
 router.use(requireAuth);
 
@@ -29,7 +30,6 @@ router.get("/auth/me", auth.me);
 router.get("/dashboard", auth.dashboard);
 router.post("/billing/checkout", billing.checkout);
 router.post("/billing/portal", billing.portal);
-router.get("/billing/session/:sessionId", billing.confirmSession);
 router.get("/activity", analytics.listActivity);
 
 router.get("/events", events.listEvents);

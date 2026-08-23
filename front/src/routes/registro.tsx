@@ -1,4 +1,4 @@
-import { Link, createFileRoute, useNavigate } from "@tanstack/react-router";
+import { Link, Outlet, createFileRoute, useChildMatches, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { CalendarHeart, Check, Loader2, Users } from "lucide-react";
 import logo from "@/assets/alanna-logo.png";
@@ -70,8 +70,9 @@ const MEXICO_STATES = [
 ];
 
 function Registro() {
-  const { register } = useStore();
+  const { register, session, hydrated } = useStore();
   const navigate = useNavigate();
+  const childMatches = useChildMatches();
   const { plan: planSlug, pago } = Route.useSearch();
   const [step, setStep] = useState(0);
   const [name, setName] = useState("");
@@ -84,6 +85,13 @@ function Registro() {
   const [planId, setPlanId] = useState("");
   const [interval, setInterval] = useState<BillingInterval>("month");
   const [loading, setLoading] = useState(false);
+  const hasChildRoute = childMatches.length > 0;
+
+  useEffect(() => {
+    if (hydrated && session && !hasChildRoute) {
+      navigate({ to: "/eventos", replace: true });
+    }
+  }, [hydrated, session, hasChildRoute, navigate]);
 
   useEffect(() => {
     api<SubscriptionPlan[]>("/plans")
@@ -136,6 +144,9 @@ function Registro() {
       setLoading(false);
     }
   };
+
+  if (hasChildRoute) return <Outlet />;
+  if (hydrated && session) return null;
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-3xl flex-col justify-center px-6 py-16">

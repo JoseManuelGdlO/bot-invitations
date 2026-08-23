@@ -22,6 +22,7 @@ import { Route as AdminPlanesRouteImport } from './routes/admin.planes'
 import { Route as EventosIndexRouteImport } from './routes/eventos.index'
 import { Route as EventosEventIdRouteImport } from './routes/eventos.$eventId'
 import { Route as EventosNuevoRouteImport } from './routes/eventos.nuevo'
+import { Route as PagoExitoRouteImport } from './routes/pago.exito'
 import { Route as RegistroExitoRouteImport } from './routes/registro.exito'
 import { Route as EventosEventIdIndexRouteImport } from './routes/eventos.$eventId.index'
 import { Route as EventosEventIdAutomatizacionRouteImport } from './routes/eventos.$eventId.automatizacion'
@@ -99,6 +100,11 @@ const EventosNuevoRoute = EventosNuevoRouteImport.update({
   path: '/nuevo',
   getParentRoute: () => EventosRoute,
 } as any)
+const PagoExitoRoute = PagoExitoRouteImport.update({
+  id: '/pago/exito',
+  path: '/pago/exito',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const RegistroExitoRoute = RegistroExitoRouteImport.update({
   id: '/exito',
   path: '/exito',
@@ -172,6 +178,7 @@ export interface FileRoutesByFullPath {
   '/admin/planes': typeof AdminPlanesRoute
   '/eventos/$eventId': typeof EventosEventIdRouteWithChildren
   '/eventos/nuevo': typeof EventosNuevoRoute
+  '/pago/exito': typeof PagoExitoRoute
   '/registro/exito': typeof RegistroExitoRoute
   '/admin/': typeof AdminIndexRoute
   '/eventos/': typeof EventosIndexRoute
@@ -195,6 +202,7 @@ export interface FileRoutesByTo {
   '/admin/clientes': typeof AdminClientesRoute
   '/admin/planes': typeof AdminPlanesRoute
   '/eventos/nuevo': typeof EventosNuevoRoute
+  '/pago/exito': typeof PagoExitoRoute
   '/registro/exito': typeof RegistroExitoRoute
   '/admin': typeof AdminIndexRoute
   '/eventos': typeof EventosIndexRoute
@@ -222,6 +230,7 @@ export interface FileRoutesById {
   '/admin/planes': typeof AdminPlanesRoute
   '/eventos/$eventId': typeof EventosEventIdRouteWithChildren
   '/eventos/nuevo': typeof EventosNuevoRoute
+  '/pago/exito': typeof PagoExitoRoute
   '/registro/exito': typeof RegistroExitoRoute
   '/admin/': typeof AdminIndexRoute
   '/eventos/': typeof EventosIndexRoute
@@ -250,6 +259,7 @@ export interface FileRouteTypes {
     | '/admin/planes'
     | '/eventos/$eventId'
     | '/eventos/nuevo'
+    | '/pago/exito'
     | '/registro/exito'
     | '/admin/'
     | '/eventos/'
@@ -273,6 +283,7 @@ export interface FileRouteTypes {
     | '/admin/clientes'
     | '/admin/planes'
     | '/eventos/nuevo'
+    | '/pago/exito'
     | '/registro/exito'
     | '/admin'
     | '/eventos'
@@ -299,6 +310,7 @@ export interface FileRouteTypes {
     | '/admin/planes'
     | '/eventos/$eventId'
     | '/eventos/nuevo'
+    | '/pago/exito'
     | '/registro/exito'
     | '/admin/'
     | '/eventos/'
@@ -322,6 +334,7 @@ export interface RootRouteChildren {
   RecuperarContrasenaRoute: typeof RecuperarContrasenaRoute
   RegistroRoute: typeof RegistroRouteWithChildren
   RestablecerContrasenaRoute: typeof RestablecerContrasenaRoute
+  PagoExitoRoute: typeof PagoExitoRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -416,6 +429,13 @@ declare module '@tanstack/react-router' {
       fullPath: '/eventos/nuevo'
       preLoaderRoute: typeof EventosNuevoRouteImport
       parentRoute: typeof EventosRoute
+    }
+    '/pago/exito': {
+      id: '/pago/exito'
+      path: '/pago/exito'
+      fullPath: '/pago/exito'
+      preLoaderRoute: typeof PagoExitoRouteImport
+      parentRoute: typeof rootRouteImport
     }
     '/registro/exito': {
       id: '/registro/exito'
@@ -576,6 +596,7 @@ const rootRouteChildren: RootRouteChildren = {
   RecuperarContrasenaRoute: RecuperarContrasenaRoute,
   RegistroRoute: RegistroRouteWithChildren,
   RestablecerContrasenaRoute: RestablecerContrasenaRoute,
+  PagoExitoRoute: PagoExitoRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

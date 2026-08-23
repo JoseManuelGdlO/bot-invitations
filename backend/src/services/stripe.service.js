@@ -189,7 +189,7 @@ export async function startCheckout(user, plan, { successPath, cancelPath, inter
     customer: customerId,
     locale: "es",
     line_items: [{ price: priceId, quantity: 1 }],
-    success_url: `${env.clientUrl}${successPath || "/registro/exito"}?session_id={CHECKOUT_SESSION_ID}`,
+    success_url: `${env.clientUrl}${successPath || "/pago/exito"}?session_id={CHECKOUT_SESSION_ID}`,
     cancel_url: `${env.clientUrl}${cancelPath || "/registro?pago=cancelado"}`,
     metadata: { userId: user.id, planId: plan.id, interval: billingInterval },
     subscription_data: { metadata: { userId: user.id, planId: plan.id, interval: billingInterval } },
