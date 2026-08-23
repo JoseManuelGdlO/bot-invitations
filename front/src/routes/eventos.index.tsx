@@ -13,6 +13,7 @@ import { StatCard } from "@/components/stat-card";
 import { EventCard } from "@/components/event-card";
 import { statsFor, useStore } from "@/lib/mock/store";
 import { cn } from "@/lib/utils";
+import { PlanLimitBanner } from "@/components/plan-limit";
 
 export const Route = createFileRoute("/eventos/")({
   head: () => ({
@@ -38,7 +39,7 @@ const kindTone: Record<string, string> = {
 };
 
 function EventsDashboard() {
-  const { events, guests, conversations, activity } = useStore();
+  const { events, guests, conversations, activity, session } = useStore();
   const s = statsFor(guests);
   const active = events.filter((e) => e.status === "activo").length;
   const upcoming = events.filter((e) => new Date(`${e.date}T12:00:00`) > new Date()).length;
@@ -53,11 +54,16 @@ function EventsDashboard() {
             Cada evento mantiene sus invitados, conversaciones y configuración por separado.
           </p>
         </div>
-        <Button asChild size="lg">
-          <Link to="/eventos/nuevo">
-            <Plus className="size-4" /> Crear nuevo evento
-          </Link>
-        </Button>
+        {session?.usage?.canCreateEvent !== false ? (
+          <Button asChild size="lg">
+            <Link to="/eventos/nuevo">
+              <Plus className="size-4" /> Crear nuevo evento
+            </Link>
+          </Button>
+        ) : null}
+      </div>
+      <div className="mt-6">
+        <PlanLimitBanner session={session} kind="event" />
       </div>
 
       <section className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">

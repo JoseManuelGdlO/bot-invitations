@@ -13,6 +13,7 @@ import {
 } from "../models/index.js";
 import { seedEventDefaults } from "../services/event-setup.service.js";
 import { ensurePlans } from "../services/plans.service.js";
+import { ensureAdmin } from "../controllers/admin.controller.js";
 
 let seed = 42;
 function rnd() {
@@ -239,6 +240,7 @@ const TEAM = [
 try {
   await sequelize.authenticate();
   await ensurePlans();
+  await ensureAdmin();
   const atelier = await Plan.findOne({ where: { slug: "atelier" } });
   const existing = await User.findOne({ where: { email: "hola@planner.mx" } });
   if (existing) {

@@ -8,6 +8,8 @@ import * as conversations from "../controllers/conversations.controller.js";
 import * as eventData from "../controllers/event-data.controller.js";
 import * as team from "../controllers/team.controller.js";
 import * as analytics from "../controllers/analytics.controller.js";
+import * as admin from "../controllers/admin.controller.js";
+import { requireAdmin } from "../middleware/admin.js";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } });
 export const router = Router();
@@ -59,3 +61,9 @@ router.patch("/events/:eventId/role-permissions/:permissionId", team.updatePermi
 
 router.get("/events/:eventId/analytics", analytics.getAnalytics);
 router.get("/events/:eventId/activity", analytics.listActivity);
+
+router.get("/admin/overview", requireAdmin, admin.overview);
+router.get("/admin/clients", requireAdmin, admin.listClients);
+router.patch("/admin/clients/:userId", requireAdmin, admin.updateClient);
+router.get("/admin/plans", requireAdmin, admin.listPlans);
+router.patch("/admin/plans/:planId", requireAdmin, admin.updatePlan);

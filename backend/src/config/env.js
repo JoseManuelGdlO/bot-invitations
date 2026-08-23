@@ -5,10 +5,30 @@ import { fileURLToPath } from "node:url";
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), "../..");
 dotenv.config({ path: path.join(root, ".env") });
 
+function parseOrigins(...values) {
+  return [
+    ...new Set(
+      values
+        .flatMap((value) => String(value || "").split(","))
+        .map((item) => item.trim().replace(/\/$/, ""))
+        .filter(Boolean),
+    ),
+  ];
+}
+
 export const env = {
   port: Number(process.env.PORT || 4000),
   nodeEnv: process.env.NODE_ENV || "development",
-  clientUrl: process.env.CLIENT_URL || "http://localhost:8080",
+  clientUrl: (process.env.CLIENT_URL || "http://localhost:8080").replace(/\/$/, ""),
+  corsOrigins: parseOrigins(
+    process.env.CLIENT_URL,
+    process.env.CORS_ORIGIN,
+    "http://localhost:5173",
+    "http://localhost:3000",
+    "http://localhost:8080",
+    "https://alannaconfirmaciones.com.mx",
+    "https://www.alannaconfirmaciones.com.mx",
+  ),
   db: {
     host: process.env.DB_HOST || "127.0.0.1",
     port: Number(process.env.DB_PORT || 3306),

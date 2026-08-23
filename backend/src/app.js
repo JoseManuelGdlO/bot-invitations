@@ -8,7 +8,10 @@ export function createApp() {
   const app = express();
   app.use(
     cors({
-      origin: [env.clientUrl, "http://localhost:5173", "http://localhost:3000", "http://localhost:8080"],
+      origin(origin, next) {
+        if (!origin || env.corsOrigins.includes(origin)) return next(null, true);
+        return next(null, false);
+      },
       credentials: true,
     }),
   );

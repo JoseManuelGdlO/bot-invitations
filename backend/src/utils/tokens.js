@@ -32,12 +32,13 @@ export function randomToken() {
   return crypto.randomBytes(32).toString("hex");
 }
 
-export function serializeUser(user, plan = null) {
+export function serializeUser(user, plan = null, usage = null) {
   return {
     id: user.id,
     email: user.email,
     name: user.name,
     role: user.role,
+    isAdmin: !!user.isAdmin,
     businessName: user.businessName || "",
     phone: user.phone || "",
     state: user.state || "",
@@ -52,5 +53,13 @@ export function serializeUser(user, plan = null) {
           guestLimit: plan.guestLimit,
         }
       : null,
+    usage: usage || {
+      eventCount: 0,
+      guestCount: 0,
+      eventLimit: plan?.eventLimit || 0,
+      guestLimit: plan?.guestLimit || 0,
+      canCreateEvent: false,
+      remainingGuests: 0,
+    },
   };
 }

@@ -112,16 +112,27 @@ export interface SubscriptionPlan {
   highlighted: boolean;
 }
 
+export interface PlanUsage {
+  eventCount: number;
+  guestCount: number;
+  eventLimit: number;
+  guestLimit: number;
+  canCreateEvent: boolean;
+  remainingGuests: number;
+}
+
 export interface SessionUser {
   id?: string;
   email: string;
   name: string;
   role: string;
+  isAdmin?: boolean;
   businessName?: string;
   phone?: string;
   state?: string;
   subscriptionStatus?: string;
   plan?: Pick<SubscriptionPlan, "id" | "slug" | "name" | "priceMxn" | "eventLimit" | "guestLimit"> | null;
+  usage?: PlanUsage;
 }
 
 export interface TeamMember {

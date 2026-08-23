@@ -22,6 +22,8 @@ import { useStore } from "@/lib/mock/store";
 import { cn } from "@/lib/utils";
 import type { ImportPreview } from "@/lib/mock/types";
 import { toast } from "sonner";
+import { ApiError } from "@/lib/api/client";
+import { PlanLimitBanner, isUpgradeError } from "@/components/plan-limit";
 
 export const Route = createFileRoute("/eventos/$eventId/importar")({
   head: () => ({
@@ -70,7 +72,7 @@ const previewRows = [
 
 function Importar() {
   const { eventId } = Route.useParams();
-  const { previewImport, confirmImport } = useStore();
+  const { previewImport, confirmImport, session } = useStore();
   const navigate = useNavigate();
   const [phase, setPhase] = useState<"upload" | "processing" | "mapping" | "done">("upload");
   const [progress, setProgress] = useState(0);
@@ -106,13 +108,16 @@ function Importar() {
       setImportedCount(res.imported);
       setPhase("done");
       toast.success(`${res.imported} invitaciones importadas`);
-    } catch {
-      toast.error("No se pudo importar el archivo");
+    } catch (err) {
+      toast.error(isUpgradeError(err) || err instanceof ApiError ? (err as Error).message : "No se pudo importar el archivo");
     }
   };
 
   return (
     <main className="mx-auto w-full max-w-5xl flex-1 px-5 py-8 md:px-8">
+      <div className="mb-6">
+        <PlanLimitBanner session={session} kind="guest" />
+      </div>
       {phase === "upload" ? (
         <div
           onDragOver={(e) => {

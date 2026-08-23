@@ -6,9 +6,10 @@ Alanna ayuda a equipos de eventos a importar listas de invitados, lanzar campañ
 
 ## Páginas públicas
 
-- [Iniciar sesión](https://alanna.app/): acceso al panel de confirmaciones
-- [Crear cuenta](https://alanna.app/registro): registro de wedding planners
-- [Recuperar contraseña](https://alanna.app/recuperar-contrasena): restablecer acceso
+- [Inicio](https://alannaconfirmaciones.com.mx/): producto y planes
+- [Crear cuenta](https://alannaconfirmaciones.com.mx/registro): registro de wedding planners
+- [Iniciar sesión](https://alannaconfirmaciones.com.mx/iniciar-sesion): acceso al panel
+- [Recuperar contraseña](https://alannaconfirmaciones.com.mx/recuperar-contrasena): restablecer acceso
 
 ## Producto
 
@@ -20,4 +21,4 @@ Alanna ayuda a equipos de eventos a importar listas de invitados, lanzar campañ
 
 ## Notas para crawlers
 
-Las rutas /eventos están autenticadas y no deben indexarse.
+Las rutas /eventos y /admin están autenticadas y no deben indexarse.

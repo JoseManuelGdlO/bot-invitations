@@ -1,5 +1,4 @@
-import { Event, Guest, Plan, User } from "../models/index.js";
-import { userEventIds } from "./access.service.js";
+import { Event, Guest, Plan } from "../models/index.js";
 
 export const PLAN_DEFS = [
   {
@@ -50,10 +49,16 @@ export function serializePlan(plan) {
 export async function ensurePlans() {
   for (const def of PLAN_DEFS) {
     const existing = await Plan.findOne({ where: { slug: def.slug } });
-    if (existing) await existing.update(def);
-    else await Plan.create(def);
+    if (!existing) await Plan.create(def);
   }
   return Plan.findAll({ order: [["sortOrder", "ASC"]] });
+}
+
+export function planError(message) {
+  const err = new Error(message);
+  err.status = 402;
+  err.upgrade = true;
+  return err;
 }
 
 export async function getUserPlan(user) {
@@ -61,30 +66,64 @@ export async function getUserPlan(user) {
   return Plan.findByPk(user.planId);
 }
 
+export async function ownedEventIds(userId) {
+  const owned = await Event.findAll({ where: { ownerId: userId }, attributes: ["id"] });
+  return owned.map((event) => event.id);
+}
+
+export async function countOwnedGuests(userId) {
+  const ids = await ownedEventIds(userId);
+  if (!ids.length) return 0;
+  return Number((await Guest.sum("invited", { where: { eventId: ids } })) || 0);
+}
+
+export async function getPlanUsage(user) {
+  const plan = user.isAdmin ? null : await getUserPlan(user);
+  const eventCount = await Event.count({ where: { ownerId: user.id } });
+  const guestCount = await countOwnedGuests(user.id);
+  const eventLimit = plan?.eventLimit ?? 0;
+  const guestLimit = plan?.guestLimit ?? 0;
+  const active = user.subscriptionStatus === "active";
+  return {
+    eventCount,
+    guestCount,
+    eventLimit,
+    guestLimit,
+    canCreateEvent: user.isAdmin || (active && !!plan && eventCount < eventLimit),
+    remainingGuests: user.isAdmin ? Number.MAX_SAFE_INTEGER : Math.max(0, guestLimit - guestCount),
+  };
+}
+
+function requireActivePlan(user, plan) {
+  if (user.isAdmin) return null;
+  if (user.subscriptionStatus !== "active") {
+    throw planError("Tu suscripción no está activa. Mejora o reactiva tu plan para continuar.");
+  }
+  if (!plan) {
+    throw planError("Necesitas un plan activo para usar la plataforma. Elige uno para continuar.");
+  }
+  return plan;
+}
+
 export async function assertCanCreateEvent(user) {
-  const plan = await getUserPlan(user);
+  const plan = requireActivePlan(user, await getUserPlan(user));
   if (!plan) return;
   const count = await Event.count({ where: { ownerId: user.id } });
   if (count >= plan.eventLimit) {
-    const err = new Error(
+    throw planError(
       `Tu plan ${plan.name} incluye ${plan.eventLimit} eventos. Mejora tu suscripción para crear otro.`,
     );
-    err.status = 402;
-    throw err;
   }
 }
 
 export async function assertCanAddGuests(user, incomingCount) {
-  const plan = await getUserPlan(user);
+  const plan = requireActivePlan(user, await getUserPlan(user));
   if (!plan) return;
-  const ids = await userEventIds(user.id);
-  const current = ids.length ? await Guest.count({ where: { eventId: ids } }) : 0;
+  const current = await countOwnedGuests(user.id);
   if (current + incomingCount > plan.guestLimit) {
     const remaining = Math.max(0, plan.guestLimit - current);
-    const err = new Error(
-      `Tu plan ${plan.name} incluye ${plan.guestLimit} invitados. Te quedan ${remaining} lugares disponibles.`,
+    throw planError(
+      `Tu plan ${plan.name} incluye ${plan.guestLimit} invitados. Te quedan ${remaining} lugares. Mejora tu suscripción para agregar más.`,
     );
-    err.status = 402;
-    throw err;
   }
 }

@@ -34,8 +34,8 @@ function Login() {
     e.preventDefault();
     setLoading(true);
     try {
-      await login(email, password, rememberMe);
-      navigate({ to: "/eventos" });
+      const user = await login(email, password, rememberMe);
+      navigate({ to: user.isAdmin ? "/admin" : "/eventos" });
     } catch (err) {
       toast.error(err instanceof ApiError ? err.message : "No se pudo iniciar sesión");
     } finally {

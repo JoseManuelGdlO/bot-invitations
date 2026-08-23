@@ -22,7 +22,7 @@ export const createGuest = asyncHandler(async (req, res) => {
   if (!event) return;
   const body = req.body || {};
   if (!body.rep || !body.phone) return res.status(400).json({ error: "Nombre y teléfono son requeridos." });
-  await assertCanAddGuests(req.user, 1);
+  await assertCanAddGuests(req.user, Number(body.invited) || 1);
   const guest = await Guest.create({
     eventId: event.id,
     rep: body.rep,
@@ -60,6 +60,11 @@ export const updateGuest = asyncHandler(async (req, res) => {
     "lastReplyAt",
     "followUp",
   ];
+  if (req.body?.invited !== undefined) {
+    const next = Number(req.body.invited) || 0;
+    const delta = next - Number(guest.invited || 0);
+    if (delta > 0) await assertCanAddGuests(req.user, delta);
+  }
   for (const key of allowed) {
     if (req.body?.[key] !== undefined) guest[key] = req.body[key];
   }
@@ -113,7 +118,8 @@ export const confirmImport = asyncHandler(async (req, res) => {
   const existing = await Guest.findAll({ where: { eventId: event.id }, attributes: ["phone"] });
   const phones = new Set(existing.map((g) => g.phone.replace(/\s/g, "")));
   const incoming = mapped.filter((row) => !phones.has(row.phone.replace(/\s/g, "")));
-  await assertCanAddGuests(req.user, incoming.length);
+  const incomingPeople = incoming.reduce((sum, row) => sum + (Number(row.invited) || 1), 0);
+  await assertCanAddGuests(req.user, incomingPeople);
   const created = [];
   let skipped = 0;
   for (const row of mapped) {

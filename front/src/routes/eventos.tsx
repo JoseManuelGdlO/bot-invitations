@@ -1,6 +1,7 @@
 import { Link, Outlet, createFileRoute, useNavigate, useRouterState } from "@tanstack/react-router";
 import { useEffect } from "react";
-import { CalendarHeart, LayoutDashboard, LogOut, MessagesSquare, Settings2 } from "lucide-react";
+import { CalendarHeart, LayoutDashboard, LogOut, MessagesSquare, Settings2, Shield } from "lucide-react";
+import { PlanUsageHint } from "@/components/plan-limit";
 import logo from "@/assets/alanna-logo.png";
 import { initialsFrom, useStore } from "@/lib/mock/store";
 import { cn } from "@/lib/utils";
@@ -68,6 +69,15 @@ function AppShell() {
           >
             <CalendarHeart className="size-4" /> Crear evento
           </Link>
+          {session.isAdmin ? (
+            <Link
+              to="/admin"
+              className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent"
+              activeProps={{ className: "bg-sidebar-accent font-medium text-sidebar-foreground" }}
+            >
+              <Shield className="size-4" /> Backoffice
+            </Link>
+          ) : null}
         </nav>
 
         <div className="mt-6 px-5 text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
@@ -108,6 +118,7 @@ function AppShell() {
               <p className="truncate text-[11px] text-muted-foreground">
                 {session.plan ? `Plan ${session.plan.name}` : session.role}
               </p>
+              <PlanUsageHint session={session} />
             </div>
             <button
               onClick={() => {

@@ -11,11 +11,12 @@ import {
 } from "../utils/tokens.js";
 import { loadUserState } from "../services/state.service.js";
 import { asyncHandler } from "../utils/async.js";
-import { serializePlan } from "../services/plans.service.js";
+import { getPlanUsage, serializePlan } from "../services/plans.service.js";
 
 async function userWithPlan(user) {
   const plan = user.planId ? await Plan.findByPk(user.planId) : null;
-  return serializeUser(user, plan);
+  const usage = await getPlanUsage(user);
+  return serializeUser(user, plan, usage);
 }
 
 function cookieOpts(days) {

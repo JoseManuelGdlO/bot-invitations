@@ -30,6 +30,7 @@ export const User = sequelize.define("users", {
   state: { type: DataTypes.STRING(80), allowNull: true },
   planId: { type: DataTypes.CHAR(36), allowNull: true },
   subscriptionStatus: { type: DataTypes.ENUM("pending", "active", "canceled"), allowNull: false, defaultValue: "active" },
+  isAdmin: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
 });
 
 export const RefreshToken = sequelize.define("refresh_tokens", {

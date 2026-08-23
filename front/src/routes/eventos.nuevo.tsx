@@ -16,6 +16,7 @@ import { useStore } from "@/lib/mock/store";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api/client";
+import { PlanLimitBanner, isUpgradeError } from "@/components/plan-limit";
 
 export const Route = createFileRoute("/eventos/nuevo")({
   head: () => ({
@@ -40,7 +41,7 @@ const covers = [
 const steps = ["Información del evento", "Configuración visual", "Lista de invitados"];
 
 function NewEvent() {
-  const { addEvent } = useStore();
+  const { addEvent, session } = useStore();
   const navigate = useNavigate();
   const [step, setStep] = useState(0);
   const [form, setForm] = useState({
@@ -59,6 +60,14 @@ function NewEvent() {
   const set = (k: keyof typeof form, v: string) => setForm((f) => ({ ...f, [k]: v }));
 
   const finish = async (withList: boolean) => {
+    if (session && !session.isAdmin && session.usage && !session.usage.canCreateEvent) {
+      toast.error(
+        session.plan
+          ? `Tu plan ${session.plan.name} incluye ${session.usage.eventLimit} eventos. Mejora tu suscripción para crear otro.`
+          : "Necesitas un plan activo para crear eventos.",
+      );
+      return;
+    }
     const id =
       form.name
         .toLowerCase()
@@ -87,7 +96,9 @@ function NewEvent() {
         params: { eventId: created.id },
       });
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "No se pudo crear el evento");
+      toast.error(
+        isUpgradeError(err) || err instanceof ApiError ? (err as Error).message : "No se pudo crear el evento",
+      );
     }
   };
 
@@ -95,6 +106,9 @@ function NewEvent() {
     <main className="mx-auto w-full max-w-3xl flex-1 px-5 py-10">
       <p className="text-xs font-medium uppercase tracking-[0.14em] text-gold">Nuevo evento</p>
       <h1 className="mt-1 font-display text-4xl">Crear evento</h1>
+      <div className="mt-6">
+        <PlanLimitBanner session={session} kind="event" />
+      </div>
 
       <ol className="mt-8 flex items-center gap-3">
         {steps.map((s, i) => (

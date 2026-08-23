@@ -53,7 +53,7 @@ interface DashboardPayload extends State {
 
 interface Ctx extends State {
   hydrated: boolean;
-  login: (email: string, password: string, rememberMe?: boolean) => Promise<void>;
+  login: (email: string, password: string, rememberMe?: boolean) => Promise<SessionUser>;
   register: (
     payload: {
       name: string;
@@ -150,6 +150,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           body: JSON.stringify({ email, password, rememberMe }),
         });
         await afterAuth(res);
+        return res.user;
       },
       register: async (payload) => {
         const res = await api<{ accessToken: string; user: SessionUser }>("/auth/register", {

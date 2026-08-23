@@ -10,11 +10,15 @@
 
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
+import { Route as AdminRouteImport } from './routes/admin'
 import { Route as EventosRouteImport } from './routes/eventos'
 import { Route as IniciarSesionRouteImport } from './routes/iniciar-sesion'
 import { Route as RecuperarContrasenaRouteImport } from './routes/recuperar-contrasena'
 import { Route as RegistroRouteImport } from './routes/registro'
 import { Route as RestablecerContrasenaRouteImport } from './routes/restablecer-contrasena'
+import { Route as AdminIndexRouteImport } from './routes/admin.index'
+import { Route as AdminClientesRouteImport } from './routes/admin.clientes'
+import { Route as AdminPlanesRouteImport } from './routes/admin.planes'
 import { Route as EventosIndexRouteImport } from './routes/eventos.index'
 import { Route as EventosEventIdRouteImport } from './routes/eventos.$eventId'
 import { Route as EventosNuevoRouteImport } from './routes/eventos.nuevo'
@@ -32,6 +36,11 @@ import { Route as EventosEventIdResumenRouteImport } from './routes/eventos.$eve
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminRoute = AdminRouteImport.update({
+  id: '/admin',
+  path: '/admin',
   getParentRoute: () => rootRouteImport,
 } as any)
 const EventosRoute = EventosRouteImport.update({
@@ -58,6 +67,21 @@ const RestablecerContrasenaRoute = RestablecerContrasenaRouteImport.update({
   id: '/restablecer-contrasena',
   path: '/restablecer-contrasena',
   getParentRoute: () => rootRouteImport,
+} as any)
+const AdminIndexRoute = AdminIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminClientesRoute = AdminClientesRouteImport.update({
+  id: '/clientes',
+  path: '/clientes',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminPlanesRoute = AdminPlanesRouteImport.update({
+  id: '/planes',
+  path: '/planes',
+  getParentRoute: () => AdminRoute,
 } as any)
 const EventosIndexRoute = EventosIndexRouteImport.update({
   id: '/',
@@ -132,13 +156,17 @@ const EventosEventIdResumenRoute = EventosEventIdResumenRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/admin': typeof AdminRouteWithChildren
   '/eventos': typeof EventosRouteWithChildren
   '/iniciar-sesion': typeof IniciarSesionRoute
   '/recuperar-contrasena': typeof RecuperarContrasenaRoute
   '/registro': typeof RegistroRoute
   '/restablecer-contrasena': typeof RestablecerContrasenaRoute
+  '/admin/clientes': typeof AdminClientesRoute
+  '/admin/planes': typeof AdminPlanesRoute
   '/eventos/$eventId': typeof EventosEventIdRouteWithChildren
   '/eventos/nuevo': typeof EventosNuevoRoute
+  '/admin/': typeof AdminIndexRoute
   '/eventos/': typeof EventosIndexRoute
   '/eventos/$eventId/automatizacion': typeof EventosEventIdAutomatizacionRoute
   '/eventos/$eventId/configuracion': typeof EventosEventIdConfiguracionRoute
@@ -157,7 +185,10 @@ export interface FileRoutesByTo {
   '/recuperar-contrasena': typeof RecuperarContrasenaRoute
   '/registro': typeof RegistroRoute
   '/restablecer-contrasena': typeof RestablecerContrasenaRoute
+  '/admin/clientes': typeof AdminClientesRoute
+  '/admin/planes': typeof AdminPlanesRoute
   '/eventos/nuevo': typeof EventosNuevoRoute
+  '/admin': typeof AdminIndexRoute
   '/eventos': typeof EventosIndexRoute
   '/eventos/$eventId/automatizacion': typeof EventosEventIdAutomatizacionRoute
   '/eventos/$eventId/configuracion': typeof EventosEventIdConfiguracionRoute
@@ -173,13 +204,17 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/admin': typeof AdminRouteWithChildren
   '/eventos': typeof EventosRouteWithChildren
   '/iniciar-sesion': typeof IniciarSesionRoute
   '/recuperar-contrasena': typeof RecuperarContrasenaRoute
   '/registro': typeof RegistroRoute
   '/restablecer-contrasena': typeof RestablecerContrasenaRoute
+  '/admin/clientes': typeof AdminClientesRoute
+  '/admin/planes': typeof AdminPlanesRoute
   '/eventos/$eventId': typeof EventosEventIdRouteWithChildren
   '/eventos/nuevo': typeof EventosNuevoRoute
+  '/admin/': typeof AdminIndexRoute
   '/eventos/': typeof EventosIndexRoute
   '/eventos/$eventId/automatizacion': typeof EventosEventIdAutomatizacionRoute
   '/eventos/$eventId/configuracion': typeof EventosEventIdConfiguracionRoute
@@ -196,13 +231,17 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/admin'
     | '/eventos'
     | '/iniciar-sesion'
     | '/recuperar-contrasena'
     | '/registro'
     | '/restablecer-contrasena'
+    | '/admin/clientes'
+    | '/admin/planes'
     | '/eventos/$eventId'
     | '/eventos/nuevo'
+    | '/admin/'
     | '/eventos/'
     | '/eventos/$eventId/automatizacion'
     | '/eventos/$eventId/configuracion'
@@ -221,7 +260,10 @@ export interface FileRouteTypes {
     | '/recuperar-contrasena'
     | '/registro'
     | '/restablecer-contrasena'
+    | '/admin/clientes'
+    | '/admin/planes'
     | '/eventos/nuevo'
+    | '/admin'
     | '/eventos'
     | '/eventos/$eventId/automatizacion'
     | '/eventos/$eventId/configuracion'
@@ -236,13 +278,17 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/admin'
     | '/eventos'
     | '/iniciar-sesion'
     | '/recuperar-contrasena'
     | '/registro'
     | '/restablecer-contrasena'
+    | '/admin/clientes'
+    | '/admin/planes'
     | '/eventos/$eventId'
     | '/eventos/nuevo'
+    | '/admin/'
     | '/eventos/'
     | '/eventos/$eventId/automatizacion'
     | '/eventos/$eventId/configuracion'
@@ -258,6 +304,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  AdminRoute: typeof AdminRouteWithChildren
   EventosRoute: typeof EventosRouteWithChildren
   IniciarSesionRoute: typeof IniciarSesionRoute
   RecuperarContrasenaRoute: typeof RecuperarContrasenaRoute
@@ -272,6 +319,13 @@ declare module '@tanstack/react-router' {
       path: '/'
       fullPath: '/'
       preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin': {
+      id: '/admin'
+      path: '/admin'
+      fullPath: '/admin'
+      preLoaderRoute: typeof AdminRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/eventos': {
@@ -308,6 +362,27 @@ declare module '@tanstack/react-router' {
       fullPath: '/restablecer-contrasena'
       preLoaderRoute: typeof RestablecerContrasenaRouteImport
       parentRoute: typeof rootRouteImport
+    }
+    '/admin/': {
+      id: '/admin/'
+      path: '/'
+      fullPath: '/admin/'
+      preLoaderRoute: typeof AdminIndexRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/clientes': {
+      id: '/admin/clientes'
+      path: '/clientes'
+      fullPath: '/admin/clientes'
+      preLoaderRoute: typeof AdminClientesRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/planes': {
+      id: '/admin/planes'
+      path: '/planes'
+      fullPath: '/admin/planes'
+      preLoaderRoute: typeof AdminPlanesRouteImport
+      parentRoute: typeof AdminRoute
     }
     '/eventos/': {
       id: '/eventos/'
@@ -403,6 +478,20 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface AdminRouteChildren {
+  AdminClientesRoute: typeof AdminClientesRoute
+  AdminPlanesRoute: typeof AdminPlanesRoute
+  AdminIndexRoute: typeof AdminIndexRoute
+}
+
+const AdminRouteChildren: AdminRouteChildren = {
+  AdminClientesRoute: AdminClientesRoute,
+  AdminPlanesRoute: AdminPlanesRoute,
+  AdminIndexRoute: AdminIndexRoute,
+}
+
+const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
+
 interface EventosEventIdRouteChildren {
   EventosEventIdAutomatizacionRoute: typeof EventosEventIdAutomatizacionRoute
   EventosEventIdConfiguracionRoute: typeof EventosEventIdConfiguracionRoute
@@ -450,6 +539,7 @@ const EventosRouteWithChildren =
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  AdminRoute: AdminRouteWithChildren,
   EventosRoute: EventosRouteWithChildren,
   IniciarSesionRoute: IniciarSesionRoute,
   RecuperarContrasenaRoute: RecuperarContrasenaRoute,

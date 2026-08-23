@@ -13,7 +13,8 @@ services:
     environment:
       NODE_ENV: ${NODE_ENV:-production}
       PORT: ${PORT:-4000}
-      CLIENT_URL: ${CLIENT_URL:-}
+      CLIENT_URL: ${CLIENT_URL:-https://alannaconfirmaciones.com.mx}
+      CORS_ORIGIN: ${CORS_ORIGIN:-https://alannaconfirmaciones.com.mx,https://www.alannaconfirmaciones.com.mx}
       DB_HOST: ${DB_HOST:-mysql}
       DB_PORT: ${DB_PORT:-3306}
       DB_USER: ${DB_USER:-alanna}
@@ -26,12 +27,15 @@ services:
       JWT_REFRESH_REMEMBER_DAYS: ${JWT_REFRESH_REMEMBER_DAYS:-30}
       FRONTEND_RESET_URL: ${FRONTEND_RESET_URL:-}
       WORKER_INTERVAL_MS: ${WORKER_INTERVAL_MS:-5000}
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@alannaconfirmaciones.com.mx}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
 
   front:
     build:
       context: ./front
       args:
-        VITE_API_URL: ${VITE_API_URL:-https://api.tudominio.com/api}
+        VITE_API_URL: ${VITE_API_URL:-https://api.alannaconfirmaciones.com.mx/api}
+        VITE_SITE_URL: ${VITE_SITE_URL:-https://alannaconfirmaciones.com.mx}
         VITE_GA4_MEASUREMENT_ID: ${VITE_GA4_MEASUREMENT_ID:-}
         VITE_GSC_VERIFICATION: ${VITE_GSC_VERIFICATION:-}
     expose:

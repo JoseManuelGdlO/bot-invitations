@@ -24,6 +24,7 @@ import { useEvent, useStore } from "@/lib/mock/store";
 import { STATUS_META, WHATSAPP_LABEL } from "@/lib/mock/format";
 import type { Guest } from "@/lib/mock/types";
 import { toast } from "sonner";
+import { PlanLimitBanner } from "@/components/plan-limit";
 
 export const Route = createFileRoute("/eventos/$eventId/invitados")({
   head: () => ({
@@ -41,7 +42,7 @@ export const Route = createFileRoute("/eventos/$eventId/invitados")({
 function Invitados() {
   const { eventId } = Route.useParams();
   const { guests } = useEvent(eventId);
-  const { updateGuest, remindGuest, exportGuests } = useStore();
+  const { updateGuest, remindGuest, exportGuests, session } = useStore();
   const navigate = useNavigate();
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("todos");
@@ -100,6 +101,9 @@ function Invitados() {
       <p className="mt-3 text-xs text-muted-foreground">
         {rows.length} invitaciones · {rows.reduce((a, g) => a + g.invited, 0)} personas
       </p>
+      <div className="mt-4">
+        <PlanLimitBanner session={session} kind="guest" />
+      </div>
 
       <div className="mt-4 overflow-x-auto rounded-2xl border border-border bg-card shadow-soft">
         <Table className="min-w-[1200px]">

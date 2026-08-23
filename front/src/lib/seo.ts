@@ -1,3 +1,7 @@
+export const siteOrigin = (
+  (import.meta.env.VITE_SITE_URL as string | undefined) || "https://alannaconfirmaciones.com.mx"
+).replace(/\/$/, "");
+
 export function pageHead(opts: {
   title: string;
   description: string;
@@ -5,16 +9,21 @@ export function pageHead(opts: {
   noindex?: boolean;
   canonical?: string;
 }) {
-  const origin = typeof window === "undefined" ? "https://alanna.app" : window.location.origin;
-  const canonical = opts.canonical ?? (opts.path ? `${origin}${opts.path}` : undefined);
+  const canonical = opts.canonical ?? (opts.path ? `${siteOrigin}${opts.path}` : undefined);
   const meta: Array<Record<string, string>> = [
     { title: opts.title },
     { name: "description", content: opts.description },
     { property: "og:title", content: opts.title },
     { property: "og:description", content: opts.description },
     { property: "og:type", content: "website" },
-    { property: "og:image", content: `${origin}/favicon.png` },
+    { property: "og:url", content: canonical || siteOrigin },
+    { property: "og:image", content: `${siteOrigin}/og-image.png` },
+    { property: "og:locale", content: "es_MX" },
+    { property: "og:site_name", content: "Alanna Confirmaciones" },
     { name: "twitter:card", content: "summary_large_image" },
+    { name: "twitter:title", content: opts.title },
+    { name: "twitter:description", content: opts.description },
+    { name: "twitter:image", content: `${siteOrigin}/og-image.png` },
   ];
   if (opts.noindex) meta.push({ name: "robots", content: "noindex, nofollow" });
   const links = canonical ? [{ rel: "canonical", href: canonical }] : [];
@@ -71,6 +80,6 @@ export const businessJsonLd = {
   publisher: {
     "@type": "Organization",
     name: "Alanna",
-    url: "https://alanna.app",
+    url: siteOrigin,
   },
 };

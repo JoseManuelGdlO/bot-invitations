@@ -1,5 +1,6 @@
 import { Plan, User, sequelize, syncModels } from "../models/index.js";
 import { ensurePlans } from "../services/plans.service.js";
+import { ensureAdmin } from "../controllers/admin.controller.js";
 
 const force = process.argv.includes("--force");
 const alter = process.argv.includes("--alter") || !force;
@@ -8,6 +9,7 @@ try {
   await sequelize.authenticate();
   await syncModels({ force, alter: force ? false : alter });
   await ensurePlans();
+  await ensureAdmin();
   const atelier = await Plan.findOne({ where: { slug: "atelier" } });
   const seedUser = await User.findOne({ where: { email: "hola@planner.mx" } });
   if (atelier && seedUser && !seedUser.planId) {
