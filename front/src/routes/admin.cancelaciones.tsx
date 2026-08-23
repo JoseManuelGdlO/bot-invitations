@@ -65,7 +65,8 @@ function AdminCancellations() {
       <p className="text-xs font-medium uppercase tracking-[0.14em] text-gold">Backoffice</p>
       <h1 className="mt-1 font-display text-4xl">Cancelaciones</h1>
       <p className="mt-1 text-sm text-muted-foreground">
-        El cliente solo pide la baja. La suscripción se cancela en Stripe cuando tú la aceptas.
+        El cliente solo pide la baja. La suscripción se cancela en Stripe cuando tú la aceptas. Los envíos de
+        invitaciones de eventos ya creados no se detienen.
       </p>
 
       <div className="mt-6 max-w-xs">

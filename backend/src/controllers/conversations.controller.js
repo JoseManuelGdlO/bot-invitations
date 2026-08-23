@@ -12,6 +12,7 @@ import { serializeConversation, serializeGuest, serializeMessage } from "../util
 import { requireEvent, userEventIds } from "../services/access.service.js";
 import { enqueueJob } from "../services/outbound.worker.js";
 import { logActivity } from "../services/activity.service.js";
+import { assertCanSendInvitations } from "../services/plans.service.js";
 
 async function accessibleConversation(userId, conversationId) {
   const ids = await userEventIds(userId);
@@ -48,6 +49,7 @@ export const toggleConversation = asyncHandler(async (req, res) => {
 export const sendMessage = asyncHandler(async (req, res) => {
   const found = await accessibleConversation(req.user.id, req.params.conversationId);
   if (!found) return res.status(404).json({ error: "Conversación no encontrada." });
+  assertCanSendInvitations(req.user);
   const text = String(req.body?.text || "").trim();
   if (!text) return res.status(400).json({ error: "El mensaje no puede estar vacío." });
   const from = found.conv.aiPaused ? "planner" : req.body?.from || "planner";
@@ -77,6 +79,7 @@ export const sendMessage = asyncHandler(async (req, res) => {
 export const launchCampaign = asyncHandler(async (req, res) => {
   const event = await requireEvent(req, res);
   if (!event) return;
+  assertCanSendInvitations(req.user);
   const ai = await AiConfig.findOne({ where: { eventId: event.id } });
   const guests = await Guest.findAll({ where: { eventId: event.id, status: "sin_contactar" } });
   const now = new Date();

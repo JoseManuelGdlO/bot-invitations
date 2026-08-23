@@ -118,9 +118,12 @@ export function PendingPaymentBanner({ session }: { session: SessionUser | null 
 
   return (
     <div className="rounded-2xl border border-gold/40 bg-gold-soft/50 p-5">
-      <p className="text-sm font-medium">Tu suscripción aún no está activa</p>
+      <p className="text-sm font-medium">
+        {session.subscriptionStatus === "canceled" ? "Tu suscripción está cancelada" : "Tu suscripción aún no está activa"}
+      </p>
       <p className="mt-1 text-sm text-muted-foreground">
-        Completa el pago en Stripe para crear eventos e importar invitados.
+        Los envíos de invitaciones de tus eventos actuales no se detienen. Para crear otro evento o agregar invitados,
+        reactiva tu plan.
       </p>
       <Button className="mt-4" size="sm" onClick={pay} disabled={loading}>
         Completar pago

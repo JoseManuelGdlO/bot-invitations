@@ -11,6 +11,7 @@ export async function enqueueJob(type, payload, scheduledAt = new Date()) {
 
 export async function processJob(job) {
   await job.update({ status: "processing", attempts: job.attempts + 1 });
+  // Jobs already queued keep sending even if the owner's subscription expired or was canceled.
   try {
     if (job.type === "whatsapp.send") {
       const result = await provider.sendMessage(job.payload.to, job.payload.text);

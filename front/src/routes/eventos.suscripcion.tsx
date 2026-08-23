@@ -21,7 +21,7 @@ const STATUS_COPY: Record<CancellationRequest["status"], { label: string; text: 
   },
   approved: {
     label: "Cancelada",
-    text: "Un administrador aceptó la baja. Ya no se harán más cobros de este plan.",
+    text: "Un administrador aceptó la baja. Ya no se harán más cobros, pero los envíos de tus eventos actuales siguen.",
   },
   rejected: {
     label: "No aceptada",
@@ -79,7 +79,8 @@ function ClientSubscription() {
       <p className="text-xs font-medium uppercase tracking-[0.14em] text-gold">Cuenta</p>
       <h1 className="mt-1 font-display text-4xl">Suscripción</h1>
       <p className="mt-1 text-sm text-muted-foreground">
-        Puedes pedir la baja, pero un administrador de Alanna debe aceptarla para que se cancele de verdad.
+        Puedes pedir la baja, pero un administrador de Alanna debe aceptarla para que se cancele de verdad. Si se vence
+        o se cancela a mitad de un evento, las invitaciones en curso no se detienen.
       </p>
 
       <section className="mt-8 rounded-2xl border border-border bg-card p-5 shadow-soft">
@@ -137,7 +138,7 @@ function ClientSubscription() {
         <form onSubmit={request} className="mt-6 space-y-4 rounded-2xl border border-border bg-card p-5 shadow-soft">
           <h2 className="font-display text-2xl">Pedir cancelación</h2>
           <p className="text-sm text-muted-foreground">
-            Esto no cancela el cobro de inmediato. El administrador revisa la solicitud y, si la acepta, se cancela en Stripe.
+            Esto no cancela el cobro de inmediato. Si se acepta, se corta el plan pero los envíos de tus eventos actuales siguen.
           </p>
           <div className="space-y-2">
             <Label htmlFor="reason">Motivo</Label>

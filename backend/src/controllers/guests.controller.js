@@ -6,7 +6,7 @@ import { logActivity } from "../services/activity.service.js";
 import { enqueueJob } from "../services/outbound.worker.js";
 import { mapRows, parseSpreadsheet, suggestMapping } from "../services/import.service.js";
 import { guestsToRows, toCsv, toPdf, toXlsx } from "../services/export.service.js";
-import { assertCanAddGuests } from "../services/plans.service.js";
+import { assertCanAddGuests, assertCanSendInvitations } from "../services/plans.service.js";
 
 async function findGuestForUser(userId, guestId) {
   const ids = await userEventIds(userId);
@@ -81,6 +81,7 @@ export const updateGuest = asyncHandler(async (req, res) => {
 export const remindGuest = asyncHandler(async (req, res) => {
   const { guest, event } = await findGuestForUser(req.user.id, req.params.guestId);
   if (!guest) return res.status(404).json({ error: "Invitado no encontrado." });
+  assertCanSendInvitations(req.user);
   guest.status = guest.status === "sin_contactar" ? "enviado" : guest.status;
   guest.whatsapp = "enviado";
   guest.lastMessage = "Recordatorio · hoy";

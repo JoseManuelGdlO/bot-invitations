@@ -123,6 +123,7 @@ export interface PlanUsage {
   guestLimit: number;
   canCreateEvent: boolean;
   remainingGuests: number;
+  canSendInvitations?: boolean;
 }
 
 export interface SessionUser {

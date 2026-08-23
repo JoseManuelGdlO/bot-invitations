@@ -105,7 +105,12 @@ export async function getPlanUsage(user) {
     guestLimit,
     canCreateEvent: user.isAdmin || (active && !!plan && eventCount < eventLimit),
     remainingGuests: user.isAdmin ? Number.MAX_SAFE_INTEGER : Math.max(0, guestLimit - guestCount),
+    canSendInvitations: true,
   };
+}
+
+export function assertCanSendInvitations(_user) {
+  return;
 }
 
 function requireActivePlan(user, plan) {
