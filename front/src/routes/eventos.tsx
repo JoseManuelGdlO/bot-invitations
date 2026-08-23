@@ -8,6 +8,7 @@ import { initialsFrom, useStore } from "@/lib/mock/store";
 import { coverStyle } from "@/lib/cover";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
+import { HelpBot } from "@/components/help-bot";
 
 export const Route = createFileRoute("/eventos")({
   component: AppShell,
@@ -196,6 +197,7 @@ function AppShell() {
           <Outlet />
         </div>
       </div>
+      <HelpBot />
     </div>
   );
 }

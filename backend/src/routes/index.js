@@ -13,6 +13,7 @@ import * as billing from "../controllers/billing.controller.js";
 import * as finance from "../controllers/finance.controller.js";
 import * as support from "../controllers/support.controller.js";
 import * as cancellation from "../controllers/cancellation.controller.js";
+import * as help from "../controllers/help.controller.js";
 import { requireAdmin } from "../middleware/admin.js";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } });
@@ -31,6 +32,8 @@ router.use(requireAuth);
 
 router.get("/auth/me", auth.me);
 router.get("/dashboard", auth.dashboard);
+router.get("/help/suggestions", help.suggestions);
+router.post("/help/chat", help.chat);
 router.post("/billing/checkout", billing.checkout);
 router.post("/billing/portal", billing.portal);
 router.get("/billing/cancellation", cancellation.getMine);
