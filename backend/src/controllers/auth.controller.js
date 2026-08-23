@@ -77,11 +77,13 @@ export const register = asyncHandler(async (req, res) => {
   const tokens = await issueTokens(res, user, false);
   let checkoutUrl = null;
   if (stripeEnabled()) {
-    try {
-      const checkout = await startCheckout(user, plan, { interval: billingInterval });
-      checkoutUrl = checkout.checkoutUrl;
-    } catch (err) {
-      console.error("[stripe] checkout en registro", err.message);
+    const checkout = await startCheckout(user, plan, { interval: billingInterval });
+    checkoutUrl = checkout.checkoutUrl;
+    if (!checkoutUrl) {
+      return res.status(502).json({
+        ...tokens,
+        error: "No se pudo abrir Stripe Checkout. Revisa las llaves y el webhook.",
+      });
     }
   }
   res.status(201).json({ ...tokens, checkoutUrl });

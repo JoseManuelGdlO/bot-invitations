@@ -20,8 +20,24 @@ function normalizeInterval(value) {
   return value === "year" ? "year" : "month";
 }
 
+function isMissing(err) {
+  return err?.code === "resource_missing" || /no such (product|price|customer)/i.test(err?.message || "");
+}
+
+async function retrieveOrNull(loader) {
+  try {
+    return await loader();
+  } catch (err) {
+    if (isMissing(err)) return null;
+    throw err;
+  }
+}
+
 async function upsertRecurringPrice(stripe, plan, { interval, amountMxn, currentId, rotate }) {
-  if (currentId && !rotate) return currentId;
+  if (currentId && !rotate) {
+    const existing = await retrieveOrNull(() => stripe.prices.retrieve(currentId));
+    if (existing && existing.active !== false) return currentId;
+  }
   const price = await stripe.prices.create({
     product: plan.stripeProductId,
     currency: "mxn",
@@ -38,13 +54,19 @@ async function upsertRecurringPrice(stripe, plan, { interval, amountMxn, current
 export async function ensureStripePrice(plan, { rotate = false } = {}) {
   const stripe = getStripe();
   if (!stripe || !plan) return plan;
-  if (!plan.stripeProductId) {
+  const existingProduct = plan.stripeProductId
+    ? await retrieveOrNull(() => stripe.products.retrieve(plan.stripeProductId))
+    : null;
+  if (!existingProduct) {
     const product = await stripe.products.create({
       name: `Alanna ${plan.name}`,
       description: plan.tagline,
       metadata: { planId: plan.id, slug: plan.slug },
     });
     plan.stripeProductId = product.id;
+    plan.stripePriceId = null;
+    plan.stripeYearlyPriceId = null;
+    rotate = true;
   } else {
     await stripe.products.update(plan.stripeProductId, {
       name: `Alanna ${plan.name}`,
@@ -81,7 +103,12 @@ export async function syncStripePlans() {
 
 async function ensureCustomer(user) {
   const stripe = getStripe();
-  if (user.stripeCustomerId) return user.stripeCustomerId;
+  if (user.stripeCustomerId) {
+    const existing = await retrieveOrNull(() => stripe.customers.retrieve(user.stripeCustomerId));
+    if (existing && !existing.deleted) return user.stripeCustomerId;
+    user.stripeCustomerId = null;
+    user.stripeSubscriptionId = null;
+  }
   const customer = await stripe.customers.create({
     email: user.email,
     name: user.name,
@@ -123,7 +150,16 @@ export async function startCheckout(user, plan, { successPath, cancelPath, inter
     throw err;
   }
   const billingInterval = normalizeInterval(interval);
-  await ensureStripePrice(plan);
+  try {
+    await ensureStripePrice(plan);
+  } catch (err) {
+    if (!isMissing(err)) throw err;
+    plan.stripeProductId = null;
+    plan.stripePriceId = null;
+    plan.stripeYearlyPriceId = null;
+    await plan.save();
+    await ensureStripePrice(plan, { rotate: true });
+  }
   const priceId = priceIdFor(plan, billingInterval);
   if (!priceId) {
     const err = new Error("Este plan aún no tiene precio de Stripe.");
