@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { api, ApiError } from "@/lib/api/client";
 import logo from "@/assets/alanna-logo.png";
 import { initialsFrom, useStore } from "@/lib/mock/store";
+import { coverStyle } from "@/lib/cover";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 
@@ -120,7 +121,7 @@ function AppShell() {
               >
                 <span
                   className="flex size-6 shrink-0 items-center justify-center rounded-md text-[10px] font-semibold text-primary/70"
-                  style={{ background: e.cover }}
+                  style={coverStyle(e.cover)}
                 >
                   {e.shortName}
                 </span>

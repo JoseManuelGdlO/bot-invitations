@@ -23,7 +23,7 @@ export interface EventItem {
   venue: string;
   address: string;
   estimatedGuests: number;
-  cover: string; // gradient css
+  cover: string;
   status: "activo" | "borrador" | "finalizado";
 }
 

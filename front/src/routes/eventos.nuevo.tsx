@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { ArrowLeft, ArrowRight, Check, ImageIcon, PartyPopper, Upload } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, PartyPopper, Upload } from "lucide-react";
+import { CoverDropzone } from "@/components/cover-dropzone";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -182,12 +183,8 @@ function NewEvent() {
           <div className="space-y-6">
             <div>
               <Label className="mb-3 block">Imagen de portada</Label>
-              <div className="flex h-40 items-center justify-center rounded-xl border border-dashed border-border" style={{ background: form.cover }}>
-                <div className="text-center text-sm text-muted-foreground">
-                  <ImageIcon className="mx-auto mb-2 size-5" />
-                  Arrastra una imagen o selecciona una paleta
-                </div>
-              </div>
+              <CoverDropzone value={form.cover} onChange={(cover) => set("cover", cover)} />
+              <p className="mt-2 text-xs text-muted-foreground">JPG, PNG o WEBP. También puedes usar solo una paleta de color.</p>
             </div>
             <div>
               <Label className="mb-3 block">Colores</Label>

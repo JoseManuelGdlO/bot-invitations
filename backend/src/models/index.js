@@ -69,7 +69,7 @@ export const Event = sequelize.define("events", {
   venue: { type: DataTypes.STRING(200), allowNull: false },
   address: { type: DataTypes.TEXT, allowNull: true },
   estimatedGuests: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
-  cover: { type: DataTypes.STRING(400), allowNull: false },
+  cover: { type: DataTypes.TEXT("medium"), allowNull: false },
   status: { type: DataTypes.ENUM("activo", "borrador", "finalizado"), allowNull: false, defaultValue: "borrador" },
 });
 

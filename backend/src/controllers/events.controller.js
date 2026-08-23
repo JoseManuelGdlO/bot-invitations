@@ -9,6 +9,24 @@ import { logActivity } from "../services/activity.service.js";
 import { userEventIds } from "../services/access.service.js";
 import { assertCanCreateEvent } from "../services/plans.service.js";
 
+const DEFAULT_COVER = "linear-gradient(135deg, var(--gold-soft), var(--rose))";
+
+function sanitizeCover(value) {
+  const cover = String(value || "").trim();
+  if (!cover) return DEFAULT_COVER;
+  if (cover.length > 1_800_000) {
+    const err = new Error("La imagen de portada es demasiado grande.");
+    err.status = 400;
+    throw err;
+  }
+  const allowed =
+    cover.startsWith("linear-gradient(") ||
+    cover.startsWith("data:image/") ||
+    /^https?:\/\//i.test(cover);
+  if (!allowed) return DEFAULT_COVER;
+  return cover;
+}
+
 async function uniqueSlug(base) {
   let slug = slugify(base);
   let i = 2;
@@ -42,7 +60,7 @@ export const createEvent = asyncHandler(async (req, res) => {
     venue: body.venue || "Por definir",
     address: body.address || "",
     estimatedGuests: Number(body.estimatedGuests) || 0,
-    cover: body.cover || "linear-gradient(135deg, var(--gold-soft), var(--rose))",
+    cover: sanitizeCover(body.cover),
     status: body.status || "borrador",
   });
   await seedEventDefaults(event, req.user);
@@ -73,7 +91,8 @@ export const updateEvent = asyncHandler(async (req, res) => {
     "status",
   ];
   for (const key of allowed) {
-    if (req.body?.[key] !== undefined) event[key] = req.body[key];
+    if (req.body?.[key] === undefined) continue;
+    event[key] = key === "cover" ? sanitizeCover(req.body[key]) : req.body[key];
   }
   await event.save();
   res.json(serializeEvent(event));

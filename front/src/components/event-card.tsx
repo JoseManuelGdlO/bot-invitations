@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { formatDate, daysUntil } from "@/lib/mock/format";
 import type { EventItem, Guest } from "@/lib/mock/types";
 import { statsFor } from "@/lib/mock/store";
+import { coverStyle } from "@/lib/cover";
 
 export function EventCard({ event, guests }: { event: EventItem; guests: Guest[] }) {
   const s = statsFor(guests);
@@ -14,7 +15,7 @@ export function EventCard({ event, guests }: { event: EventItem; guests: Guest[]
       params={{ eventId: event.id }}
       className="group block overflow-hidden rounded-2xl border border-border bg-card shadow-soft transition-all duration-300 hover:-translate-y-1 hover:shadow-lift"
     >
-      <div className="relative h-28" style={{ background: event.cover }}>
+      <div className="relative h-28" style={coverStyle(event.cover)}>
         <span className="absolute left-4 top-4 font-display text-2xl text-primary/70">{event.shortName}</span>
         <Badge
           variant="outline"

@@ -10,6 +10,7 @@ import {
   Users,
 } from "lucide-react";
 import { useEvent } from "@/lib/mock/store";
+import { coverStyle } from "@/lib/cover";
 import { formatDate } from "@/lib/mock/format";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
@@ -48,7 +49,7 @@ function EventLayout() {
         <div className="flex flex-wrap items-center gap-4 px-5 pb-4 pt-6 md:px-8">
           <span
             className="flex size-12 items-center justify-center rounded-xl font-display text-lg text-primary/70"
-            style={{ background: event.cover }}
+            style={coverStyle(event.cover)}
           >
             {event.shortName}
           </span>
