@@ -1,0 +1,45 @@
+# EasyPanel / producción — NO publicar puertos en el host.
+# EasyPanel enruta el tráfico vía Traefik al puerto interno del contenedor.
+# MySQL vive fuera de este compose (servicio EasyPanel o host remoto).
+# Para probar en local con localhost:8080 (front) / :4000 (back):
+# docker compose -f docker-compose.yml -f docker-compose.local.yml up --build
+
+services:
+  back:
+    build: ./backend
+    expose:
+      - "4000"
+    restart: unless-stopped
+    environment:
+      NODE_ENV: ${NODE_ENV:-production}
+      PORT: ${PORT:-4000}
+      CLIENT_URL: ${CLIENT_URL:-}
+      DB_HOST: ${DB_HOST:-mysql}
+      DB_PORT: ${DB_PORT:-3306}
+      DB_USER: ${DB_USER:-alanna}
+      DB_PASSWORD: ${DB_PASSWORD:-}
+      DB_NAME: ${DB_NAME:-alanna}
+      JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:-}
+      JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET:-}
+      JWT_ACCESS_EXPIRES: ${JWT_ACCESS_EXPIRES:-8h}
+      JWT_REFRESH_EXPIRES_DAYS: ${JWT_REFRESH_EXPIRES_DAYS:-7}
+      JWT_REFRESH_REMEMBER_DAYS: ${JWT_REFRESH_REMEMBER_DAYS:-30}
+      FRONTEND_RESET_URL: ${FRONTEND_RESET_URL:-}
+      WORKER_INTERVAL_MS: ${WORKER_INTERVAL_MS:-5000}
+
+  front:
+    build:
+      context: ./front
+      args:
+        VITE_API_URL: ${VITE_API_URL:-https://api.tudominio.com/api}
+        VITE_GA4_MEASUREMENT_ID: ${VITE_GA4_MEASUREMENT_ID:-}
+        VITE_GSC_VERIFICATION: ${VITE_GSC_VERIFICATION:-}
+    expose:
+      - "80"
+    restart: unless-stopped
+    depends_on:
+      - back
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 80

@@ -12,6 +12,8 @@ export default defineConfig({
     // nitro/vite builds from this
     server: { entry: "server" },
   },
+  // EasyPanel/Docker sets NITRO_PRESET=node-server. Lovable keeps its Cloudflare default.
+  nitro: process.env.NITRO_PRESET ? { preset: process.env.NITRO_PRESET } : undefined,
   vite: {
     server: {
       proxy: {
