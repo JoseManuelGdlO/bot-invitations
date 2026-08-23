@@ -2,8 +2,7 @@ import { Link, Outlet, createFileRoute, useNavigate, useRouterState } from "@tan
 import { useEffect, useState } from "react";
 import { CalendarHeart, CreditCard, Headset, LayoutDashboard, LogOut, MessagesSquare, Settings2, Shield } from "lucide-react";
 import { PlanUsageHint } from "@/components/plan-limit";
-import { toast } from "sonner";
-import { api, ApiError } from "@/lib/api/client";
+import { api } from "@/lib/api/client";
 import logo from "@/assets/alanna-logo.png";
 import { initialsFrom, useStore } from "@/lib/mock/store";
 import { coverStyle } from "@/lib/cover";
@@ -15,7 +14,7 @@ export const Route = createFileRoute("/eventos")({
 });
 
 function AppShell() {
-  const { session, hydrated, logout, events, openBillingPortal } = useStore();
+  const { session, hydrated, logout, events } = useStore();
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [supportUnread, setSupportUnread] = useState(0);
@@ -81,6 +80,18 @@ function AppShell() {
             <CalendarHeart className="size-4" /> Crear evento
           </Link>
           <Link
+            to="/eventos/suscripcion"
+            className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent"
+            activeProps={{ className: "bg-sidebar-accent font-medium text-sidebar-foreground" }}
+          >
+            <CreditCard className="size-4" /> Suscripción
+            {session.cancellation?.status === "pending" ? (
+              <span className="ml-auto rounded-full bg-gold px-1.5 text-[10px] font-semibold text-gold-foreground">
+                1
+              </span>
+            ) : null}
+          </Link>
+          <Link
             to="/eventos/soporte"
             className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent"
             activeProps={{ className: "bg-sidebar-accent font-medium text-sidebar-foreground" }}
@@ -143,19 +154,9 @@ function AppShell() {
               </p>
               <PlanUsageHint session={session} />
               {!session.isAdmin ? (
-                <button
-                  type="button"
-                  className="mt-1 flex items-center gap-1 text-[11px] text-gold hover:underline"
-                  onClick={async () => {
-                    try {
-                      await openBillingPortal();
-                    } catch (err) {
-                      toast.error(err instanceof ApiError ? err.message : "No se pudo abrir el portal de pagos");
-                    }
-                  }}
-                >
+                <Link to="/eventos/suscripcion" className="mt-1 flex items-center gap-1 text-[11px] text-gold hover:underline">
                   <CreditCard className="size-3" /> Gestionar suscripción
-                </button>
+                </Link>
               ) : null}
             </div>
             <button

@@ -138,6 +138,25 @@ export interface SessionUser {
   billingInterval?: BillingInterval;
   plan?: Pick<SubscriptionPlan, "id" | "slug" | "name" | "priceMxn" | "eventLimit" | "guestLimit"> | null;
   usage?: PlanUsage;
+  cancellation?: CancellationRequest | null;
+}
+
+export interface CancellationRequest {
+  id: string;
+  reason: string;
+  status: "pending" | "approved" | "rejected" | "withdrawn";
+  adminNote: string;
+  createdAt: string;
+  decidedAt?: string | null;
+  user?: {
+    id: string;
+    name: string;
+    email: string;
+    businessName: string;
+    phone: string;
+    subscriptionStatus: string;
+    plan: { id: string; name: string; slug: string } | null;
+  } | null;
 }
 
 export interface TeamMember {

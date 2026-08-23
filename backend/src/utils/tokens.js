@@ -32,7 +32,7 @@ export function randomToken() {
   return crypto.randomBytes(32).toString("hex");
 }
 
-export function serializeUser(user, plan = null, usage = null) {
+export function serializeUser(user, plan = null, usage = null, extras = {}) {
   return {
     id: user.id,
     email: user.email,
@@ -62,5 +62,6 @@ export function serializeUser(user, plan = null, usage = null) {
       canCreateEvent: false,
       remainingGuests: 0,
     },
+    cancellation: extras.cancellation || null,
   };
 }

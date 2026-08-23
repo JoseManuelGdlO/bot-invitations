@@ -237,6 +237,20 @@ export const SupportMessage = sequelize.define("support_messages", {
   body: { type: DataTypes.TEXT, allowNull: false },
 });
 
+export const CancellationRequest = sequelize.define("cancellation_requests", {
+  id: uuid,
+  userId: { type: DataTypes.CHAR(36), allowNull: false },
+  reason: { type: DataTypes.TEXT, allowNull: false },
+  status: {
+    type: DataTypes.ENUM("pending", "approved", "rejected", "withdrawn"),
+    allowNull: false,
+    defaultValue: "pending",
+  },
+  adminId: { type: DataTypes.CHAR(36), allowNull: true },
+  adminNote: { type: DataTypes.TEXT, allowNull: true },
+  decidedAt: { type: DataTypes.DATE, allowNull: true },
+});
+
 export const OutboundJob = sequelize.define("outbound_jobs", {
   id: uuid,
   type: { type: DataTypes.STRING(80), allowNull: false },
@@ -288,6 +302,11 @@ User.hasMany(Payment, { foreignKey: "userId" });
 Payment.belongsTo(User, { foreignKey: "userId", as: "user" });
 Plan.hasMany(Payment, { foreignKey: "planId" });
 Payment.belongsTo(Plan, { foreignKey: "planId", as: "plan" });
+
+User.hasMany(CancellationRequest, { foreignKey: "userId" });
+CancellationRequest.belongsTo(User, { foreignKey: "userId", as: "user" });
+User.hasMany(CancellationRequest, { foreignKey: "adminId", as: "reviewedCancellations" });
+CancellationRequest.belongsTo(User, { foreignKey: "adminId", as: "admin" });
 
 User.hasMany(SupportTicket, { foreignKey: "userId" });
 SupportTicket.belongsTo(User, { foreignKey: "userId", as: "user" });

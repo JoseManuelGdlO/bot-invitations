@@ -12,6 +12,7 @@ import * as admin from "../controllers/admin.controller.js";
 import * as billing from "../controllers/billing.controller.js";
 import * as finance from "../controllers/finance.controller.js";
 import * as support from "../controllers/support.controller.js";
+import * as cancellation from "../controllers/cancellation.controller.js";
 import { requireAdmin } from "../middleware/admin.js";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } });
@@ -32,6 +33,9 @@ router.get("/auth/me", auth.me);
 router.get("/dashboard", auth.dashboard);
 router.post("/billing/checkout", billing.checkout);
 router.post("/billing/portal", billing.portal);
+router.get("/billing/cancellation", cancellation.getMine);
+router.post("/billing/cancellation", cancellation.createMine);
+router.delete("/billing/cancellation", cancellation.withdrawMine);
 router.get("/activity", analytics.listActivity);
 
 router.get("/events", events.listEvents);
@@ -86,3 +90,7 @@ router.get("/admin/support/unread", requireAdmin, support.unreadAll);
 router.get("/admin/support/tickets/:ticketId", requireAdmin, support.getAny);
 router.post("/admin/support/tickets/:ticketId/messages", requireAdmin, support.replyAny);
 router.patch("/admin/support/tickets/:ticketId", requireAdmin, support.updateAny);
+router.get("/admin/cancellations", requireAdmin, cancellation.listAll);
+router.get("/admin/cancellations/unread", requireAdmin, cancellation.unread);
+router.post("/admin/cancellations/:requestId/approve", requireAdmin, cancellation.approve);
+router.post("/admin/cancellations/:requestId/reject", requireAdmin, cancellation.reject);

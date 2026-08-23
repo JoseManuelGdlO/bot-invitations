@@ -13,11 +13,15 @@ import { loadUserState } from "../services/state.service.js";
 import { asyncHandler } from "../utils/async.js";
 import { getPlanUsage, serializePlan } from "../services/plans.service.js";
 import { startCheckout, stripeEnabled } from "../services/stripe.service.js";
+import { getLatestCancellation, serializeCancellation } from "../services/cancellation.service.js";
 
 async function userWithPlan(user) {
   const plan = user.planId ? await Plan.findByPk(user.planId) : null;
   const usage = await getPlanUsage(user);
-  return serializeUser(user, plan, usage);
+  const cancellation = await getLatestCancellation(user.id);
+  return serializeUser(user, plan, usage, {
+    cancellation: cancellation ? serializeCancellation(cancellation) : null,
+  });
 }
 
 function cookieOpts(days) {

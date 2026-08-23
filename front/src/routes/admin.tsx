@@ -1,6 +1,6 @@
 import { Link, Outlet, createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Headset, LayoutDashboard, LogOut, Package, Users, Wallet } from "lucide-react";
+import { Ban, Headset, LayoutDashboard, LogOut, Package, Users, Wallet } from "lucide-react";
 import logo from "@/assets/alanna-logo.png";
 import { initialsFrom, useStore } from "@/lib/mock/store";
 import { cn } from "@/lib/utils";
@@ -23,6 +23,7 @@ function AdminShell() {
   const { session, hydrated, logout } = useStore();
   const navigate = useNavigate();
   const [supportUnread, setSupportUnread] = useState(0);
+  const [cancelUnread, setCancelUnread] = useState(0);
 
   useEffect(() => {
     if (!hydrated) return;
@@ -34,6 +35,9 @@ function AdminShell() {
     if (!session?.isAdmin) return;
     api<{ count: number }>("/admin/support/unread")
       .then((res) => setSupportUnread(res.count))
+      .catch(() => undefined);
+    api<{ count: number }>("/admin/cancellations/unread")
+      .then((res) => setCancelUnread(res.count))
       .catch(() => undefined);
   }, [session?.isAdmin]);
 
@@ -90,6 +94,18 @@ function AdminShell() {
             activeProps={{ className: "bg-sidebar-accent font-medium text-sidebar-foreground" }}
           >
             <Wallet className="size-4" /> Finanzas
+          </Link>
+          <Link
+            to="/admin/cancelaciones"
+            className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent"
+            activeProps={{ className: "bg-sidebar-accent font-medium text-sidebar-foreground" }}
+          >
+            <Ban className="size-4" /> Cancelaciones
+            {cancelUnread > 0 ? (
+              <span className="ml-auto rounded-full bg-gold px-1.5 text-[10px] font-semibold text-gold-foreground">
+                {cancelUnread}
+              </span>
+            ) : null}
           </Link>
           <Link
             to="/admin/soporte"

@@ -198,6 +198,31 @@ export async function startCheckout(user, plan, { successPath, cancelPath, inter
   return { checkoutUrl: session.url, updated: false };
 }
 
+let portalConfigId = null;
+
+async function portalConfigWithoutSelfCancel(stripe) {
+  if (portalConfigId) return portalConfigId;
+  const list = await stripe.billingPortal.configurations.list({ limit: 20 });
+  const existing = list.data.find((item) => item.metadata?.alanna === "no-self-cancel");
+  if (existing) {
+    portalConfigId = existing.id;
+    return portalConfigId;
+  }
+  const created = await stripe.billingPortal.configurations.create({
+    business_profile: { headline: "Actualiza tu método de pago de Alanna" },
+    features: {
+      customer_update: { enabled: true, allowed_updates: ["email", "name", "address", "phone"] },
+      invoice_history: { enabled: true },
+      payment_method_update: { enabled: true },
+      subscription_cancel: { enabled: false },
+      subscription_update: { enabled: false },
+    },
+    metadata: { alanna: "no-self-cancel" },
+  });
+  portalConfigId = created.id;
+  return portalConfigId;
+}
+
 export async function createPortalSession(user) {
   const stripe = getStripe();
   if (!stripe || !user.stripeCustomerId) {
@@ -205,11 +230,25 @@ export async function createPortalSession(user) {
     err.status = 400;
     throw err;
   }
+  const configuration = await portalConfigWithoutSelfCancel(stripe);
   const session = await stripe.billingPortal.sessions.create({
     customer: user.stripeCustomerId,
     return_url: `${env.clientUrl}/eventos`,
+    configuration,
   });
   return session.url;
+}
+
+export async function cancelStripeSubscription(user) {
+  const stripe = getStripe();
+  if (!stripe || !user.stripeSubscriptionId) return { canceledInStripe: false };
+  try {
+    await stripe.subscriptions.cancel(user.stripeSubscriptionId);
+    return { canceledInStripe: true };
+  } catch (err) {
+    if (isMissing(err)) return { canceledInStripe: false };
+    throw err;
+  }
 }
 
 export async function confirmCheckoutSession(sessionId) {
