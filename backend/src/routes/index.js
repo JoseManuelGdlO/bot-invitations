@@ -10,6 +10,8 @@ import * as team from "../controllers/team.controller.js";
 import * as analytics from "../controllers/analytics.controller.js";
 import * as admin from "../controllers/admin.controller.js";
 import * as billing from "../controllers/billing.controller.js";
+import * as finance from "../controllers/finance.controller.js";
+import * as support from "../controllers/support.controller.js";
 import { requireAdmin } from "../middleware/admin.js";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } });
@@ -66,8 +68,21 @@ router.patch("/events/:eventId/role-permissions/:permissionId", team.updatePermi
 router.get("/events/:eventId/analytics", analytics.getAnalytics);
 router.get("/events/:eventId/activity", analytics.listActivity);
 
+router.get("/support/tickets", support.listMine);
+router.post("/support/tickets", support.createMine);
+router.get("/support/unread", support.unreadMine);
+router.get("/support/tickets/:ticketId", support.getMine);
+router.post("/support/tickets/:ticketId/messages", support.replyMine);
+router.patch("/support/tickets/:ticketId", support.closeMine);
+
 router.get("/admin/overview", requireAdmin, admin.overview);
+router.get("/admin/finance", requireAdmin, finance.snapshot);
 router.get("/admin/clients", requireAdmin, admin.listClients);
 router.patch("/admin/clients/:userId", requireAdmin, admin.updateClient);
 router.get("/admin/plans", requireAdmin, admin.listPlans);
 router.patch("/admin/plans/:planId", requireAdmin, admin.updatePlan);
+router.get("/admin/support/tickets", requireAdmin, support.listAll);
+router.get("/admin/support/unread", requireAdmin, support.unreadAll);
+router.get("/admin/support/tickets/:ticketId", requireAdmin, support.getAny);
+router.post("/admin/support/tickets/:ticketId/messages", requireAdmin, support.replyAny);
+router.patch("/admin/support/tickets/:ticketId", requireAdmin, support.updateAny);

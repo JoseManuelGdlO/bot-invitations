@@ -190,6 +190,53 @@ export const Campaign = sequelize.define("campaigns", {
   launchedAt: { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW },
 });
 
+export const Payment = sequelize.define("payments", {
+  id: uuid,
+  userId: { type: DataTypes.CHAR(36), allowNull: true },
+  planId: { type: DataTypes.CHAR(36), allowNull: true },
+  stripeInvoiceId: { type: DataTypes.STRING(80), allowNull: false, unique: true },
+  stripeCustomerId: { type: DataTypes.STRING(80), allowNull: true },
+  amountMxn: { type: DataTypes.DECIMAL(12, 2), allowNull: false, defaultValue: 0 },
+  currency: { type: DataTypes.STRING(8), allowNull: false, defaultValue: "mxn" },
+  interval: { type: DataTypes.STRING(12), allowNull: true },
+  customerEmail: { type: DataTypes.STRING(190), allowNull: true },
+  customerName: { type: DataTypes.STRING(160), allowNull: true },
+  paidAt: { type: DataTypes.DATE, allowNull: false },
+  status: { type: DataTypes.STRING(32), allowNull: false, defaultValue: "paid" },
+});
+
+export const SupportTicket = sequelize.define("support_tickets", {
+  id: uuid,
+  code: { type: DataTypes.STRING(20), allowNull: false, unique: true },
+  userId: { type: DataTypes.CHAR(36), allowNull: false },
+  subject: { type: DataTypes.STRING(180), allowNull: false },
+  category: {
+    type: DataTypes.ENUM("facturacion", "cuenta", "eventos", "tecnico", "otro"),
+    allowNull: false,
+    defaultValue: "otro",
+  },
+  status: {
+    type: DataTypes.ENUM("open", "waiting_admin", "waiting_client", "closed"),
+    allowNull: false,
+    defaultValue: "waiting_admin",
+  },
+  priority: {
+    type: DataTypes.ENUM("low", "normal", "high"),
+    allowNull: false,
+    defaultValue: "normal",
+  },
+  lastMessageAt: { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW },
+  lastMessagePreview: { type: DataTypes.STRING(240), allowNull: true, defaultValue: "" },
+});
+
+export const SupportMessage = sequelize.define("support_messages", {
+  id: uuid,
+  ticketId: { type: DataTypes.CHAR(36), allowNull: false },
+  authorId: { type: DataTypes.CHAR(36), allowNull: true },
+  from: { type: DataTypes.ENUM("client", "admin"), allowNull: false },
+  body: { type: DataTypes.TEXT, allowNull: false },
+});
+
 export const OutboundJob = sequelize.define("outbound_jobs", {
   id: uuid,
   type: { type: DataTypes.STRING(80), allowNull: false },
@@ -236,6 +283,18 @@ Event.hasMany(Activity, { foreignKey: "eventId", as: "activities" });
 Activity.belongsTo(Event, { foreignKey: "eventId" });
 Event.hasMany(Campaign, { foreignKey: "eventId", as: "campaigns" });
 Campaign.belongsTo(Event, { foreignKey: "eventId" });
+
+User.hasMany(Payment, { foreignKey: "userId" });
+Payment.belongsTo(User, { foreignKey: "userId", as: "user" });
+Plan.hasMany(Payment, { foreignKey: "planId" });
+Payment.belongsTo(Plan, { foreignKey: "planId", as: "plan" });
+
+User.hasMany(SupportTicket, { foreignKey: "userId" });
+SupportTicket.belongsTo(User, { foreignKey: "userId", as: "user" });
+SupportTicket.hasMany(SupportMessage, { foreignKey: "ticketId", as: "messages" });
+SupportMessage.belongsTo(SupportTicket, { foreignKey: "ticketId" });
+User.hasMany(SupportMessage, { foreignKey: "authorId" });
+SupportMessage.belongsTo(User, { foreignKey: "authorId", as: "author" });
 
 export { sequelize };
 

@@ -1,11 +1,12 @@
 import { Link, Outlet, createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect } from "react";
-import { LayoutDashboard, LogOut, Package, Users } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Headset, LayoutDashboard, LogOut, Package, Users, Wallet } from "lucide-react";
 import logo from "@/assets/alanna-logo.png";
 import { initialsFrom, useStore } from "@/lib/mock/store";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { pageHead } from "@/lib/seo";
+import { api } from "@/lib/api/client";
 
 export const Route = createFileRoute("/admin")({
   head: () =>
@@ -21,12 +22,20 @@ export const Route = createFileRoute("/admin")({
 function AdminShell() {
   const { session, hydrated, logout } = useStore();
   const navigate = useNavigate();
+  const [supportUnread, setSupportUnread] = useState(0);
 
   useEffect(() => {
     if (!hydrated) return;
     if (!session) navigate({ to: "/iniciar-sesion" });
     else if (!session.isAdmin) navigate({ to: "/eventos" });
   }, [hydrated, session, navigate]);
+
+  useEffect(() => {
+    if (!session?.isAdmin) return;
+    api<{ count: number }>("/admin/support/unread")
+      .then((res) => setSupportUnread(res.count))
+      .catch(() => undefined);
+  }, [session?.isAdmin]);
 
   if (!hydrated || !session?.isAdmin) {
     return (
@@ -74,6 +83,25 @@ function AdminShell() {
             activeProps={{ className: "bg-sidebar-accent font-medium text-sidebar-foreground" }}
           >
             <Users className="size-4" /> Clientes
+          </Link>
+          <Link
+            to="/admin/finanzas"
+            className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent"
+            activeProps={{ className: "bg-sidebar-accent font-medium text-sidebar-foreground" }}
+          >
+            <Wallet className="size-4" /> Finanzas
+          </Link>
+          <Link
+            to="/admin/soporte"
+            className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent"
+            activeProps={{ className: "bg-sidebar-accent font-medium text-sidebar-foreground" }}
+          >
+            <Headset className="size-4" /> Soporte
+            {supportUnread > 0 ? (
+              <span className="ml-auto rounded-full bg-gold px-1.5 text-[10px] font-semibold text-gold-foreground">
+                {supportUnread}
+              </span>
+            ) : null}
           </Link>
           <Link
             to="/admin/planes"

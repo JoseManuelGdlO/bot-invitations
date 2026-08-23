@@ -18,12 +18,17 @@ import { Route as RegistroRouteImport } from './routes/registro'
 import { Route as RestablecerContrasenaRouteImport } from './routes/restablecer-contrasena'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as AdminClientesRouteImport } from './routes/admin.clientes'
+import { Route as AdminFinanzasRouteImport } from './routes/admin.finanzas'
 import { Route as AdminPlanesRouteImport } from './routes/admin.planes'
+import { Route as AdminSoporteRouteImport } from './routes/admin.soporte'
 import { Route as EventosIndexRouteImport } from './routes/eventos.index'
 import { Route as EventosEventIdRouteImport } from './routes/eventos.$eventId'
 import { Route as EventosNuevoRouteImport } from './routes/eventos.nuevo'
+import { Route as EventosSoporteRouteImport } from './routes/eventos.soporte'
 import { Route as PagoExitoRouteImport } from './routes/pago.exito'
 import { Route as RegistroExitoRouteImport } from './routes/registro.exito'
+import { Route as AdminSoporteIndexRouteImport } from './routes/admin.soporte.index'
+import { Route as AdminSoporteTicketIdRouteImport } from './routes/admin.soporte.$ticketId'
 import { Route as EventosEventIdIndexRouteImport } from './routes/eventos.$eventId.index'
 import { Route as EventosEventIdAutomatizacionRouteImport } from './routes/eventos.$eventId.automatizacion'
 import { Route as EventosEventIdConfiguracionRouteImport } from './routes/eventos.$eventId.configuracion'
@@ -34,6 +39,8 @@ import { Route as EventosEventIdInvitadosRouteImport } from './routes/eventos.$e
 import { Route as EventosEventIdListaFinalRouteImport } from './routes/eventos.$eventId.lista-final'
 import { Route as EventosEventIdMensajesRouteImport } from './routes/eventos.$eventId.mensajes'
 import { Route as EventosEventIdResumenRouteImport } from './routes/eventos.$eventId.resumen'
+import { Route as EventosSoporteIndexRouteImport } from './routes/eventos.soporte.index'
+import { Route as EventosSoporteTicketIdRouteImport } from './routes/eventos.soporte.$ticketId'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -80,9 +87,19 @@ const AdminClientesRoute = AdminClientesRouteImport.update({
   path: '/clientes',
   getParentRoute: () => AdminRoute,
 } as any)
+const AdminFinanzasRoute = AdminFinanzasRouteImport.update({
+  id: '/finanzas',
+  path: '/finanzas',
+  getParentRoute: () => AdminRoute,
+} as any)
 const AdminPlanesRoute = AdminPlanesRouteImport.update({
   id: '/planes',
   path: '/planes',
+  getParentRoute: () => AdminRoute,
+} as any)
+const AdminSoporteRoute = AdminSoporteRouteImport.update({
+  id: '/soporte',
+  path: '/soporte',
   getParentRoute: () => AdminRoute,
 } as any)
 const EventosIndexRoute = EventosIndexRouteImport.update({
@@ -100,6 +117,11 @@ const EventosNuevoRoute = EventosNuevoRouteImport.update({
   path: '/nuevo',
   getParentRoute: () => EventosRoute,
 } as any)
+const EventosSoporteRoute = EventosSoporteRouteImport.update({
+  id: '/soporte',
+  path: '/soporte',
+  getParentRoute: () => EventosRoute,
+} as any)
 const PagoExitoRoute = PagoExitoRouteImport.update({
   id: '/pago/exito',
   path: '/pago/exito',
@@ -109,6 +131,16 @@ const RegistroExitoRoute = RegistroExitoRouteImport.update({
   id: '/exito',
   path: '/exito',
   getParentRoute: () => RegistroRoute,
+} as any)
+const AdminSoporteIndexRoute = AdminSoporteIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => AdminSoporteRoute,
+} as any)
+const AdminSoporteTicketIdRoute = AdminSoporteTicketIdRouteImport.update({
+  id: '/$ticketId',
+  path: '/$ticketId',
+  getParentRoute: () => AdminSoporteRoute,
 } as any)
 const EventosEventIdIndexRoute = EventosEventIdIndexRouteImport.update({
   id: '/',
@@ -165,6 +197,16 @@ const EventosEventIdResumenRoute = EventosEventIdResumenRouteImport.update({
   path: '/resumen',
   getParentRoute: () => EventosEventIdRoute,
 } as any)
+const EventosSoporteIndexRoute = EventosSoporteIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => EventosSoporteRoute,
+} as any)
+const EventosSoporteTicketIdRoute = EventosSoporteTicketIdRouteImport.update({
+  id: '/$ticketId',
+  path: '/$ticketId',
+  getParentRoute: () => EventosSoporteRoute,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -175,13 +217,17 @@ export interface FileRoutesByFullPath {
   '/registro': typeof RegistroRouteWithChildren
   '/restablecer-contrasena': typeof RestablecerContrasenaRoute
   '/admin/clientes': typeof AdminClientesRoute
+  '/admin/finanzas': typeof AdminFinanzasRoute
   '/admin/planes': typeof AdminPlanesRoute
+  '/admin/soporte': typeof AdminSoporteRouteWithChildren
   '/eventos/$eventId': typeof EventosEventIdRouteWithChildren
   '/eventos/nuevo': typeof EventosNuevoRoute
+  '/eventos/soporte': typeof EventosSoporteRouteWithChildren
   '/pago/exito': typeof PagoExitoRoute
   '/registro/exito': typeof RegistroExitoRoute
   '/admin/': typeof AdminIndexRoute
   '/eventos/': typeof EventosIndexRoute
+  '/admin/soporte/$ticketId': typeof AdminSoporteTicketIdRoute
   '/eventos/$eventId/automatizacion': typeof EventosEventIdAutomatizacionRoute
   '/eventos/$eventId/configuracion': typeof EventosEventIdConfiguracionRoute
   '/eventos/$eventId/conversaciones': typeof EventosEventIdConversacionesRoute
@@ -191,7 +237,10 @@ export interface FileRoutesByFullPath {
   '/eventos/$eventId/lista-final': typeof EventosEventIdListaFinalRoute
   '/eventos/$eventId/mensajes': typeof EventosEventIdMensajesRoute
   '/eventos/$eventId/resumen': typeof EventosEventIdResumenRoute
+  '/eventos/soporte/$ticketId': typeof EventosSoporteTicketIdRoute
+  '/admin/soporte/': typeof AdminSoporteIndexRoute
   '/eventos/$eventId/': typeof EventosEventIdIndexRoute
+  '/eventos/soporte/': typeof EventosSoporteIndexRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -200,12 +249,14 @@ export interface FileRoutesByTo {
   '/registro': typeof RegistroRouteWithChildren
   '/restablecer-contrasena': typeof RestablecerContrasenaRoute
   '/admin/clientes': typeof AdminClientesRoute
+  '/admin/finanzas': typeof AdminFinanzasRoute
   '/admin/planes': typeof AdminPlanesRoute
   '/eventos/nuevo': typeof EventosNuevoRoute
   '/pago/exito': typeof PagoExitoRoute
   '/registro/exito': typeof RegistroExitoRoute
   '/admin': typeof AdminIndexRoute
   '/eventos': typeof EventosIndexRoute
+  '/admin/soporte/$ticketId': typeof AdminSoporteTicketIdRoute
   '/eventos/$eventId/automatizacion': typeof EventosEventIdAutomatizacionRoute
   '/eventos/$eventId/configuracion': typeof EventosEventIdConfiguracionRoute
   '/eventos/$eventId/conversaciones': typeof EventosEventIdConversacionesRoute
@@ -215,7 +266,10 @@ export interface FileRoutesByTo {
   '/eventos/$eventId/lista-final': typeof EventosEventIdListaFinalRoute
   '/eventos/$eventId/mensajes': typeof EventosEventIdMensajesRoute
   '/eventos/$eventId/resumen': typeof EventosEventIdResumenRoute
+  '/eventos/soporte/$ticketId': typeof EventosSoporteTicketIdRoute
+  '/admin/soporte': typeof AdminSoporteIndexRoute
   '/eventos/$eventId': typeof EventosEventIdIndexRoute
+  '/eventos/soporte': typeof EventosSoporteIndexRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -227,13 +281,17 @@ export interface FileRoutesById {
   '/registro': typeof RegistroRouteWithChildren
   '/restablecer-contrasena': typeof RestablecerContrasenaRoute
   '/admin/clientes': typeof AdminClientesRoute
+  '/admin/finanzas': typeof AdminFinanzasRoute
   '/admin/planes': typeof AdminPlanesRoute
+  '/admin/soporte': typeof AdminSoporteRouteWithChildren
   '/eventos/$eventId': typeof EventosEventIdRouteWithChildren
   '/eventos/nuevo': typeof EventosNuevoRoute
+  '/eventos/soporte': typeof EventosSoporteRouteWithChildren
   '/pago/exito': typeof PagoExitoRoute
   '/registro/exito': typeof RegistroExitoRoute
   '/admin/': typeof AdminIndexRoute
   '/eventos/': typeof EventosIndexRoute
+  '/admin/soporte/$ticketId': typeof AdminSoporteTicketIdRoute
   '/eventos/$eventId/automatizacion': typeof EventosEventIdAutomatizacionRoute
   '/eventos/$eventId/configuracion': typeof EventosEventIdConfiguracionRoute
   '/eventos/$eventId/conversaciones': typeof EventosEventIdConversacionesRoute
@@ -243,7 +301,10 @@ export interface FileRoutesById {
   '/eventos/$eventId/lista-final': typeof EventosEventIdListaFinalRoute
   '/eventos/$eventId/mensajes': typeof EventosEventIdMensajesRoute
   '/eventos/$eventId/resumen': typeof EventosEventIdResumenRoute
+  '/eventos/soporte/$ticketId': typeof EventosSoporteTicketIdRoute
+  '/admin/soporte/': typeof AdminSoporteIndexRoute
   '/eventos/$eventId/': typeof EventosEventIdIndexRoute
+  '/eventos/soporte/': typeof EventosSoporteIndexRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -256,13 +317,17 @@ export interface FileRouteTypes {
     | '/registro'
     | '/restablecer-contrasena'
     | '/admin/clientes'
+    | '/admin/finanzas'
     | '/admin/planes'
+    | '/admin/soporte'
     | '/eventos/$eventId'
     | '/eventos/nuevo'
+    | '/eventos/soporte'
     | '/pago/exito'
     | '/registro/exito'
     | '/admin/'
     | '/eventos/'
+    | '/admin/soporte/$ticketId'
     | '/eventos/$eventId/automatizacion'
     | '/eventos/$eventId/configuracion'
     | '/eventos/$eventId/conversaciones'
@@ -272,7 +337,10 @@ export interface FileRouteTypes {
     | '/eventos/$eventId/lista-final'
     | '/eventos/$eventId/mensajes'
     | '/eventos/$eventId/resumen'
+    | '/eventos/soporte/$ticketId'
+    | '/admin/soporte/'
     | '/eventos/$eventId/'
+    | '/eventos/soporte/'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -281,12 +349,14 @@ export interface FileRouteTypes {
     | '/registro'
     | '/restablecer-contrasena'
     | '/admin/clientes'
+    | '/admin/finanzas'
     | '/admin/planes'
     | '/eventos/nuevo'
     | '/pago/exito'
     | '/registro/exito'
     | '/admin'
     | '/eventos'
+    | '/admin/soporte/$ticketId'
     | '/eventos/$eventId/automatizacion'
     | '/eventos/$eventId/configuracion'
     | '/eventos/$eventId/conversaciones'
@@ -296,7 +366,10 @@ export interface FileRouteTypes {
     | '/eventos/$eventId/lista-final'
     | '/eventos/$eventId/mensajes'
     | '/eventos/$eventId/resumen'
+    | '/eventos/soporte/$ticketId'
+    | '/admin/soporte'
     | '/eventos/$eventId'
+    | '/eventos/soporte'
   id:
     | '__root__'
     | '/'
@@ -307,13 +380,17 @@ export interface FileRouteTypes {
     | '/registro'
     | '/restablecer-contrasena'
     | '/admin/clientes'
+    | '/admin/finanzas'
     | '/admin/planes'
+    | '/admin/soporte'
     | '/eventos/$eventId'
     | '/eventos/nuevo'
+    | '/eventos/soporte'
     | '/pago/exito'
     | '/registro/exito'
     | '/admin/'
     | '/eventos/'
+    | '/admin/soporte/$ticketId'
     | '/eventos/$eventId/automatizacion'
     | '/eventos/$eventId/configuracion'
     | '/eventos/$eventId/conversaciones'
@@ -323,7 +400,10 @@ export interface FileRouteTypes {
     | '/eventos/$eventId/lista-final'
     | '/eventos/$eventId/mensajes'
     | '/eventos/$eventId/resumen'
+    | '/eventos/soporte/$ticketId'
+    | '/admin/soporte/'
     | '/eventos/$eventId/'
+    | '/eventos/soporte/'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -402,11 +482,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminClientesRouteImport
       parentRoute: typeof AdminRoute
     }
+    '/admin/finanzas': {
+      id: '/admin/finanzas'
+      path: '/finanzas'
+      fullPath: '/admin/finanzas'
+      preLoaderRoute: typeof AdminFinanzasRouteImport
+      parentRoute: typeof AdminRoute
+    }
     '/admin/planes': {
       id: '/admin/planes'
       path: '/planes'
       fullPath: '/admin/planes'
       preLoaderRoute: typeof AdminPlanesRouteImport
+      parentRoute: typeof AdminRoute
+    }
+    '/admin/soporte': {
+      id: '/admin/soporte'
+      path: '/soporte'
+      fullPath: '/admin/soporte'
+      preLoaderRoute: typeof AdminSoporteRouteImport
       parentRoute: typeof AdminRoute
     }
     '/eventos/': {
@@ -430,6 +524,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof EventosNuevoRouteImport
       parentRoute: typeof EventosRoute
     }
+    '/eventos/soporte': {
+      id: '/eventos/soporte'
+      path: '/soporte'
+      fullPath: '/eventos/soporte'
+      preLoaderRoute: typeof EventosSoporteRouteImport
+      parentRoute: typeof EventosRoute
+    }
     '/pago/exito': {
       id: '/pago/exito'
       path: '/pago/exito'
@@ -443,6 +544,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/registro/exito'
       preLoaderRoute: typeof RegistroExitoRouteImport
       parentRoute: typeof RegistroRoute
+    }
+    '/admin/soporte/': {
+      id: '/admin/soporte/'
+      path: '/'
+      fullPath: '/admin/soporte/'
+      preLoaderRoute: typeof AdminSoporteIndexRouteImport
+      parentRoute: typeof AdminSoporteRoute
+    }
+    '/admin/soporte/$ticketId': {
+      id: '/admin/soporte/$ticketId'
+      path: '/$ticketId'
+      fullPath: '/admin/soporte/$ticketId'
+      preLoaderRoute: typeof AdminSoporteTicketIdRouteImport
+      parentRoute: typeof AdminSoporteRoute
     }
     '/eventos/$eventId/': {
       id: '/eventos/$eventId/'
@@ -514,18 +629,50 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof EventosEventIdResumenRouteImport
       parentRoute: typeof EventosEventIdRoute
     }
+    '/eventos/soporte/': {
+      id: '/eventos/soporte/'
+      path: '/'
+      fullPath: '/eventos/soporte/'
+      preLoaderRoute: typeof EventosSoporteIndexRouteImport
+      parentRoute: typeof EventosSoporteRoute
+    }
+    '/eventos/soporte/$ticketId': {
+      id: '/eventos/soporte/$ticketId'
+      path: '/$ticketId'
+      fullPath: '/eventos/soporte/$ticketId'
+      preLoaderRoute: typeof EventosSoporteTicketIdRouteImport
+      parentRoute: typeof EventosSoporteRoute
+    }
   }
 }
 
+interface AdminSoporteRouteChildren {
+  AdminSoporteTicketIdRoute: typeof AdminSoporteTicketIdRoute
+  AdminSoporteIndexRoute: typeof AdminSoporteIndexRoute
+}
+
+const AdminSoporteRouteChildren: AdminSoporteRouteChildren = {
+  AdminSoporteTicketIdRoute: AdminSoporteTicketIdRoute,
+  AdminSoporteIndexRoute: AdminSoporteIndexRoute,
+}
+
+const AdminSoporteRouteWithChildren = AdminSoporteRoute._addFileChildren(
+  AdminSoporteRouteChildren,
+)
+
 interface AdminRouteChildren {
   AdminClientesRoute: typeof AdminClientesRoute
+  AdminFinanzasRoute: typeof AdminFinanzasRoute
   AdminPlanesRoute: typeof AdminPlanesRoute
+  AdminSoporteRoute: typeof AdminSoporteRouteWithChildren
   AdminIndexRoute: typeof AdminIndexRoute
 }
 
 const AdminRouteChildren: AdminRouteChildren = {
   AdminClientesRoute: AdminClientesRoute,
+  AdminFinanzasRoute: AdminFinanzasRoute,
   AdminPlanesRoute: AdminPlanesRoute,
+  AdminSoporteRoute: AdminSoporteRouteWithChildren,
   AdminIndexRoute: AdminIndexRoute,
 }
 
@@ -561,15 +708,31 @@ const EventosEventIdRouteWithChildren = EventosEventIdRoute._addFileChildren(
   EventosEventIdRouteChildren,
 )
 
+interface EventosSoporteRouteChildren {
+  EventosSoporteTicketIdRoute: typeof EventosSoporteTicketIdRoute
+  EventosSoporteIndexRoute: typeof EventosSoporteIndexRoute
+}
+
+const EventosSoporteRouteChildren: EventosSoporteRouteChildren = {
+  EventosSoporteTicketIdRoute: EventosSoporteTicketIdRoute,
+  EventosSoporteIndexRoute: EventosSoporteIndexRoute,
+}
+
+const EventosSoporteRouteWithChildren = EventosSoporteRoute._addFileChildren(
+  EventosSoporteRouteChildren,
+)
+
 interface EventosRouteChildren {
   EventosEventIdRoute: typeof EventosEventIdRouteWithChildren
   EventosNuevoRoute: typeof EventosNuevoRoute
+  EventosSoporteRoute: typeof EventosSoporteRouteWithChildren
   EventosIndexRoute: typeof EventosIndexRoute
 }
 
 const EventosRouteChildren: EventosRouteChildren = {
   EventosEventIdRoute: EventosEventIdRouteWithChildren,
   EventosNuevoRoute: EventosNuevoRoute,
+  EventosSoporteRoute: EventosSoporteRouteWithChildren,
   EventosIndexRoute: EventosIndexRoute,
 }
 

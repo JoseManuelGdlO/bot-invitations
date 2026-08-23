@@ -1,9 +1,9 @@
 import { Link, Outlet, createFileRoute, useNavigate, useRouterState } from "@tanstack/react-router";
-import { useEffect } from "react";
-import { CalendarHeart, CreditCard, LayoutDashboard, LogOut, MessagesSquare, Settings2, Shield } from "lucide-react";
+import { useEffect, useState } from "react";
+import { CalendarHeart, CreditCard, Headset, LayoutDashboard, LogOut, MessagesSquare, Settings2, Shield } from "lucide-react";
 import { PlanUsageHint } from "@/components/plan-limit";
 import { toast } from "sonner";
-import { ApiError } from "@/lib/api/client";
+import { api, ApiError } from "@/lib/api/client";
 import logo from "@/assets/alanna-logo.png";
 import { initialsFrom, useStore } from "@/lib/mock/store";
 import { cn } from "@/lib/utils";
@@ -17,10 +17,18 @@ function AppShell() {
   const { session, hydrated, logout, events, openBillingPortal } = useStore();
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const [supportUnread, setSupportUnread] = useState(0);
 
   useEffect(() => {
     if (hydrated && !session) navigate({ to: "/iniciar-sesion" });
   }, [hydrated, session, navigate]);
+
+  useEffect(() => {
+    if (!session) return;
+    api<{ count: number }>("/support/unread")
+      .then((res) => setSupportUnread(res.count))
+      .catch(() => undefined);
+  }, [session, pathname]);
 
   if (!hydrated || !session) {
     return (
@@ -70,6 +78,18 @@ function AppShell() {
             activeProps={{ className: "bg-sidebar-accent font-medium text-sidebar-foreground" }}
           >
             <CalendarHeart className="size-4" /> Crear evento
+          </Link>
+          <Link
+            to="/eventos/soporte"
+            className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent"
+            activeProps={{ className: "bg-sidebar-accent font-medium text-sidebar-foreground" }}
+          >
+            <Headset className="size-4" /> Soporte
+            {supportUnread > 0 ? (
+              <span className="ml-auto rounded-full bg-gold px-1.5 text-[10px] font-semibold text-gold-foreground">
+                {supportUnread}
+              </span>
+            ) : null}
           </Link>
           {session.isAdmin ? (
             <Link
@@ -162,6 +182,10 @@ function AppShell() {
           />
           <span className="font-display text-lg">Alanna</span>
           <div className="ml-auto flex items-center gap-2 text-muted-foreground">
+            <Link to="/eventos/soporte" className="relative rounded-md p-1 hover:text-foreground" aria-label="Soporte">
+              <Headset className="size-4" />
+              {supportUnread > 0 ? <span className="absolute -right-0.5 -top-0.5 size-1.5 rounded-full bg-gold" /> : null}
+            </Link>
             <MessagesSquare className="size-4" />
             <Settings2 className="size-4" />
           </div>

@@ -49,11 +49,17 @@ function AdminHome() {
         <StatCard
           label="Ingreso mensual"
           value={data ? `$${data.monthlyMxn.toLocaleString("es-MX")}` : "—"}
-          hint="MXN de planes activos"
+          hint="Estimado de planes activos"
           tone="gold"
           icon={Wallet}
         />
       </section>
+
+      <div className="mt-6">
+        <Button asChild>
+          <Link to="/admin/finanzas">Ver dashboard financiero</Link>
+        </Button>
+      </div>
 
       <section className="mt-10">
         <div className="flex items-end justify-between gap-3">

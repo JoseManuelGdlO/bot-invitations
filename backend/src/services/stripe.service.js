@@ -268,12 +268,15 @@ export async function handleStripeEvent(event) {
   }
   if (event.type === "invoice.paid") {
     const subscriptionId = object.subscription;
-    if (!subscriptionId) return;
-    const user = await User.findOne({ where: { stripeSubscriptionId: subscriptionId } });
+    const user = subscriptionId
+      ? await User.findOne({ where: { stripeSubscriptionId: subscriptionId } })
+      : null;
     if (user) {
       user.subscriptionStatus = "active";
       await user.save();
     }
+    const { recordPaidInvoice } = await import("./finance.service.js");
+    await recordPaidInvoice(object, { user });
     return;
   }
   if (event.type === "invoice.payment_failed") {
