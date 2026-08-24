@@ -49,4 +49,13 @@ export const env = {
     secret: process.env.STRIPE_SECRET_KEY || "",
     webhookSecret: process.env.STRIPE_WEBHOOK_SECRET || "",
   },
+  credentialsEncryptionKey: process.env.CREDENTIALS_ENCRYPTION_KEY || "",
+  wc: {
+    apiUrl: (process.env.WC_API_URL || "").replace(/\/$/, ""),
+    serviceJwt: process.env.WC_SERVICE_JWT || "",
+    timeoutMs: Number(process.env.WC_TIMEOUT_MS || 8000),
+    webhookEnabled: (process.env.WC_WEBHOOK_ENABLED || "true") === "true",
+    webhookMaxSkewMs: Number(process.env.WC_WEBHOOK_MAX_SKEW_MS || 300000),
+    webhookDebug: (process.env.WC_WEBHOOK_DEBUG || "false") === "true",
+  },
 };

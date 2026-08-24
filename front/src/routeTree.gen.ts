@@ -27,6 +27,7 @@ import { Route as EventosEventIdRouteImport } from './routes/eventos.$eventId'
 import { Route as EventosNuevoRouteImport } from './routes/eventos.nuevo'
 import { Route as EventosSoporteRouteImport } from './routes/eventos.soporte'
 import { Route as EventosSuscripcionRouteImport } from './routes/eventos.suscripcion'
+import { Route as EventosWhatsappRouteImport } from './routes/eventos.whatsapp'
 import { Route as PagoExitoRouteImport } from './routes/pago.exito'
 import { Route as RegistroExitoRouteImport } from './routes/registro.exito'
 import { Route as AdminSoporteIndexRouteImport } from './routes/admin.soporte.index'
@@ -134,6 +135,11 @@ const EventosSuscripcionRoute = EventosSuscripcionRouteImport.update({
   path: '/suscripcion',
   getParentRoute: () => EventosRoute,
 } as any)
+const EventosWhatsappRoute = EventosWhatsappRouteImport.update({
+  id: '/whatsapp',
+  path: '/whatsapp',
+  getParentRoute: () => EventosRoute,
+} as any)
 const PagoExitoRoute = PagoExitoRouteImport.update({
   id: '/pago/exito',
   path: '/pago/exito',
@@ -237,6 +243,7 @@ export interface FileRoutesByFullPath {
   '/eventos/nuevo': typeof EventosNuevoRoute
   '/eventos/soporte': typeof EventosSoporteRouteWithChildren
   '/eventos/suscripcion': typeof EventosSuscripcionRoute
+  '/eventos/whatsapp': typeof EventosWhatsappRoute
   '/pago/exito': typeof PagoExitoRoute
   '/registro/exito': typeof RegistroExitoRoute
   '/admin/': typeof AdminIndexRoute
@@ -268,6 +275,7 @@ export interface FileRoutesByTo {
   '/admin/planes': typeof AdminPlanesRoute
   '/eventos/nuevo': typeof EventosNuevoRoute
   '/eventos/suscripcion': typeof EventosSuscripcionRoute
+  '/eventos/whatsapp': typeof EventosWhatsappRoute
   '/pago/exito': typeof PagoExitoRoute
   '/registro/exito': typeof RegistroExitoRoute
   '/admin': typeof AdminIndexRoute
@@ -305,6 +313,7 @@ export interface FileRoutesById {
   '/eventos/nuevo': typeof EventosNuevoRoute
   '/eventos/soporte': typeof EventosSoporteRouteWithChildren
   '/eventos/suscripcion': typeof EventosSuscripcionRoute
+  '/eventos/whatsapp': typeof EventosWhatsappRoute
   '/pago/exito': typeof PagoExitoRoute
   '/registro/exito': typeof RegistroExitoRoute
   '/admin/': typeof AdminIndexRoute
@@ -343,6 +352,7 @@ export interface FileRouteTypes {
     | '/eventos/nuevo'
     | '/eventos/soporte'
     | '/eventos/suscripcion'
+    | '/eventos/whatsapp'
     | '/pago/exito'
     | '/registro/exito'
     | '/admin/'
@@ -374,6 +384,7 @@ export interface FileRouteTypes {
     | '/admin/planes'
     | '/eventos/nuevo'
     | '/eventos/suscripcion'
+    | '/eventos/whatsapp'
     | '/pago/exito'
     | '/registro/exito'
     | '/admin'
@@ -410,6 +421,7 @@ export interface FileRouteTypes {
     | '/eventos/nuevo'
     | '/eventos/soporte'
     | '/eventos/suscripcion'
+    | '/eventos/whatsapp'
     | '/pago/exito'
     | '/registro/exito'
     | '/admin/'
@@ -567,6 +579,13 @@ declare module '@tanstack/react-router' {
       path: '/suscripcion'
       fullPath: '/eventos/suscripcion'
       preLoaderRoute: typeof EventosSuscripcionRouteImport
+      parentRoute: typeof EventosRoute
+    }
+    '/eventos/whatsapp': {
+      id: '/eventos/whatsapp'
+      path: '/whatsapp'
+      fullPath: '/eventos/whatsapp'
+      preLoaderRoute: typeof EventosWhatsappRouteImport
       parentRoute: typeof EventosRoute
     }
     '/pago/exito': {
@@ -767,6 +786,7 @@ interface EventosRouteChildren {
   EventosNuevoRoute: typeof EventosNuevoRoute
   EventosSoporteRoute: typeof EventosSoporteRouteWithChildren
   EventosSuscripcionRoute: typeof EventosSuscripcionRoute
+  EventosWhatsappRoute: typeof EventosWhatsappRoute
   EventosIndexRoute: typeof EventosIndexRoute
 }
 
@@ -775,6 +795,7 @@ const EventosRouteChildren: EventosRouteChildren = {
   EventosNuevoRoute: EventosNuevoRoute,
   EventosSoporteRoute: EventosSoporteRouteWithChildren,
   EventosSuscripcionRoute: EventosSuscripcionRoute,
+  EventosWhatsappRoute: EventosWhatsappRoute,
   EventosIndexRoute: EventosIndexRoute,
 }
 

@@ -14,7 +14,11 @@ export async function processJob(job) {
   // Jobs already queued keep sending even if the owner's subscription expired or was canceled.
   try {
     if (job.type === "whatsapp.send") {
-      const result = await provider.sendMessage(job.payload.to, job.payload.text);
+      const result = await provider.sendMessage(job.payload.to, job.payload.text, {
+        eventId: job.payload.eventId,
+        guestId: job.payload.guestId,
+        conversationId: job.payload.conversationId,
+      });
       await job.update({
         status: result.skipped ? "skipped" : "done",
         payload: { ...job.payload, result },
