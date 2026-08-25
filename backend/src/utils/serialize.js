@@ -67,6 +67,7 @@ export function serializeAi(ai) {
     emojis: ai.emojis,
     length: ai.length,
     openingMessage: ai.openingMessage,
+    prompt: ai.prompt || "",
     rules: ai.rules || [],
     followUps: ai.followUps || [],
   };

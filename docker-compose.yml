@@ -33,6 +33,9 @@ services:
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
       WC_API_URL: ${WC_API_URL:-}
       WC_SERVICE_JWT: ${WC_SERVICE_JWT:-}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      BOT_DEV_PLAYGROUND: ${BOT_DEV_PLAYGROUND:-}
 
   front:
     build:

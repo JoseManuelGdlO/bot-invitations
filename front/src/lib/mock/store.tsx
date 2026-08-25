@@ -369,6 +369,7 @@ const fallbackData: EventData = {
     emojis: "algunos",
     length: "normales",
     openingMessage: "",
+    prompt: "",
     rules: [],
     followUps: [],
   },

@@ -2,6 +2,7 @@ import crypto from "crypto";
 import { env } from "../config/env.js";
 import { httpError } from "../utils/http-error.js";
 import { resolveWhatsappConnectIntegrationByDevice } from "../services/integration-resolver.service.js";
+import { postWhatsappConnectEvents } from "./bot.controller.js";
 
 function logWcWebhook(event, extra = {}) {
   console.log("[wc-webhook]", event, extra);
@@ -110,20 +111,6 @@ export function antiReplayWindow(req, _res, next) {
       throw httpError(401, "El timestamp del webhook está fuera de la ventana permitida.");
     }
     next();
-  } catch (error) {
-    next(error);
-  }
-}
-
-export function postWhatsappConnectEvents(req, res, next) {
-  try {
-    if (!env.wc.webhookEnabled) throw httpError(503, "Webhook de WhatsApp deshabilitado.");
-    const providerEventId = String(req.wc?.payload?.eventId || req.wc?.payload?.id || "").trim();
-    logWcWebhook("ingest stub", {
-      providerEventId: providerEventId || null,
-      integrationId: req.wc?.integration?.id,
-    });
-    res.status(202).json({ ok: true, stub: true });
   } catch (error) {
     next(error);
   }

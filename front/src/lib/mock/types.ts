@@ -70,6 +70,7 @@ export interface AIConfig {
   emojis: "ninguno" | "algunos" | "frecuentes";
   length: "cortos" | "normales" | "detallados";
   openingMessage: string;
+  prompt: string;
   rules: string[];
   followUps: { id: string; label: string; when: string; active: boolean }[];
 }

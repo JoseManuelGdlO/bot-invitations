@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
-import { Bot, Plus, Save, Sparkles, Trash2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Bot, Plus, RefreshCw, Save, Sparkles, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -19,6 +19,9 @@ import { useEvent, useStore } from "@/lib/mock/store";
 import { formatDate } from "@/lib/mock/format";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { botApi } from "@/lib/api/bot";
+import { BotPlayground } from "@/components/bot-playground";
+import type { AIConfig } from "@/lib/mock/types";
 
 export const Route = createFileRoute("/eventos/$eventId/automatizacion")({
   head: () => ({
@@ -42,7 +45,23 @@ function Automatizacion() {
   const { updateAI, session } = useStore();
   const ai = data.ai;
   const [message, setMessage] = useState(ai.openingMessage);
+  const [prompt, setPrompt] = useState(ai.prompt || "");
   const [newRule, setNewRule] = useState("");
+  const [devBot, setDevBot] = useState(false);
+
+  useEffect(() => {
+    setPrompt(ai.prompt || "");
+  }, [ai.prompt]);
+
+  useEffect(() => {
+    let cancelled = false;
+    botApi.status().then((res) => {
+      if (!cancelled) setDevBot(Boolean(res.enabled));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const insert = (v: string) => setMessage((m) => `${m} {{${v}}}`);
 
@@ -121,6 +140,46 @@ function Automatizacion() {
                 </SelectContent>
               </Select>
             </div>
+          </div>
+        </section>
+
+        <section className="rounded-2xl border border-border bg-card p-6 shadow-soft">
+          <h2 className="font-display text-2xl">Prompt del bot</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Este texto es el cerebro de este evento. Las plantillas y FAQs se inyectan solas en cada turno.
+          </p>
+          <Textarea
+            value={prompt}
+            onChange={(e) => setPrompt(e.target.value)}
+            rows={12}
+            className="mt-4 font-sans text-sm leading-relaxed"
+          />
+          <div className="mt-4 flex flex-wrap gap-2">
+            <Button
+              onClick={() => {
+                updateAI(eventId, { prompt });
+                toast.success("Prompt guardado");
+              }}
+            >
+              <Save className="size-4" /> Guardar prompt
+            </Button>
+            <Button
+              variant="outline"
+              onClick={async () => {
+                if (!window.confirm("¿Regenerar el prompt desde la personalidad? Se pierde el texto actual.")) return;
+                try {
+                  const saved = (await botApi.regeneratePrompt(eventId)) as AIConfig;
+                  const next = saved?.prompt ?? "";
+                  setPrompt(next);
+                  updateAI(eventId, { prompt: next });
+                  toast.success("Prompt regenerado desde la personalidad");
+                } catch (error) {
+                  toast.error(error instanceof Error ? error.message : "No se pudo regenerar");
+                }
+              }}
+            >
+              <RefreshCw className="size-4" /> Regenerar desde personalidad
+            </Button>
           </div>
         </section>
 
@@ -213,6 +272,20 @@ function Automatizacion() {
 
       <aside className="space-y-4">
         <div className="sticky top-6 space-y-4">
+          {devBot ? (
+            <div className="rounded-2xl border border-border bg-card p-5 shadow-soft">
+              <div className="flex items-center gap-2">
+                <Bot className="size-4 text-gold" />
+                <h3 className="font-display text-xl">Probar bot</h3>
+              </div>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Solo en desarrollo. Usa el prompt y las plantillas de este evento, sin WhatsApp.
+              </p>
+              <div className="mt-4">
+                <BotPlayground eventId={eventId} guests={guests} />
+              </div>
+            </div>
+          ) : null}
           <div className="rounded-2xl border border-border bg-card p-5 shadow-soft">
             <div className="flex items-center gap-2">
               <Sparkles className="size-4 text-gold" />

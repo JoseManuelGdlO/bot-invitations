@@ -8,6 +8,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { useEvent, useStore } from "@/lib/mock/store";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { botApi } from "@/lib/api/bot";
 
 export const Route = createFileRoute("/eventos/$eventId/conversaciones")({
   validateSearch: (s: Record<string, unknown>) => ({
@@ -29,12 +30,24 @@ function Conversaciones() {
   const { eventId } = Route.useParams();
   const { guestId } = Route.useSearch();
   const { conversations, guests, event } = useEvent(eventId);
-  const { sendMessage, toggleAI, updateGuest } = useStore();
+  const { sendMessage, toggleAI, updateGuest, refresh } = useStore();
   const initial = conversations.find((c) => c.guestId === guestId)?.id ?? conversations[0]?.id ?? null;
   const [activeId, setActiveId] = useState<string | null>(initial);
   const [q, setQ] = useState("");
   const [draft, setDraft] = useState("");
+  const [simulateGuest, setSimulateGuest] = useState(false);
+  const [devBot, setDevBot] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    botApi.status().then((res) => {
+      if (!cancelled) setDevBot(Boolean(res.enabled));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     const found = guestId ? conversations.find((c) => c.guestId === guestId) : null;
@@ -62,8 +75,19 @@ function Conversaciones() {
     );
   }
 
-  const send = () => {
+  const send = async () => {
     if (!draft.trim()) return;
+    if (simulateGuest && devBot) {
+      const text = draft.trim();
+      setDraft("");
+      try {
+        await botApi.simulateGuest(active.conv.id, text);
+        await refresh();
+      } catch (error) {
+        toast.error(error instanceof Error ? error.message : "No se pudo simular al invitado");
+      }
+      return;
+    }
     sendMessage(active.conv.id, {
       id: `m-${Date.now()}`,
       from: active.conv.aiPaused ? "planner" : "ai",
@@ -208,16 +232,34 @@ function Conversaciones() {
           <div ref={endRef} />
         </div>
 
-        <div className="flex items-center gap-2 border-t border-border bg-card p-3">
-          <Input
-            value={draft}
-            onChange={(e) => setDraft(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && send()}
-            placeholder={active.conv.aiPaused ? "Escribe como parte del equipo…" : "Escribe un mensaje…"}
-          />
-          <Button onClick={send} size="icon">
-            <Send className="size-4" />
-          </Button>
+        <div className="border-t border-border bg-card p-3">
+          {devBot ? (
+            <label className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
+              <input
+                type="checkbox"
+                checked={simulateGuest}
+                onChange={(e) => setSimulateGuest(e.target.checked)}
+              />
+              Simular respuesta del invitado
+            </label>
+          ) : null}
+          <div className="flex items-center gap-2">
+            <Input
+              value={draft}
+              onChange={(e) => setDraft(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && void send()}
+              placeholder={
+                simulateGuest && devBot
+                  ? "Escribe como el invitado…"
+                  : active.conv.aiPaused
+                    ? "Escribe como parte del equipo…"
+                    : "Escribe un mensaje…"
+              }
+            />
+            <Button onClick={() => void send()} size="icon">
+              <Send className="size-4" />
+            </Button>
+          </div>
         </div>
       </section>
 

@@ -1,4 +1,4 @@
-import { Event, Guest } from "../models/index.js";
+import { Conversation, Event, Guest, Message, Template } from "../models/index.js";
 import { asyncHandler } from "../utils/async.js";
 import { serializeGuest } from "../utils/serialize.js";
 import { requireEvent, userEventIds } from "../services/access.service.js";
@@ -7,6 +7,9 @@ import { enqueueJob } from "../services/outbound.worker.js";
 import { mapRows, parseSpreadsheet, suggestMapping } from "../services/import.service.js";
 import { guestsToRows, toCsv, toPdf, toXlsx } from "../services/export.service.js";
 import { assertCanAddGuests, assertCanSendInvitations } from "../services/plans.service.js";
+import { applyTemplate, eventGuestVars } from "../utils/defaults.js";
+import { formatClock } from "../utils/time.js";
+import { appendOutboundToSession } from "../services/bot/bot.service.js";
 
 async function findGuestForUser(userId, guestId) {
   const ids = await userEventIds(userId);
@@ -82,17 +85,42 @@ export const remindGuest = asyncHandler(async (req, res) => {
   const { guest, event } = await findGuestForUser(req.user.id, req.params.guestId);
   if (!guest) return res.status(404).json({ error: "Invitado no encontrado." });
   assertCanSendInvitations(req.user);
+  const reminder = await Template.findOne({
+    where: { eventId: event.id, category: "Recordatorio" },
+    order: [["createdAt", "ASC"]],
+  });
+  const text = applyTemplate(
+    reminder?.body || "Hola {{nombre}}, ¿pudiste revisar la invitación? Nos encantaría contar contigo el {{fecha}}.",
+    eventGuestVars(event, guest, req.user.name),
+  );
   guest.status = guest.status === "sin_contactar" ? "enviado" : guest.status;
   guest.whatsapp = "enviado";
-  guest.lastMessage = "Recordatorio · hoy";
+  guest.lastMessage = text.slice(0, 80);
   guest.contactedAt = guest.contactedAt || new Date();
   await guest.save();
+  let conv = await Conversation.findOne({ where: { guestId: guest.id } });
+  if (!conv) {
+    conv = await Conversation.create({
+      eventId: event.id,
+      guestId: guest.id,
+      aiPaused: false,
+      unread: 0,
+    });
+  }
+  await Message.create({
+    conversationId: conv.id,
+    from: "ai",
+    text,
+    at: formatClock(),
+  });
   await enqueueJob("whatsapp.send", {
     to: guest.phone,
-    text: `Recordatorio para ${guest.rep} · ${event.name}`,
+    text,
     guestId: guest.id,
     eventId: event.id,
+    conversationId: conv.id,
   });
+  await appendOutboundToSession({ event, guest, text });
   await logActivity(event.id, `Se envió un recordatorio a ${guest.rep}`, "message");
   res.json(serializeGuest(guest, event.slug));
 });

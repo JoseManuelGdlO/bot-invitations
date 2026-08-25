@@ -7,10 +7,11 @@ import {
 } from "../models/index.js";
 import { DEFAULT_ROLES, defaultAI, defaultFaqs, defaultTemplates } from "../utils/defaults.js";
 import { initialsFromName } from "../utils/slug.js";
+import { defaultPrompt } from "./bot/prompt.service.js";
 
 export async function seedEventDefaults(event, owner, assistantName = "Sofía") {
   const ai = defaultAI(assistantName, event.hosts);
-  await AiConfig.create({ eventId: event.id, ...ai });
+  await AiConfig.create({ eventId: event.id, ...ai, prompt: defaultPrompt(ai) });
   await Template.bulkCreate(defaultTemplates(event.hosts).map((t) => ({ ...t, eventId: event.id })));
   await Faq.bulkCreate(defaultFaqs(event.venue).map((f) => ({ ...f, eventId: event.id })));
   await EventMember.create({

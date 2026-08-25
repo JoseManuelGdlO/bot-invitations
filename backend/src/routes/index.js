@@ -16,7 +16,9 @@ import * as cancellation from "../controllers/cancellation.controller.js";
 import * as help from "../controllers/help.controller.js";
 import * as integrations from "../controllers/integrations.controller.js";
 import * as whatsappConnect from "../controllers/whatsapp-connect.controller.js";
+import * as botDev from "../controllers/bot-dev.controller.js";
 import { requireAdmin } from "../middleware/admin.js";
+import { env } from "../config/env.js";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } });
 export const router = Router();
@@ -74,8 +76,16 @@ router.post("/events/:eventId/campaigns/launch", conversations.launchCampaign);
 
 router.get("/events/:eventId/ai-config", eventData.getAi);
 router.patch("/events/:eventId/ai-config", eventData.updateAi);
+router.post("/events/:eventId/ai-config/regenerate-prompt", eventData.regeneratePrompt);
 router.put("/events/:eventId/templates", eventData.setTemplates);
 router.put("/events/:eventId/faqs", eventData.setFaqs);
+
+if (env.botDevEnabled) {
+  router.get("/dev/bot/status", botDev.status);
+  router.get("/dev/events/:eventId/bot/playground", botDev.getPlayground);
+  router.post("/dev/events/:eventId/bot/playground", botDev.postPlayground);
+  router.post("/dev/conversations/:conversationId/simulate-guest", botDev.simulateGuest);
+}
 
 router.get("/events/:eventId/members", team.listMembers);
 router.post("/events/:eventId/members", team.inviteMember);

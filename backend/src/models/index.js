@@ -159,6 +159,7 @@ export const AiConfig = sequelize.define("ai_configs", {
   emojis: { type: DataTypes.ENUM("ninguno", "algunos", "frecuentes"), allowNull: false, defaultValue: "algunos" },
   length: { type: DataTypes.ENUM("cortos", "normales", "detallados"), allowNull: false, defaultValue: "normales" },
   openingMessage: { type: DataTypes.TEXT, allowNull: false },
+  prompt: { type: DataTypes.TEXT, allowNull: true },
   rules: { type: DataTypes.JSON, allowNull: false, defaultValue: [] },
   followUps: { type: DataTypes.JSON, allowNull: false, defaultValue: [] },
 });
@@ -293,6 +294,25 @@ export const ChannelCredential = sequelize.define(
   },
 );
 
+export const BotSession = sequelize.define(
+  "bot_sessions",
+  {
+    id: uuid,
+    eventId: { type: DataTypes.CHAR(36), allowNull: false },
+    guestId: { type: DataTypes.CHAR(36), allowNull: false },
+    userId: { type: DataTypes.STRING(190), allowNull: false },
+    items: { type: DataTypes.JSON, allowNull: false, defaultValue: [] },
+    lockedUntil: { type: DataTypes.DATE, allowNull: true },
+  },
+  {
+    indexes: [
+      { unique: true, fields: ["eventId", "guestId", "userId"] },
+      { fields: ["eventId"] },
+      { fields: ["guestId"] },
+    ],
+  },
+);
+
 export const OutboundJob = sequelize.define("outbound_jobs", {
   id: uuid,
   type: { type: DataTypes.STRING(80), allowNull: false },
@@ -339,6 +359,10 @@ Event.hasMany(Activity, { foreignKey: "eventId", as: "activities" });
 Activity.belongsTo(Event, { foreignKey: "eventId" });
 Event.hasMany(Campaign, { foreignKey: "eventId", as: "campaigns" });
 Campaign.belongsTo(Event, { foreignKey: "eventId" });
+Event.hasMany(BotSession, { foreignKey: "eventId", as: "botSessions" });
+BotSession.belongsTo(Event, { foreignKey: "eventId" });
+Guest.hasMany(BotSession, { foreignKey: "guestId", as: "botSessions" });
+BotSession.belongsTo(Guest, { foreignKey: "guestId" });
 
 User.hasMany(Payment, { foreignKey: "userId" });
 Payment.belongsTo(User, { foreignKey: "userId", as: "user" });

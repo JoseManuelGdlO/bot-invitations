@@ -56,3 +56,16 @@ export function defaultFaqs(venue) {
 export function applyTemplate(text, vars) {
   return String(text || "").replace(/\{\{(\w+)\}\}/g, (_, key) => vars[key] ?? `{{${key}}}`);
 }
+
+export function eventGuestVars(event, guest, plannerName = "") {
+  const nombre = String(guest?.rep || "").split(" ")[0] || guest?.rep || "";
+  return {
+    nombre,
+    numero_invitados: String(guest?.invited ?? ""),
+    evento: event?.name || "",
+    fecha: event?.date || "",
+    lugar: event?.venue || "",
+    hora: event?.time || "",
+    planner: plannerName || "",
+  };
+}

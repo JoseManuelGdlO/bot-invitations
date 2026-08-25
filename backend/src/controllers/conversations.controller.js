@@ -7,12 +7,13 @@ import {
 } from "../models/index.js";
 import { asyncHandler } from "../utils/async.js";
 import { formatClock } from "../utils/time.js";
-import { applyTemplate } from "../utils/defaults.js";
+import { applyTemplate, eventGuestVars } from "../utils/defaults.js";
 import { serializeConversation, serializeGuest, serializeMessage } from "../utils/serialize.js";
 import { requireEvent, userEventIds } from "../services/access.service.js";
 import { enqueueJob } from "../services/outbound.worker.js";
 import { logActivity } from "../services/activity.service.js";
 import { assertCanSendInvitations } from "../services/plans.service.js";
+import { appendOutboundToSession } from "../services/bot/bot.service.js";
 
 async function accessibleConversation(userId, conversationId) {
   const ids = await userEventIds(userId);
@@ -72,6 +73,7 @@ export const sendMessage = asyncHandler(async (req, res) => {
       eventId: found.event.id,
       conversationId: found.conv.id,
     });
+    await appendOutboundToSession({ event: found.event, guest, text });
   }
   res.status(201).json(serializeMessage(message));
 });
@@ -85,13 +87,7 @@ export const launchCampaign = asyncHandler(async (req, res) => {
   const now = new Date();
   for (const guest of guests) {
     const text = applyTemplate(ai?.openingMessage || "Hola {{nombre}}, ¿podrán acompañarnos?", {
-      nombre: guest.rep.split(" ")[0] || guest.rep,
-      numero_invitados: String(guest.invited),
-      evento: event.name,
-      fecha: event.date,
-      lugar: event.venue,
-      hora: event.time,
-      planner: req.user.name,
+      ...eventGuestVars(event, guest, req.user.name),
     });
     guest.status = "enviado";
     guest.whatsapp = "enviado";
@@ -121,6 +117,7 @@ export const launchCampaign = asyncHandler(async (req, res) => {
       eventId: event.id,
       conversationId: conv.id,
     });
+    await appendOutboundToSession({ event, guest, text });
   }
   await logActivity(event.id, `${ai?.assistantName || "El asistente"} envió ${guests.length} mensajes iniciales`, "message");
   const updated = await Guest.findAll({ where: { eventId: event.id } });

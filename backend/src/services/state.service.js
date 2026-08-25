@@ -176,6 +176,7 @@ function defaultEmptyAi() {
     emojis: "algunos",
     length: "normales",
     openingMessage: "",
+    prompt: "",
     rules: [],
     followUps: [],
   };

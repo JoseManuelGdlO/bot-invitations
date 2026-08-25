@@ -19,6 +19,7 @@
     "jsonwebtoken": "^9.0.2",
     "multer": "^2.0.1",
     "mysql2": "^3.14.3",
+    "openai": "^7.5.0",
     "pdfkit": "^0.17.1",
     "sequelize": "^6.37.7",
     "stripe": "^22.5.0",

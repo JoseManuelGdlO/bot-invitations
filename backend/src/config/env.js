@@ -50,6 +50,12 @@ export const env = {
     webhookSecret: process.env.STRIPE_WEBHOOK_SECRET || "",
   },
   credentialsEncryptionKey: process.env.CREDENTIALS_ENCRYPTION_KEY || "",
+  openai: {
+    apiKey: process.env.OPENAI_API_KEY || "",
+    model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+  },
+  botDevEnabled:
+    process.env.BOT_DEV_PLAYGROUND === "true" || "false",
   wc: {
     apiUrl: (process.env.WC_API_URL || "").replace(/\/$/, ""),
     serviceJwt: process.env.WC_SERVICE_JWT || "",
