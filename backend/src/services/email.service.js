@@ -26,7 +26,7 @@ export async function sendTeamInvitationEmail({ to, name, eventName, role, invit
   });
 
   const mailOptions = {
-    from: `"Confirmaciones" <${from}>`,
+    from: `"Alanna Confirmaciones" <${from}>`,
     to,
     subject: `Invitación para unirte al equipo de ${eventName}`,
     html: `
