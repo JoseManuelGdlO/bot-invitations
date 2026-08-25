@@ -3,10 +3,9 @@ import { enqueueJob } from "../services/outbound.worker.js";
 import { processGuestMessage, rememberWhatsappChatId, resolveGuestForInbound } from "../services/bot/bot.service.js";
 import { normalizePhone } from "../services/bot/session.service.js";
 import { extractInboundIdentity, resolveWhatsappTo } from "../utils/whatsapp-identity.js";
+import { Logger } from "../utils/logger.js";
 
-function logBot(event, extra = {}) {
-  console.log("[bot]", event, extra);
-}
+const botLog = new Logger("Bot");
 
 export function extractInboundMessage(payload = {}) {
   const type = String(payload.type || payload.event || "").trim();
@@ -45,6 +44,7 @@ export async function handleInboundWhatsapp({ payload, integration }) {
     return { processed: false, reason: "ignored_event" };
   }
   if (inbound.isGroup) {
+    botLog.info("inbound ignorado", { reason: "group_message_ignored" });
     return { processed: true, reason: "group_message_ignored" };
   }
   if (!inbound.chatId) {
@@ -62,7 +62,8 @@ export async function handleInboundWhatsapp({ payload, integration }) {
     displayPhone: inbound.displayPhone,
   });
   if (!resolved?.guest || !resolved?.event) {
-    logBot("guest not found", {
+    botLog.info("inbound ignorado", {
+      reason: "guest_not_found",
       chatId: inbound.chatId,
       displayPhone: inbound.displayPhone,
       ownerUserId,
@@ -93,7 +94,7 @@ export async function handleInboundWhatsapp({ payload, integration }) {
       dryRun: false,
       persistConversation: true,
     });
-    logBot("inbound processed", {
+    botLog.info("inbound procesado", {
       eventId: event.id,
       guestId: guest.id,
       reason: result.skipped ? result.reason : "ai_reply",
@@ -106,10 +107,10 @@ export async function handleInboundWhatsapp({ payload, integration }) {
       conversationId: result.conversationId || null,
     };
   } catch (error) {
-    logBot("inbound failed", {
+    botLog.error("inbound falló", {
       eventId: event.id,
       guestId: guest.id,
-      message: error.message,
+      error: error.message,
     });
     return {
       processed: true,

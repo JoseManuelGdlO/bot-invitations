@@ -11,6 +11,9 @@ import {
   isLaunchFollowUpRule,
   nextActiveFollowUpDate,
 } from "./follow-up.service.js";
+import { Logger } from "../utils/logger.js";
+
+const log = new Logger("FollowUp");
 
 const OPEN_STATUSES = [
   "enviado",
@@ -87,6 +90,11 @@ async function processEventFollowUps(event, budget) {
       guest.followUp = nextDue ? formatFollowUpDate(nextDue) : guest.followUp;
       await guest.save();
       await logActivity(event.id, `Recordatorio automático (${rule.label}) a ${guest.rep}`, "message");
+      log.info("recordatorio disparado", {
+        eventId: event.id,
+        guestId: guest.id,
+        ruleId: rule.id,
+      });
       budget.left -= 1;
       break;
     }
@@ -103,7 +111,7 @@ export async function tickFollowUps() {
       try {
         await processEventFollowUps(event, budget);
       } catch (err) {
-        console.error("[follow-up]", event.id, err.message);
+        log.error(err.message, { eventId: event.id });
       }
     }
   } finally {
@@ -113,9 +121,9 @@ export async function tickFollowUps() {
 
 export function startFollowUpScheduler(intervalMs) {
   const timer = setInterval(() => {
-    tickFollowUps().catch((err) => console.error("[follow-up]", err));
+    tickFollowUps().catch((err) => log.error(err.message, { stack: err.stack }));
   }, intervalMs);
   timer.unref?.();
-  console.log(`[worker] follow-ups cada ${intervalMs}ms`);
+  log.info(`follow-ups cada ${intervalMs}ms`);
   return timer;
 }

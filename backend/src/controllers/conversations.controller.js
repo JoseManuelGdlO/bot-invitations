@@ -17,6 +17,9 @@ import { assertWhatsappReady } from "../services/integration-resolver.service.js
 import { deliverAiMessage } from "../services/guest-message.service.js";
 import { FALLBACK_OPENING, findTemplate, renderTemplate } from "../services/templates.service.js";
 import { resolveWhatsappTo } from "../utils/whatsapp-identity.js";
+import { Logger } from "../utils/logger.js";
+
+const log = new Logger("WhatsApp");
 
 async function accessibleConversation(userId, conversationId) {
   const ids = await userEventIds(userId);
@@ -109,6 +112,7 @@ export const launchCampaign = asyncHandler(async (req, res) => {
     });
   }
   await logActivity(event.id, `${ai?.assistantName || "El asistente"} envió ${guests.length} mensajes iniciales`, "message");
+  log.info("campaña lanzada", { eventId: event.id, launched: guests.length });
   const updated = await Guest.findAll({ where: { eventId: event.id } });
   res.json({ launched: guests.length, guests: updated.map((g) => serializeGuest(g, event.slug)) });
 });

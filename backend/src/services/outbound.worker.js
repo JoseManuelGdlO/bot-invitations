@@ -2,7 +2,8 @@ import { Op } from "sequelize";
 import { Event, Guest, OutboundJob } from "../models/index.js";
 import { createWhatsAppProvider } from "./whatsapp.adapter.js";
 import { env } from "../config/env.js";
-import { resolveWhatsappTo } from "../utils/whatsapp-identity.js";
+import { Logger } from "../utils/logger.js";
+import { formatWhatsappTo, resolveWhatsappTo } from "../utils/whatsapp-identity.js";
 import {
   isBulkKind,
   nextAllowedAt,
@@ -12,13 +13,35 @@ import {
 } from "./outbound.throttle.js";
 
 const provider = createWhatsAppProvider();
+const workerLog = new Logger("Worker");
+const waLog = new Logger("WhatsApp");
 const DUE_BATCH = 50;
 const HOUR_MS = 60 * 60 * 1000;
+
+function sendMeta(job, extra = {}) {
+  const payload = job.payload || {};
+  return {
+    jobId: job.id,
+    kind: payload.kind || null,
+    eventId: payload.eventId || null,
+    guestId: payload.guestId || null,
+    chars: String(payload.text || "").length,
+    ...extra,
+  };
+}
 
 let running = false;
 
 export async function enqueueJob(type, payload, scheduledAt = new Date()) {
-  return OutboundJob.create({ type, payload, scheduledAt, status: "queued" });
+  const job = await OutboundJob.create({ type, payload, scheduledAt, status: "queued" });
+  workerLog.debug(`encolado ${type}`, {
+    jobId: job.id,
+    kind: payload?.kind || null,
+    eventId: payload?.eventId || null,
+    guestId: payload?.guestId || null,
+    chars: String(payload?.text || "").length,
+  });
+  return job;
 }
 
 async function syncWhatsappSendJob(job, { ok }) {
@@ -43,12 +66,27 @@ async function syncWhatsappSendJob(job, { ok }) {
   }
 }
 
+function skipWhatsappSendReason(payload) {
+  if (!String(payload?.text || "").trim()) return "texto vacío";
+  if (!String(payload?.to || "").trim()) return "sin destinatario";
+  if (payload?.kind === "follow_up") {
+    return "follow-ups desactivados ";
+  }
+  return null;
+}
+
 export async function processJob(job) {
   await job.update({ status: "processing", attempts: job.attempts + 1 });
   // Jobs already queued keep sending even if the owner's subscription expired or was canceled.
   try {
     if (job.type === "whatsapp.send") {
-      let to = job.payload.to;
+      const skip = skipWhatsappSendReason(job.payload);
+      if (skip) {
+        await job.update({ status: "skipped", lastError: skip });
+        waLog.info(`whatsapp.send skipped: ${skip}`, sendMeta(job, { status: "skipped", reason: skip }));
+        return;
+      }
+      let to = formatWhatsappTo(job.payload.to);
       if (job.payload?.guestId) {
         const guest = await Guest.findByPk(job.payload.guestId);
         if (guest) to = resolveWhatsappTo(guest) || to;
@@ -59,18 +97,31 @@ export async function processJob(job) {
         conversationId: job.payload.conversationId,
       });
       const ok = !result.skipped;
+      const status = result.skipped ? "skipped" : "done";
       await job.update({
-        status: result.skipped ? "skipped" : "done",
+        status,
         payload: { ...job.payload, result },
       });
+      const meta = sendMeta(job, { status, ...(result.skipped && { reason: "provider skipped" }) });
+      if (ok) waLog.info("whatsapp.send done", meta);
+      else waLog.info("whatsapp.send skipped", meta);
+      waLog.debug("whatsapp.send", { ...meta, to });
       await syncWhatsappSendJob(job, { ok });
       return;
     }
     await job.update({ status: "skipped", lastError: `Tipo desconocido: ${job.type}` });
+    workerLog.info(`job skipped: tipo desconocido ${job.type}`, { jobId: job.id, status: "skipped" });
   } catch (err) {
     await job.update({ status: "failed", lastError: err.message });
     if (job.type === "whatsapp.send") {
+      waLog.error(`whatsapp.send failed: ${err.message}`, sendMeta(job, {
+        status: "failed",
+        error: err.message,
+        stack: err.stack,
+      }));
       await syncWhatsappSendJob(job, { ok: false });
+    } else {
+      workerLog.error(`job failed: ${err.message}`, { jobId: job.id, type: job.type, stack: err.stack });
     }
   }
 }
@@ -146,8 +197,8 @@ async function processOwnerTick(ownerId, dueJobs) {
     const deferred = await deferQueuedForOwner(eventIds, at, {
       bulkOnly: reason === "hourly",
     });
-    console.log(
-      `[worker] owner ${ownerId} aplazado: ${reason} hasta ${at.toISOString()} (${deferred} jobs)`,
+    workerLog.info(
+      `owner ${ownerId} aplazado: ${reason} hasta ${at.toISOString()} (${deferred} jobs)`,
     );
     return;
   }
@@ -207,12 +258,12 @@ export async function tickWorker() {
 
 export function startOutboundWorker() {
   const timer = setInterval(() => {
-    tickWorker().catch((err) => console.error("[worker]", err));
+    tickWorker().catch((err) => workerLog.error(err.message, { stack: err.stack }));
   }, env.workerIntervalMs);
   timer.unref?.();
   const { intervalMinMs, intervalMaxMs, maxPerHour } = env.waSend;
-  console.log(
-    `[worker] outbound jobs cada ${env.workerIntervalMs}ms; WA ${intervalMinMs}-${intervalMaxMs}ms, máx ${maxPerHour}/h masivos`,
+  workerLog.info(
+    `outbound jobs cada ${env.workerIntervalMs}ms; WA ${intervalMinMs}-${intervalMaxMs}ms, máx ${maxPerHour}/h masivos`,
   );
   return timer;
 }
