@@ -11,7 +11,6 @@ import { api, download, setToken } from "@/lib/api/client";
 import type {
   ActivityItem,
   ChatMessage,
-  ConfirmationStatus,
   Conversation,
   EventAnalytics,
   EventData,
@@ -167,7 +166,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           },
         );
         await afterAuth(res);
-        return { checkoutUrl: res.checkoutUrl };
+        return { checkoutUrl: res.checkoutUrl ?? null };
       },
       startCheckout: async (planId, interval = "month") => {
         return api<{ checkoutUrl?: string | null; updated?: boolean }>("/billing/checkout", {
