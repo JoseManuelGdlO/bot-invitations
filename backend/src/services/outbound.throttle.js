@@ -18,6 +18,29 @@ export function rememberNextGap(ownerId, nextAt) {
   nextGapByOwner.set(ownerId, new Date(nextAt));
 }
 
+const nextSlotByOwner = new Map();
+
+export function allocateBulkSlot(ownerId, { now = new Date(), intervalMinMs, intervalMaxMs } = {}) {
+  const key = ownerId || "_unknown";
+  const t = new Date(now).getTime();
+  const minMs = Math.max(0, Number(intervalMinMs) || 0);
+  const maxMs = Math.max(minMs, Number(intervalMaxMs) || minMs);
+  const remembered = nextGapByOwner.get(key);
+  const last = nextSlotByOwner.get(key);
+  const remMs = remembered && remembered.getTime() > t ? remembered.getTime() : t;
+  const lastMs = last ? last.getTime() : 0;
+
+  let at;
+  if (last && lastMs > t - minMs) {
+    at = Math.max(t, remMs, lastMs) + randomIntervalMs(minMs, maxMs);
+  } else {
+    at = Math.max(t, remMs);
+  }
+  const slot = new Date(at);
+  nextSlotByOwner.set(key, slot);
+  return slot;
+}
+
 export function nextAllowedAt({
   now,
   ownerId,

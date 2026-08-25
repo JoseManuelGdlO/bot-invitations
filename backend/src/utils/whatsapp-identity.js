@@ -79,19 +79,31 @@ export function extractInboundIdentity(payload = {}) {
   };
 }
 
-export function formatWhatsappTo(value) {
-  const raw = String(value || "").trim();
-  if (!raw) return "";
-  if (raw.includes("@") || isWhatsappChannelId(raw)) return raw;
-  const digits = raw.replace(/\D/g, "");
-  if (!digits) return raw;
+function formatMxDigits(digits) {
+  if (!digits) return "";
   if (digits.length === 10) return `521${digits}`;
   return digits;
 }
 
+export function formatWhatsappTo(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  if (/@lid$/i.test(raw) || /@g\.us$/i.test(raw)) return raw;
+  if (/@s\.whatsapp\.net$/i.test(raw)) {
+    const local = raw.replace(/@s\.whatsapp\.net$/i, "").split(":")[0];
+    const formatted = formatMxDigits(local.replace(/\D/g, ""));
+    if (!formatted) return raw;
+    return `${formatted}@s.whatsapp.net`;
+  }
+  if (raw.includes("@")) return raw;
+  const digits = raw.replace(/\D/g, "");
+  if (!digits) return raw;
+  return formatMxDigits(digits);
+}
+
 export function resolveWhatsappTo(guest) {
   const chatId = String(guest?.whatsappChatId || "").trim();
-  if (chatId.includes("@")) return chatId;
+  if (chatId) return formatWhatsappTo(chatId);
   return formatWhatsappTo(guest?.phone);
 }
 

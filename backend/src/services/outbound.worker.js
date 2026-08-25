@@ -5,6 +5,7 @@ import { env } from "../config/env.js";
 import { Logger } from "../utils/logger.js";
 import { formatWhatsappTo, resolveWhatsappTo } from "../utils/whatsapp-identity.js";
 import {
+  allocateBulkSlot,
   isBulkKind,
   nextAllowedAt,
   randomIntervalMs,
@@ -17,6 +18,7 @@ const workerLog = new Logger("Worker");
 const waLog = new Logger("WhatsApp");
 const DUE_BATCH = 50;
 const HOUR_MS = 60 * 60 * 1000;
+const UNKNOWN_OWNER = "_unknown";
 
 function sendMeta(job, extra = {}) {
   const payload = job.payload || {};
@@ -32,14 +34,29 @@ function sendMeta(job, extra = {}) {
 
 let running = false;
 
-export async function enqueueJob(type, payload, scheduledAt = new Date()) {
-  const job = await OutboundJob.create({ type, payload, scheduledAt, status: "queued" });
+export async function enqueueJob(type, payload, scheduledAt) {
+  let at = scheduledAt;
+  if (at === undefined && type === "whatsapp.send" && isBulkKind(payload?.kind)) {
+    let ownerId = null;
+    if (payload?.eventId) {
+      const event = await Event.findByPk(payload.eventId, { attributes: ["ownerId"] });
+      ownerId = event?.ownerId || null;
+    }
+    at = allocateBulkSlot(ownerId, {
+      now: new Date(),
+      intervalMinMs: env.waSend.intervalMinMs,
+      intervalMaxMs: env.waSend.intervalMaxMs,
+    });
+  }
+  if (at == null) at = new Date();
+  const job = await OutboundJob.create({ type, payload, scheduledAt: at, status: "queued" });
   workerLog.debug(`encolado ${type}`, {
     jobId: job.id,
     kind: payload?.kind || null,
     eventId: payload?.eventId || null,
     guestId: payload?.guestId || null,
     chars: String(payload?.text || "").length,
+    scheduledAt: at instanceof Date ? at.toISOString() : at,
   });
   return job;
 }
@@ -77,6 +94,7 @@ function skipWhatsappSendReason(payload) {
 
 export async function processJob(job) {
   await job.update({ status: "processing", attempts: job.attempts + 1 });
+  let to = null;
   // Jobs already queued keep sending even if the owner's subscription expired or was canceled.
   try {
     if (job.type === "whatsapp.send") {
@@ -86,11 +104,12 @@ export async function processJob(job) {
         waLog.info(`whatsapp.send skipped: ${skip}`, sendMeta(job, { status: "skipped", reason: skip }));
         return;
       }
-      let to = formatWhatsappTo(job.payload.to);
+      to = formatWhatsappTo(job.payload.to);
       if (job.payload?.guestId) {
         const guest = await Guest.findByPk(job.payload.guestId);
         if (guest) to = resolveWhatsappTo(guest) || to;
       }
+      waLog.info("enviando whatsapp.send", sendMeta(job, { to }));
       const result = await provider.sendMessage(to, job.payload.text, {
         eventId: job.payload.eventId,
         guestId: job.payload.guestId,
@@ -102,10 +121,11 @@ export async function processJob(job) {
         status,
         payload: { ...job.payload, result },
       });
-      const meta = sendMeta(job, { status, ...(result.skipped && { reason: "provider skipped" }) });
-      if (ok) waLog.info("whatsapp.send done", meta);
-      else waLog.info("whatsapp.send skipped", meta);
-      waLog.debug("whatsapp.send", { ...meta, to });
+      waLog.info(ok ? "whatsapp.send done" : "whatsapp.send skipped", sendMeta(job, {
+        status,
+        to,
+        ...(result.skipped && { reason: "provider skipped" }),
+      }));
       await syncWhatsappSendJob(job, { ok });
       return;
     }
@@ -116,6 +136,7 @@ export async function processJob(job) {
     if (job.type === "whatsapp.send") {
       waLog.error(`whatsapp.send failed: ${err.message}`, sendMeta(job, {
         status: "failed",
+        to,
         error: err.message,
         stack: err.stack,
       }));
@@ -235,11 +256,7 @@ export async function tickWorker() {
         unthrottled.push(job);
         continue;
       }
-      const ownerId = ownerByEvent.get(job.payload?.eventId);
-      if (!ownerId) {
-        unthrottled.push(job);
-        continue;
-      }
+      const ownerId = ownerByEvent.get(job.payload?.eventId) || UNKNOWN_OWNER;
       const list = byOwner.get(ownerId) || [];
       list.push(job);
       byOwner.set(ownerId, list);

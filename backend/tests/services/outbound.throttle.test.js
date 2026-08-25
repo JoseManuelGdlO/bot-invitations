@@ -1,5 +1,6 @@
 import { jest } from "@jest/globals";
 import {
+  allocateBulkSlot,
   isBulkKind,
   nextAllowedAt,
   randomIntervalMs,
@@ -60,5 +61,18 @@ describe("outbound.throttle", () => {
     expect(isBulkKind("follow_up")).toBe(true);
     expect(isBulkKind("reminder")).toBe(true);
     expect(isBulkKind("reply")).toBe(false);
+  });
+
+  test("allocateBulkSlot pone el primero ahora y los siguientes con jitter", () => {
+    jest.spyOn(Math, "random").mockReturnValue(0);
+    try {
+      const now = new Date("2026-01-01T00:00:00.000Z");
+      const first = allocateBulkSlot("owner_slot_1", { now, intervalMinMs: 15000, intervalMaxMs: 30000 });
+      const second = allocateBulkSlot("owner_slot_1", { now, intervalMinMs: 15000, intervalMaxMs: 30000 });
+      expect(first.toISOString()).toBe("2026-01-01T00:00:00.000Z");
+      expect(second.getTime() - first.getTime()).toBe(15000);
+    } finally {
+      Math.random.mockRestore();
+    }
   });
 });

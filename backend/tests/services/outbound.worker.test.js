@@ -75,6 +75,45 @@ describe("outbound.worker", () => {
     expect(sendMessage).toHaveBeenCalledWith("5216183218624", "hola", expect.any(Object));
   });
 
+  test("processJob reescribe JID de 10 dígitos con 521", async () => {
+    sendMessage.mockResolvedValueOnce({ provider: "stub", skipped: false });
+    models.Guest.findByPk.mockResolvedValueOnce(
+      createInstance({ id: "g1", phone: "6181020927", whatsappChatId: "6181020927@s.whatsapp.net" }),
+    );
+    const job = createInstance({
+      type: "whatsapp.send",
+      attempts: 0,
+      payload: { to: "6181020927", text: "hola", guestId: "g1" },
+    });
+    await service.processJob(job);
+    expect(sendMessage).toHaveBeenCalledWith("5216181020927@s.whatsapp.net", "hola", expect.any(Object));
+  });
+
+  test("enqueueJob masivo programa scheduledAt en cascada", async () => {
+    jest.spyOn(Math, "random").mockReturnValue(0);
+    models.Event.findByPk.mockResolvedValue({ ownerId: "owner_1" });
+    try {
+      await service.enqueueJob("whatsapp.send", {
+        kind: "campaign",
+        eventId: "evt_1",
+        to: "6183218624",
+        text: "hola",
+      });
+      await service.enqueueJob("whatsapp.send", {
+        kind: "campaign",
+        eventId: "evt_1",
+        to: "6181111111",
+        text: "hola",
+      });
+      const firstAt = new Date(models.OutboundJob.create.mock.calls[0][0].scheduledAt).getTime();
+      const secondAt = new Date(models.OutboundJob.create.mock.calls[1][0].scheduledAt).getTime();
+      expect(secondAt - firstAt).toBeGreaterThanOrEqual(15000);
+      expect(secondAt - firstAt).toBeLessThan(16000);
+    } finally {
+      Math.random.mockRestore();
+    }
+  });
+
   test("tickWorker envía un masivo y aplaza el resto con jitter", async () => {
     sendMessage.mockResolvedValue({ provider: "stub", skipped: false });
     jest.spyOn(Math, "random").mockReturnValue(0);
@@ -139,6 +178,40 @@ describe("outbound.worker", () => {
     } finally {
       Math.random.mockRestore();
     }
+  });
+
+  test("tickWorker no dispara ráfaga si falta ownerId", async () => {
+    sendMessage.mockResolvedValue({ provider: "stub", skipped: false });
+    const now = new Date();
+    const job1 = createInstance({
+      id: "job_u1",
+      type: "whatsapp.send",
+      status: "queued",
+      attempts: 0,
+      scheduledAt: now,
+      payload: { to: "6183218624", text: "hola", kind: "campaign" },
+    });
+    const job2 = createInstance({
+      id: "job_u2",
+      type: "whatsapp.send",
+      status: "queued",
+      attempts: 0,
+      scheduledAt: now,
+      payload: { to: "6181111111", text: "hola", kind: "campaign" },
+    });
+    models.Event.findAll.mockResolvedValue([]);
+    models.OutboundJob.findAll.mockImplementation(async (opts = {}) => {
+      const status = opts.where?.status;
+      if (status === "done") return [];
+      if (status === "queued") return [job1, job2];
+      return [];
+    });
+
+    await service.tickWorker();
+
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect(job1.status).toBe("done");
+    expect(job2.status).toBe("queued");
   });
 
   test("startOutboundWorker dispara tick y se puede limpiar", async () => {
