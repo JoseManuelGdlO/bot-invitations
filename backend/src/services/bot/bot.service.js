@@ -2,6 +2,7 @@ import { Conversation, Event, Guest, Message } from "../../models/index.js";
 import { formatClock } from "../../utils/time.js";
 import { httpError } from "../../utils/http-error.js";
 import { enqueueJob } from "../outbound.worker.js";
+import { resolveWhatsappTo, shouldPersistWhatsappChatId } from "../../utils/whatsapp-identity.js";
 import { buildInstructions, loadEventBotContext } from "./prompt.service.js";
 import { processTurn } from "./openai.service.js";
 import { executeBotTool } from "./tools.js";
@@ -50,12 +51,7 @@ export async function appendOutboundToSession({ event, guest, text, userId }) {
   return session;
 }
 
-export async function resolveGuestForInbound({ ownerUserId, phone }) {
-  const events = await Event.findAll({ where: { ownerId: ownerUserId } });
-  if (!events.length) return null;
-  const eventById = new Map(events.map((event) => [event.id, event]));
-  const guests = await Guest.findAll({ where: { eventId: events.map((event) => event.id) } });
-  const matches = guests.filter((guest) => phonesMatch(guest.phone, phone));
+async function pickGuestFromMatches(matches, eventById) {
   if (!matches.length) return null;
   if (matches.length === 1) {
     return { guest: matches[0], event: eventById.get(matches[0].eventId) };
@@ -80,6 +76,36 @@ export async function resolveGuestForInbound({ ownerUserId, phone }) {
   });
   const guest = ranked[0];
   return { guest, event: eventById.get(guest.eventId) };
+}
+
+export async function resolveGuestForInbound({ ownerUserId, chatId, displayPhone }) {
+  const events = await Event.findAll({ where: { ownerId: ownerUserId } });
+  if (!events.length) return null;
+  const eventById = new Map(events.map((event) => [event.id, event]));
+  const guests = await Guest.findAll({ where: { eventId: events.map((event) => event.id) } });
+  const inboundChatId = String(chatId || "").trim();
+
+  if (inboundChatId.includes("@")) {
+    const byChatId = guests.filter((guest) => String(guest.whatsappChatId || "").trim() === inboundChatId);
+    const matched = await pickGuestFromMatches(byChatId, eventById);
+    if (matched) return matched;
+  }
+
+  if (displayPhone) {
+    const byPhone = guests.filter((guest) => phonesMatch(guest.phone, displayPhone));
+    return pickGuestFromMatches(byPhone, eventById);
+  }
+
+  return null;
+}
+
+export async function rememberWhatsappChatId(guest, chatId) {
+  if (!guest || !shouldPersistWhatsappChatId(chatId)) return guest;
+  const next = String(chatId).trim();
+  if (String(guest.whatsappChatId || "").trim() === next) return guest;
+  guest.whatsappChatId = next;
+  await guest.save();
+  return guest;
 }
 
 export async function processGuestMessage({
@@ -189,7 +215,7 @@ export async function processGuestMessage({
 
     if (!dryRun && persistConversation) {
       await enqueueJob("whatsapp.send", {
-        to: guest.phone,
+        to: resolveWhatsappTo(guest),
         text: result.reply,
         guestId: guest.id,
         eventId: event.id,

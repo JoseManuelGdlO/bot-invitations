@@ -98,6 +98,7 @@ export const Guest = sequelize.define("guests", {
   eventId: { type: DataTypes.CHAR(36), allowNull: false },
   rep: { type: DataTypes.STRING(160), allowNull: false },
   phone: { type: DataTypes.STRING(40), allowNull: false },
+  whatsappChatId: { type: DataTypes.STRING(120), allowNull: true },
   invited: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 1 },
   confirmed: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
   table: { type: DataTypes.STRING(80), allowNull: true, defaultValue: "" },

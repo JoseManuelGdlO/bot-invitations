@@ -2,6 +2,7 @@ import { Conversation, Message } from "../models/index.js";
 import { formatClock } from "../utils/time.js";
 import { enqueueJob } from "./outbound.worker.js";
 import { appendOutboundToSession } from "./bot/bot.service.js";
+import { resolveWhatsappTo } from "../utils/whatsapp-identity.js";
 
 export async function deliverAiMessage({
   event,
@@ -34,7 +35,7 @@ export async function deliverAiMessage({
     at: formatClock(),
   });
   await enqueueJob("whatsapp.send", {
-    to: guest.phone,
+    to: resolveWhatsappTo(guest),
     text: body,
     guestId: guest.id,
     eventId: event.id,

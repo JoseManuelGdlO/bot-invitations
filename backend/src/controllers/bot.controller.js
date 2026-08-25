@@ -1,27 +1,18 @@
 import { env } from "../config/env.js";
 import { enqueueJob } from "../services/outbound.worker.js";
-import { processGuestMessage, resolveGuestForInbound } from "../services/bot/bot.service.js";
+import { processGuestMessage, rememberWhatsappChatId, resolveGuestForInbound } from "../services/bot/bot.service.js";
 import { normalizePhone } from "../services/bot/session.service.js";
+import { extractInboundIdentity, resolveWhatsappTo } from "../utils/whatsapp-identity.js";
 
 function logBot(event, extra = {}) {
   console.log("[bot]", event, extra);
-}
-
-function jidPhone(value) {
-  return String(value || "")
-    .split(":")[0]
-    .split("@")[0];
-}
-
-function isGroupJid(value) {
-  return String(value || "").endsWith("@g.us");
 }
 
 export function extractInboundMessage(payload = {}) {
   const type = String(payload.type || payload.event || "").trim();
   const normalized = payload.normalized && typeof payload.normalized === "object" ? payload.normalized : {};
   const data = payload.data && typeof payload.data === "object" ? payload.data : {};
-  const fromRaw = normalized.from || data.from || payload.from || "";
+  const identity = extractInboundIdentity(payload);
   const text = String(
     normalized.content?.text || data.body || data.text || payload.text || payload.message || "",
   ).trim();
@@ -29,19 +20,19 @@ export function extractInboundMessage(payload = {}) {
   const messageId = String(normalized.messageId || payload.messageId || payload.eventId || payload.id || data.id || "").trim();
   return {
     type,
-    from: jidPhone(fromRaw),
-    fromRaw: String(fromRaw || ""),
+    chatId: identity.chatId,
+    displayPhone: identity.displayPhone,
     text,
     contentType,
     messageId,
-    isGroup: isGroupJid(fromRaw) || isGroupJid(normalized.from),
-    isInbound: /inbound|message/i.test(type) || Boolean(text || fromRaw),
+    isGroup: identity.isGroup,
+    isInbound: /inbound|message/i.test(type) || Boolean(text || identity.chatId),
   };
 }
 
 async function sendNotice({ event, guest, text }) {
   await enqueueJob("whatsapp.send", {
-    to: guest.phone,
+    to: resolveWhatsappTo(guest),
     text,
     guestId: guest.id,
     eventId: event.id,
@@ -56,7 +47,7 @@ export async function handleInboundWhatsapp({ payload, integration }) {
   if (inbound.isGroup) {
     return { processed: true, reason: "group_message_ignored" };
   }
-  if (!inbound.from) {
+  if (!inbound.chatId) {
     return { processed: false, reason: "missing_from" };
   }
 
@@ -65,13 +56,22 @@ export async function handleInboundWhatsapp({ payload, integration }) {
     return { processed: false, reason: "missing_owner" };
   }
 
-  const resolved = await resolveGuestForInbound({ ownerUserId, phone: inbound.from });
+  const resolved = await resolveGuestForInbound({
+    ownerUserId,
+    chatId: inbound.chatId,
+    displayPhone: inbound.displayPhone,
+  });
   if (!resolved?.guest || !resolved?.event) {
-    logBot("guest not found", { from: inbound.from, ownerUserId });
+    logBot("guest not found", {
+      chatId: inbound.chatId,
+      displayPhone: inbound.displayPhone,
+      ownerUserId,
+    });
     return { processed: true, reason: "guest_not_found" };
   }
 
   const { guest, event } = resolved;
+  await rememberWhatsappChatId(guest, inbound.chatId);
   if (inbound.contentType && inbound.contentType !== "text" && !inbound.text) {
     await sendNotice({
       event,
@@ -89,7 +89,7 @@ export async function handleInboundWhatsapp({ payload, integration }) {
       eventId: event.id,
       guestId: guest.id,
       text: inbound.text,
-      userId: normalizePhone(guest.phone) || inbound.from,
+      userId: normalizePhone(guest.phone) || inbound.displayPhone || inbound.chatId,
       dryRun: false,
       persistConversation: true,
     });

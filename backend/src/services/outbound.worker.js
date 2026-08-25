@@ -2,6 +2,7 @@ import { Op } from "sequelize";
 import { Event, Guest, OutboundJob } from "../models/index.js";
 import { createWhatsAppProvider } from "./whatsapp.adapter.js";
 import { env } from "../config/env.js";
+import { resolveWhatsappTo } from "../utils/whatsapp-identity.js";
 import {
   isBulkKind,
   nextAllowedAt,
@@ -47,7 +48,12 @@ export async function processJob(job) {
   // Jobs already queued keep sending even if the owner's subscription expired or was canceled.
   try {
     if (job.type === "whatsapp.send") {
-      const result = await provider.sendMessage(job.payload.to, job.payload.text, {
+      let to = job.payload.to;
+      if (job.payload?.guestId) {
+        const guest = await Guest.findByPk(job.payload.guestId);
+        if (guest) to = resolveWhatsappTo(guest) || to;
+      }
+      const result = await provider.sendMessage(to, job.payload.text, {
         eventId: job.payload.eventId,
         guestId: job.payload.guestId,
         conversationId: job.payload.conversationId,

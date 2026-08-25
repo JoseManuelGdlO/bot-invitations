@@ -16,6 +16,7 @@ import { appendOutboundToSession } from "../services/bot/bot.service.js";
 import { assertWhatsappReady } from "../services/integration-resolver.service.js";
 import { deliverAiMessage } from "../services/guest-message.service.js";
 import { FALLBACK_OPENING, findTemplate, renderTemplate } from "../services/templates.service.js";
+import { resolveWhatsappTo } from "../utils/whatsapp-identity.js";
 
 async function accessibleConversation(userId, conversationId) {
   const ids = await userEventIds(userId);
@@ -69,7 +70,7 @@ export const sendMessage = asyncHandler(async (req, res) => {
     guest.lastMessage = text.slice(0, 80);
     await guest.save();
     await enqueueJob("whatsapp.send", {
-      to: guest.phone,
+      to: resolveWhatsappTo(guest),
       text,
       guestId: guest.id,
       eventId: found.event.id,

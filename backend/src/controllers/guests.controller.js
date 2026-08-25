@@ -9,6 +9,7 @@ import { assertCanAddGuests, assertCanSendInvitations } from "../services/plans.
 import { assertWhatsappReady } from "../services/integration-resolver.service.js";
 import { deliverAiMessage } from "../services/guest-message.service.js";
 import { resolveReminderText } from "../services/templates.service.js";
+import { phonesMatch } from "../services/bot/session.service.js";
 
 async function findGuestForUser(userId, guestId) {
   const ids = await userEventIds(userId);
@@ -67,8 +68,12 @@ export const updateGuest = asyncHandler(async (req, res) => {
     const delta = next - Number(guest.invited || 0);
     if (delta > 0) await assertCanAddGuests(req.user, delta);
   }
+  const previousPhone = guest.phone;
   for (const key of allowed) {
     if (req.body?.[key] !== undefined) guest[key] = req.body[key];
+  }
+  if (req.body?.phone !== undefined && !phonesMatch(previousPhone, guest.phone)) {
+    guest.whatsappChatId = null;
   }
   if (["confirmado", "parcial"].includes(guest.status) && !guest.confirmedAt) {
     guest.confirmedAt = new Date();
