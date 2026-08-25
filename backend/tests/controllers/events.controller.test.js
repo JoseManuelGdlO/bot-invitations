@@ -1,5 +1,5 @@
 import { jest } from "@jest/globals";
-import { callHandler, createMockReq, loadWithMocks, fakeEvent, fakeUser } from "../helpers/controller.js";
+import { callHandler, createMockReq, loadWithMocks, fakeEvent, fakeUser, PERMS } from "../helpers/controller.js";
 
 describe("events.controller", () => {
   let controller;
@@ -16,6 +16,9 @@ describe("events.controller", () => {
         "src/services/access.service.js": () => ({
           requireEvent,
           userEventIds: jest.fn(async () => ["evt_1"]),
+          requirePermission: jest.fn(async () => true),
+          requireEventOwner: jest.fn(async () => true),
+          PERMS,
         }),
         "src/services/event-setup.service.js": () => ({
           seedEventDefaults: jest.fn(async () => undefined),
@@ -82,6 +85,31 @@ describe("events.controller", () => {
     });
     expect(event.venue).toBe("Jardín");
     expect(res.json).toHaveBeenCalled();
+  });
+
+  test("deleteEvent 403 si no es dueño", async () => {
+    const requireEventOwner = jest.fn(async (_req, res) => {
+      res.status(403).json({ error: "Solo el dueño del evento puede hacer esto." });
+      return false;
+    });
+    ({ mod: controller } = await loadWithMocks("src/controllers/events.controller.js", {
+      extraMocks: {
+        "src/services/access.service.js": () => ({
+          requireEvent: jest.fn(async () => fakeEvent()),
+          userEventIds: jest.fn(async () => ["evt_1"]),
+          requirePermission: jest.fn(async () => true),
+          requireEventOwner,
+          PERMS,
+        }),
+        "src/services/event-setup.service.js": () => ({ seedEventDefaults: jest.fn(async () => undefined) }),
+        "src/services/activity.service.js": () => ({ logActivity: jest.fn(async () => undefined) }),
+        "src/services/plans.service.js": () => ({ assertCanCreateEvent: jest.fn(async () => undefined) }),
+      },
+    }));
+    const { res } = await callHandler(controller.deleteEvent, {
+      req: createMockReq({ params: { eventId: "boda-ana" } }),
+    });
+    expect(res.status).toHaveBeenCalledWith(403);
   });
 
   test("listGuests filtra por status", async () => {

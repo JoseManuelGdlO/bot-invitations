@@ -46,6 +46,7 @@ router.get("/events", events.listEvents);
 router.post("/events", events.createEvent);
 router.get("/events/:eventId", events.getEvent);
 router.patch("/events/:eventId", events.updateEvent);
+router.delete("/events/:eventId", events.deleteEvent);
 
 router.get("/events/:eventId/guests", events.listGuests);
 router.post("/events/:eventId/guests", guests.createGuest);

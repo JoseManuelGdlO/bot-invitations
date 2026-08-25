@@ -1,5 +1,5 @@
 import { jest } from "@jest/globals";
-import { callHandler, createMockReq, loadWithMocks, fakeEvent, fakeUser } from "../helpers/controller.js";
+import { callHandler, createMockReq, loadWithMocks, fakeEvent, fakeUser, PERMS } from "../helpers/controller.js";
 import { createInstance } from "../helpers/models.js";
 
 describe("team.controller", () => {
@@ -11,7 +11,11 @@ describe("team.controller", () => {
     sendTeamInvitationEmail = jest.fn(async () => ({ messageId: "mock_id" }));
     ({ mod: controller, models } = await loadWithMocks("src/controllers/team.controller.js", {
       extraMocks: {
-        "src/services/access.service.js": () => ({ requireEvent: jest.fn(async () => fakeEvent()) }),
+        "src/services/access.service.js": () => ({
+          requireEvent: jest.fn(async () => fakeEvent()),
+          requirePermission: jest.fn(async () => true),
+          PERMS,
+        }),
         "src/services/email.service.js": () => ({ sendTeamInvitationEmail }),
       },
     }));
@@ -86,5 +90,32 @@ describe("team.controller", () => {
     });
     expect(perm.enabled).toBe(true);
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ enabled: true }));
+  });
+});
+
+describe("team.controller sin Gestionar equipo", () => {
+  let controller;
+
+  beforeEach(async () => {
+    ({ mod: controller } = await loadWithMocks("src/controllers/team.controller.js", {
+      extraMocks: {
+        "src/services/access.service.js": () => ({
+          requireEvent: jest.fn(async () => fakeEvent()),
+          requirePermission: jest.fn(async (_req, res) => {
+            res.status(403).json({ error: "No tienes permiso para esta acción." });
+            return false;
+          }),
+          PERMS,
+        }),
+        "src/services/email.service.js": () => ({ sendTeamInvitationEmail: jest.fn() }),
+      },
+    }));
+  });
+
+  test("updatePermission 403", async () => {
+    const { res } = await callHandler(controller.updatePermission, {
+      req: createMockReq({ params: { permissionId: "p1" }, body: { enabled: true } }),
+    });
+    expect(res.status).toHaveBeenCalledWith(403);
   });
 });

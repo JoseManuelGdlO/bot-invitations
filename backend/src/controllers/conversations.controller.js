@@ -9,7 +9,7 @@ import { asyncHandler } from "../utils/async.js";
 import { formatClock } from "../utils/time.js";
 import { applyTemplate } from "../utils/defaults.js";
 import { serializeConversation, serializeGuest, serializeMessage } from "../utils/serialize.js";
-import { requireEvent, userEventIds } from "../services/access.service.js";
+import { requireEvent, userEventIds, requirePermission, PERMS } from "../services/access.service.js";
 import { enqueueJob } from "../services/outbound.worker.js";
 import { logActivity } from "../services/activity.service.js";
 import { assertCanSendInvitations } from "../services/plans.service.js";
@@ -36,6 +36,7 @@ export const listConversations = asyncHandler(async (req, res) => {
 export const toggleConversation = asyncHandler(async (req, res) => {
   const found = await accessibleConversation(req.user.id, req.params.conversationId);
   if (!found) return res.status(404).json({ error: "Conversación no encontrada." });
+  if (!(await requirePermission(req, res, found.event, PERMS.REPLY))) return;
   if (req.body?.aiPaused !== undefined) found.conv.aiPaused = !!req.body.aiPaused;
   if (req.body?.unread !== undefined) found.conv.unread = Number(req.body.unread) || 0;
   await found.conv.save();
@@ -49,6 +50,7 @@ export const toggleConversation = asyncHandler(async (req, res) => {
 export const sendMessage = asyncHandler(async (req, res) => {
   const found = await accessibleConversation(req.user.id, req.params.conversationId);
   if (!found) return res.status(404).json({ error: "Conversación no encontrada." });
+  if (!(await requirePermission(req, res, found.event, PERMS.REPLY))) return;
   assertCanSendInvitations(req.user);
   const text = String(req.body?.text || "").trim();
   if (!text) return res.status(400).json({ error: "El mensaje no puede estar vacío." });
@@ -79,6 +81,7 @@ export const sendMessage = asyncHandler(async (req, res) => {
 export const launchCampaign = asyncHandler(async (req, res) => {
   const event = await requireEvent(req, res);
   if (!event) return;
+  if (!(await requirePermission(req, res, event, PERMS.REPLY))) return;
   assertCanSendInvitations(req.user);
   const ai = await AiConfig.findOne({ where: { eventId: event.id } });
   const guests = await Guest.findAll({ where: { eventId: event.id, status: "sin_contactar" } });

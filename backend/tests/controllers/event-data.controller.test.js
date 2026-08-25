@@ -1,5 +1,5 @@
 import { jest } from "@jest/globals";
-import { callHandler, createMockReq, loadWithMocks, fakeEvent } from "../helpers/controller.js";
+import { callHandler, createMockReq, loadWithMocks, fakeEvent, PERMS } from "../helpers/controller.js";
 import { createInstance } from "../helpers/models.js";
 
 describe("event-data.controller", () => {
@@ -9,7 +9,11 @@ describe("event-data.controller", () => {
   beforeEach(async () => {
     ({ mod: controller, models } = await loadWithMocks("src/controllers/event-data.controller.js", {
       extraMocks: {
-        "src/services/access.service.js": () => ({ requireEvent: jest.fn(async () => fakeEvent()) }),
+        "src/services/access.service.js": () => ({
+          requireEvent: jest.fn(async () => fakeEvent()),
+          requirePermission: jest.fn(async () => true),
+          PERMS,
+        }),
       },
     }));
   });

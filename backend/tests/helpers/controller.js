@@ -4,6 +4,19 @@ import { loadWithMocks, fakePlan, fakeUser, fakeEvent, fakeGuest } from "../help
 
 export { createMockReq, createMockRes, mockNext, loadWithMocks, fakePlan, fakeUser, fakeEvent, fakeGuest };
 
+export const PERMS = {
+  EDIT_ALL: "Editar todo",
+  EDIT_EVENT: "Editar evento",
+  MANAGE_TEAM: "Gestionar equipo",
+  CONFIG_AI: "Configurar asistente",
+  REPLY: "Responder conversaciones",
+  CONFIRM: "Registrar confirmaciones",
+  VIEW_GUESTS: "Ver invitados",
+  VIEW_CHATS: "Ver conversaciones",
+  EXPORT: "Exportar datos",
+  CREATE_EVENTS: "Crear eventos",
+};
+
 export async function callHandler(handler, { req, res, next } = {}) {
   const request = req ?? createMockReq();
   const response = res ?? createMockRes();

@@ -8,6 +8,7 @@ import { StatusBadge } from "@/components/status-badge";
 import { useEvent, useStore } from "@/lib/mock/store";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { PERMS } from "@/lib/permissions";
 
 export const Route = createFileRoute("/eventos/$eventId/conversaciones")({
   validateSearch: (s: Record<string, unknown>) => ({
@@ -29,7 +30,9 @@ function Conversaciones() {
   const { eventId } = Route.useParams();
   const { guestId } = Route.useSearch();
   const { conversations, guests, event } = useEvent(eventId);
-  const { sendMessage, toggleAI, updateGuest } = useStore();
+  const { sendMessage, toggleAI, updateGuest, hasPerm } = useStore();
+  const canReply = hasPerm(eventId, PERMS.REPLY);
+  const canConfirm = hasPerm(eventId, PERMS.CONFIRM);
   const initial = conversations.find((c) => c.guestId === guestId)?.id ?? conversations[0]?.id ?? null;
   const [activeId, setActiveId] = useState<string | null>(initial);
   const [q, setQ] = useState("");
@@ -131,7 +134,8 @@ function Conversaciones() {
             </p>
           </div>
           <div className="ml-auto flex flex-wrap gap-2">
-            {active.conv.aiPaused ? (
+            {canReply ? (
+              active.conv.aiPaused ? (
               <Button
                 size="sm"
                 onClick={() => {
@@ -164,7 +168,8 @@ function Conversaciones() {
                   <UserRound className="size-4" /> Responder personalmente
                 </Button>
               </>
-            )}
+            )
+            ) : null}
           </div>
         </div>
 
@@ -208,6 +213,7 @@ function Conversaciones() {
           <div ref={endRef} />
         </div>
 
+        {canReply ? (
         <div className="flex items-center gap-2 border-t border-border bg-card p-3">
           <Input
             value={draft}
@@ -219,6 +225,11 @@ function Conversaciones() {
             <Send className="size-4" />
           </Button>
         </div>
+        ) : (
+          <p className="border-t border-border bg-card px-4 py-3 text-xs text-muted-foreground">
+            Tienes acceso de solo lectura a estas conversaciones.
+          </p>
+        )}
       </section>
 
       {/* Perfil */}
@@ -249,6 +260,7 @@ function Conversaciones() {
             <p className="mt-1">{active.guest.notes || "Sin notas."}</p>
           </div>
         </div>
+        {canConfirm ? (
         <Button
           className="mt-6 w-full"
           variant="outline"
@@ -259,6 +271,7 @@ function Conversaciones() {
         >
           Confirmar {active.guest.invited} asistentes
         </Button>
+        ) : null}
       </aside>
     </main>
   );

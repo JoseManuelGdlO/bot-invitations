@@ -1,5 +1,5 @@
 import { jest } from "@jest/globals";
-import { callHandler, createMockReq, loadWithMocks, fakeEvent, fakeGuest } from "../helpers/controller.js";
+import { callHandler, createMockReq, loadWithMocks, fakeEvent, fakeGuest, PERMS } from "../helpers/controller.js";
 import { createInstance } from "../helpers/models.js";
 
 describe("conversations.controller", () => {
@@ -12,6 +12,8 @@ describe("conversations.controller", () => {
         "src/services/access.service.js": () => ({
           requireEvent: jest.fn(async () => fakeEvent()),
           userEventIds: jest.fn(async () => ["evt_1"]),
+          requirePermission: jest.fn(async () => true),
+          PERMS,
         }),
         "src/services/outbound.worker.js": () => ({ enqueueJob: jest.fn(async () => undefined) }),
         "src/services/activity.service.js": () => ({ logActivity: jest.fn(async () => undefined) }),

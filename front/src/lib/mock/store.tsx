@@ -22,6 +22,7 @@ import type {
   SessionUser,
   TeamMember,
 } from "./types";
+import { hasEventPerm, type EventAccess } from "@/lib/permissions";
 
 interface State {
   session: SessionUser | null;
@@ -33,6 +34,7 @@ interface State {
   members: Record<string, TeamMember[]>;
   rolePermissions: Record<string, RolePermission[]>;
   analytics: Record<string, EventAnalytics>;
+  eventAccess: Record<string, EventAccess>;
 }
 
 const emptyState = (): State => ({
@@ -45,6 +47,7 @@ const emptyState = (): State => ({
   members: {},
   rolePermissions: {},
   analytics: {},
+  eventAccess: {},
 });
 
 interface DashboardPayload extends State {
@@ -98,8 +101,11 @@ interface Ctx extends State {
     eventId: string,
     payload: { name: string; email?: string; role: string },
   ) => Promise<TeamMember>;
-  removeMember: (eventId: string, memberId: string) => void;
+  updateMember: (eventId: string, memberId: string, patch: { role?: string; name?: string }) => Promise<TeamMember>;
+  removeMember: (eventId: string, memberId: string) => Promise<void>;
+  deleteEvent: (eventId: string) => Promise<void>;
   updatePermission: (eventId: string, permissionId: string, enabled: boolean) => void;
+  hasPerm: (eventId: string, permission: string) => boolean;
 }
 
 const StoreContext = createContext<Ctx | null>(null);
@@ -119,6 +125,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       members: payload.members ?? {},
       rolePermissions: payload.rolePermissions ?? {},
       analytics: payload.analytics ?? {},
+      eventAccess: payload.eventAccess ?? {},
     });
   }, []);
 
@@ -340,12 +347,30 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       
         return member;
       },
-      removeMember: (eventId, memberId) => {
+      updateMember: async (eventId, memberId, patch) => {
+        const member = await api<TeamMember>(`/events/${eventId}/members/${memberId}`, {
+          method: "PATCH",
+          body: JSON.stringify(patch),
+        });
+        setState((s) => ({
+          ...s,
+          members: {
+            ...s.members,
+            [eventId]: (s.members[eventId] ?? []).map((m) => (m.id === memberId ? member : m)),
+          },
+        }));
+        return member;
+      },
+      removeMember: async (eventId, memberId) => {
+        await api(`/events/${eventId}/members/${memberId}`, { method: "DELETE" });
         setState((s) => ({
           ...s,
           members: { ...s.members, [eventId]: (s.members[eventId] ?? []).filter((m) => m.id !== memberId) },
         }));
-        api(`/events/${eventId}/members/${memberId}`, { method: "DELETE" }).catch(console.error);
+      },
+      deleteEvent: async (eventId) => {
+        await api(`/events/${eventId}`, { method: "DELETE" });
+        await refresh();
       },
       updatePermission: (eventId, permissionId, enabled) => {
         setState((s) => ({
@@ -362,6 +387,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           body: JSON.stringify({ enabled }),
         }).catch(console.error);
       },
+      hasPerm: (eventId, permission) => hasEventPerm(state.eventAccess[eventId], permission),
     }),
     [state, hydrated, refresh],
   );
@@ -402,7 +428,8 @@ export function useEvent(eventId: string) {
   const members = s.members[eventId] ?? [];
   const rolePermissions = s.rolePermissions[eventId] ?? [];
   const analytics = s.analytics[eventId];
-  return { event, guests, conversations, data, members, rolePermissions, analytics };
+  const access = s.eventAccess[eventId];
+  return { event, guests, conversations, data, members, rolePermissions, analytics, access };
 }
 
 export function statsFor(guests: Guest[]) {

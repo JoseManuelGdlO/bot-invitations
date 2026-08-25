@@ -7,6 +7,7 @@ import { statsFor, useEvent, useStore } from "@/lib/mock/store";
 import { daysUntil } from "@/lib/mock/format";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { PERMS } from "@/lib/permissions";
 
 export const Route = createFileRoute("/eventos/$eventId/resumen")({
   head: () => ({
@@ -31,7 +32,7 @@ const kindTone: Record<string, string> = {
 function Resumen() {
   const { eventId } = Route.useParams();
   const { event, guests } = useEvent(eventId);
-  const { activity, launchCampaign } = useStore();
+  const { activity, launchCampaign, hasPerm } = useStore();
   const s = statsFor(guests);
   const eventActivity = activity.filter((a) => a.eventId === eventId);
 
@@ -68,6 +69,7 @@ function Resumen() {
               </div>
             </div>
             <div className="flex w-full flex-col gap-2 pt-2">
+              {hasPerm(eventId, PERMS.REPLY) ? (
               <Button
                 onClick={() => {
                   launchCampaign(eventId);
@@ -78,11 +80,14 @@ function Resumen() {
               >
                 <Send className="size-4" /> Iniciar confirmaciones
               </Button>
+              ) : null}
+              {hasPerm(eventId, PERMS.EXPORT) ? (
               <Button variant="outline" asChild>
                 <Link to="/eventos/$eventId/lista-final" params={{ eventId }}>
                   Ver lista final
                 </Link>
               </Button>
+              ) : null}
             </div>
           </div>
         </section>
