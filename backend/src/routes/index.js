@@ -21,6 +21,7 @@ export const router = Router();
 
 router.get("/plans", auth.listPlans);
 router.post("/auth/register", auth.register);
+router.post("/auth/register-invite", auth.registerInvite);
 router.post("/auth/login", auth.login);
 router.post("/auth/refresh", auth.refresh);
 router.post("/auth/logout", auth.logout);

@@ -103,7 +103,42 @@ describe("auth.controller", () => {
     const { res } = await callHandler(controller.login, {
       req: createMockReq({ body: { email: "ana@test.com", password: "secret12" } }),
     });
+    expect(models.EventMember.update).toHaveBeenCalledWith(
+      { userId: user.id },
+      { where: { userId: null, email: "ana@test.com" } },
+    );
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ accessToken: expect.any(String) }));
+  });
+
+  test("registerInvite 403 sin invitación pendiente", async () => {
+    models.EventMember.findAll.mockResolvedValue([]);
+    const { res } = await callHandler(controller.registerInvite, {
+      req: createMockReq({ body: { name: "Luis", email: "luis@test.com", password: "secret12" } }),
+    });
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(models.User.create).not.toHaveBeenCalled();
+  });
+
+  test("registerInvite 201 crea cuenta sin checkout", async () => {
+    models.EventMember.findAll.mockResolvedValue([{ role: "Asistente", email: "luis@test.com", userId: null }]);
+    models.User.findOne.mockResolvedValue(null);
+    const user = fakeUser({ id: "usr_inv_1", email: "luis@test.com", planId: null });
+    models.User.create.mockResolvedValue(user);
+
+    const { res } = await callHandler(controller.registerInvite, {
+      req: createMockReq({ body: { name: "Luis", email: "Luis@Test.com", password: "secret12" } }),
+    });
+
+    expect(models.User.create).toHaveBeenCalledWith(
+      expect.objectContaining({ email: "luis@test.com", planId: null, subscriptionStatus: "active" }),
+    );
+    expect(models.EventMember.update).toHaveBeenCalledWith(
+      { userId: "usr_inv_1" },
+      { where: { userId: null, email: "luis@test.com" } },
+    );
+    expect(startCheckout).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ checkoutUrl: null, accessToken: expect.any(String) }));
   });
 
   test("refresh 401 sin token", async () => {

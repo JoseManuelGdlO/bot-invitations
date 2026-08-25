@@ -73,25 +73,29 @@ function AppShell() {
           >
             <LayoutDashboard className="size-4" /> Panel general
           </Link>
-          <Link
-            to="/eventos/nuevo"
-            className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent"
-            activeProps={{ className: "bg-sidebar-accent font-medium text-sidebar-foreground" }}
-          >
-            <CalendarHeart className="size-4" /> Crear evento
-          </Link>
-          <Link
-            to="/eventos/suscripcion"
-            className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent"
-            activeProps={{ className: "bg-sidebar-accent font-medium text-sidebar-foreground" }}
-          >
-            <CreditCard className="size-4" /> Suscripción
-            {session.cancellation?.status === "pending" ? (
-              <span className="ml-auto rounded-full bg-gold px-1.5 text-[10px] font-semibold text-gold-foreground">
-                1
-              </span>
-            ) : null}
-          </Link>
+          {session.isAdmin || session.usage?.canCreateEvent ? (
+            <Link
+              to="/eventos/nuevo"
+              className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent"
+              activeProps={{ className: "bg-sidebar-accent font-medium text-sidebar-foreground" }}
+            >
+              <CalendarHeart className="size-4" /> Crear evento
+            </Link>
+          ) : null}
+          {session.plan ? (
+            <Link
+              to="/eventos/suscripcion"
+              className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent"
+              activeProps={{ className: "bg-sidebar-accent font-medium text-sidebar-foreground" }}
+            >
+              <CreditCard className="size-4" /> Suscripción
+              {session.cancellation?.status === "pending" ? (
+                <span className="ml-auto rounded-full bg-gold px-1.5 text-[10px] font-semibold text-gold-foreground">
+                  1
+                </span>
+              ) : null}
+            </Link>
+          ) : null}
           <Link
             to="/eventos/soporte"
             className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent"
@@ -154,7 +158,7 @@ function AppShell() {
                 {session.plan ? `Plan ${session.plan.name}` : session.role}
               </p>
               <PlanUsageHint session={session} />
-              {!session.isAdmin ? (
+              {!session.isAdmin && session.plan ? (
                 <Link to="/eventos/suscripcion" className="mt-1 flex items-center gap-1 text-[11px] text-gold hover:underline">
                   <CreditCard className="size-3" /> Gestionar suscripción
                 </Link>

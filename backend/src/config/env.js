@@ -49,4 +49,9 @@ export const env = {
     secret: process.env.STRIPE_SECRET_KEY || "",
     webhookSecret: process.env.STRIPE_WEBHOOK_SECRET || "",
   },
+  smtp: {
+    user: process.env.SMTP_USER || "",
+    pass: process.env.SMTP_PASS || "",
+  },
+  frontendUrl: process.env.APP_FRONTEND_URL || "http://localhost:8080",
 };

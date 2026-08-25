@@ -12,6 +12,9 @@ import { ApiError } from "@/lib/api/client";
 import { pageHead } from "@/lib/seo";
 
 export const Route = createFileRoute("/iniciar-sesion")({
+  validateSearch: (s: Record<string, unknown>) => ({
+    email: typeof s.email === "string" ? s.email : undefined,
+  }),
   head: () =>
     pageHead({
       title: "Iniciar sesión · Alanna Confirmaciones",
@@ -25,7 +28,8 @@ export const Route = createFileRoute("/iniciar-sesion")({
 function Login() {
   const { login } = useStore();
   const navigate = useNavigate();
-  const [email, setEmail] = useState("");
+  const { email: invitedEmail } = Route.useSearch();
+  const [email, setEmail] = useState(invitedEmail || "");
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -65,7 +69,9 @@ function Login() {
 
           <h1 className="font-display text-4xl leading-tight">Inicia sesión</h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            Administra las confirmaciones de todos tus eventos desde un solo lugar.
+            {invitedEmail
+              ? "Te invitaron a un evento. Inicia sesión o crea tu cuenta con este correo; no necesitas pagar un plan."
+              : "Administra las confirmaciones de todos tus eventos desde un solo lugar."}
           </p>
 
           <form onSubmit={submit} className="mt-8 space-y-5">
@@ -91,7 +97,11 @@ function Login() {
             </Button>
             <p className="text-center text-xs text-muted-foreground">
               ¿Aún no tienes cuenta?{" "}
-              <Link to="/registro" className="text-gold underline-offset-4 hover:underline">
+              <Link
+                to="/registro"
+                search={invitedEmail ? { email: invitedEmail, invite: "1" } : undefined}
+                className="text-gold underline-offset-4 hover:underline"
+              >
                 Crear cuenta
               </Link>
             </p>

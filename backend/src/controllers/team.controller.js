@@ -1,8 +1,15 @@
-import { EventMember, EventRolePermission } from "../models/index.js";
+import { EventMember, EventRolePermission, User } from "../models/index.js";
 import { asyncHandler } from "../utils/async.js";
 import { requireEvent } from "../services/access.service.js";
 import { serializeMember, serializeRolePermission } from "../utils/serialize.js";
 import { initialsFromName } from "../utils/slug.js";
+import { sendTeamInvitationEmail } from "../services/email.service.js";
+import { env } from "../config/env.js";
+import { normalizeEmail } from "../services/membership.service.js";
+
+function isValidEmail(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
 
 export const listMembers = asyncHandler(async (req, res) => {
   const event = await requireEvent(req, res);
@@ -16,13 +23,44 @@ export const inviteMember = asyncHandler(async (req, res) => {
   if (!event) return;
   const { name, email, role } = req.body || {};
   if (!name?.trim()) return res.status(400).json({ error: "El nombre es requerido." });
+
+  const cleanEmail = normalizeEmail(email);
+  if (!cleanEmail || !isValidEmail(cleanEmail)) {
+    return res.status(400).json({ error: "El correo es requerido." });
+  }
+
+  const roles = [...new Set((await EventRolePermission.findAll({ where: { eventId: event.id } })).map((p) => p.role))];
+  const memberRole = role || "Asistente";
+  if (!roles.includes(memberRole)) {
+    return res.status(400).json({ error: "El rol no es válido para este evento." });
+  }
+
+  const existingUser = await User.findOne({ where: { email: cleanEmail } });
+
   const member = await EventMember.create({
     eventId: event.id,
+    userId: existingUser?.id || null,
     name: name.trim(),
-    email: email?.trim() || "",
-    role: role || "Asistente",
+    email: cleanEmail,
+    role: memberRole,
     initials: initialsFromName(name),
   });
+
+  const base = (env.frontendUrl || env.clientUrl || "http://localhost:8080").replace(/\/$/, "");
+  const inviteLink = `${base}/iniciar-sesion?email=${encodeURIComponent(cleanEmail)}`;
+
+  try {
+    await sendTeamInvitationEmail({
+      to: cleanEmail,
+      name: member.name,
+      eventName: event.name,
+      role: member.role,
+      inviteLink,
+    });
+  } catch (err) {
+    console.error("[Email Error]: Falló el envío de correo de invitación:", err.message);
+  }
+
   res.status(201).json(serializeMember(member));
 });
 
@@ -35,7 +73,7 @@ export const updateMember = asyncHandler(async (req, res) => {
     member.name = req.body.name;
     member.initials = initialsFromName(req.body.name);
   }
-  if (req.body?.email !== undefined) member.email = req.body.email;
+  if (req.body?.email !== undefined) member.email = normalizeEmail(req.body.email) || req.body.email;
   if (req.body?.role) member.role = req.body.role;
   await member.save();
   res.json(serializeMember(member));

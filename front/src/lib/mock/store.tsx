@@ -66,6 +66,7 @@ interface Ctx extends State {
       interval?: "month" | "year";
     },
   ) => Promise<{ checkoutUrl?: string | null }>;
+  registerInvite: (payload: { name: string; email: string; password: string }) => Promise<void>;
   startCheckout: (
     planId: string,
     interval?: "month" | "year",
@@ -93,7 +94,10 @@ interface Ctx extends State {
   toggleAI: (convId: string, paused: boolean) => void;
   logActivity: (item: ActivityItem) => void;
   launchCampaign: (eventId: string) => void;
-  inviteMember: (eventId: string, payload: { name: string; email?: string; role: string }) => void;
+  inviteMember: (
+    eventId: string,
+    payload: { name: string; email?: string; role: string },
+  ) => Promise<TeamMember>;
   removeMember: (eventId: string, memberId: string) => void;
   updatePermission: (eventId: string, permissionId: string, enabled: boolean) => void;
 }
@@ -168,6 +172,13 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         );
         await afterAuth(res);
         return { checkoutUrl: res.checkoutUrl };
+      },
+      registerInvite: async (payload) => {
+        const res = await api<{ accessToken: string; user: SessionUser }>("/auth/register-invite", {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+        await afterAuth(res);
       },
       startCheckout: async (planId, interval = "month") => {
         return api<{ checkoutUrl?: string | null; updated?: boolean }>("/billing/checkout", {
@@ -313,18 +324,21 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           .then(() => refresh())
           .catch(console.error);
       },
-      inviteMember: (eventId, payload) => {
-        api<TeamMember>(`/events/${eventId}/members`, {
+      inviteMember: async (eventId, payload) => {
+        const member = await api<TeamMember>(`/events/${eventId}/members`, {
           method: "POST",
           body: JSON.stringify(payload),
-        })
-          .then((member) =>
-            setState((s) => ({
-              ...s,
-              members: { ...s.members, [eventId]: [...(s.members[eventId] ?? []), member] },
-            })),
-          )
-          .catch(console.error);
+        });
+      
+        setState((s) => ({
+          ...s,
+          members: {
+            ...s.members,
+            [eventId]: [...(s.members[eventId] ?? []), member],
+          },
+        }));
+      
+        return member;
       },
       removeMember: (eventId, memberId) => {
         setState((s) => ({

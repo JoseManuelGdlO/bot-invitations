@@ -26,7 +26,7 @@ describe("guests.controller", () => {
           enqueueJob: jest.fn(async () => undefined) 
         }),
         "src/services/plans.service.js": () => ({
-          assertCanAddGuests,
+          assertCanAddGuestsForEvent: assertCanAddGuests,
           assertCanSendInvitations: jest.fn(() => undefined),
         }),
         "src/services/export.service.js": () => ({
@@ -62,7 +62,7 @@ describe("guests.controller", () => {
       }),
     });
 
-    expect(assertCanAddGuests).toHaveBeenCalledWith(expect.any(Object), 2);
+    expect(assertCanAddGuests).toHaveBeenCalledWith(expect.any(Object), expect.objectContaining({ id: "evt_1" }), 2);
     expect(res.status).toHaveBeenCalledWith(201);
   });
 

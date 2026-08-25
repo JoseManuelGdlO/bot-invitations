@@ -46,6 +46,20 @@ describe("plans.service", () => {
     await expect(service.assertCanAddGuests(fakeUser(), 2)).rejects.toMatchObject({ status: 402 });
   });
 
+  test("assertCanAddGuestsForEvent usa el plan del dueño", async () => {
+    const owner = fakeUser({ id: "usr_owner", planId: "plan_1" });
+    const member = fakeUser({ id: "usr_member", planId: null });
+    models.User.findByPk.mockResolvedValue(owner);
+    models.Plan.findByPk.mockResolvedValue(fakePlan({ guestLimit: 100 }));
+    models.Event.findAll.mockResolvedValue([{ id: "evt_1" }]);
+    models.Guest.sum.mockResolvedValue(2);
+    await expect(
+      service.assertCanAddGuestsForEvent(member, { ownerId: "usr_owner" }, 1),
+    ).resolves.toBeUndefined();
+    expect(models.User.findByPk).toHaveBeenCalledWith("usr_owner");
+    expect(models.Plan.findByPk).toHaveBeenCalledWith("plan_1");
+  });
+
   test("ensurePlans crea definiciones faltantes", async () => {
     models.Plan.findOne.mockResolvedValue(null);
     models.Plan.findAll.mockResolvedValue(service.PLAN_DEFS);

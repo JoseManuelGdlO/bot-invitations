@@ -14,6 +14,13 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { useEvent, useStore } from "@/lib/mock/store";
 import { toast } from "sonner";
 
@@ -38,6 +45,7 @@ function Configuracion() {
   const [invite, setInvite] = useState({ name: "", email: "", role: "Asistente" });
   if (!event) return null;
   const roles = [...new Set(rolePermissions.map((p) => p.role))];
+  const defaultRole = roles.includes("Asistente") ? "Asistente" : roles[0] || "Asistente";
 
   return (
     <main className="mx-auto w-full max-w-5xl flex-1 space-y-6 px-5 py-8 md:px-8">
@@ -121,23 +129,49 @@ function Configuracion() {
                 </div>
                 <div className="space-y-2">
                   <Label>Correo</Label>
-                  <Input type="email" value={invite.email} onChange={(e) => setInvite((v) => ({ ...v, email: e.target.value }))} />
+                  <Input type="email" value={invite.email} onChange={(e) => setInvite((v) => ({ ...v, email: e.target.value }))} required />
                 </div>
                 <div className="space-y-2">
                   <Label>Rol</Label>
-                  <Input value={invite.role} onChange={(e) => setInvite((v) => ({ ...v, role: e.target.value }))} />
+                  <Select
+                    value={roles.includes(invite.role) ? invite.role : defaultRole}
+                    onValueChange={(role) => setInvite((v) => ({ ...v, role }))}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Selecciona un rol" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {roles.map((role) => (
+                        <SelectItem key={role} value={role}>
+                          {role}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <Button
-                  onClick={() => {
-                    if (!invite.name.trim()) return;
-                    inviteMember(eventId, invite);
-                    setInvite({ name: "", email: "", role: "Asistente" });
-                    setOpen(false);
-                    toast.success("Miembro agregado");
+                  onClick={async () => {
+                    if (!invite.name.trim()) {
+                      toast.error("El nombre es requerido");
+                      return;
+                    }
+                    if (!invite.email.trim()) {
+                      toast.error("El correo es requerido");
+                      return;
+                    }
+                    const role = roles.includes(invite.role) ? invite.role : defaultRole;
+                    try {
+                      await inviteMember(eventId, { ...invite, role });
+                      setInvite({ name: "", email: "", role: defaultRole });
+                      setOpen(false);
+                      toast.success("Miembro agregado e invitación enviada");
+                    } catch {
+                      toast.error("Error al guardar el miembro");
+                    }
                   }}
                 >
                   Guardar
-                </Button>
+              </Button>
               </div>
             </DialogContent>
           </Dialog>

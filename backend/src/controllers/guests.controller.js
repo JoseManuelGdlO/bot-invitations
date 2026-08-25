@@ -6,7 +6,7 @@ import { logActivity } from "../services/activity.service.js";
 import { enqueueJob } from "../services/outbound.worker.js";
 import { mapRows, parseSpreadsheet, suggestMapping } from "../services/import.service.js";
 import { guestsToRows, toCsv, toPdf, toXlsx } from "../services/export.service.js";
-import { assertCanAddGuests, assertCanSendInvitations } from "../services/plans.service.js";
+import { assertCanAddGuestsForEvent, assertCanSendInvitations } from "../services/plans.service.js";
 
 async function findGuestForUser(userId, guestId) {
   const ids = await userEventIds(userId);
@@ -22,7 +22,7 @@ export const createGuest = asyncHandler(async (req, res) => {
   if (!event) return;
   const body = req.body || {};
   if (!body.rep || !body.phone) return res.status(400).json({ error: "Nombre y teléfono son requeridos." });
-  await assertCanAddGuests(req.user, Number(body.invited) || 1);
+  await assertCanAddGuestsForEvent(req.user, event, Number(body.invited) || 1);
   const guest = await Guest.create({
     eventId: event.id,
     rep: body.rep,
@@ -63,7 +63,7 @@ export const updateGuest = asyncHandler(async (req, res) => {
   if (req.body?.invited !== undefined) {
     const next = Number(req.body.invited) || 0;
     const delta = next - Number(guest.invited || 0);
-    if (delta > 0) await assertCanAddGuests(req.user, delta);
+    if (delta > 0) await assertCanAddGuestsForEvent(req.user, event, delta);
   }
   for (const key of allowed) {
     if (req.body?.[key] !== undefined) guest[key] = req.body[key];
@@ -120,7 +120,7 @@ export const confirmImport = asyncHandler(async (req, res) => {
   const phones = new Set(existing.map((g) => g.phone.replace(/\s/g, "")));
   const incoming = mapped.filter((row) => !phones.has(row.phone.replace(/\s/g, "")));
   const incomingPeople = incoming.reduce((sum, row) => sum + (Number(row.invited) || 1), 0);
-  await assertCanAddGuests(req.user, incomingPeople);
+  await assertCanAddGuestsForEvent(req.user, event, incomingPeople);
   const created = [];
   let skipped = 0;
   for (const row of mapped) {

@@ -1,17 +1,22 @@
 import { jest } from "@jest/globals";
-import { callHandler, createMockReq, loadWithMocks, fakeEvent } from "../helpers/controller.js";
+import { callHandler, createMockReq, loadWithMocks, fakeEvent, fakeUser } from "../helpers/controller.js";
 import { createInstance } from "../helpers/models.js";
 
 describe("team.controller", () => {
   let controller;
   let models;
+  let sendTeamInvitationEmail;
 
   beforeEach(async () => {
+    sendTeamInvitationEmail = jest.fn(async () => ({ messageId: "mock_id" }));
     ({ mod: controller, models } = await loadWithMocks("src/controllers/team.controller.js", {
       extraMocks: {
         "src/services/access.service.js": () => ({ requireEvent: jest.fn(async () => fakeEvent()) }),
+        "src/services/email.service.js": () => ({ sendTeamInvitationEmail }),
       },
     }));
+    models.EventRolePermission.findAll.mockResolvedValue([{ role: "Administrador" }, { role: "Asistente" }]);
+    models.User.findOne.mockResolvedValue(null);
   });
 
   test("listMembers", async () => {
@@ -25,6 +30,44 @@ describe("team.controller", () => {
   test("inviteMember 400 sin nombre", async () => {
     const { res } = await callHandler(controller.inviteMember, { req: createMockReq({ body: {} }) });
     expect(res.status).toHaveBeenCalledWith(400);
+  });
+
+  test("inviteMember 400 sin correo", async () => {
+    const { res } = await callHandler(controller.inviteMember, {
+      req: createMockReq({ body: { name: "Luis" } }),
+    });
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ error: "El correo es requerido." }));
+  });
+
+  test("inviteMember 400 rol inválido", async () => {
+    const { res } = await callHandler(controller.inviteMember, {
+      req: createMockReq({ body: { name: "Luis", email: "luis@test.com", role: "Chef" } }),
+    });
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ error: "El rol no es válido para este evento." }));
+  });
+
+  test("inviteMember envía enlace a iniciar-sesion con el correo", async () => {
+    const { res } = await callHandler(controller.inviteMember, {
+      req: createMockReq({ body: { name: "Luis", email: "Luis@Test.com", role: "Asistente" } }),
+    });
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(sendTeamInvitationEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: "luis@test.com",
+        inviteLink: expect.stringContaining("/iniciar-sesion?email=luis%40test.com"),
+      }),
+    );
+    expect(models.EventMember.create).toHaveBeenCalledWith(expect.objectContaining({ email: "luis@test.com", userId: null }));
+  });
+
+  test("inviteMember vincula userId si el usuario ya existe", async () => {
+    models.User.findOne.mockResolvedValue(fakeUser({ id: "usr_existing", email: "luis@test.com" }));
+    await callHandler(controller.inviteMember, {
+      req: createMockReq({ body: { name: "Luis", email: "luis@test.com", role: "Asistente" } }),
+    });
+    expect(models.EventMember.create).toHaveBeenCalledWith(expect.objectContaining({ userId: "usr_existing" }));
   });
 
   test("deleteMember 404", async () => {
