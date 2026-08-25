@@ -130,6 +130,7 @@ export const Guest = sequelize.define("guests", {
   lastReply: { type: DataTypes.TEXT, allowNull: true },
   lastReplyAt: { type: DataTypes.STRING(80), allowNull: true, defaultValue: "" },
   followUp: { type: DataTypes.STRING(80), allowNull: true, defaultValue: "" },
+  followUpsSent: { type: DataTypes.JSON, allowNull: false, defaultValue: [] },
   confirmedAt: { type: DataTypes.DATE, allowNull: true },
   contactedAt: { type: DataTypes.DATE, allowNull: true },
 });

@@ -169,7 +169,8 @@ export async function processGuestMessage({
     const result = await processTurn({
       instructions,
       items,
-      executeTool: (call) => executeBotTool(call, { guest, event }),
+      executeTool: (call) =>
+        executeBotTool(call, { guest, event, ai: ctx.ai, plannerName: ctx.plannerName }),
       refreshLock: () => refreshBotSessionLock(session),
     });
     await saveSessionItems(session, result.items);

@@ -67,6 +67,11 @@ export async function resolveActiveWhatsappConnectByOwner({ ownerUserId }) {
   return { integration, credentials };
 }
 
+export async function assertWhatsappReady(event) {
+  if (!event?.ownerId) throw httpError(400, "No hay una integración de WhatsApp activa.");
+  await resolveActiveWhatsappConnectByOwner({ ownerUserId: event.ownerId });
+}
+
 export async function resolveWhatsappConnectIntegrationByDevice({ deviceId }) {
   const target = String(deviceId || "").trim();
   if (!target) throw httpError(400, "Falta deviceId para enrutar el webhook.");

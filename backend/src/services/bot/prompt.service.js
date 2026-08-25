@@ -1,5 +1,5 @@
 import { AiConfig, Faq, Template, User } from "../../models/index.js";
-import { applyTemplate, eventGuestVars } from "../../utils/defaults.js";
+import { eventGuestVars } from "../../utils/defaults.js";
 
 const EMOJI_HINT = {
   ninguno: "No uses emojis.",
@@ -57,15 +57,15 @@ export function buildInstructions({ event, guest, ai, templates = [], faqs = [],
   const brain = stored || defaultPrompt(ai || {});
   const templateBlock = templates.length
     ? templates
-        .map((t) => {
-          const body = applyTemplate(t.body, vars);
-          return `- [${t.category}] ${t.title}: ${body}`;
-        })
+        .map((t) => `- id=${t.id} | [${t.category}] ${t.title}\n  ${t.body}`)
         .join("\n")
     : "- (no hay plantillas guardadas para este evento)";
   const faqBlock = faqs.length
     ? faqs.map((f) => `- P: ${f.q}\n  R: ${f.a}`).join("\n")
     : "- (no hay FAQs guardadas para este evento)";
+  const varKeys = Object.keys(vars).length
+    ? Object.keys(vars).map((key) => `{{${key}}}`).join(", ")
+    : "{{nombre}}, {{numero_invitados}}, {{evento}}";
 
   return `${brain}
 
@@ -90,11 +90,14 @@ Eres el bot ÚNICAMENTE del evento indicado. Tienes prohibido mencionar, mezclar
 - Notas internas (no las cites literal si no aportan): ${guest.notes || "ninguna"}
 
 ## Plantillas de este evento
-Úsalas como base cuando encajen (ubicación, dress code, confirmación, rechazo, recordatorio, etc.). Adáptalas al tono, no copies datos de otro evento.
+Para mandar un texto de la biblioteca llama a usar_plantilla con category o id. El sistema interpola las variables (${varKeys}) y envía ESE texto tal cual: no lo reescribas ni lo uses solo como inspiración.
 ${templateBlock}
 
 ## Preguntas frecuentes de este evento
 ${faqBlock}
 
-Cuando el invitado confirme o decline, llama a la herramienta actualizar_confirmacion. El número confirmado nunca puede superar el cupo de la invitación.`;
+## Herramientas
+- Si el invitado confirma, asiste con menos personas o decline con claridad: actualizar_confirmacion y después usar_plantilla (Confirmación o Rechazo). El número confirmado nunca puede superar el cupo.
+- Si la respuesta es ambigua o pospone (ej. "luego te digo", "creo que sí", "lo hablo con…"): marcar_seguimiento. No llames actualizar_confirmacion en esos casos.
+- Para ubicación, dress code, recordatorio u otra pieza de la biblioteca: usar_plantilla.`;
 }

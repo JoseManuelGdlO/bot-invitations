@@ -1,10 +1,10 @@
 import OpenAI from "openai";
 import { env } from "../../config/env.js";
 import { httpError } from "../../utils/http-error.js";
-import { BOT_TOOLS, RESPONSE_SCHEMA } from "./tools.js";
+import { BOT_TOOLS, RESPONSE_SCHEMA, sortFunctionCalls } from "./tools.js";
 
 const MAX_HISTORY_ITEMS = 40;
-const MAX_TOOL_LOOPS = 2;
+const MAX_TOOL_LOOPS = 3;
 
 let client = null;
 
@@ -192,19 +192,19 @@ export async function processTurn({ instructions, items, executeTool, refreshLoc
   const tools = normalizeToolsForResponses(BOT_TOOLS);
   let loops = 0;
   let finalResponse = null;
-  let toolsLocked = false;
+  let forcedReply = null;
   const toolTrace = [];
   const nextItems = Array.isArray(items) ? [...items] : [];
 
   while (loops < MAX_TOOL_LOOPS) {
     loops += 1;
     if (typeof refreshLock === "function") await refreshLock();
+    const lockTools = loops >= MAX_TOOL_LOOPS;
     const response = await openai.responses.create(
       buildResponsesRequest({
         instructions,
         items: nextItems,
-        tools,
-        toolChoice: toolsLocked ? "none" : null,
+        tools: lockTools ? [] : tools,
       }),
     );
     finalResponse = response;
@@ -215,8 +215,7 @@ export async function processTurn({ instructions, items, executeTool, refreshLoc
       if (serialized) nextItems.push(serialized);
     }
     if (!functionCalls.length) break;
-    toolsLocked = true;
-    for (const call of functionCalls) {
+    for (const call of sortFunctionCalls(functionCalls)) {
       const result = await executeTool(call);
       let args = {};
       try {
@@ -230,7 +229,16 @@ export async function processTurn({ instructions, items, executeTool, refreshLoc
         call_id: call.call_id,
         output: JSON.stringify(result),
       });
+      if (result?.useAsReply && result?.text) {
+        forcedReply = String(result.text);
+      }
     }
+    if (forcedReply) break;
+  }
+
+  if (forcedReply) {
+    nextItems.push({ type: "message", role: "assistant", content: forcedReply });
+    return { reply: forcedReply, items: nextItems, tools: toolTrace };
   }
 
   if (finalResponse && !extractResponseText(finalResponse)) {

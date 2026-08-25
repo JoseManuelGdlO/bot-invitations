@@ -92,7 +92,7 @@ interface Ctx extends State {
   sendMessage: (convId: string, msg: ChatMessage) => void;
   toggleAI: (convId: string, paused: boolean) => void;
   logActivity: (item: ActivityItem) => void;
-  launchCampaign: (eventId: string) => void;
+  launchCampaign: (eventId: string) => Promise<void>;
   inviteMember: (eventId: string, payload: { name: string; email?: string; role: string }) => void;
   removeMember: (eventId: string, memberId: string) => void;
   updatePermission: (eventId: string, permissionId: string, enabled: boolean) => void;
@@ -308,10 +308,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         }).catch(console.error);
       },
       logActivity: (item) => setState((s) => ({ ...s, activity: [item, ...s.activity].slice(0, 40) })),
-      launchCampaign: (eventId) => {
-        api(`/events/${eventId}/campaigns/launch`, { method: "POST" })
-          .then(() => refresh())
-          .catch(console.error);
+      launchCampaign: async (eventId) => {
+        await api(`/events/${eventId}/campaigns/launch`, { method: "POST" });
+        await refresh();
       },
       inviteMember: (eventId, payload) => {
         api<TeamMember>(`/events/${eventId}/members`, {

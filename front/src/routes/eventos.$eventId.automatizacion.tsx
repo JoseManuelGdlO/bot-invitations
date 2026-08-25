@@ -36,7 +36,19 @@ export const Route = createFileRoute("/eventos/$eventId/automatizacion")({
   component: Automatizacion,
 });
 
-const variables = ["nombre", "numero_invitados", "evento", "fecha", "lugar", "hora", "planner"];
+const variables = [
+  "nombre",
+  "nombre_completo",
+  "numero_invitados",
+  "numero_confirmados",
+  "mesa",
+  "evento",
+  "fecha",
+  "lugar",
+  "direccion",
+  "hora",
+  "planner",
+];
 const tones = ["Elegante", "Casual", "Amable", "Cercano", "Formal", "Divertido"];
 
 function Automatizacion() {
@@ -69,11 +81,16 @@ function Automatizacion() {
     const g = guests[guestIndex];
     if (!g || !event) return "";
     return `${greeting}\n\n${message}`
+      .replace(/{{nombre_completo}}/g, g.rep)
       .replace(/{{nombre}}/g, g.rep.split(" ")[0] ?? g.rep)
       .replace(/{{numero_invitados}}/g, String(g.invited))
+      .replace(/{{numero_confirmados}}/g, String(g.confirmed))
+      .replace(/{{confirmados}}/g, String(g.confirmed))
+      .replace(/{{mesa}}/g, g.table || "")
       .replace(/{{evento}}/g, event.name)
       .replace(/{{fecha}}/g, formatDate(event.date))
       .replace(/{{lugar}}/g, event.venue)
+      .replace(/{{direccion}}/g, event.address || "")
       .replace(/{{hora}}/g, event.time)
       .replace(/{{planner}}/g, session?.name.split(" ")[0] ?? "Planner");
   };
@@ -186,7 +203,7 @@ function Automatizacion() {
         <section className="rounded-2xl border border-border bg-card p-6 shadow-soft">
           <h2 className="font-display text-2xl">Mensaje inicial</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            ¿Cómo quieres que iniciemos la conversación con tus invitados?
+            La campaña usa la plantilla «Primer contacto» de Mensajes. Este texto es el respaldo si no hay plantilla.
           </p>
           <Textarea
             value={message}
