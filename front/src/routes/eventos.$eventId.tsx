@@ -1,4 +1,5 @@
-import { Link, Outlet, createFileRoute, useRouterState } from "@tanstack/react-router";
+import { Link, Outlet, createFileRoute, useNavigate, useRouterState } from "@tanstack/react-router";
+import { useEffect } from "react";
 import {
   BarChart3,
   Bot,
@@ -14,26 +15,38 @@ import { coverStyle } from "@/lib/cover";
 import { formatDate } from "@/lib/mock/format";
 import { cn } from "@/lib/utils";
 import { Badge } from "@/components/ui/badge";
+import { eventTabAllowed } from "@/lib/permissions";
 
 export const Route = createFileRoute("/eventos/$eventId")({
   component: EventLayout,
 });
 
 const tabs = [
-  { to: "/eventos/$eventId/resumen", label: "Resumen", icon: LayoutList },
-  { to: "/eventos/$eventId/invitados", label: "Invitados", icon: Users },
-  { to: "/eventos/$eventId/conversaciones", label: "Conversaciones", icon: MessageSquareText },
-  { to: "/eventos/$eventId/automatizacion", label: "Automatización IA", icon: Bot },
-  { to: "/eventos/$eventId/mensajes", label: "Mensajes", icon: Sparkles },
-  { to: "/eventos/$eventId/importar", label: "Importar Excel", icon: FileSpreadsheet },
-  { to: "/eventos/$eventId/estadisticas", label: "Estadísticas", icon: BarChart3 },
-  { to: "/eventos/$eventId/configuracion", label: "Configuración", icon: Settings },
+  { key: "resumen", to: "/eventos/$eventId/resumen", label: "Resumen", icon: LayoutList },
+  { key: "invitados", to: "/eventos/$eventId/invitados", label: "Invitados", icon: Users },
+  { key: "conversaciones", to: "/eventos/$eventId/conversaciones", label: "Conversaciones", icon: MessageSquareText },
+  { key: "automatizacion", to: "/eventos/$eventId/automatizacion", label: "Automatización IA", icon: Bot },
+  { key: "mensajes", to: "/eventos/$eventId/mensajes", label: "Mensajes", icon: Sparkles },
+  { key: "importar", to: "/eventos/$eventId/importar", label: "Importar Excel", icon: FileSpreadsheet },
+  { key: "estadisticas", to: "/eventos/$eventId/estadisticas", label: "Estadísticas", icon: BarChart3 },
+  { key: "configuracion", to: "/eventos/$eventId/configuracion", label: "Configuración", icon: Settings },
 ] as const;
 
 function EventLayout() {
   const { eventId } = Route.useParams();
-  const { event } = useEvent(eventId);
+  const { event, access } = useEvent(eventId);
+  const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
+  const visibleTabs = tabs.filter((t) => eventTabAllowed(access, t.key));
+  const currentKey = tabs.find((t) => pathname.endsWith(t.to.replace("/eventos/$eventId", "")))?.key
+    ?? pathname.split("/").pop();
+
+  useEffect(() => {
+    if (!event || !access) return;
+    if (currentKey && !eventTabAllowed(access, currentKey)) {
+      navigate({ to: "/eventos/$eventId/resumen", params: { eventId }, replace: true });
+    }
+  }, [access, currentKey, event, eventId, navigate]);
 
   if (!event) {
     return (
@@ -64,7 +77,7 @@ function EventLayout() {
           </Badge>
         </div>
         <nav className="flex gap-1 overflow-x-auto px-3 md:px-6">
-          {tabs.map((t) => {
+          {visibleTabs.map((t) => {
             const active = pathname === t.to.replace("$eventId", eventId);
             return (
               <Link

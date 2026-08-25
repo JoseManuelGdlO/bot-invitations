@@ -1,0 +1,16 @@
+process.env.NODE_ENV = "test";
+process.env.JWT_ACCESS_SECRET = "test-access-secret";
+process.env.JWT_REFRESH_SECRET = "test-refresh-secret";
+process.env.JWT_ACCESS_EXPIRES = "8h";
+process.env.JWT_REFRESH_EXPIRES_DAYS = "7";
+process.env.JWT_REFRESH_REMEMBER_DAYS = "30";
+process.env.STRIPE_SECRET_KEY = "sk_test_dummy";
+process.env.STRIPE_WEBHOOK_SECRET = "whsec_test_dummy";
+process.env.DB_HOST = "127.0.0.1";
+process.env.DB_PORT = "3306";
+process.env.DB_NAME = "alanna_test";
+process.env.DB_USER = "test";
+process.env.DB_PASSWORD = "test";
+process.env.CLIENT_URL = "http://localhost:8080";
+process.env.FRONTEND_RESET_URL = "http://localhost:8080/restablecer-contrasena";
+process.env.WORKER_INTERVAL_MS = "5000";

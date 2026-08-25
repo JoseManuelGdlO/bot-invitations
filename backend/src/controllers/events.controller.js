@@ -1,12 +1,24 @@
 import { Op } from "sequelize";
-import { Event, Guest } from "../models/index.js";
+import {
+  Activity,
+  AiConfig,
+  Campaign,
+  Conversation,
+  Event,
+  EventMember,
+  EventRolePermission,
+  Faq,
+  Guest,
+  Message,
+  Template,
+  sequelize,
+} from "../models/index.js";
 import { asyncHandler } from "../utils/async.js";
 import { slugify } from "../utils/slug.js";
 import { serializeEvent, serializeGuest } from "../utils/serialize.js";
-import { requireEvent } from "../services/access.service.js";
+import { requireEvent, requirePermission, requireEventOwner, userEventIds, PERMS } from "../services/access.service.js";
 import { seedEventDefaults } from "../services/event-setup.service.js";
 import { logActivity } from "../services/activity.service.js";
-import { userEventIds } from "../services/access.service.js";
 import { assertCanCreateEvent } from "../services/plans.service.js";
 
 const DEFAULT_COVER = "linear-gradient(135deg, var(--gold-soft), var(--rose))";
@@ -77,6 +89,7 @@ export const getEvent = asyncHandler(async (req, res) => {
 export const updateEvent = asyncHandler(async (req, res) => {
   const event = await requireEvent(req, res);
   if (!event) return;
+  if (!(await requirePermission(req, res, event, PERMS.EDIT_EVENT))) return;
   const allowed = [
     "name",
     "shortName",
@@ -96,6 +109,28 @@ export const updateEvent = asyncHandler(async (req, res) => {
   }
   await event.save();
   res.json(serializeEvent(event));
+});
+
+export const deleteEvent = asyncHandler(async (req, res) => {
+  const event = await requireEvent(req, res);
+  if (!event) return;
+  if (!(await requireEventOwner(req, res, event))) return;
+  const conversations = await Conversation.findAll({ where: { eventId: event.id }, attributes: ["id"] });
+  const convIds = conversations.map((row) => row.id);
+  await sequelize.transaction(async (t) => {
+    if (convIds.length) await Message.destroy({ where: { conversationId: convIds }, transaction: t });
+    await Conversation.destroy({ where: { eventId: event.id }, transaction: t });
+    await Guest.destroy({ where: { eventId: event.id }, transaction: t });
+    await EventMember.destroy({ where: { eventId: event.id }, transaction: t });
+    await EventRolePermission.destroy({ where: { eventId: event.id }, transaction: t });
+    await AiConfig.destroy({ where: { eventId: event.id }, transaction: t });
+    await Template.destroy({ where: { eventId: event.id }, transaction: t });
+    await Faq.destroy({ where: { eventId: event.id }, transaction: t });
+    await Activity.destroy({ where: { eventId: event.id }, transaction: t });
+    await Campaign.destroy({ where: { eventId: event.id }, transaction: t });
+    await event.destroy({ transaction: t });
+  });
+  res.json({ ok: true });
 });
 
 export const listGuests = asyncHandler(async (req, res) => {

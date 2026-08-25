@@ -1,5 +1,6 @@
 import bcrypt from "bcryptjs";
 import { PasswordReset, Plan, RefreshToken, User } from "../models/index.js";
+import { claimPendingInvitations, displayTeamRole, findInvitationsByEmail, findPendingInvitations, normalizeEmail } from "../services/membership.service.js";
 import { env } from "../config/env.js";
 import {
   hashToken,
@@ -20,9 +21,14 @@ async function userWithPlan(user) {
   const plan = user.planId ? await Plan.findByPk(user.planId) : null;
   const usage = await getPlanUsage(user);
   const cancellation = await getLatestCancellation(user.id);
-  return serializeUser(user, plan, usage, {
+  const serialized = serializeUser(user, plan, usage, {
     cancellation: cancellation ? serializeCancellation(cancellation) : null,
   });
+  if (!plan) {
+    const teamRole = await displayTeamRole(user.id);
+    if (teamRole) serialized.role = teamRole;
+  }
+  return serialized;
 }
 
 function cookieOpts(days) {
@@ -79,6 +85,7 @@ export const register = asyncHandler(async (req, res) => {
     billingInterval,
     subscriptionStatus: stripeEnabled() ? "pending" : "active",
   });
+  await claimPendingInvitations(user);
   const tokens = await issueTokens(res, user, false);
   let checkoutUrl = null;
   if (stripeEnabled()) {
@@ -94,12 +101,55 @@ export const register = asyncHandler(async (req, res) => {
   res.status(201).json({ ...tokens, checkoutUrl });
 });
 
+export const invitationStatus = asyncHandler(async (req, res) => {
+  const email = normalizeEmail(req.query?.email);
+  if (!email) return res.json({ status: "none" });
+  const user = await User.findOne({ where: { email } });
+  const invites = await findInvitationsByEmail(email);
+  if (!invites.length) return res.json({ status: "none" });
+  if (user) return res.json({ status: "registered" });
+  return res.json({ status: "pending" });
+});
+
+export const registerInvite = asyncHandler(async (req, res) => {
+  const { name, email, password } = req.body || {};
+  if (!name?.trim() || !email?.trim() || !password || String(password).length < 6) {
+    return res.status(400).json({ error: "Nombre, correo y contraseña (mín. 6) son requeridos." });
+  }
+  const cleanEmail = normalizeEmail(email);
+  const exists = await User.findOne({ where: { email: cleanEmail } });
+  if (exists) {
+    await claimPendingInvitations(exists);
+    return res.status(409).json({ error: "Ya tienes cuenta. Inicia sesión con este correo para ver el evento." });
+  }
+  const pending = await findPendingInvitations(cleanEmail);
+  if (!pending.length) {
+    return res.status(403).json({ error: "No hay una invitación pendiente para este correo." });
+  }
+  const user = await User.create({
+    name: name.trim(),
+    email: cleanEmail,
+    passwordHash: await bcrypt.hash(password, 10),
+    role: pending[0].role || "Wedding Planner",
+    businessName: null,
+    phone: null,
+    state: null,
+    planId: null,
+    billingInterval: "month",
+    subscriptionStatus: "active",
+  });
+  await claimPendingInvitations(user);
+  const tokens = await issueTokens(res, user, false);
+  res.status(201).json({ ...tokens, checkoutUrl: null });
+});
+
 export const login = asyncHandler(async (req, res) => {
   const { email, password, rememberMe } = req.body || {};
   const user = await User.findOne({ where: { email: String(email || "").trim().toLowerCase() } });
   if (!user || !(await bcrypt.compare(String(password || ""), user.passwordHash))) {
     return res.status(401).json({ error: "Correo o contraseña incorrectos." });
   }
+  await claimPendingInvitations(user);
   const tokens = await issueTokens(res, user, !!rememberMe);
   res.json(tokens);
 });

@@ -91,13 +91,14 @@ export function serializeActivity(a, eventSlug) {
   };
 }
 
-export function serializeMember(m) {
+export function serializeMember(m, ownerId) {
   return {
     id: m.id,
     name: m.name,
     email: m.email || "",
     role: m.role,
     initials: m.initials,
+    isOwner: !!ownerId && m.userId === ownerId,
   };
 }
 

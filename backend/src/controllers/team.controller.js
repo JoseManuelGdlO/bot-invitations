@@ -1,52 +1,130 @@
-import { EventMember, EventRolePermission } from "../models/index.js";
+import { EventMember, EventRolePermission, User } from "../models/index.js";
 import { asyncHandler } from "../utils/async.js";
-import { requireEvent } from "../services/access.service.js";
+import { requireEvent, requirePermission, PERMS } from "../services/access.service.js";
 import { serializeMember, serializeRolePermission } from "../utils/serialize.js";
 import { initialsFromName } from "../utils/slug.js";
+import { sendTeamInvitationEmail } from "../services/email.service.js";
+import { env } from "../config/env.js";
+import { memberWhere, normalizeEmail } from "../services/membership.service.js";
+
+function isValidEmail(email) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+async function sendInviteEmail(member, event, cleanEmail) {
+  const base = (env.frontendUrl || env.clientUrl || "http://localhost:8080").replace(/\/$/, "");
+  const inviteLink = `${base}/iniciar-sesion?email=${encodeURIComponent(cleanEmail)}`;
+  try {
+    await sendTeamInvitationEmail({
+      to: cleanEmail,
+      name: member.name,
+      eventName: event.name,
+      role: member.role,
+      inviteLink,
+    });
+  } catch (err) {
+    console.error("[Email Error]: Falló el envío de correo de invitación:", err.message);
+  }
+}
 
 export const listMembers = asyncHandler(async (req, res) => {
   const event = await requireEvent(req, res);
   if (!event) return;
-  const members = await EventMember.findAll({ where: { eventId: event.id }, order: [["createdAt", "ASC"]] });
-  res.json(members.map(serializeMember));
+  const members = await EventMember.findAll({
+    where: memberWhere({ eventId: event.id }),
+    order: [["createdAt", "ASC"]],
+  });
+  res.json(members.map((m) => serializeMember(m, event.ownerId)));
 });
 
 export const inviteMember = asyncHandler(async (req, res) => {
   const event = await requireEvent(req, res);
   if (!event) return;
+  if (!(await requirePermission(req, res, event, PERMS.MANAGE_TEAM))) return;
   const { name, email, role } = req.body || {};
   if (!name?.trim()) return res.status(400).json({ error: "El nombre es requerido." });
-  const member = await EventMember.create({
+
+  const cleanEmail = normalizeEmail(email);
+  if (!cleanEmail || !isValidEmail(cleanEmail)) {
+    return res.status(400).json({ error: "El correo es requerido." });
+  }
+
+  const roles = [...new Set((await EventRolePermission.findAll({ where: { eventId: event.id } })).map((p) => p.role))];
+  const memberRole = role || "Asistente";
+  if (!roles.includes(memberRole)) {
+    return res.status(400).json({ error: "El rol no es válido para este evento." });
+  }
+
+  const existingUser = await User.findOne({ where: { email: cleanEmail } });
+  const existingMember = await EventMember.findOne({ where: { eventId: event.id, email: cleanEmail } });
+  if (existingMember && !existingMember.removedAt) {
+    return res.status(409).json({ error: "Ese correo ya forma parte del equipo." });
+  }
+
+  const payload = {
     eventId: event.id,
+    userId: existingUser?.id || null,
     name: name.trim(),
-    email: email?.trim() || "",
-    role: role || "Asistente",
+    email: cleanEmail,
+    role: memberRole,
     initials: initialsFromName(name),
-  });
-  res.status(201).json(serializeMember(member));
+    removedAt: null,
+  };
+  const member = existingMember
+    ? await existingMember.update(payload)
+    : await EventMember.create(payload);
+
+  await sendInviteEmail(member, event, cleanEmail);
+  res.status(201).json(serializeMember(member, event.ownerId));
 });
 
 export const updateMember = asyncHandler(async (req, res) => {
   const event = await requireEvent(req, res);
   if (!event) return;
-  const member = await EventMember.findOne({ where: { id: req.params.memberId, eventId: event.id } });
+  if (!(await requirePermission(req, res, event, PERMS.MANAGE_TEAM))) return;
+  const member = await EventMember.findOne({
+    where: memberWhere({ id: req.params.memberId, eventId: event.id }),
+  });
   if (!member) return res.status(404).json({ error: "Miembro no encontrado." });
+  if (member.userId && member.userId === event.ownerId && req.body?.role && req.body.role !== "Administrador") {
+    return res.status(400).json({ error: "No puedes cambiar el rol del dueño del evento." });
+  }
   if (req.body?.name) {
     member.name = req.body.name;
     member.initials = initialsFromName(req.body.name);
   }
-  if (req.body?.email !== undefined) member.email = req.body.email;
-  if (req.body?.role) member.role = req.body.role;
+  if (req.body?.email !== undefined) member.email = normalizeEmail(req.body.email) || req.body.email;
+  if (req.body?.role) {
+    const roles = [...new Set((await EventRolePermission.findAll({ where: { eventId: event.id } })).map((p) => p.role))];
+    if (!roles.includes(req.body.role)) {
+      return res.status(400).json({ error: "El rol no es válido para este evento." });
+    }
+    member.role = req.body.role;
+    if (member.userId && member.userId !== event.ownerId) {
+      const memberUser = await User.findByPk(member.userId);
+      if (memberUser && !memberUser.planId) {
+        memberUser.role = req.body.role;
+        await memberUser.save();
+      }
+    }
+  }
   await member.save();
-  res.json(serializeMember(member));
+  res.json(serializeMember(member, event.ownerId));
 });
 
 export const deleteMember = asyncHandler(async (req, res) => {
   const event = await requireEvent(req, res);
   if (!event) return;
-  const member = await EventMember.findOne({ where: { id: req.params.memberId, eventId: event.id } });
+  if (!(await requirePermission(req, res, event, PERMS.MANAGE_TEAM))) return;
+  const member = await EventMember.findOne({
+    where: memberWhere({ id: req.params.memberId, eventId: event.id }),
+  });
   if (!member) return res.status(404).json({ error: "Miembro no encontrado." });
-  await member.destroy();
+  if (member.userId && member.userId === event.ownerId) {
+    return res.status(400).json({ error: "No puedes eliminar al dueño del evento." });
+  }
+  member.removedAt = new Date();
+  await member.save();
   res.json({ ok: true });
 });
 
@@ -60,6 +138,7 @@ export const listPermissions = asyncHandler(async (req, res) => {
 export const updatePermission = asyncHandler(async (req, res) => {
   const event = await requireEvent(req, res);
   if (!event) return;
+  if (!(await requirePermission(req, res, event, PERMS.MANAGE_TEAM))) return;
   const perm = await EventRolePermission.findOne({
     where: { id: req.params.permissionId, eventId: event.id },
   });

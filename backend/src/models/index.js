@@ -83,6 +83,7 @@ export const EventMember = sequelize.define("event_members", {
   email: { type: DataTypes.STRING(190), allowNull: true },
   role: { type: DataTypes.STRING(80), allowNull: false },
   initials: { type: DataTypes.STRING(4), allowNull: false },
+  removedAt: { type: DataTypes.DATE, allowNull: true },
 });
 
 export const EventRolePermission = sequelize.define("event_role_permissions", {
@@ -394,4 +395,20 @@ export { sequelize };
 
 export async function syncModels({ force = false, alter = false } = {}) {
   await sequelize.sync({ force, alter });
+}
+
+export async function ensureEventMemberRemovedAt() {
+  const qi = sequelize.getQueryInterface();
+  let table;
+  try {
+    table = await qi.describeTable("event_members");
+  } catch {
+    return;
+  }
+  if (table.removedAt) return;
+  await qi.addColumn("event_members", "removedAt", {
+    type: DataTypes.DATE,
+    allowNull: true,
+  });
+  console.log("[db] columna event_members.removedAt creada");
 }

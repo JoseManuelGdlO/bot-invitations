@@ -24,6 +24,8 @@ export const Route = createFileRoute("/registro")({
   validateSearch: (s: Record<string, unknown>) => ({
     plan: typeof s.plan === "string" ? s.plan : undefined,
     pago: typeof s.pago === "string" ? s.pago : undefined,
+    email: typeof s.email === "string" ? s.email : undefined,
+    invite: s.invite === "1" || s.invite === true ? "1" : undefined,
   }),
   head: () =>
     pageHead({
@@ -70,16 +72,17 @@ const MEXICO_STATES = [
 ];
 
 function Registro() {
-  const { register, session, hydrated } = useStore();
+  const { register, registerInvite, session, hydrated } = useStore();
   const navigate = useNavigate();
   const childMatches = useChildMatches();
-  const { plan: planSlug, pago } = Route.useSearch();
+  const { plan: planSlug, pago, email: invitedEmail, invite } = Route.useSearch();
+  const isInvite = invite === "1";
   const [step, setStep] = useState(0);
   const [name, setName] = useState("");
   const [businessName, setBusinessName] = useState("");
   const [phone, setPhone] = useState("");
   const [state, setState] = useState("");
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(invitedEmail || "");
   const [password, setPassword] = useState("");
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [planId, setPlanId] = useState("");
@@ -94,6 +97,28 @@ function Registro() {
   }, [hydrated, session, hasChildRoute, navigate]);
 
   useEffect(() => {
+    if (!isInvite) return;
+    const targetEmail = (invitedEmail || email || "").trim();
+    if (!targetEmail) return;
+    let cancelled = false;
+    api<{ status: "none" | "pending" | "registered" }>(`/auth/invitation?email=${encodeURIComponent(targetEmail)}`)
+      .then(({ status }) => {
+        if (cancelled) return;
+        if (status === "registered") {
+          toast.message("Ya tienes cuenta. Inicia sesión con este correo para ver el evento.");
+          navigate({ to: "/iniciar-sesion", search: { email: targetEmail }, replace: true });
+        } else if (status === "none") {
+          toast.error("No hay una invitación pendiente para este correo.");
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [isInvite, invitedEmail, email, navigate]);
+
+  useEffect(() => {
+    if (isInvite) return;
     api<SubscriptionPlan[]>("/plans")
       .then((rows) => {
         setPlans(rows);
@@ -101,12 +126,29 @@ function Registro() {
         if (preferred) setPlanId(preferred.id);
       })
       .catch(() => toast.error("No se pudieron cargar los planes"));
-  }, [planSlug]);
+  }, [planSlug, isInvite]);
 
   const selected = plans.find((p) => p.id === planId);
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isInvite) {
+      if (!name.trim() || !email.trim() || password.length < 6) {
+        toast.error("Completa nombre, correo y contraseña (mín. 6) para continuar");
+        return;
+      }
+      setLoading(true);
+      try {
+        await registerInvite({ name, email, password });
+        toast.success("Cuenta creada", { description: "Ya puedes ver el evento al que te invitaron." });
+        navigate({ to: "/eventos" });
+      } catch (err) {
+        toast.error(err instanceof ApiError ? err.message : "No se pudo crear la cuenta");
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
     if (step === 0) {
       if (!businessName.trim() || !phone.trim() || !state.trim()) {
         toast.error("Completa negocio, teléfono y estado para continuar");
@@ -155,25 +197,61 @@ function Registro() {
         <span className="font-display text-2xl">Alanna</span>
       </Link>
       <p className="text-xs font-medium uppercase tracking-[0.14em] text-gold">
-        {step === 0 ? "Paso 1 de 2" : "Paso 2 de 2"}
+        {isInvite ? "Invitación al equipo" : step === 0 ? "Paso 1 de 2" : "Paso 2 de 2"}
       </p>
       <h1 className="mt-2 font-display text-4xl leading-tight">
-        {step === 0 ? "Crea tu cuenta" : "Elige tu suscripción"}
+        {isInvite ? "Crea tu cuenta" : step === 0 ? "Crea tu cuenta" : "Elige tu suscripción"}
       </h1>
       <p className="mt-2 text-sm text-muted-foreground">
-        {step === 0
-          ? "Empieza a confirmar invitados de bodas y eventos con tu propio espacio."
-          : "El plan define cuántos eventos e invitados puedes gestionar cada mes."}
+        {isInvite
+          ? "Usa el correo al que te invitaron. No necesitas pagar un plan: quien te invitó ya cubre el evento."
+          : step === 0
+            ? "Empieza a confirmar invitados de bodas y eventos con tu propio espacio."
+            : "El plan define cuántos eventos e invitados puedes gestionar cada mes."}
       </p>
 
-      {pago === "cancelado" ? (
+      {pago === "cancelado" && !isInvite ? (
         <p className="mt-6 rounded-xl border border-gold/40 bg-gold-soft/50 px-4 py-3 text-sm">
           El pago se canceló. Puedes elegir un plan e intentarlo de nuevo.
         </p>
       ) : null}
 
       <form onSubmit={submit} className="mt-8 space-y-5">
-        {step === 0 ? (
+        {isInvite ? (
+          <>
+            <div className="space-y-2">
+              <Label htmlFor="name">Nombre</Label>
+              <Input id="name" value={name} onChange={(e) => setName(e.target.value)} required />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="email">Correo</Label>
+              <Input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                readOnly={Boolean(invitedEmail)}
+                required
+                className={invitedEmail ? "bg-muted" : undefined}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="password">Contraseña</Label>
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                minLength={6}
+              />
+            </div>
+            <Button type="submit" className="w-full" size="lg" disabled={loading}>
+              {loading ? <Loader2 className="size-4 animate-spin" /> : null}
+              Crear cuenta
+            </Button>
+          </>
+        ) : step === 0 ? (
           <>
             <div className="space-y-2">
               <Label htmlFor="name">Nombre</Label>
@@ -287,7 +365,11 @@ function Registro() {
         )}
         <p className="text-center text-xs text-muted-foreground">
           ¿Ya tienes cuenta?{" "}
-          <Link to="/iniciar-sesion" className="text-gold underline-offset-4 hover:underline">
+          <Link
+            to="/iniciar-sesion"
+            search={email ? { email } : undefined}
+            className="text-gold underline-offset-4 hover:underline"
+          >
             Inicia sesión
           </Link>
         </p>

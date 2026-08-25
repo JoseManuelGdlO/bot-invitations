@@ -15,10 +15,14 @@ export const Route = createFileRoute("/eventos")({
 });
 
 function AppShell() {
-  const { session, hydrated, logout, events } = useStore();
+  const { session, hydrated, logout, events, eventAccess } = useStore();
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [supportUnread, setSupportUnread] = useState(0);
+  const eventSlug = pathname.match(/^\/eventos\/([^/]+)/)?.[1];
+  const reservedShell = new Set(["nuevo", "whatsapp", "suscripcion", "soporte"]);
+  const sidebarRole =
+    eventSlug && !reservedShell.has(eventSlug) ? eventAccess[eventSlug]?.role : null;
 
   useEffect(() => {
     if (hydrated && !session) navigate({ to: "/iniciar-sesion" });
@@ -73,13 +77,15 @@ function AppShell() {
           >
             <LayoutDashboard className="size-4" /> Panel general
           </Link>
-          <Link
-            to="/eventos/nuevo"
-            className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent"
-            activeProps={{ className: "bg-sidebar-accent font-medium text-sidebar-foreground" }}
-          >
-            <CalendarHeart className="size-4" /> Crear evento
-          </Link>
+          {session.isAdmin || session.usage?.canCreateEvent ? (
+            <Link
+              to="/eventos/nuevo"
+              className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent"
+              activeProps={{ className: "bg-sidebar-accent font-medium text-sidebar-foreground" }}
+            >
+              <CalendarHeart className="size-4" /> Crear evento
+            </Link>
+          ) : null}
           <Link
             to="/eventos/whatsapp"
             className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent"
@@ -87,18 +93,20 @@ function AppShell() {
           >
             <Smartphone className="size-4" /> WhatsApp
           </Link>
-          <Link
-            to="/eventos/suscripcion"
-            className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent"
-            activeProps={{ className: "bg-sidebar-accent font-medium text-sidebar-foreground" }}
-          >
-            <CreditCard className="size-4" /> Suscripción
-            {session.cancellation?.status === "pending" ? (
-              <span className="ml-auto rounded-full bg-gold px-1.5 text-[10px] font-semibold text-gold-foreground">
-                1
-              </span>
-            ) : null}
-          </Link>
+          {session.plan ? (
+            <Link
+              to="/eventos/suscripcion"
+              className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent"
+              activeProps={{ className: "bg-sidebar-accent font-medium text-sidebar-foreground" }}
+            >
+              <CreditCard className="size-4" /> Suscripción
+              {session.cancellation?.status === "pending" ? (
+                <span className="ml-auto rounded-full bg-gold px-1.5 text-[10px] font-semibold text-gold-foreground">
+                  1
+                </span>
+              ) : null}
+            </Link>
+          ) : null}
           <Link
             to="/eventos/soporte"
             className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent"
@@ -158,10 +166,10 @@ function AppShell() {
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium">{session.name}</p>
               <p className="truncate text-[11px] text-muted-foreground">
-                {session.plan ? `Plan ${session.plan.name}` : session.role}
+                {session.plan ? `Plan ${session.plan.name}` : sidebarRole || session.role}
               </p>
               <PlanUsageHint session={session} />
-              {!session.isAdmin ? (
+              {!session.isAdmin && session.plan ? (
                 <Link to="/eventos/suscripcion" className="mt-1 flex items-center gap-1 text-[11px] text-gold hover:underline">
                   <CreditCard className="size-3" /> Gestionar suscripción
                 </Link>

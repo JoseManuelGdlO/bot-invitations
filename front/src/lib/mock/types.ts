@@ -169,6 +169,7 @@ export interface TeamMember {
   email: string;
   role: string;
   initials: string;
+  isOwner?: boolean;
 }
 
 export interface RolePermission {

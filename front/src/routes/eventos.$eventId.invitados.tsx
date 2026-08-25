@@ -25,6 +25,7 @@ import { STATUS_META, WHATSAPP_LABEL } from "@/lib/mock/format";
 import type { Guest } from "@/lib/mock/types";
 import { toast } from "sonner";
 import { PlanLimitBanner } from "@/components/plan-limit";
+import { PERMS } from "@/lib/permissions";
 
 export const Route = createFileRoute("/eventos/$eventId/invitados")({
   head: () => ({
@@ -42,7 +43,11 @@ export const Route = createFileRoute("/eventos/$eventId/invitados")({
 function Invitados() {
   const { eventId } = Route.useParams();
   const { guests } = useEvent(eventId);
-  const { updateGuest, remindGuest, exportGuests, session } = useStore();
+  const { updateGuest, remindGuest, exportGuests, session, hasPerm } = useStore();
+  const canExport = hasPerm(eventId, PERMS.EXPORT);
+  const canConfirm = hasPerm(eventId, PERMS.CONFIRM);
+  const canEditGuest = hasPerm(eventId, PERMS.EDIT_ALL);
+  const canRemind = hasPerm(eventId, PERMS.REPLY);
   const navigate = useNavigate();
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("todos");
@@ -83,6 +88,7 @@ function Invitados() {
             ))}
           </SelectContent>
         </Select>
+        {canExport ? (
         <Button
           variant="outline"
           onClick={async () => {
@@ -96,6 +102,7 @@ function Invitados() {
         >
           <Download className="size-4" /> Exportar
         </Button>
+        ) : null}
       </div>
 
       <p className="mt-3 text-xs text-muted-foreground">
@@ -148,6 +155,7 @@ function Invitados() {
                 <TableCell><StatusBadge status={g.status} /></TableCell>
                 <TableCell className="whitespace-nowrap text-muted-foreground">{g.followUp || "—"}</TableCell>
                 <TableCell className="text-right">
+                  {canRemind ? (
                   <Button
                     size="sm"
                     variant="ghost"
@@ -159,6 +167,7 @@ function Invitados() {
                   >
                     <Send className="size-4" />
                   </Button>
+                  ) : null}
                 </TableCell>
               </TableRow>
             ))}
@@ -194,6 +203,7 @@ function Invitados() {
                       className="h-8 max-w-48 text-right"
                       type={key === "invited" || key === "confirmed" ? "number" : "text"}
                       value={String(selected[key] ?? "")}
+                      disabled={!canEditGuest && !(canConfirm && (key === "confirmed"))}
                       onChange={(e) =>
                         updateGuest(selected.id, {
                           [key]:
@@ -210,20 +220,22 @@ function Invitados() {
                   </div>
                 ) : null}
                 <div className="flex gap-2 pt-2">
-                  <Button
-                    className="flex-1"
-                    onClick={() => {
-                      updateGuest(selected.id, {
-                        status: "confirmado",
-                        confirmed: selected.invited,
-                        whatsapp: "respondido",
-                      });
-                      toast.success("Invitación confirmada manualmente");
-                      setSelectedId(null);
-                    }}
-                  >
-                    Marcar confirmado
-                  </Button>
+                  {canConfirm ? (
+                    <Button
+                      className="flex-1"
+                      onClick={() => {
+                        updateGuest(selected.id, {
+                          status: "confirmado",
+                          confirmed: selected.invited,
+                          whatsapp: "respondido",
+                        });
+                        toast.success("Invitación confirmada manualmente");
+                        setSelectedId(null);
+                      }}
+                    >
+                      Marcar confirmado
+                    </Button>
+                  ) : null}
                   <Button
                     variant="outline"
                     className="flex-1"

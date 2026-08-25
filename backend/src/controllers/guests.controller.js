@@ -1,11 +1,11 @@
 import { Event, Guest } from "../models/index.js";
 import { asyncHandler } from "../utils/async.js";
 import { serializeGuest } from "../utils/serialize.js";
-import { requireEvent, userEventIds } from "../services/access.service.js";
+import { requireEvent, userEventIds, requirePermission, hasEventPermission, PERMS } from "../services/access.service.js";
 import { logActivity } from "../services/activity.service.js";
 import { mapRows, parseSpreadsheet, suggestMapping } from "../services/import.service.js";
 import { guestsToRows, toCsv, toPdf, toXlsx } from "../services/export.service.js";
-import { assertCanAddGuests, assertCanSendInvitations } from "../services/plans.service.js";
+import { assertCanAddGuestsForEvent, assertCanSendInvitations } from "../services/plans.service.js";
 import { assertWhatsappReady } from "../services/integration-resolver.service.js";
 import { deliverAiMessage } from "../services/guest-message.service.js";
 import { resolveReminderText } from "../services/templates.service.js";
@@ -25,7 +25,8 @@ export const createGuest = asyncHandler(async (req, res) => {
   if (!event) return;
   const body = req.body || {};
   if (!body.rep || !body.phone) return res.status(400).json({ error: "Nombre y teléfono son requeridos." });
-  await assertCanAddGuests(req.user, Number(body.invited) || 1);
+  await assertCanAddGuestsForEvent(req.user, event, Number(body.invited) || 1);
+  if (!(await requirePermission(req, res, event, PERMS.EDIT_ALL))) return;
   const guest = await Guest.create({
     eventId: event.id,
     rep: body.rep,
@@ -47,27 +48,37 @@ export const updateGuest = asyncHandler(async (req, res) => {
   const { guest, event } = await findGuestForUser(req.user.id, req.params.guestId);
   if (!guest) return res.status(404).json({ error: "Invitado no encontrado." });
   if (!event) return res.status(404).json({ error: "Evento no encontrado." });
-  const allowed = [
-    "rep",
-    "phone",
-    "invited",
-    "confirmed",
-    "table",
-    "family",
-    "guestType",
-    "notes",
-    "tag",
-    "status",
-    "whatsapp",
-    "lastMessage",
-    "lastReply",
-    "lastReplyAt",
-    "followUp",
-  ];
+  const canEditAll = await hasEventPermission(req.user, event, PERMS.EDIT_ALL);
+  const canConfirm = await hasEventPermission(req.user, event, PERMS.CONFIRM);
+  const confirmationKeys = new Set(["status", "confirmed", "whatsapp"]);
+  const incomingKeys = Object.keys(req.body || {}).filter((key) => req.body[key] !== undefined);
+  const onlyConfirmation = incomingKeys.every((key) => confirmationKeys.has(key));
+  if (!canEditAll && !(canConfirm && onlyConfirmation)) {
+    return res.status(403).json({ error: "No tienes permiso para esta acción." });
+  }
+  const allowed = canEditAll
+    ? [
+        "rep",
+        "phone",
+        "invited",
+        "confirmed",
+        "table",
+        "family",
+        "guestType",
+        "notes",
+        "tag",
+        "status",
+        "whatsapp",
+        "lastMessage",
+        "lastReply",
+        "lastReplyAt",
+        "followUp",
+      ]
+    : ["status", "confirmed", "whatsapp"];
   if (req.body?.invited !== undefined) {
     const next = Number(req.body.invited) || 0;
     const delta = next - Number(guest.invited || 0);
-    if (delta > 0) await assertCanAddGuests(req.user, delta);
+    if (delta > 0) await assertCanAddGuestsForEvent(req.user, event, delta);
   }
   const previousPhone = guest.phone;
   for (const key of allowed) {
@@ -90,6 +101,7 @@ export const remindGuest = asyncHandler(async (req, res) => {
   const { guest, event } = await findGuestForUser(req.user.id, req.params.guestId);
   if (!guest) return res.status(404).json({ error: "Invitado no encontrado." });
   if (!event) return res.status(404).json({ error: "Evento no encontrado." });
+  if (!(await requirePermission(req, res, event, PERMS.REPLY))) return;
   assertCanSendInvitations(req.user);
   await assertWhatsappReady(event);
   const text = await resolveReminderText(event, guest, req.user.name);
@@ -111,6 +123,7 @@ export const remindGuest = asyncHandler(async (req, res) => {
 export const previewImport = asyncHandler(async (req, res) => {
   const event = await requireEvent(req, res);
   if (!event) return;
+  if (!(await requirePermission(req, res, event, PERMS.EDIT_ALL))) return;
   if (!req.file?.buffer) return res.status(400).json({ error: "Sube un archivo .xlsx, .xls o .csv" });
   const parsed = parseSpreadsheet(req.file.buffer);
   res.json({
@@ -124,6 +137,7 @@ export const previewImport = asyncHandler(async (req, res) => {
 export const confirmImport = asyncHandler(async (req, res) => {
   const event = await requireEvent(req, res);
   if (!event) return;
+  if (!(await requirePermission(req, res, event, PERMS.EDIT_ALL))) return;
   const { columns, rows, mapping } = req.body || {};
   if (!columns || !rows || !mapping) return res.status(400).json({ error: "Faltan columnas, filas o mapeo." });
   const mapped = mapRows(columns, rows, mapping);
@@ -131,7 +145,7 @@ export const confirmImport = asyncHandler(async (req, res) => {
   const phones = new Set(existing.map((g) => g.phone.replace(/\s/g, "")));
   const incoming = mapped.filter((row) => !phones.has(row.phone.replace(/\s/g, "")));
   const incomingPeople = incoming.reduce((sum, row) => sum + (Number(row.invited) || 1), 0);
-  await assertCanAddGuests(req.user, incomingPeople);
+  await assertCanAddGuestsForEvent(req.user, event, incomingPeople);
   const created = [];
   let skipped = 0;
   for (const row of mapped) {
@@ -161,6 +175,7 @@ export const confirmImport = asyncHandler(async (req, res) => {
 export const exportGuests = asyncHandler(async (req, res) => {
   const event = await requireEvent(req, res);
   if (!event) return;
+  if (!(await requirePermission(req, res, event, PERMS.EXPORT))) return;
   const format = String(req.query.format || "xlsx");
   const guests = await Guest.findAll({ where: { eventId: event.id }, order: [["rep", "ASC"]] });
   const rows = guestsToRows(guests, event.slug);
@@ -170,6 +185,7 @@ export const exportGuests = asyncHandler(async (req, res) => {
 export const exportFinalList = asyncHandler(async (req, res) => {
   const event = await requireEvent(req, res);
   if (!event) return;
+  if (!(await requirePermission(req, res, event, PERMS.EXPORT))) return;
   const format = String(req.query.format || "xlsx");
   const guests = await Guest.findAll({ where: { eventId: event.id } });
   const rows = guestsToRows(

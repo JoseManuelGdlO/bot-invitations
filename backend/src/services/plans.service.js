@@ -1,4 +1,4 @@
-import { Event, Guest, Plan } from "../models/index.js";
+import { Event, Guest, Plan, User } from "../models/index.js";
 
 export const PLAN_DEFS = [
   {
@@ -163,4 +163,14 @@ export async function assertCanAddGuests(user, incomingCount) {
       `Tu plan ${plan.name} incluye ${plan.guestLimit} invitados. Te quedan ${remaining} lugares. Mejora tu suscripción para agregar más.`,
     );
   }
+}
+
+export async function assertCanAddGuestsForEvent(actor, event, incomingCount) {
+  if (actor?.isAdmin) return;
+  const owner =
+    event?.ownerId && actor?.id === event.ownerId ? actor : await User.findByPk(event?.ownerId);
+  if (!owner) {
+    throw planError("No se encontró al dueño del evento.");
+  }
+  return assertCanAddGuests(owner, incomingCount);
 }

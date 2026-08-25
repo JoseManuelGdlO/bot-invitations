@@ -10,7 +10,7 @@ import {
   Message,
   Template,
 } from "../models/index.js";
-import { userEventIds } from "./access.service.js";
+import { userEventIds, PERMS } from "./access.service.js";
 import {
   serializeActivity,
   serializeAi,
@@ -108,6 +108,7 @@ export async function loadUserState(userId) {
       members: {},
       rolePermissions: {},
       analytics: {},
+      eventAccess: {},
     };
   }
 
@@ -122,7 +123,7 @@ export async function loadUserState(userId) {
     Template.findAll({ where: { eventId: ids }, order: [["createdAt", "ASC"]] }),
     Faq.findAll({ where: { eventId: ids }, order: [["createdAt", "ASC"]] }),
     Activity.findAll({ where: { eventId: ids }, order: [["createdAt", "DESC"]], limit: 40 }),
-    EventMember.findAll({ where: { eventId: ids }, order: [["createdAt", "ASC"]] }),
+    EventMember.findAll({ where: { eventId: ids, removedAt: null }, order: [["createdAt", "ASC"]] }),
     EventRolePermission.findAll({ where: { eventId: ids } }),
   ]);
 
@@ -138,6 +139,7 @@ export async function loadUserState(userId) {
   const membersByEvent = {};
   const permsByEvent = {};
   const analytics = {};
+  const eventAccess = {};
 
   for (const event of events) {
     const ai = ais.find((a) => a.eventId === event.id);
@@ -146,12 +148,26 @@ export async function loadUserState(userId) {
       templates: templates.filter((t) => t.eventId === event.id).map(serializeTemplate),
       faqs: faqs.filter((f) => f.eventId === event.id).map(serializeFaq),
     };
-    membersByEvent[event.slug] = members.filter((m) => m.eventId === event.id).map(serializeMember);
+    const eventMembers = members.filter((m) => m.eventId === event.id && !m.removedAt);
+    membersByEvent[event.slug] = eventMembers.map((m) => serializeMember(m, event.ownerId));
     permsByEvent[event.slug] = perms.filter((p) => p.eventId === event.id).map(serializeRolePermission);
     const eventGuests = guests.filter((g) => g.eventId === event.id);
     const eventConvs = conversations.filter((c) => c.eventId === event.id);
     const eventMsgs = eventConvs.flatMap((c) => messagesByConv.get(c.id) || []);
     analytics[event.slug] = buildAnalytics(eventGuests, eventConvs, eventMsgs);
+    const isOwner = event.ownerId === userId;
+    const self = eventMembers.find((m) => m.userId === userId);
+    const role = isOwner ? "Administrador" : self?.role || null;
+    const permissions = role
+      ? perms.filter((p) => p.eventId === event.id && p.role === role && p.enabled).map((p) => p.permission)
+      : [];
+    eventAccess[event.slug] = {
+      role,
+      permissions: isOwner && !permissions.includes(PERMS.EDIT_ALL)
+        ? [...new Set([...permissions, PERMS.EDIT_ALL])]
+        : permissions,
+      isOwner,
+    };
   }
 
   return {
@@ -165,6 +181,7 @@ export async function loadUserState(userId) {
     members: membersByEvent,
     rolePermissions: permsByEvent,
     analytics,
+    eventAccess,
   };
 }
 

@@ -25,11 +25,13 @@ export const router = Router();
 
 router.get("/plans", auth.listPlans);
 router.post("/auth/register", auth.register);
+router.post("/auth/register-invite", auth.registerInvite);
 router.post("/auth/login", auth.login);
 router.post("/auth/refresh", auth.refresh);
 router.post("/auth/logout", auth.logout);
 router.post("/auth/forgot-password", auth.forgotPassword);
 router.post("/auth/reset-password", auth.resetPassword);
+router.get("/auth/invitation", auth.invitationStatus);
 router.get("/billing/session/:sessionId", billing.confirmSession);
 
 router.use(requireAuth);
@@ -59,6 +61,7 @@ router.get("/events", events.listEvents);
 router.post("/events", events.createEvent);
 router.get("/events/:eventId", events.getEvent);
 router.patch("/events/:eventId", events.updateEvent);
+router.delete("/events/:eventId", events.deleteEvent);
 
 router.get("/events/:eventId/guests", events.listGuests);
 router.post("/events/:eventId/guests", guests.createGuest);
