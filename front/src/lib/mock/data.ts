@@ -187,6 +187,7 @@ function defaultAI(assistant: string, hosts: string): AIConfig {
     emojis: "algunos",
     length: "normales",
     openingMessage: aiOpening(assistant, hosts),
+    prompt: `Eres ${assistant}, asistente del equipo de ${hosts}. Confirmas asistencia por WhatsApp. Nunca digas que eres una IA.`,
     rules: [
       "Nunca mencionar que eres una IA.",
       "Siempre ser amable y cálida.",
@@ -208,7 +209,7 @@ function defaultAI(assistant: string, hosts: string): AIConfig {
 const baseTemplates = (hosts: string) => [
   { id: "t1", category: "Primer contacto", title: "Invitación inicial", body: `Hola {{nombre}}, soy el equipo de ${hosts}. Estamos confirmando asistencia para {{evento}} el {{fecha}}. ¿Podrán acompañarnos?` },
   { id: "t2", category: "Recordatorio", title: "Recordatorio amable", body: "Hola {{nombre}}, ¿pudiste revisar la invitación? Nos encantaría contar contigo el {{fecha}} ✨" },
-  { id: "t3", category: "Confirmación", title: "Cierre de confirmación", body: "Perfecto {{nombre}}, entonces confirmamos {{numero_invitados}} asistentes. ¡Nos vemos el {{fecha}}!" },
+  { id: "t3", category: "Confirmación", title: "Cierre de confirmación", body: "Perfecto {{nombre}}, entonces confirmamos {{numero_confirmados}} asistentes. ¡Nos vemos el {{fecha}}!" },
   { id: "t4", category: "Rechazo", title: "Respuesta a rechazo", body: "Gracias por avisarnos, {{nombre}}. Te vamos a extrañar, mandamos un abrazo grande." },
   { id: "t5", category: "Información del evento", title: "Detalles generales", body: "La celebración es el {{fecha}} a las {{hora}} en {{lugar}}. Recomendamos llegar 30 minutos antes." },
   { id: "t6", category: "Ubicación", title: "Cómo llegar", body: "Te comparto la ubicación de {{lugar}}. Habrá valet parking disponible desde las {{hora}}." },

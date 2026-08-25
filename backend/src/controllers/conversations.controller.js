@@ -7,12 +7,16 @@ import {
 } from "../models/index.js";
 import { asyncHandler } from "../utils/async.js";
 import { formatClock } from "../utils/time.js";
-import { applyTemplate } from "../utils/defaults.js";
 import { serializeConversation, serializeGuest, serializeMessage } from "../utils/serialize.js";
 import { requireEvent, userEventIds, requirePermission, PERMS } from "../services/access.service.js";
 import { enqueueJob } from "../services/outbound.worker.js";
 import { logActivity } from "../services/activity.service.js";
 import { assertCanSendInvitations } from "../services/plans.service.js";
+import { appendOutboundToSession } from "../services/bot/bot.service.js";
+import { assertWhatsappReady } from "../services/integration-resolver.service.js";
+import { deliverAiMessage } from "../services/guest-message.service.js";
+import { FALLBACK_OPENING, findTemplate, renderTemplate } from "../services/templates.service.js";
+import { resolveWhatsappTo } from "../utils/whatsapp-identity.js";
 
 async function accessibleConversation(userId, conversationId) {
   const ids = await userEventIds(userId);
@@ -68,12 +72,13 @@ export const sendMessage = asyncHandler(async (req, res) => {
     guest.lastMessage = text.slice(0, 80);
     await guest.save();
     await enqueueJob("whatsapp.send", {
-      to: guest.phone,
+      to: resolveWhatsappTo(guest),
       text,
       guestId: guest.id,
       eventId: found.event.id,
       conversationId: found.conv.id,
     });
+    await appendOutboundToSession({ event: found.event, guest, text });
   }
   res.status(201).json(serializeMessage(message));
 });
@@ -83,46 +88,24 @@ export const launchCampaign = asyncHandler(async (req, res) => {
   if (!event) return;
   if (!(await requirePermission(req, res, event, PERMS.REPLY))) return;
   assertCanSendInvitations(req.user);
-  const ai = await AiConfig.findOne({ where: { eventId: event.id } });
   const guests = await Guest.findAll({ where: { eventId: event.id, status: "sin_contactar" } });
+  if (guests.length) await assertWhatsappReady(event);
+  const ai = await AiConfig.findOne({ where: { eventId: event.id } });
+  const opening = await findTemplate(event.id, { category: "Primer contacto" });
+  const body = opening?.body || ai?.openingMessage || FALLBACK_OPENING;
   const now = new Date();
   for (const guest of guests) {
-    const text = applyTemplate(ai?.openingMessage || "Hola {{nombre}}, ¿podrán acompañarnos?", {
-      nombre: guest.rep.split(" ")[0] || guest.rep,
-      numero_invitados: String(guest.invited),
-      evento: event.name,
-      fecha: event.date,
-      lugar: event.venue,
-      hora: event.time,
-      planner: req.user.name,
-    });
-    guest.status = "enviado";
-    guest.whatsapp = "enviado";
-    guest.lastMessage = "Mensaje inicial · hoy";
-    guest.contactedAt = now;
-    await guest.save();
-
-    let conv = await Conversation.findOne({ where: { guestId: guest.id } });
-    if (!conv) {
-      conv = await Conversation.create({
-        eventId: event.id,
-        guestId: guest.id,
-        aiPaused: false,
-        unread: 0,
-      });
-    }
-    await Message.create({
-      conversationId: conv.id,
-      from: "ai",
+    const text = renderTemplate(body, event, guest, req.user.name);
+    await deliverAiMessage({
+      event,
+      guest,
       text,
-      at: formatClock(now),
-    });
-    await enqueueJob("whatsapp.send", {
-      to: guest.phone,
-      text,
-      guestId: guest.id,
-      eventId: event.id,
-      conversationId: conv.id,
+      kind: "campaign",
+      guestPatch: {
+        status: "enviado",
+        whatsapp: "enviado",
+        contactedAt: now,
+      },
     });
   }
   await logActivity(event.id, `${ai?.assistantName || "El asistente"} envió ${guests.length} mensajes iniciales`, "message");

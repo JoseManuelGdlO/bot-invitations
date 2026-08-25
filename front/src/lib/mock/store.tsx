@@ -11,7 +11,6 @@ import { api, download, setToken } from "@/lib/api/client";
 import type {
   ActivityItem,
   ChatMessage,
-  ConfirmationStatus,
   Conversation,
   EventAnalytics,
   EventData,
@@ -96,7 +95,7 @@ interface Ctx extends State {
   sendMessage: (convId: string, msg: ChatMessage) => void;
   toggleAI: (convId: string, paused: boolean) => void;
   logActivity: (item: ActivityItem) => void;
-  launchCampaign: (eventId: string) => void;
+  launchCampaign: (eventId: string) => Promise<void>;
   inviteMember: (
     eventId: string,
     payload: { name: string; email?: string; role: string },
@@ -178,7 +177,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           },
         );
         await afterAuth(res);
-        return { checkoutUrl: res.checkoutUrl };
+        return { checkoutUrl: res.checkoutUrl ?? null };
       },
       registerInvite: async (payload) => {
         const res = await api<{ accessToken: string; user: SessionUser }>("/auth/register-invite", {
@@ -326,10 +325,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         }).catch(console.error);
       },
       logActivity: (item) => setState((s) => ({ ...s, activity: [item, ...s.activity].slice(0, 40) })),
-      launchCampaign: (eventId) => {
-        api(`/events/${eventId}/campaigns/launch`, { method: "POST" })
-          .then(() => refresh())
-          .catch(console.error);
+      launchCampaign: async (eventId) => {
+        await api(`/events/${eventId}/campaigns/launch`, { method: "POST" });
+        await refresh();
       },
       inviteMember: async (eventId, payload) => {
         const member = await api<TeamMember>(`/events/${eventId}/members`, {
@@ -409,6 +407,7 @@ const fallbackData: EventData = {
     emojis: "algunos",
     length: "normales",
     openingMessage: "",
+    prompt: "",
     rules: [],
     followUps: [],
   },

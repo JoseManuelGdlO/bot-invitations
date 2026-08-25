@@ -5,6 +5,7 @@ import { env } from "./config/env.js";
 import { router } from "./routes/index.js";
 import { webhook as stripeWebhook } from "./controllers/billing.controller.js";
 import { requestLogger } from "./middleware/logger.middleware.js";
+import { whatsappConnectWebhook } from "./controllers/whatsapp-connect-webhook.controller.js";
 
 export function createApp() {
   const app = express();
@@ -19,6 +20,11 @@ export function createApp() {
   );
   app.use(cookieParser());
   app.post("/api/billing/webhook", express.raw({ type: "application/json" }), stripeWebhook);
+  app.post(
+    "/api/webhooks/whatsapp-connect/events",
+    express.raw({ type: "application/json", limit: "1mb" }),
+    ...whatsappConnectWebhook,
+  );
   app.use(express.json({ limit: "8mb" }));
   app.use(express.urlencoded({ extended: true}));
   app.use(requestLogger);

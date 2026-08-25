@@ -35,7 +35,7 @@ export function defaultTemplates(hosts) {
   return [
     { category: "Primer contacto", title: "Invitación inicial", body: `Hola {{nombre}}, soy el equipo de ${hosts}. Estamos confirmando asistencia para {{evento}} el {{fecha}}. ¿Podrán acompañarnos?` },
     { category: "Recordatorio", title: "Recordatorio amable", body: "Hola {{nombre}}, ¿pudiste revisar la invitación? Nos encantaría contar contigo el {{fecha}} ✨" },
-    { category: "Confirmación", title: "Cierre de confirmación", body: "Perfecto {{nombre}}, entonces confirmamos {{numero_invitados}} asistentes. ¡Nos vemos el {{fecha}}!" },
+    { category: "Confirmación", title: "Cierre de confirmación", body: "Perfecto {{nombre}}, entonces confirmamos {{numero_confirmados}} asistentes. ¡Nos vemos el {{fecha}}!" },
     { category: "Rechazo", title: "Respuesta a rechazo", body: "Gracias por avisarnos, {{nombre}}. Te vamos a extrañar, mandamos un abrazo grande." },
     { category: "Información del evento", title: "Detalles generales", body: "La celebración es el {{fecha}} a las {{hora}} en {{lugar}}. Recomendamos llegar 30 minutos antes." },
     { category: "Ubicación", title: "Cómo llegar", body: "Te comparto la ubicación de {{lugar}}. Habrá valet parking disponible desde las {{hora}}." },
@@ -55,4 +55,24 @@ export function defaultFaqs(venue) {
 
 export function applyTemplate(text, vars) {
   return String(text || "").replace(/\{\{(\w+)\}\}/g, (_, key) => vars[key] ?? `{{${key}}}`);
+}
+
+export function eventGuestVars(event, guest, plannerName = "") {
+  const nombreCompleto = String(guest?.rep || "").trim();
+  const nombre = nombreCompleto.split(" ")[0] || nombreCompleto;
+  const confirmados = String(guest?.confirmed ?? "");
+  return {
+    nombre,
+    nombre_completo: nombreCompleto,
+    numero_invitados: String(guest?.invited ?? ""),
+    numero_confirmados: confirmados,
+    confirmados,
+    mesa: String(guest?.table || ""),
+    evento: event?.name || "",
+    fecha: event?.date || "",
+    lugar: event?.venue || "",
+    direccion: event?.address || "",
+    hora: event?.time || "",
+    planner: plannerName || "",
+  };
 }

@@ -98,6 +98,7 @@ export const Guest = sequelize.define("guests", {
   eventId: { type: DataTypes.CHAR(36), allowNull: false },
   rep: { type: DataTypes.STRING(160), allowNull: false },
   phone: { type: DataTypes.STRING(40), allowNull: false },
+  whatsappChatId: { type: DataTypes.STRING(120), allowNull: true },
   invited: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 1 },
   confirmed: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
   table: { type: DataTypes.STRING(80), allowNull: true, defaultValue: "" },
@@ -130,6 +131,7 @@ export const Guest = sequelize.define("guests", {
   lastReply: { type: DataTypes.TEXT, allowNull: true },
   lastReplyAt: { type: DataTypes.STRING(80), allowNull: true, defaultValue: "" },
   followUp: { type: DataTypes.STRING(80), allowNull: true, defaultValue: "" },
+  followUpsSent: { type: DataTypes.JSON, allowNull: false, defaultValue: [] },
   confirmedAt: { type: DataTypes.DATE, allowNull: true },
   contactedAt: { type: DataTypes.DATE, allowNull: true },
 });
@@ -159,6 +161,7 @@ export const AiConfig = sequelize.define("ai_configs", {
   emojis: { type: DataTypes.ENUM("ninguno", "algunos", "frecuentes"), allowNull: false, defaultValue: "algunos" },
   length: { type: DataTypes.ENUM("cortos", "normales", "detallados"), allowNull: false, defaultValue: "normales" },
   openingMessage: { type: DataTypes.TEXT, allowNull: false },
+  prompt: { type: DataTypes.TEXT, allowNull: true },
   rules: { type: DataTypes.JSON, allowNull: false, defaultValue: [] },
   followUps: { type: DataTypes.JSON, allowNull: false, defaultValue: [] },
 });
@@ -253,6 +256,65 @@ export const CancellationRequest = sequelize.define("cancellation_requests", {
   decidedAt: { type: DataTypes.DATE, allowNull: true },
 });
 
+export const ChannelIntegration = sequelize.define(
+  "channel_integrations",
+  {
+    id: uuid,
+    ownerUserId: { type: DataTypes.CHAR(36), allowNull: false },
+    channel: { type: DataTypes.STRING(32), allowNull: false },
+    provider: { type: DataTypes.STRING(60), allowNull: false, defaultValue: "whatsapp-connect" },
+    displayName: { type: DataTypes.STRING(160), allowNull: true },
+    status: {
+      type: DataTypes.ENUM("draft", "active", "error", "disabled", "eliminated"),
+      allowNull: false,
+      defaultValue: "draft",
+    },
+    webhookUrl: { type: DataTypes.STRING(500), allowNull: true },
+    lastHealthcheckAt: { type: DataTypes.DATE, allowNull: true },
+    lastError: { type: DataTypes.TEXT, allowNull: true },
+  },
+  {
+    indexes: [
+      { fields: ["ownerUserId"] },
+      { unique: true, fields: ["ownerUserId", "channel", "provider"] },
+    ],
+  },
+);
+
+export const ChannelCredential = sequelize.define(
+  "channel_credentials",
+  {
+    id: uuid,
+    ownerUserId: { type: DataTypes.CHAR(36), allowNull: false },
+    channelIntegrationId: { type: DataTypes.CHAR(36), allowNull: false },
+    credentialType: { type: DataTypes.STRING(40), allowNull: false, defaultValue: "json_secrets" },
+    cipherText: { type: DataTypes.TEXT("long"), allowNull: false },
+    isActive: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
+  },
+  {
+    indexes: [{ fields: ["ownerUserId"] }, { fields: ["channelIntegrationId"] }],
+  },
+);
+
+export const BotSession = sequelize.define(
+  "bot_sessions",
+  {
+    id: uuid,
+    eventId: { type: DataTypes.CHAR(36), allowNull: false },
+    guestId: { type: DataTypes.CHAR(36), allowNull: false },
+    userId: { type: DataTypes.STRING(190), allowNull: false },
+    items: { type: DataTypes.JSON, allowNull: false, defaultValue: [] },
+    lockedUntil: { type: DataTypes.DATE, allowNull: true },
+  },
+  {
+    indexes: [
+      { unique: true, fields: ["eventId", "guestId", "userId"] },
+      { fields: ["eventId"] },
+      { fields: ["guestId"] },
+    ],
+  },
+);
+
 export const OutboundJob = sequelize.define("outbound_jobs", {
   id: uuid,
   type: { type: DataTypes.STRING(80), allowNull: false },
@@ -299,6 +361,10 @@ Event.hasMany(Activity, { foreignKey: "eventId", as: "activities" });
 Activity.belongsTo(Event, { foreignKey: "eventId" });
 Event.hasMany(Campaign, { foreignKey: "eventId", as: "campaigns" });
 Campaign.belongsTo(Event, { foreignKey: "eventId" });
+Event.hasMany(BotSession, { foreignKey: "eventId", as: "botSessions" });
+BotSession.belongsTo(Event, { foreignKey: "eventId" });
+Guest.hasMany(BotSession, { foreignKey: "guestId", as: "botSessions" });
+BotSession.belongsTo(Guest, { foreignKey: "guestId" });
 
 User.hasMany(Payment, { foreignKey: "userId" });
 Payment.belongsTo(User, { foreignKey: "userId", as: "user" });
@@ -316,6 +382,13 @@ SupportTicket.hasMany(SupportMessage, { foreignKey: "ticketId", as: "messages" }
 SupportMessage.belongsTo(SupportTicket, { foreignKey: "ticketId" });
 User.hasMany(SupportMessage, { foreignKey: "authorId" });
 SupportMessage.belongsTo(User, { foreignKey: "authorId", as: "author" });
+
+User.hasMany(ChannelIntegration, { foreignKey: "ownerUserId" });
+ChannelIntegration.belongsTo(User, { foreignKey: "ownerUserId" });
+ChannelIntegration.hasMany(ChannelCredential, { foreignKey: "channelIntegrationId", as: "credentials" });
+ChannelCredential.belongsTo(ChannelIntegration, { foreignKey: "channelIntegrationId" });
+User.hasMany(ChannelCredential, { foreignKey: "ownerUserId" });
+ChannelCredential.belongsTo(User, { foreignKey: "ownerUserId" });
 
 export { sequelize };
 

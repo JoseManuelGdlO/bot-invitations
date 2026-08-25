@@ -14,7 +14,11 @@ import * as finance from "../controllers/finance.controller.js";
 import * as support from "../controllers/support.controller.js";
 import * as cancellation from "../controllers/cancellation.controller.js";
 import * as help from "../controllers/help.controller.js";
+import * as integrations from "../controllers/integrations.controller.js";
+import * as whatsappConnect from "../controllers/whatsapp-connect.controller.js";
+import * as botDev from "../controllers/bot-dev.controller.js";
 import { requireAdmin } from "../middleware/admin.js";
+import { env } from "../config/env.js";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } });
 export const router = Router();
@@ -42,6 +46,16 @@ router.post("/billing/cancellation", cancellation.createMine);
 router.delete("/billing/cancellation", cancellation.withdrawMine);
 router.get("/activity", analytics.listActivity);
 
+router.get("/integrations", integrations.listIntegrations);
+router.post("/integrations", integrations.createIntegration);
+router.patch("/integrations/:id", integrations.patchIntegration);
+router.delete("/integrations/:id", integrations.deleteIntegration);
+router.post("/integrations/:id/credentials", integrations.postIntegrationCredentials);
+router.post("/integrations/:id/test", integrations.postIntegrationTest);
+router.post("/internal/whatsapp/qr-link", whatsappConnect.postWhatsappConnectQrLink);
+router.get("/internal/whatsapp/device-status", whatsappConnect.getWhatsappConnectDeviceStatus);
+router.post("/internal/whatsapp/send-test", whatsappConnect.postWhatsappConnectSendTest);
+
 router.get("/events", events.listEvents);
 router.post("/events", events.createEvent);
 router.get("/events/:eventId", events.getEvent);
@@ -64,8 +78,16 @@ router.post("/events/:eventId/campaigns/launch", conversations.launchCampaign);
 
 router.get("/events/:eventId/ai-config", eventData.getAi);
 router.patch("/events/:eventId/ai-config", eventData.updateAi);
+router.post("/events/:eventId/ai-config/regenerate-prompt", eventData.regeneratePrompt);
 router.put("/events/:eventId/templates", eventData.setTemplates);
 router.put("/events/:eventId/faqs", eventData.setFaqs);
+
+if (env.botDevEnabled) {
+  router.get("/dev/bot/status", botDev.status);
+  router.get("/dev/events/:eventId/bot/playground", botDev.getPlayground);
+  router.post("/dev/events/:eventId/bot/playground", botDev.postPlayground);
+  router.post("/dev/conversations/:conversationId/simulate-guest", botDev.simulateGuest);
+}
 
 router.get("/events/:eventId/members", team.listMembers);
 router.post("/events/:eventId/members", team.inviteMember);

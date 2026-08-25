@@ -16,6 +16,23 @@ function parseOrigins(...values) {
   ];
 }
 
+function parseWaSendThrottle() {
+  const DEFAULT_MIN_MS = 15000;
+  const DEFAULT_MAX_MS = 30000;
+  const DEFAULT_MAX_PER_HOUR = 20;
+  let intervalMinMs = Number(process.env.WA_SEND_INTERVAL_MIN_MS ?? DEFAULT_MIN_MS);
+  let intervalMaxMs = Number(process.env.WA_SEND_INTERVAL_MAX_MS ?? DEFAULT_MAX_MS);
+  let maxPerHour = Number(process.env.WA_SEND_MAX_PER_HOUR ?? DEFAULT_MAX_PER_HOUR);
+  if (!Number.isFinite(intervalMinMs) || intervalMinMs < 0) intervalMinMs = DEFAULT_MIN_MS;
+  if (!Number.isFinite(intervalMaxMs) || intervalMaxMs < 0) intervalMaxMs = DEFAULT_MAX_MS;
+  if (intervalMinMs > intervalMaxMs) {
+    intervalMinMs = DEFAULT_MIN_MS;
+    intervalMaxMs = DEFAULT_MAX_MS;
+  }
+  if (!Number.isFinite(maxPerHour) || maxPerHour < 0) maxPerHour = DEFAULT_MAX_PER_HOUR;
+  return { intervalMinMs, intervalMaxMs, maxPerHour };
+}
+
 export const env = {
   port: Number(process.env.PORT || 4000),
   nodeEnv: process.env.NODE_ENV || "development",
@@ -45,6 +62,7 @@ export const env = {
   },
   resetUrl: process.env.FRONTEND_RESET_URL || "http://localhost:8080/restablecer-contrasena",
   workerIntervalMs: Number(process.env.WORKER_INTERVAL_MS || 5000),
+  waSend: parseWaSendThrottle(),
   stripe: {
     secret: process.env.STRIPE_SECRET_KEY || "",
     webhookSecret: process.env.STRIPE_WEBHOOK_SECRET || "",
@@ -54,4 +72,18 @@ export const env = {
     pass: process.env.SMTP_PASS || "",
   },
   frontendUrl: process.env.APP_FRONTEND_URL || "http://localhost:8080",
+  credentialsEncryptionKey: process.env.CREDENTIALS_ENCRYPTION_KEY || "",
+  openai: {
+    apiKey: process.env.OPENAI_API_KEY || "",
+    model: process.env.OPENAI_MODEL || "gpt-4o-mini",
+  },
+  botDevEnabled: process.env.BOT_DEV_PLAYGROUND === "true",
+  wc: {
+    apiUrl: (process.env.WC_API_URL || "").replace(/\/$/, ""),
+    serviceJwt: process.env.WC_SERVICE_JWT || "",
+    timeoutMs: Number(process.env.WC_TIMEOUT_MS || 8000),
+    webhookEnabled: (process.env.WC_WEBHOOK_ENABLED || "true") === "true",
+    webhookMaxSkewMs: Number(process.env.WC_WEBHOOK_MAX_SKEW_MS || 300000),
+    webhookDebug: (process.env.WC_WEBHOOK_DEBUG || "false") === "true",
+  },
 };

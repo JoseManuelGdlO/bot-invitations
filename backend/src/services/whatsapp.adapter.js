@@ -1,25 +1,34 @@
-/**
- * Contrato para conectar WhatsApp Cloud API más adelante.
- *
- * CloudWhatsAppProvider debería:
- * - POST https://graph.facebook.com/v21.0/{PHONE_NUMBER_ID}/messages
- * - Autenticar con WHATSAPP_TOKEN
- * - Devolver el wamid del mensaje
- *
- * El worker solo depende de esta interfaz: { sendMessage(to, text) }
- */
-export class StubWhatsAppProvider {
-  async sendMessage(to, text) {
-    console.log(`[whatsapp:stub] queued send to ${to}: ${String(text).slice(0, 80)}`);
+import { Event } from "../models/index.js";
+import { wcClient } from "./wc.client.js";
+import { runWithWcToken } from "./wc-auth.js";
+import { resolveActiveWhatsappConnectByOwner } from "./integration-resolver.service.js";
+import { httpError } from "../utils/http-error.js";
+
+export class WhatsAppConnectProvider {
+  async sendMessage(to, text, meta = {}) {
+    const eventId = meta.eventId;
+    if (!eventId) throw httpError(400, "Falta eventId para enviar por WhatsApp.");
+    const event = await Event.findByPk(eventId);
+    if (!event) throw httpError(400, "Evento no encontrado para el envío de WhatsApp.");
+    const { credentials } = await resolveActiveWhatsappConnectByOwner({ ownerUserId: event.ownerId });
+    const payload = await runWithWcToken(() =>
+      wcClient.sendMessageWithRetry({
+        deviceId: credentials.deviceId,
+        to,
+        type: "text",
+        text,
+        tenantId: credentials.tenantId,
+      }),
+    );
     return {
-      provider: "stub",
-      providerId: `stub-${Date.now()}`,
+      provider: "whatsapp-connect",
+      providerId: payload?.id || payload?.messageId || payload?.wamid || null,
       to,
-      skipped: true,
+      skipped: false,
     };
   }
 }
 
 export function createWhatsAppProvider() {
-  return new StubWhatsAppProvider();
+  return new WhatsAppConnectProvider();
 }

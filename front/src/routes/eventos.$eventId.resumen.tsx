@@ -1,4 +1,5 @@
 import { Link, createFileRoute } from "@tanstack/react-router";
+import { useState } from "react";
 import { CheckCircle2, Clock, MessageCircle, Send, Users, UserRoundX } from "lucide-react";
 import { StatCard } from "@/components/stat-card";
 import { ProgressRing } from "@/components/progress-ring";
@@ -8,6 +9,7 @@ import { daysUntil } from "@/lib/mock/format";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { PERMS } from "@/lib/permissions";
+import { ApiError } from "@/lib/api/client";
 
 export const Route = createFileRoute("/eventos/$eventId/resumen")({
   head: () => ({
@@ -35,6 +37,7 @@ function Resumen() {
   const { activity, launchCampaign, hasPerm } = useStore();
   const s = statsFor(guests);
   const eventActivity = activity.filter((a) => a.eventId === eventId);
+  const [launching, setLaunching] = useState(false);
 
   return (
     <main className="mx-auto w-full max-w-7xl flex-1 px-5 py-8 md:px-8">
@@ -71,11 +74,19 @@ function Resumen() {
             <div className="flex w-full flex-col gap-2 pt-2">
               {hasPerm(eventId, PERMS.REPLY) ? (
               <Button
-                onClick={() => {
-                  launchCampaign(eventId);
-                  toast.success("Campaña iniciada", {
-                    description: "El asistente comenzó a enviar los mensajes iniciales.",
-                  });
+                disabled={launching}
+                onClick={async () => {
+                  setLaunching(true);
+                  try {
+                    await launchCampaign(eventId);
+                    toast.success("Campaña iniciada", {
+                      description: "El asistente comenzó a enviar los mensajes iniciales.",
+                    });
+                  } catch (err) {
+                    toast.error(err instanceof ApiError ? err.message : "No se pudo iniciar la campaña");
+                  } finally {
+                    setLaunching(false);
+                  }
                 }}
               >
                 <Send className="size-4" /> Iniciar confirmaciones

@@ -3,10 +3,13 @@ import { asyncHandler } from "../utils/async.js";
 import { serializeGuest } from "../utils/serialize.js";
 import { requireEvent, userEventIds, requirePermission, hasEventPermission, PERMS } from "../services/access.service.js";
 import { logActivity } from "../services/activity.service.js";
-import { enqueueJob } from "../services/outbound.worker.js";
 import { mapRows, parseSpreadsheet, suggestMapping } from "../services/import.service.js";
 import { guestsToRows, toCsv, toPdf, toXlsx } from "../services/export.service.js";
 import { assertCanAddGuestsForEvent, assertCanSendInvitations } from "../services/plans.service.js";
+import { assertWhatsappReady } from "../services/integration-resolver.service.js";
+import { deliverAiMessage } from "../services/guest-message.service.js";
+import { resolveReminderText } from "../services/templates.service.js";
+import { phonesMatch } from "../services/bot/session.service.js";
 
 async function findGuestForUser(userId, guestId) {
   const ids = await userEventIds(userId);
@@ -44,6 +47,7 @@ export const createGuest = asyncHandler(async (req, res) => {
 export const updateGuest = asyncHandler(async (req, res) => {
   const { guest, event } = await findGuestForUser(req.user.id, req.params.guestId);
   if (!guest) return res.status(404).json({ error: "Invitado no encontrado." });
+  if (!event) return res.status(404).json({ error: "Evento no encontrado." });
   const canEditAll = await hasEventPermission(req.user, event, PERMS.EDIT_ALL);
   const canConfirm = await hasEventPermission(req.user, event, PERMS.CONFIRM);
   const confirmationKeys = new Set(["status", "confirmed", "whatsapp"]);
@@ -76,8 +80,12 @@ export const updateGuest = asyncHandler(async (req, res) => {
     const delta = next - Number(guest.invited || 0);
     if (delta > 0) await assertCanAddGuestsForEvent(req.user, event, delta);
   }
+  const previousPhone = guest.phone;
   for (const key of allowed) {
     if (req.body?.[key] !== undefined) guest[key] = req.body[key];
+  }
+  if (req.body?.phone !== undefined && !phonesMatch(previousPhone, guest.phone)) {
+    guest.whatsappChatId = null;
   }
   if (["confirmado", "parcial"].includes(guest.status) && !guest.confirmedAt) {
     guest.confirmedAt = new Date();
@@ -92,18 +100,21 @@ export const updateGuest = asyncHandler(async (req, res) => {
 export const remindGuest = asyncHandler(async (req, res) => {
   const { guest, event } = await findGuestForUser(req.user.id, req.params.guestId);
   if (!guest) return res.status(404).json({ error: "Invitado no encontrado." });
+  if (!event) return res.status(404).json({ error: "Evento no encontrado." });
   if (!(await requirePermission(req, res, event, PERMS.REPLY))) return;
   assertCanSendInvitations(req.user);
-  guest.status = guest.status === "sin_contactar" ? "enviado" : guest.status;
-  guest.whatsapp = "enviado";
-  guest.lastMessage = "Recordatorio · hoy";
-  guest.contactedAt = guest.contactedAt || new Date();
-  await guest.save();
-  await enqueueJob("whatsapp.send", {
-    to: guest.phone,
-    text: `Recordatorio para ${guest.rep} · ${event.name}`,
-    guestId: guest.id,
-    eventId: event.id,
+  await assertWhatsappReady(event);
+  const text = await resolveReminderText(event, guest, req.user.name);
+  await deliverAiMessage({
+    event,
+    guest,
+    text,
+    kind: "reminder",
+    guestPatch: {
+      status: guest.status === "sin_contactar" ? "enviado" : guest.status,
+      whatsapp: "enviado",
+      contactedAt: guest.contactedAt || new Date(),
+    },
   });
   await logActivity(event.id, `Se envió un recordatorio a ${guest.rep}`, "message");
   res.json(serializeGuest(guest, event.slug));
