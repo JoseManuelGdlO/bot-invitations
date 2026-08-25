@@ -63,7 +63,9 @@ describe("team.controller", () => {
         inviteLink: expect.stringContaining("/iniciar-sesion?email=luis%40test.com"),
       }),
     );
-    expect(models.EventMember.create).toHaveBeenCalledWith(expect.objectContaining({ email: "luis@test.com", userId: null }));
+    expect(models.EventMember.create).toHaveBeenCalledWith(
+      expect.objectContaining({ email: "luis@test.com", userId: null, removedAt: null }),
+    );
   });
 
   test("inviteMember vincula userId si el usuario ya existe", async () => {
@@ -80,6 +82,18 @@ describe("team.controller", () => {
       req: createMockReq({ params: { memberId: "x" } }),
     });
     expect(res.status).toHaveBeenCalledWith(404);
+  });
+
+  test("deleteMember marca removedAt", async () => {
+    const member = createInstance({ id: "m1", userId: "usr_other", email: "luis@test.com" });
+    models.EventMember.findOne.mockResolvedValue(member);
+    const { res } = await callHandler(controller.deleteMember, {
+      req: createMockReq({ params: { memberId: "m1" } }),
+    });
+    expect(member.removedAt).toBeInstanceOf(Date);
+    expect(member.save).toHaveBeenCalled();
+    expect(member.destroy).not.toHaveBeenCalled();
+    expect(res.json).toHaveBeenCalledWith({ ok: true });
   });
 
   test("updatePermission", async () => {

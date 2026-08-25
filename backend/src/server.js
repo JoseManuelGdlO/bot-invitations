@@ -1,5 +1,5 @@
 import { env } from "./config/env.js";
-import { sequelize } from "./models/index.js";
+import { sequelize, ensureEventMemberRemovedAt } from "./models/index.js";
 import { createApp } from "./app.js";
 import { startOutboundWorker } from "./services/outbound.worker.js";
 import { startFollowUpScheduler } from "./services/follow-up.scheduler.js";
@@ -8,6 +8,7 @@ const app = createApp();
 
 try {
   await sequelize.authenticate();
+  await ensureEventMemberRemovedAt();
   console.log("[db] conectado a MySQL");
 } catch (err) {
   console.error("[db] no se pudo conectar", err.message);

@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useStore } from "@/lib/mock/store";
 import { toast } from "sonner";
-import { ApiError } from "@/lib/api/client";
+import { api, ApiError } from "@/lib/api/client";
 import { pageHead } from "@/lib/seo";
 
 export const Route = createFileRoute("/iniciar-sesion")({
@@ -33,6 +33,35 @@ function Login() {
   const [password, setPassword] = useState("");
   const [rememberMe, setRememberMe] = useState(true);
   const [loading, setLoading] = useState(false);
+
+  const goToRegister = async (e: React.MouseEvent) => {
+    e.preventDefault();
+    const targetEmail = (email || invitedEmail || "").trim();
+    if (!targetEmail && !invitedEmail) {
+      navigate({ to: "/registro" });
+      return;
+    }
+    try {
+      const { status } = await api<{ status: "none" | "pending" | "registered" }>(
+        `/auth/invitation?email=${encodeURIComponent(targetEmail)}`,
+      );
+      if (status === "registered") {
+        toast.message("Ya tienes cuenta. Inicia sesión con este correo para ver el evento.");
+        return;
+      }
+      if (status === "pending") {
+        navigate({ to: "/registro", search: { email: targetEmail, invite: "1" } });
+        return;
+      }
+    } catch {
+      /* si no se puede consultar, seguimos al registro normal o de invitación */
+    }
+    if (invitedEmail) {
+      navigate({ to: "/registro", search: { email: targetEmail || invitedEmail, invite: "1" } });
+      return;
+    }
+    navigate({ to: "/registro", search: targetEmail ? { email: targetEmail } : undefined });
+  };
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -100,6 +129,7 @@ function Login() {
               <Link
                 to="/registro"
                 search={invitedEmail ? { email: invitedEmail, invite: "1" } : undefined}
+                onClick={goToRegister}
                 className="text-gold underline-offset-4 hover:underline"
               >
                 Crear cuenta

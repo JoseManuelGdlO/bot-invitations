@@ -1,5 +1,6 @@
 import { Op } from "sequelize";
 import { Event, EventMember, EventRolePermission } from "../models/index.js";
+import { memberWhere } from "./membership.service.js";
 
 export const PERMS = {
   EDIT_ALL: "Editar todo",
@@ -17,7 +18,7 @@ export const PERMS = {
 export async function userEventIds(userId) {
   const owned = await Event.findAll({ where: { ownerId: userId }, attributes: ["id"] });
   const memberOf = await EventMember.findAll({
-    where: { userId },
+    where: memberWhere({ userId }),
     attributes: ["eventId"],
   });
   return [...new Set([...owned.map((e) => e.id), ...memberOf.map((m) => m.eventId)])];
@@ -46,7 +47,7 @@ export async function getMemberRole(userId, event) {
   if (!event) return null;
   if (event.ownerId === userId) return "Administrador";
   const member = await EventMember.findOne({
-    where: { eventId: event.id, userId },
+    where: memberWhere({ eventId: event.id, userId }),
   });
   return member?.role || null;
 }

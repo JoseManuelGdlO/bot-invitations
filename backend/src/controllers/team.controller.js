@@ -5,17 +5,33 @@ import { serializeMember, serializeRolePermission } from "../utils/serialize.js"
 import { initialsFromName } from "../utils/slug.js";
 import { sendTeamInvitationEmail } from "../services/email.service.js";
 import { env } from "../config/env.js";
-import { normalizeEmail } from "../services/membership.service.js";
+import { memberWhere, normalizeEmail } from "../services/membership.service.js";
 
 function isValidEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+async function sendInviteEmail(member, event, cleanEmail) {
+  const base = (env.frontendUrl || env.clientUrl || "http://localhost:8080").replace(/\/$/, "");
+  const inviteLink = `${base}/iniciar-sesion?email=${encodeURIComponent(cleanEmail)}`;
+  try {
+    await sendTeamInvitationEmail({
+      to: cleanEmail,
+      name: member.name,
+      eventName: event.name,
+      role: member.role,
+      inviteLink,
+    });
+  } catch (err) {
+    console.error("[Email Error]: Falló el envío de correo de invitación:", err.message);
+  }
 }
 
 export const listMembers = asyncHandler(async (req, res) => {
   const event = await requireEvent(req, res);
   if (!event) return;
   const members = await EventMember.findAll({
-    where: { eventId: event.id },
+    where: memberWhere({ eventId: event.id }),
     order: [["createdAt", "ASC"]],
   });
   res.json(members.map((m) => serializeMember(m, event.ownerId)));
@@ -41,34 +57,24 @@ export const inviteMember = asyncHandler(async (req, res) => {
 
   const existingUser = await User.findOne({ where: { email: cleanEmail } });
   const existingMember = await EventMember.findOne({ where: { eventId: event.id, email: cleanEmail } });
-  if (existingMember) {
+  if (existingMember && !existingMember.removedAt) {
     return res.status(409).json({ error: "Ese correo ya forma parte del equipo." });
   }
 
-  const member = await EventMember.create({
+  const payload = {
     eventId: event.id,
     userId: existingUser?.id || null,
     name: name.trim(),
     email: cleanEmail,
     role: memberRole,
     initials: initialsFromName(name),
-  });
+    removedAt: null,
+  };
+  const member = existingMember
+    ? await existingMember.update(payload)
+    : await EventMember.create(payload);
 
-  const base = (env.frontendUrl || env.clientUrl || "http://localhost:8080").replace(/\/$/, "");
-  const inviteLink = `${base}/iniciar-sesion?email=${encodeURIComponent(cleanEmail)}`;
-
-  try {
-    await sendTeamInvitationEmail({
-      to: cleanEmail,
-      name: member.name,
-      eventName: event.name,
-      role: member.role,
-      inviteLink,
-    });
-  } catch (err) {
-    console.error("[Email Error]: Falló el envío de correo de invitación:", err.message);
-  }
-
+  await sendInviteEmail(member, event, cleanEmail);
   res.status(201).json(serializeMember(member, event.ownerId));
 });
 
@@ -77,7 +83,7 @@ export const updateMember = asyncHandler(async (req, res) => {
   if (!event) return;
   if (!(await requirePermission(req, res, event, PERMS.MANAGE_TEAM))) return;
   const member = await EventMember.findOne({
-    where: { id: req.params.memberId, eventId: event.id },
+    where: memberWhere({ id: req.params.memberId, eventId: event.id }),
   });
   if (!member) return res.status(404).json({ error: "Miembro no encontrado." });
   if (member.userId && member.userId === event.ownerId && req.body?.role && req.body.role !== "Administrador") {
@@ -94,6 +100,13 @@ export const updateMember = asyncHandler(async (req, res) => {
       return res.status(400).json({ error: "El rol no es válido para este evento." });
     }
     member.role = req.body.role;
+    if (member.userId && member.userId !== event.ownerId) {
+      const memberUser = await User.findByPk(member.userId);
+      if (memberUser && !memberUser.planId) {
+        memberUser.role = req.body.role;
+        await memberUser.save();
+      }
+    }
   }
   await member.save();
   res.json(serializeMember(member, event.ownerId));
@@ -104,13 +117,14 @@ export const deleteMember = asyncHandler(async (req, res) => {
   if (!event) return;
   if (!(await requirePermission(req, res, event, PERMS.MANAGE_TEAM))) return;
   const member = await EventMember.findOne({
-    where: { id: req.params.memberId, eventId: event.id },
+    where: memberWhere({ id: req.params.memberId, eventId: event.id }),
   });
   if (!member) return res.status(404).json({ error: "Miembro no encontrado." });
   if (member.userId && member.userId === event.ownerId) {
     return res.status(400).json({ error: "No puedes eliminar al dueño del evento." });
   }
-  await member.destroy();
+  member.removedAt = new Date();
+  await member.save();
   res.json({ ok: true });
 });
 

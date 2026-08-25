@@ -1,4 +1,4 @@
-import { AiConfig, Plan, User, sequelize, syncModels } from "../models/index.js";
+import { AiConfig, Plan, User, sequelize, syncModels, ensureEventMemberRemovedAt } from "../models/index.js";
 import { ensurePlans } from "../services/plans.service.js";
 import { ensureAdmin } from "../controllers/admin.controller.js";
 import { syncStripePlans } from "../services/stripe.service.js";
@@ -22,6 +22,7 @@ async function backfillAiPrompts() {
 try {
   await sequelize.authenticate();
   await syncModels({ force, alter: force ? false : alter });
+  await ensureEventMemberRemovedAt();
   await backfillAiPrompts();
   await ensurePlans();
   await ensureAdmin();

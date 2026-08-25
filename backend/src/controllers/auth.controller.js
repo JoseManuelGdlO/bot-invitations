@@ -1,6 +1,6 @@
 import bcrypt from "bcryptjs";
 import { PasswordReset, Plan, RefreshToken, User } from "../models/index.js";
-import { claimPendingInvitations, findPendingInvitations, normalizeEmail } from "../services/membership.service.js";
+import { claimPendingInvitations, displayTeamRole, findInvitationsByEmail, findPendingInvitations, normalizeEmail } from "../services/membership.service.js";
 import { env } from "../config/env.js";
 import {
   hashToken,
@@ -21,9 +21,14 @@ async function userWithPlan(user) {
   const plan = user.planId ? await Plan.findByPk(user.planId) : null;
   const usage = await getPlanUsage(user);
   const cancellation = await getLatestCancellation(user.id);
-  return serializeUser(user, plan, usage, {
+  const serialized = serializeUser(user, plan, usage, {
     cancellation: cancellation ? serializeCancellation(cancellation) : null,
   });
+  if (!plan) {
+    const teamRole = await displayTeamRole(user.id);
+    if (teamRole) serialized.role = teamRole;
+  }
+  return serialized;
 }
 
 function cookieOpts(days) {
@@ -96,18 +101,31 @@ export const register = asyncHandler(async (req, res) => {
   res.status(201).json({ ...tokens, checkoutUrl });
 });
 
+export const invitationStatus = asyncHandler(async (req, res) => {
+  const email = normalizeEmail(req.query?.email);
+  if (!email) return res.json({ status: "none" });
+  const user = await User.findOne({ where: { email } });
+  const invites = await findInvitationsByEmail(email);
+  if (!invites.length) return res.json({ status: "none" });
+  if (user) return res.json({ status: "registered" });
+  return res.json({ status: "pending" });
+});
+
 export const registerInvite = asyncHandler(async (req, res) => {
   const { name, email, password } = req.body || {};
   if (!name?.trim() || !email?.trim() || !password || String(password).length < 6) {
     return res.status(400).json({ error: "Nombre, correo y contraseña (mín. 6) son requeridos." });
   }
   const cleanEmail = normalizeEmail(email);
+  const exists = await User.findOne({ where: { email: cleanEmail } });
+  if (exists) {
+    await claimPendingInvitations(exists);
+    return res.status(409).json({ error: "Ya tienes cuenta. Inicia sesión con este correo para ver el evento." });
+  }
   const pending = await findPendingInvitations(cleanEmail);
   if (!pending.length) {
     return res.status(403).json({ error: "No hay una invitación pendiente para este correo." });
   }
-  const exists = await User.findOne({ where: { email: cleanEmail } });
-  if (exists) return res.status(409).json({ error: "Ese correo ya está registrado." });
   const user = await User.create({
     name: name.trim(),
     email: cleanEmail,

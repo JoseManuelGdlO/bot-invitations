@@ -15,10 +15,14 @@ export const Route = createFileRoute("/eventos")({
 });
 
 function AppShell() {
-  const { session, hydrated, logout, events } = useStore();
+  const { session, hydrated, logout, events, eventAccess } = useStore();
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [supportUnread, setSupportUnread] = useState(0);
+  const eventSlug = pathname.match(/^\/eventos\/([^/]+)/)?.[1];
+  const reservedShell = new Set(["nuevo", "whatsapp", "suscripcion", "soporte"]);
+  const sidebarRole =
+    eventSlug && !reservedShell.has(eventSlug) ? eventAccess[eventSlug]?.role : null;
 
   useEffect(() => {
     if (hydrated && !session) navigate({ to: "/iniciar-sesion" });
@@ -162,7 +166,7 @@ function AppShell() {
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium">{session.name}</p>
               <p className="truncate text-[11px] text-muted-foreground">
-                {session.plan ? `Plan ${session.plan.name}` : session.role}
+                {session.plan ? `Plan ${session.plan.name}` : sidebarRole || session.role}
               </p>
               <PlanUsageHint session={session} />
               {!session.isAdmin && session.plan ? (

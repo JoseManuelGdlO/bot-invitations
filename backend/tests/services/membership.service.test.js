@@ -18,7 +18,7 @@ describe("membership.service", () => {
     await expect(service.claimPendingInvitations(user)).resolves.toBe(2);
     expect(models.EventMember.update).toHaveBeenCalledWith(
       { userId: "usr_new" },
-      { where: { userId: null, email: "luis@test.com" } },
+      { where: { removedAt: null, userId: null, email: "luis@test.com" } },
     );
   });
 
@@ -27,7 +27,12 @@ describe("membership.service", () => {
     const rows = await service.findPendingInvitations("Luis@Test.com");
     expect(rows).toHaveLength(1);
     expect(models.EventMember.findAll).toHaveBeenCalledWith({
-      where: { userId: null, email: "luis@test.com" },
+      where: { removedAt: null, userId: null, email: "luis@test.com" },
     });
+  });
+
+  test("displayTeamRole usa el rol más reciente del equipo", async () => {
+    models.EventMember.findAll.mockResolvedValue([{ role: "Coordinador" }]);
+    await expect(service.displayTeamRole("usr_1")).resolves.toBe("Coordinador");
   });
 });

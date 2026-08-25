@@ -105,18 +105,37 @@ describe("auth.controller", () => {
     });
     expect(models.EventMember.update).toHaveBeenCalledWith(
       { userId: user.id },
-      { where: { userId: null, email: "ana@test.com" } },
+      { where: { removedAt: null, userId: null, email: "ana@test.com" } },
     );
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ accessToken: expect.any(String) }));
   });
 
   test("registerInvite 403 sin invitación pendiente", async () => {
+    models.User.findOne.mockResolvedValue(null);
     models.EventMember.findAll.mockResolvedValue([]);
     const { res } = await callHandler(controller.registerInvite, {
       req: createMockReq({ body: { name: "Luis", email: "luis@test.com", password: "secret12" } }),
     });
     expect(res.status).toHaveBeenCalledWith(403);
     expect(models.User.create).not.toHaveBeenCalled();
+  });
+
+  test("registerInvite 409 si el correo ya tiene cuenta", async () => {
+    models.User.findOne.mockResolvedValue(fakeUser({ email: "luis@test.com" }));
+    const { res } = await callHandler(controller.registerInvite, {
+      req: createMockReq({ body: { name: "Luis", email: "luis@test.com", password: "secret12" } }),
+    });
+    expect(res.status).toHaveBeenCalledWith(409);
+    expect(models.User.create).not.toHaveBeenCalled();
+  });
+
+  test("invitationStatus pending", async () => {
+    models.User.findOne.mockResolvedValue(null);
+    models.EventMember.findAll.mockResolvedValue([{ id: "m1" }]);
+    const { res } = await callHandler(controller.invitationStatus, {
+      req: createMockReq({ query: { email: "Luis@Test.com" } }),
+    });
+    expect(res.json).toHaveBeenCalledWith({ status: "pending" });
   });
 
   test("registerInvite 201 crea cuenta sin checkout", async () => {
@@ -134,7 +153,7 @@ describe("auth.controller", () => {
     );
     expect(models.EventMember.update).toHaveBeenCalledWith(
       { userId: "usr_inv_1" },
-      { where: { userId: null, email: "luis@test.com" } },
+      { where: { removedAt: null, userId: null, email: "luis@test.com" } },
     );
     expect(startCheckout).not.toHaveBeenCalled();
     expect(res.status).toHaveBeenCalledWith(201);

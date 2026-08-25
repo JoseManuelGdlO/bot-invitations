@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useState } from "react";
-import { Check, Trash2 } from "lucide-react";
+import { useRef, useState } from "react";
+import { Check, Loader2, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -59,6 +59,8 @@ function Configuracion() {
   const [memberToRemove, setMemberToRemove] = useState<string | null>(null);
   const [deleteEventOpen, setDeleteEventOpen] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [inviting, setInviting] = useState(false);
+  const invitingRef = useRef(false);
   if (!event) return null;
   const roles = [...new Set(rolePermissions.map((p) => p.role))];
   const defaultRole = roles.includes("Asistente") ? "Asistente" : roles[0] || "Asistente";
@@ -140,7 +142,7 @@ function Configuracion() {
         <div className="flex items-center justify-between">
           <h2 className="font-display text-2xl">Equipo del evento</h2>
           {canManageTeam ? (
-            <Dialog open={open} onOpenChange={setOpen}>
+            <Dialog open={open} onOpenChange={(next) => { if (!inviting) setOpen(next); }}>
               <DialogTrigger asChild>
                 <Button size="sm">Invitar miembro</Button>
               </DialogTrigger>
@@ -176,7 +178,9 @@ function Configuracion() {
                     </Select>
                   </div>
                   <Button
+                    disabled={inviting}
                     onClick={async () => {
+                      if (invitingRef.current) return;
                       if (!invite.name.trim()) {
                         toast.error("El nombre es requerido");
                         return;
@@ -186,17 +190,23 @@ function Configuracion() {
                         return;
                       }
                       const role = roles.includes(invite.role) ? invite.role : defaultRole;
+                      invitingRef.current = true;
+                      setInviting(true);
                       try {
                         await inviteMember(eventId, { ...invite, role });
                         setInvite({ name: "", email: "", role: defaultRole });
                         setOpen(false);
                         toast.success("Miembro agregado e invitación enviada");
-                      } catch {
-                        toast.error("Error al guardar el miembro");
+                      } catch (err) {
+                        toast.error(err instanceof ApiError ? err.message : "Error al guardar el miembro");
+                      } finally {
+                        invitingRef.current = false;
+                        setInviting(false);
                       }
                     }}
                   >
-                    Guardar
+                    {inviting ? <Loader2 className="size-4 animate-spin" /> : null}
+                    {inviting ? "Enviando…" : "Guardar"}
                   </Button>
                 </div>
               </DialogContent>

@@ -97,6 +97,27 @@ function Registro() {
   }, [hydrated, session, hasChildRoute, navigate]);
 
   useEffect(() => {
+    if (!isInvite) return;
+    const targetEmail = (invitedEmail || email || "").trim();
+    if (!targetEmail) return;
+    let cancelled = false;
+    api<{ status: "none" | "pending" | "registered" }>(`/auth/invitation?email=${encodeURIComponent(targetEmail)}`)
+      .then(({ status }) => {
+        if (cancelled) return;
+        if (status === "registered") {
+          toast.message("Ya tienes cuenta. Inicia sesión con este correo para ver el evento.");
+          navigate({ to: "/iniciar-sesion", search: { email: targetEmail }, replace: true });
+        } else if (status === "none") {
+          toast.error("No hay una invitación pendiente para este correo.");
+        }
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [isInvite, invitedEmail, email, navigate]);
+
+  useEffect(() => {
     if (isInvite) return;
     api<SubscriptionPlan[]>("/plans")
       .then((rows) => {

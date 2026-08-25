@@ -123,7 +123,7 @@ export async function loadUserState(userId) {
     Template.findAll({ where: { eventId: ids }, order: [["createdAt", "ASC"]] }),
     Faq.findAll({ where: { eventId: ids }, order: [["createdAt", "ASC"]] }),
     Activity.findAll({ where: { eventId: ids }, order: [["createdAt", "DESC"]], limit: 40 }),
-    EventMember.findAll({ where: { eventId: ids }, order: [["createdAt", "ASC"]] }),
+    EventMember.findAll({ where: { eventId: ids, removedAt: null }, order: [["createdAt", "ASC"]] }),
     EventRolePermission.findAll({ where: { eventId: ids } }),
   ]);
 
@@ -148,7 +148,7 @@ export async function loadUserState(userId) {
       templates: templates.filter((t) => t.eventId === event.id).map(serializeTemplate),
       faqs: faqs.filter((f) => f.eventId === event.id).map(serializeFaq),
     };
-    const eventMembers = members.filter((m) => m.eventId === event.id);
+    const eventMembers = members.filter((m) => m.eventId === event.id && !m.removedAt);
     membersByEvent[event.slug] = eventMembers.map((m) => serializeMember(m, event.ownerId));
     permsByEvent[event.slug] = perms.filter((p) => p.eventId === event.id).map(serializeRolePermission);
     const eventGuests = guests.filter((g) => g.eventId === event.id);

@@ -31,6 +31,7 @@ router.post("/auth/refresh", auth.refresh);
 router.post("/auth/logout", auth.logout);
 router.post("/auth/forgot-password", auth.forgotPassword);
 router.post("/auth/reset-password", auth.resetPassword);
+router.get("/auth/invitation", auth.invitationStatus);
 router.get("/billing/session/:sessionId", billing.confirmSession);
 
 router.use(requireAuth);
