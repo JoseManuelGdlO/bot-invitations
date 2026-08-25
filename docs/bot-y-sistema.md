@@ -62,7 +62,7 @@ Dos ejes de estado:
 
 **Canal (`whatsapp`)**: `pendiente | enviado | entregado | leido | respondido`.
 
-Otros campos relevantes: `rep` (nombre), `phone`, `invited` (cupo), `confirmed`, `table`, `notes`, `followUp` (fecha DD/MM/YYYY para la UI), `followUpsSent` (ids de reglas ya disparadas), `contactedAt`, `confirmedAt`, `lastMessage`, `lastReply`.
+Otros campos relevantes: `rep` (nombre), `phone` (número de lista, visible), `whatsappChatId` (LID/JID de canal WC, no se expone en API), `invited` (cupo), `confirmed`, `table`, `notes`, `followUp` (fecha DD/MM/YYYY para la UI), `followUpsSent` (ids de reglas ya disparadas), `contactedAt`, `confirmedAt`, `lastMessage`, `lastReply`.
 
 ### Conversación
 
@@ -207,7 +207,7 @@ El modelo `Campaign` existe en BD y **no se usa**.
 
 ### Recordatorio 1 a 1
 
-`POST /api/guests/:guestId/remind` — Invitados. Misma plantilla Recordatorio + preflight WhatsApp. Si estaba `sin_contactar`, pasa a `enviado`.
+`POST /api/guests/:guestId/remind` — Invitados. Resuelve invitado y evento (`findGuestForUser`); 404 si falta el invitado o el evento (huérfano si el evento se borró). Misma plantilla Recordatorio + preflight WhatsApp. Si estaba `sin_contactar`, pasa a `enviado`.
 
 ### Scheduler
 
@@ -229,7 +229,8 @@ Proveedor: **WhatsApp Connect** (cuenta del planner).
 
 - Conexión: `/eventos/whatsapp` — QR, device, test.
 - Envío: worker → `WhatsAppConnectProvider.sendMessage` → `POST {WC_API_URL}/devices/{deviceId}/messages/send`.
-- Inbound: webhook firmado, enrutado por `deviceId`.
+- Destino (`to`): si el invitado tiene `whatsappChatId` con `@` (LID o JID de un inbound), se usa ese id; si no, el número internacional de lista (`guest.phone`, p. ej. `5216181556489`). El worker re-resuelve `to` al enviar.
+- Inbound: webhook firmado, enrutado por `deviceId`. Matching por `whatsappChatId` o por `fromPhone`/`displayPhone` contra `guest.phone` (nunca se trata un `@lid` como teléfono). Tras resolver, se guarda `whatsappChatId`. La UI solo muestra `guest.phone`.
 - No hay receipts de entregado/leído hacia `guest.whatsapp` (salvo `enviado`/`respondido` que sí escribe el producto).
 
 Productores de `whatsapp.send`: campaña, recordatorio, follow-up, reply del bot, aviso no-texto, mensaje del planner en Conversaciones.
@@ -302,6 +303,8 @@ Eventos, invitados, import/export, equipo, analytics, billing, support, admin (o
 | `backend/src/services/follow-up.scheduler.js` | Drip Recordatorio |
 | `backend/src/services/outbound.worker.js` | Cola + sync/rollback WA |
 | `backend/src/controllers/bot.controller.js` | Inbound WhatsApp |
+| `backend/src/controllers/guests.controller.js` | CRUD invitados, recordatorio 1 a 1 |
+| `backend/src/utils/whatsapp-identity.js` | LID vs `guest.phone` |
 | `backend/src/controllers/conversations.controller.js` | Campaña y chat planner |
 | `front/src/lib/api/bot.ts` | Cliente playground |
 

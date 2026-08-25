@@ -46,6 +46,7 @@ export const createGuest = asyncHandler(async (req, res) => {
 export const updateGuest = asyncHandler(async (req, res) => {
   const { guest, event } = await findGuestForUser(req.user.id, req.params.guestId);
   if (!guest) return res.status(404).json({ error: "Invitado no encontrado." });
+  if (!event) return res.status(404).json({ error: "Evento no encontrado." });
   const allowed = [
     "rep",
     "phone",
@@ -88,6 +89,7 @@ export const updateGuest = asyncHandler(async (req, res) => {
 export const remindGuest = asyncHandler(async (req, res) => {
   const { guest, event } = await findGuestForUser(req.user.id, req.params.guestId);
   if (!guest) return res.status(404).json({ error: "Invitado no encontrado." });
+  if (!event) return res.status(404).json({ error: "Evento no encontrado." });
   assertCanSendInvitations(req.user);
   await assertWhatsappReady(event);
   const text = await resolveReminderText(event, guest, req.user.name);
