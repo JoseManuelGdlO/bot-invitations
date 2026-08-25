@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { Download, MessageSquare, Search, Send, SlidersHorizontal } from "lucide-react";
+import { Download, MessageSquare, Search, Send, SlidersHorizontal, Trash2 } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/status-badge";
@@ -20,12 +20,23 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useEvent, useStore } from "@/lib/mock/store";
 import { STATUS_META, WHATSAPP_LABEL } from "@/lib/mock/format";
 import type { Guest } from "@/lib/mock/types";
 import { toast } from "sonner";
 import { PlanLimitBanner } from "@/components/plan-limit";
 import { PERMS } from "@/lib/permissions";
+import { ApiError } from "@/lib/api/client";
 
 export const Route = createFileRoute("/eventos/$eventId/invitados")({
   head: () => ({
@@ -43,7 +54,7 @@ export const Route = createFileRoute("/eventos/$eventId/invitados")({
 function Invitados() {
   const { eventId } = Route.useParams();
   const { guests } = useEvent(eventId);
-  const { updateGuest, remindGuest, exportGuests, session, hasPerm } = useStore();
+  const { updateGuest, remindGuest, exportGuests, session, hasPerm, deleteGuest } = useStore();
   const canExport = hasPerm(eventId, PERMS.EXPORT);
   const canConfirm = hasPerm(eventId, PERMS.CONFIRM);
   const canEditGuest = hasPerm(eventId, PERMS.EDIT_ALL);
@@ -52,6 +63,8 @@ function Invitados() {
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("todos");
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [guestToDelete, setGuestToDelete] = useState<Guest | null>(null);
+  const [deleting, setDeleting] = useState(false);
   const selected = guests.find((g) => g.id === selectedId) ?? null;
 
   const rows = useMemo(
@@ -125,7 +138,7 @@ function Invitados() {
               <TableHead className="max-w-56 whitespace-nowrap">Última respuesta</TableHead>
               <TableHead className="whitespace-nowrap">Confirmación</TableHead>
               <TableHead className="whitespace-nowrap">Seguimiento</TableHead>
-              <TableHead className="whitespace-nowrap text-right">Acciones</TableHead>
+              <TableHead className="whitespace-nowrap text-center">Acciones</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -154,20 +167,37 @@ function Invitados() {
                 <TableCell className="max-w-56 truncate text-muted-foreground">{g.lastReply || "—"}</TableCell>
                 <TableCell><StatusBadge status={g.status} /></TableCell>
                 <TableCell className="whitespace-nowrap text-muted-foreground">{g.followUp || "—"}</TableCell>
-                <TableCell className="text-right">
-                  {canRemind ? (
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toast.success(`Mensaje enviado a ${g.rep}`);
-                      remindGuest(g.id);
-                    }}
-                  >
-                    <Send className="size-4" />
-                  </Button>
-                  ) : null}
+                <TableCell className="text-center">
+                  <div className="flex items-center justify-center gap-1">
+                    {canRemind ? (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        aria-label={`Enviar recordatorio a ${g.rep}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          toast.success(`Mensaje enviado a ${g.rep}`);
+                          remindGuest(g.id);
+                        }}
+                      >
+                        <Send className="size-4" />
+                      </Button>
+                    ) : null}
+                    {canEditGuest ? (
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                        aria-label={`Eliminar a ${g.rep}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setGuestToDelete(g);
+                        }}
+                      >
+                        <Trash2 className="size-4" />
+                      </Button>
+                    ) : null}
+                  </div>
                 </TableCell>
               </TableRow>
             ))}
@@ -255,6 +285,41 @@ function Invitados() {
           ) : null}
         </SheetContent>
       </Sheet>
+
+      <AlertDialog open={!!guestToDelete} onOpenChange={(open) => !open && !deleting && setGuestToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Eliminar a {guestToDelete?.rep}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Se quitará de la lista de invitados y se borrará su conversación. Esta acción no se puede deshacer.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={deleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={async (e) => {
+                e.preventDefault();
+                if (!guestToDelete) return;
+                setDeleting(true);
+                try {
+                  await deleteGuest(guestToDelete.id);
+                  if (selectedId === guestToDelete.id) setSelectedId(null);
+                  toast.success("Invitación eliminada");
+                  setGuestToDelete(null);
+                } catch (err) {
+                  toast.error(err instanceof ApiError ? err.message : "No se pudo eliminar al invitado");
+                } finally {
+                  setDeleting(false);
+                }
+              }}
+            >
+              {deleting ? "Eliminando…" : "Eliminar"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </main>
   );
 }

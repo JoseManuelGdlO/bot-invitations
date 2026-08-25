@@ -1,4 +1,4 @@
-import { Event, Guest } from "../models/index.js";
+import { BotSession, Conversation, Event, Guest, Message, sequelize } from "../models/index.js";
 import { asyncHandler } from "../utils/async.js";
 import { serializeGuest } from "../utils/serialize.js";
 import { requireEvent, userEventIds, requirePermission, hasEventPermission, PERMS } from "../services/access.service.js";
@@ -95,6 +95,24 @@ export const updateGuest = asyncHandler(async (req, res) => {
     await logActivity(event.id, `${guest.rep} confirmó ${guest.confirmed} de ${guest.invited} lugares`, "confirm");
   }
   res.json(serializeGuest(guest, event.slug));
+});
+
+export const deleteGuest = asyncHandler(async (req, res) => {
+  const { guest, event } = await findGuestForUser(req.user.id, req.params.guestId);
+  if (!guest) return res.status(404).json({ error: "Invitado no encontrado." });
+  if (!event) return res.status(404).json({ error: "Evento no encontrado." });
+  if (!(await requirePermission(req, res, event, PERMS.EDIT_ALL))) return;
+  const conv = await Conversation.findOne({ where: { guestId: guest.id } });
+  await sequelize.transaction(async (t) => {
+    if (conv) {
+      await Message.destroy({ where: { conversationId: conv.id }, transaction: t });
+      await Conversation.destroy({ where: { id: conv.id }, transaction: t });
+    }
+    await BotSession.destroy({ where: { guestId: guest.id }, transaction: t });
+    await guest.destroy({ transaction: t });
+  });
+  await logActivity(event.id, `Se eliminó a ${guest.rep} de la lista de invitados`, "system");
+  res.json({ ok: true });
 });
 
 export const remindGuest = asyncHandler(async (req, res) => {
