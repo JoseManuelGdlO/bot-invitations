@@ -13,6 +13,41 @@ function ensureConfigured() {
   if (!env.wc.serviceJwt) throw httpError(500, "WC_SERVICE_JWT is required");
 }
 
+export function requireWcTenantId(tenantId) {
+  const id = String(tenantId || "").trim();
+  if (!id) {
+    throw httpError(400, "tenantId es obligatorio para operar un device de WhatsApp Connect.");
+  }
+  return id;
+}
+
+function devicePath(deviceId, suffix = "") {
+  const id = encodeURIComponent(String(deviceId || "").trim());
+  return `/devices/${id}${suffix}`;
+}
+
+function collectDeviceRows(payload) {
+  const lists = [payload, payload?.devices, payload?.data, payload?.data?.devices, payload?.items].filter(Array.isArray);
+  return lists[0] || [];
+}
+
+function readDeviceId(row = {}) {
+  return String(row.id || row.deviceId || row.device_id || row?.data?.id || "").trim();
+}
+
+function readTenantId(row = {}) {
+  return String(
+    row.tenantId ||
+      row.tenant_id ||
+      row.ownerTenantId ||
+      row.owner_tenant_id ||
+      row.tenant?.id ||
+      row.data?.tenantId ||
+      row.data?.tenant_id ||
+      "",
+  ).trim();
+}
+
 function safeJsonParse(raw) {
   try {
     return raw ? JSON.parse(raw) : {};
@@ -21,8 +56,9 @@ function safeJsonParse(raw) {
   }
 }
 
-async function wcFetch(path, { method = "GET", body, headers = {} } = {}) {
+async function wcFetch(path, { method = "GET", body, headers = {}, tenantId } = {}) {
   ensureConfigured();
+  const scopedTenant = tenantId !== undefined && tenantId !== null ? requireWcTenantId(tenantId) : null;
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), env.wc.timeoutMs);
   const authToken = String(env.wc.serviceJwt || "").trim();
@@ -33,6 +69,7 @@ async function wcFetch(path, { method = "GET", body, headers = {} } = {}) {
       headers: {
         "Content-Type": "application/json",
         Authorization: `Bearer ${authToken}`,
+        ...(scopedTenant ? { "x-tenant-id": scopedTenant } : {}),
         ...headers,
       },
       body: body ? JSON.stringify(body) : undefined,
@@ -55,7 +92,14 @@ async function wcFetch(path, { method = "GET", body, headers = {} } = {}) {
         console.error("[wc-client] service_jwt_invalid_or_missing_scope", { path, status: err.status });
       }
       if (err.status === 401) throw httpError(401, "service_jwt_invalid_or_missing_scope");
-      if (err.status === 403) throw httpError(403, "service_jwt_invalid_or_missing_scope");
+      if (err.status === 403) {
+        throw httpError(
+          403,
+          scopedTenant
+            ? "El device no está autorizado para este tenant."
+            : "service_jwt_invalid_or_missing_scope",
+        );
+      }
       if (err.status === 404) throw httpError(404, "WhatsApp Connect resource not found");
       if (err.status >= 500) throw httpError(502, "WhatsApp Connect upstream error");
       throw httpError(err.status, err.message || "WhatsApp Connect request failed");
@@ -81,17 +125,63 @@ function readPublicLinkExpiry(payload) {
   return payload?.expiresAt || payload?.data?.expiresAt || payload?.expires_at || payload?.data?.expires_at || null;
 }
 
+const DEVICE_NOT_OWNED = "Este device no pertenece al tenant de WhatsApp Connect indicado.";
+const DEVICE_OWNERSHIP_UNPROVEN =
+  "WhatsApp Connect no confirmó la titularidad del device para este tenant.";
+
 export const wcClient = {
-  async connectDevice(deviceId) {
-    await wcFetch(`/devices/${deviceId}/connect`, { method: "POST" });
+  async connectDevice({ deviceId, tenantId }) {
+    await wcFetch(devicePath(deviceId, "/connect"), { method: "POST", tenantId });
     return { ok: true };
   },
 
-  async createPublicLink(deviceId) {
-    const payload = await wcFetch(`/devices/${deviceId}/public-link`, { method: "POST" });
+  async createPublicLink({ deviceId, tenantId }) {
+    const payload = await wcFetch(devicePath(deviceId, "/public-link"), { method: "POST", tenantId });
     const url = readPublicLink(payload);
     if (!url) throw httpError(502, "WhatsApp Connect public link response invalid");
     return { url, expiresAt: readPublicLinkExpiry(payload) };
+  },
+
+  async getDevice({ deviceId, tenantId }) {
+    return wcFetch(devicePath(deviceId), { method: "GET", tenantId });
+  },
+
+  async listTenantDevices({ tenantId }) {
+    const tid = requireWcTenantId(tenantId);
+    return wcFetch(`/tenants/${encodeURIComponent(tid)}/devices`, { method: "GET", tenantId: tid });
+  },
+
+  async assertDeviceOwnedByTenant({ deviceId, tenantId }) {
+    const did = String(deviceId || "").trim();
+    const tid = requireWcTenantId(tenantId);
+    if (!did) throw httpError(400, "deviceId es obligatorio.");
+
+    let listed = false;
+    try {
+      const listPayload = await wcClient.listTenantDevices({ tenantId: tid });
+      listed = true;
+      const match = collectDeviceRows(listPayload).find((row) => readDeviceId(row) === did);
+      if (!match) throw httpError(403, DEVICE_NOT_OWNED);
+      const matchTenant = readTenantId(match);
+      if (matchTenant !== tid) throw httpError(403, matchTenant ? DEVICE_NOT_OWNED : DEVICE_OWNERSHIP_UNPROVEN);
+      return { deviceId: did, tenantId: tid };
+    } catch (err) {
+      if (listed || Number(err?.status) !== 404) throw err;
+    }
+
+    let device;
+    try {
+      device = await wcClient.getDevice({ deviceId: did, tenantId: tid });
+    } catch (err) {
+      if (Number(err?.status) === 404) throw httpError(403, DEVICE_NOT_OWNED);
+      throw err;
+    }
+    const claimed = readTenantId(device);
+    if (!claimed) throw httpError(403, DEVICE_OWNERSHIP_UNPROVEN);
+    if (claimed !== tid) throw httpError(403, DEVICE_NOT_OWNED);
+    const remoteId = readDeviceId(device);
+    if (remoteId && remoteId !== did) throw httpError(403, DEVICE_NOT_OWNED);
+    return { deviceId: did, tenantId: tid };
   },
 
   async sendMessage({ deviceId, to, type = "text", text, imageUrl, documentUrl, fileName, caption, tenantId }) {
@@ -135,14 +225,13 @@ export const wcClient = {
               text: String(text || ""),
             };
 
-    return wcFetch(`/devices/${deviceId}/messages/send`, {
+    const scopedTenant = requireWcTenantId(tenantId);
+    return wcFetch(devicePath(deviceId, "/messages/send"), {
       method: "POST",
-      headers: {
-        ...(tenantId ? { "x-tenant-id": String(tenantId) } : {}),
-      },
+      tenantId: scopedTenant,
       body: {
         ...messageBody,
-        ...(tenantId ? { tenantId } : {}),
+        tenantId: scopedTenant,
       },
     });
   },
@@ -164,8 +253,8 @@ export const wcClient = {
     }
   },
 
-  async getDeviceStatus({ deviceId }) {
-    const payload = await wcFetch(`/devices/${deviceId}/status`, { method: "GET" });
+  async getDeviceStatus({ deviceId, tenantId }) {
+    const payload = await wcFetch(devicePath(deviceId, "/status"), { method: "GET", tenantId });
     const status = String(payload?.status || payload?.data?.status || "UNKNOWN").toUpperCase();
     return {
       status: ["ONLINE", "OFFLINE"].includes(status) ? status : "UNKNOWN",

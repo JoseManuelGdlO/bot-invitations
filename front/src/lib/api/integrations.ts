@@ -41,7 +41,7 @@ export const integrationsApi = {
       body: JSON.stringify(body),
     }),
   remove: (id: string) => api<{ ok: boolean }>(`/integrations/${id}`, { method: "DELETE" }),
-  postCredentials: (id: string, payload: { deviceId: string; webhookSecret: string; tenantId?: string }) =>
+  postCredentials: (id: string, payload: { deviceId: string; webhookSecret: string; tenantId: string }) =>
     api<{ ok: boolean; hasActiveCredential: boolean }>(`/integrations/${id}/credentials`, {
       method: "POST",
       body: JSON.stringify({ payload }),
