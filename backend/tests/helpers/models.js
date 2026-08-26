@@ -71,6 +71,9 @@ const MODEL_NAMES = [
   "SupportMessage",
   "CancellationRequest",
   "OutboundJob",
+  "BotSession",
+  "ChannelIntegration",
+  "ChannelCredential",
 ];
 
 export function createModelsBundle() {

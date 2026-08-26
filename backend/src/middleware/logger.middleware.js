@@ -9,6 +9,10 @@ function hasKeys(value) {
 
 export function requestLogger(req, res, next) {
   const start = Date.now();
+  const { method, originalUrl } = req;
+  if (MUTATING.has(method)) {
+    httpLog.info(`${method} ${originalUrl}`);
+  }
 
   const originalJson = res.json.bind(res);
   res.json = (body) => {

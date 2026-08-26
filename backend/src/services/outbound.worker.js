@@ -92,8 +92,36 @@ function skipWhatsappSendReason(payload) {
   return null;
 }
 
-export async function processJob(job) {
+async function claimQueuedJob(job) {
+  if (job.id) {
+    const [claimed] = await OutboundJob.update(
+      { status: "processing", attempts: (job.attempts || 0) + 1 },
+      { where: { id: job.id, status: "queued" } },
+    );
+    if (!claimed) return false;
+    job.status = "processing";
+    job.attempts = (job.attempts || 0) + 1;
+    return true;
+  }
   await job.update({ status: "processing", attempts: job.attempts + 1 });
+  return true;
+}
+
+async function parkJobsStaggered(jobs, fromMs, intervalMinMs, intervalMaxMs) {
+  let at = fromMs;
+  for (const job of jobs) {
+    at += randomIntervalMs(intervalMinMs, intervalMaxMs);
+    await job.update({ scheduledAt: new Date(at) });
+  }
+  return jobs.length;
+}
+
+export async function processJob(job) {
+  const claimed = await claimQueuedJob(job);
+  if (!claimed) {
+    workerLog.debug(`job ${job.id} omitido: ya no está queued`);
+    return;
+  }
   let to = null;
   // Jobs already queued keep sending even if the owner's subscription expired or was canceled.
   try {
@@ -177,7 +205,12 @@ async function loadOwnerThrottleState(eventIds) {
   return summarizeOwnerSends(jobs, eventIds, hourAgo);
 }
 
-async function deferQueuedForOwner(eventIds, nextAt, { exceptId = null, bulkOnly = false } = {}) {
+async function deferQueuedForOwner(eventIds, nextAt, {
+  exceptId = null,
+  bulkOnly = false,
+  intervalMinMs = 0,
+  intervalMaxMs = 0,
+} = {}) {
   const where = {
     type: "whatsapp.send",
     status: "queued",
@@ -190,17 +223,20 @@ async function deferQueuedForOwner(eventIds, nextAt, { exceptId = null, bulkOnly
     if (bulkOnly && !isBulkKind(job.payload?.kind)) return false;
     return true;
   });
+  let at = new Date(nextAt).getTime();
   for (const job of mine) {
-    await job.update({ scheduledAt: nextAt });
+    await job.update({ scheduledAt: new Date(at) });
+    at += randomIntervalMs(intervalMinMs, intervalMaxMs);
   }
   return mine.length;
 }
 
 async function processOwnerTick(ownerId, dueJobs) {
   const jobs = sortOwnerJobs(dueJobs);
+  const candidate = jobs[0];
+  if (!candidate) return;
   const eventIds = await loadOwnerEventIds(ownerId);
   const state = await loadOwnerThrottleState(eventIds);
-  const candidate = jobs[0];
   const { intervalMinMs, intervalMaxMs, maxPerHour } = env.waSend;
   const { at, reason } = nextAllowedAt({
     now: new Date(),
@@ -215,21 +251,38 @@ async function processOwnerTick(ownerId, dueJobs) {
   });
 
   if (at && at.getTime() > Date.now()) {
-    const deferred = await deferQueuedForOwner(eventIds, at, {
-      bulkOnly: reason === "hourly",
-    });
-    workerLog.info(
-      `owner ${ownerId} aplazado: ${reason} hasta ${at.toISOString()} (${deferred} jobs)`,
-    );
-    return;
+    const farGap = reason === "gap" && at.getTime() - Date.now() > intervalMaxMs;
+    if (!farGap) {
+      const deferred = await deferQueuedForOwner(eventIds, at, {
+        bulkOnly: reason === "hourly",
+        intervalMinMs,
+        intervalMaxMs,
+      });
+      workerLog.info(
+        `owner ${ownerId} aplazado: ${reason} hasta ${at.toISOString()} (${deferred} jobs)`,
+      );
+      return;
+    }
+    workerLog.warn(`owner ${ownerId} ignora gap lejano ${at.toISOString()}`);
+  }
+
+  const parked = await parkJobsStaggered(jobs.slice(1), Date.now(), intervalMinMs, intervalMaxMs);
+  if (parked) {
+    workerLog.info(`owner ${ownerId} apartó ${parked} jobs para no enviar en paralelo`);
   }
 
   await processJob(candidate);
-  if (candidate.status !== "done") return;
 
   const nextAt = new Date(Date.now() + randomIntervalMs(intervalMinMs, intervalMaxMs));
   rememberNextGap(ownerId, nextAt);
-  await deferQueuedForOwner(eventIds, nextAt, { exceptId: candidate.id });
+  const deferred = await deferQueuedForOwner(eventIds, nextAt, {
+    exceptId: candidate.id,
+    intervalMinMs,
+    intervalMaxMs,
+  });
+  workerLog.info(
+    `owner ${ownerId} gap ${candidate.status} hasta ${nextAt.toISOString()} (${deferred} jobs)`,
+  );
 }
 
 export async function tickWorker() {

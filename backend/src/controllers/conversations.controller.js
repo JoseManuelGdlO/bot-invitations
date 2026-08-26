@@ -17,6 +17,7 @@ import { assertWhatsappReady } from "../services/integration-resolver.service.js
 import { deliverAiMessage } from "../services/guest-message.service.js";
 import { FALLBACK_OPENING, findTemplate, renderTemplate } from "../services/templates.service.js";
 import { resolveWhatsappTo } from "../utils/whatsapp-identity.js";
+import { resetOwnerThrottle } from "../services/outbound.throttle.js";
 import { Logger } from "../utils/logger.js";
 
 const log = new Logger("WhatsApp");
@@ -91,12 +92,14 @@ export const launchCampaign = asyncHandler(async (req, res) => {
   if (!event) return;
   if (!(await requirePermission(req, res, event, PERMS.REPLY))) return;
   assertCanSendInvitations(req.user);
+  log.info("lanzando campaña", { eventId: event.id, method: req.method, path: req.originalUrl });
   const guests = await Guest.findAll({ where: { eventId: event.id, status: "sin_contactar" } });
   if (guests.length) await assertWhatsappReady(event);
   const ai = await AiConfig.findOne({ where: { eventId: event.id } });
   const opening = await findTemplate(event.id, { category: "Primer contacto" });
   const body = opening?.body || ai?.openingMessage || FALLBACK_OPENING;
   const now = new Date();
+  resetOwnerThrottle(event.ownerId);
   for (const guest of guests) {
     const text = renderTemplate(body, event, guest, req.user.name);
     await deliverAiMessage({

@@ -18,6 +18,12 @@ describe("conversations.controller", () => {
         "src/services/outbound.worker.js": () => ({ enqueueJob: jest.fn(async () => undefined) }),
         "src/services/activity.service.js": () => ({ logActivity: jest.fn(async () => undefined) }),
         "src/services/plans.service.js": () => ({ assertCanSendInvitations: jest.fn() }),
+        "src/services/guest-message.service.js": () => ({
+          deliverAiMessage: jest.fn(async () => undefined),
+        }),
+        "src/services/integration-resolver.service.js": () => ({
+          assertWhatsappReady: jest.fn(async () => undefined),
+        }),
       },
     }));
   });
