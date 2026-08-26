@@ -49,8 +49,16 @@ export const portal = asyncHandler(async (req, res) => {
   res.json({ portalUrl: url });
 });
 
+function sessionPaid(session) {
+  return session.payment_status === "paid" || session.status === "complete";
+}
+
 export const confirmSession = asyncHandler(async (req, res) => {
   const session = await confirmCheckoutSession(req.query.session_id || req.params.sessionId);
   if (!session) return res.status(404).json({ error: "Sesión no encontrada." });
-  res.json({ ok: true, status: session.status, paymentStatus: session.payment_status });
+  const payload = { status: session.status, paymentStatus: session.payment_status };
+  if (!sessionPaid(session)) {
+    return res.status(409).json({ error: "El pago no se completó.", ...payload });
+  }
+  res.json({ ok: true, ...payload });
 });
