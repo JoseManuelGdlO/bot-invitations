@@ -14,7 +14,7 @@ function getTransporter() {
   const { host, port, secure, user, pass } = smtpConfig();
   if (!user || !pass) {
     throw new Error(
-      `Credenciales SMTP faltantes en .env (SMTP_USER: ${user ? "OK" : "FALTA"}, SMTP_PASS: ${pass ? "OK" : "FALTA"})`,
+      `Credenciales SMTP faltantes (SMTP_USER: ${user ? "OK" : "FALTA"}, SMTP_PASS: ${pass ? "OK" : "FALTA"})`,
     );
   }
   return nodemailer.createTransport({
