@@ -11,17 +11,23 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminRouteImport } from './routes/admin'
+import { Route as BlogRouteImport } from './routes/blog'
+import { Route as ConfirmacionInvitadosWhatsappRouteImport } from './routes/confirmacion-invitados-whatsapp'
 import { Route as EventosRouteImport } from './routes/eventos'
 import { Route as IniciarSesionRouteImport } from './routes/iniciar-sesion'
+import { Route as ParaWeddingPlannersRouteImport } from './routes/para-wedding-planners'
 import { Route as RecuperarContrasenaRouteImport } from './routes/recuperar-contrasena'
 import { Route as RegistroRouteImport } from './routes/registro'
 import { Route as RestablecerContrasenaRouteImport } from './routes/restablecer-contrasena'
+import { Route as SoftwareRsvpBodasRouteImport } from './routes/software-rsvp-bodas'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as AdminCancelacionesRouteImport } from './routes/admin.cancelaciones'
 import { Route as AdminClientesRouteImport } from './routes/admin.clientes'
 import { Route as AdminFinanzasRouteImport } from './routes/admin.finanzas'
 import { Route as AdminPlanesRouteImport } from './routes/admin.planes'
 import { Route as AdminSoporteRouteImport } from './routes/admin.soporte'
+import { Route as BlogIndexRouteImport } from './routes/blog.index'
+import { Route as BlogSlugRouteImport } from './routes/blog.$slug'
 import { Route as EventosIndexRouteImport } from './routes/eventos.index'
 import { Route as EventosEventIdRouteImport } from './routes/eventos.$eventId'
 import { Route as EventosNuevoRouteImport } from './routes/eventos.nuevo'
@@ -55,6 +61,17 @@ const AdminRoute = AdminRouteImport.update({
   path: '/admin',
   getParentRoute: () => rootRouteImport,
 } as any)
+const BlogRoute = BlogRouteImport.update({
+  id: '/blog',
+  path: '/blog',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ConfirmacionInvitadosWhatsappRoute =
+  ConfirmacionInvitadosWhatsappRouteImport.update({
+    id: '/confirmacion-invitados-whatsapp',
+    path: '/confirmacion-invitados-whatsapp',
+    getParentRoute: () => rootRouteImport,
+  } as any)
 const EventosRoute = EventosRouteImport.update({
   id: '/eventos',
   path: '/eventos',
@@ -63,6 +80,11 @@ const EventosRoute = EventosRouteImport.update({
 const IniciarSesionRoute = IniciarSesionRouteImport.update({
   id: '/iniciar-sesion',
   path: '/iniciar-sesion',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ParaWeddingPlannersRoute = ParaWeddingPlannersRouteImport.update({
+  id: '/para-wedding-planners',
+  path: '/para-wedding-planners',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RecuperarContrasenaRoute = RecuperarContrasenaRouteImport.update({
@@ -78,6 +100,11 @@ const RegistroRoute = RegistroRouteImport.update({
 const RestablecerContrasenaRoute = RestablecerContrasenaRouteImport.update({
   id: '/restablecer-contrasena',
   path: '/restablecer-contrasena',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SoftwareRsvpBodasRoute = SoftwareRsvpBodasRouteImport.update({
+  id: '/software-rsvp-bodas',
+  path: '/software-rsvp-bodas',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminIndexRoute = AdminIndexRouteImport.update({
@@ -109,6 +136,16 @@ const AdminSoporteRoute = AdminSoporteRouteImport.update({
   id: '/soporte',
   path: '/soporte',
   getParentRoute: () => AdminRoute,
+} as any)
+const BlogIndexRoute = BlogIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => BlogRoute,
+} as any)
+const BlogSlugRoute = BlogSlugRouteImport.update({
+  id: '/$slug',
+  path: '/$slug',
+  getParentRoute: () => BlogRoute,
 } as any)
 const EventosIndexRoute = EventosIndexRouteImport.update({
   id: '/',
@@ -229,16 +266,21 @@ const EventosSoporteTicketIdRoute = EventosSoporteTicketIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRouteWithChildren
+  '/blog': typeof BlogRouteWithChildren
+  '/confirmacion-invitados-whatsapp': typeof ConfirmacionInvitadosWhatsappRoute
   '/eventos': typeof EventosRouteWithChildren
   '/iniciar-sesion': typeof IniciarSesionRoute
+  '/para-wedding-planners': typeof ParaWeddingPlannersRoute
   '/recuperar-contrasena': typeof RecuperarContrasenaRoute
   '/registro': typeof RegistroRouteWithChildren
   '/restablecer-contrasena': typeof RestablecerContrasenaRoute
+  '/software-rsvp-bodas': typeof SoftwareRsvpBodasRoute
   '/admin/cancelaciones': typeof AdminCancelacionesRoute
   '/admin/clientes': typeof AdminClientesRoute
   '/admin/finanzas': typeof AdminFinanzasRoute
   '/admin/planes': typeof AdminPlanesRoute
   '/admin/soporte': typeof AdminSoporteRouteWithChildren
+  '/blog/$slug': typeof BlogSlugRoute
   '/eventos/$eventId': typeof EventosEventIdRouteWithChildren
   '/eventos/nuevo': typeof EventosNuevoRoute
   '/eventos/soporte': typeof EventosSoporteRouteWithChildren
@@ -247,6 +289,7 @@ export interface FileRoutesByFullPath {
   '/pago/exito': typeof PagoExitoRoute
   '/registro/exito': typeof RegistroExitoRoute
   '/admin/': typeof AdminIndexRoute
+  '/blog/': typeof BlogIndexRoute
   '/eventos/': typeof EventosIndexRoute
   '/admin/soporte/$ticketId': typeof AdminSoporteTicketIdRoute
   '/eventos/$eventId/automatizacion': typeof EventosEventIdAutomatizacionRoute
@@ -265,20 +308,25 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/confirmacion-invitados-whatsapp': typeof ConfirmacionInvitadosWhatsappRoute
   '/iniciar-sesion': typeof IniciarSesionRoute
+  '/para-wedding-planners': typeof ParaWeddingPlannersRoute
   '/recuperar-contrasena': typeof RecuperarContrasenaRoute
   '/registro': typeof RegistroRouteWithChildren
   '/restablecer-contrasena': typeof RestablecerContrasenaRoute
+  '/software-rsvp-bodas': typeof SoftwareRsvpBodasRoute
   '/admin/cancelaciones': typeof AdminCancelacionesRoute
   '/admin/clientes': typeof AdminClientesRoute
   '/admin/finanzas': typeof AdminFinanzasRoute
   '/admin/planes': typeof AdminPlanesRoute
+  '/blog/$slug': typeof BlogSlugRoute
   '/eventos/nuevo': typeof EventosNuevoRoute
   '/eventos/suscripcion': typeof EventosSuscripcionRoute
   '/eventos/whatsapp': typeof EventosWhatsappRoute
   '/pago/exito': typeof PagoExitoRoute
   '/registro/exito': typeof RegistroExitoRoute
   '/admin': typeof AdminIndexRoute
+  '/blog': typeof BlogIndexRoute
   '/eventos': typeof EventosIndexRoute
   '/admin/soporte/$ticketId': typeof AdminSoporteTicketIdRoute
   '/eventos/$eventId/automatizacion': typeof EventosEventIdAutomatizacionRoute
@@ -299,16 +347,21 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/admin': typeof AdminRouteWithChildren
+  '/blog': typeof BlogRouteWithChildren
+  '/confirmacion-invitados-whatsapp': typeof ConfirmacionInvitadosWhatsappRoute
   '/eventos': typeof EventosRouteWithChildren
   '/iniciar-sesion': typeof IniciarSesionRoute
+  '/para-wedding-planners': typeof ParaWeddingPlannersRoute
   '/recuperar-contrasena': typeof RecuperarContrasenaRoute
   '/registro': typeof RegistroRouteWithChildren
   '/restablecer-contrasena': typeof RestablecerContrasenaRoute
+  '/software-rsvp-bodas': typeof SoftwareRsvpBodasRoute
   '/admin/cancelaciones': typeof AdminCancelacionesRoute
   '/admin/clientes': typeof AdminClientesRoute
   '/admin/finanzas': typeof AdminFinanzasRoute
   '/admin/planes': typeof AdminPlanesRoute
   '/admin/soporte': typeof AdminSoporteRouteWithChildren
+  '/blog/$slug': typeof BlogSlugRoute
   '/eventos/$eventId': typeof EventosEventIdRouteWithChildren
   '/eventos/nuevo': typeof EventosNuevoRoute
   '/eventos/soporte': typeof EventosSoporteRouteWithChildren
@@ -317,6 +370,7 @@ export interface FileRoutesById {
   '/pago/exito': typeof PagoExitoRoute
   '/registro/exito': typeof RegistroExitoRoute
   '/admin/': typeof AdminIndexRoute
+  '/blog/': typeof BlogIndexRoute
   '/eventos/': typeof EventosIndexRoute
   '/admin/soporte/$ticketId': typeof AdminSoporteTicketIdRoute
   '/eventos/$eventId/automatizacion': typeof EventosEventIdAutomatizacionRoute
@@ -338,16 +392,21 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/admin'
+    | '/blog'
+    | '/confirmacion-invitados-whatsapp'
     | '/eventos'
     | '/iniciar-sesion'
+    | '/para-wedding-planners'
     | '/recuperar-contrasena'
     | '/registro'
     | '/restablecer-contrasena'
+    | '/software-rsvp-bodas'
     | '/admin/cancelaciones'
     | '/admin/clientes'
     | '/admin/finanzas'
     | '/admin/planes'
     | '/admin/soporte'
+    | '/blog/$slug'
     | '/eventos/$eventId'
     | '/eventos/nuevo'
     | '/eventos/soporte'
@@ -356,6 +415,7 @@ export interface FileRouteTypes {
     | '/pago/exito'
     | '/registro/exito'
     | '/admin/'
+    | '/blog/'
     | '/eventos/'
     | '/admin/soporte/$ticketId'
     | '/eventos/$eventId/automatizacion'
@@ -374,20 +434,25 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/confirmacion-invitados-whatsapp'
     | '/iniciar-sesion'
+    | '/para-wedding-planners'
     | '/recuperar-contrasena'
     | '/registro'
     | '/restablecer-contrasena'
+    | '/software-rsvp-bodas'
     | '/admin/cancelaciones'
     | '/admin/clientes'
     | '/admin/finanzas'
     | '/admin/planes'
+    | '/blog/$slug'
     | '/eventos/nuevo'
     | '/eventos/suscripcion'
     | '/eventos/whatsapp'
     | '/pago/exito'
     | '/registro/exito'
     | '/admin'
+    | '/blog'
     | '/eventos'
     | '/admin/soporte/$ticketId'
     | '/eventos/$eventId/automatizacion'
@@ -407,16 +472,21 @@ export interface FileRouteTypes {
     | '__root__'
     | '/'
     | '/admin'
+    | '/blog'
+    | '/confirmacion-invitados-whatsapp'
     | '/eventos'
     | '/iniciar-sesion'
+    | '/para-wedding-planners'
     | '/recuperar-contrasena'
     | '/registro'
     | '/restablecer-contrasena'
+    | '/software-rsvp-bodas'
     | '/admin/cancelaciones'
     | '/admin/clientes'
     | '/admin/finanzas'
     | '/admin/planes'
     | '/admin/soporte'
+    | '/blog/$slug'
     | '/eventos/$eventId'
     | '/eventos/nuevo'
     | '/eventos/soporte'
@@ -425,6 +495,7 @@ export interface FileRouteTypes {
     | '/pago/exito'
     | '/registro/exito'
     | '/admin/'
+    | '/blog/'
     | '/eventos/'
     | '/admin/soporte/$ticketId'
     | '/eventos/$eventId/automatizacion'
@@ -445,11 +516,15 @@ export interface FileRouteTypes {
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRouteWithChildren
+  BlogRoute: typeof BlogRouteWithChildren
+  ConfirmacionInvitadosWhatsappRoute: typeof ConfirmacionInvitadosWhatsappRoute
   EventosRoute: typeof EventosRouteWithChildren
   IniciarSesionRoute: typeof IniciarSesionRoute
+  ParaWeddingPlannersRoute: typeof ParaWeddingPlannersRoute
   RecuperarContrasenaRoute: typeof RecuperarContrasenaRoute
   RegistroRoute: typeof RegistroRouteWithChildren
   RestablecerContrasenaRoute: typeof RestablecerContrasenaRoute
+  SoftwareRsvpBodasRoute: typeof SoftwareRsvpBodasRoute
   PagoExitoRoute: typeof PagoExitoRoute
 }
 
@@ -469,6 +544,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/blog': {
+      id: '/blog'
+      path: '/blog'
+      fullPath: '/blog'
+      preLoaderRoute: typeof BlogRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/confirmacion-invitados-whatsapp': {
+      id: '/confirmacion-invitados-whatsapp'
+      path: '/confirmacion-invitados-whatsapp'
+      fullPath: '/confirmacion-invitados-whatsapp'
+      preLoaderRoute: typeof ConfirmacionInvitadosWhatsappRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/eventos': {
       id: '/eventos'
       path: '/eventos'
@@ -481,6 +570,13 @@ declare module '@tanstack/react-router' {
       path: '/iniciar-sesion'
       fullPath: '/iniciar-sesion'
       preLoaderRoute: typeof IniciarSesionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/para-wedding-planners': {
+      id: '/para-wedding-planners'
+      path: '/para-wedding-planners'
+      fullPath: '/para-wedding-planners'
+      preLoaderRoute: typeof ParaWeddingPlannersRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/recuperar-contrasena': {
@@ -502,6 +598,13 @@ declare module '@tanstack/react-router' {
       path: '/restablecer-contrasena'
       fullPath: '/restablecer-contrasena'
       preLoaderRoute: typeof RestablecerContrasenaRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/software-rsvp-bodas': {
+      id: '/software-rsvp-bodas'
+      path: '/software-rsvp-bodas'
+      fullPath: '/software-rsvp-bodas'
+      preLoaderRoute: typeof SoftwareRsvpBodasRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/': {
@@ -545,6 +648,20 @@ declare module '@tanstack/react-router' {
       fullPath: '/admin/soporte'
       preLoaderRoute: typeof AdminSoporteRouteImport
       parentRoute: typeof AdminRoute
+    }
+    '/blog/': {
+      id: '/blog/'
+      path: '/'
+      fullPath: '/blog/'
+      preLoaderRoute: typeof BlogIndexRouteImport
+      parentRoute: typeof BlogRoute
+    }
+    '/blog/$slug': {
+      id: '/blog/$slug'
+      path: '/$slug'
+      fullPath: '/blog/$slug'
+      preLoaderRoute: typeof BlogSlugRouteImport
+      parentRoute: typeof BlogRoute
     }
     '/eventos/': {
       id: '/eventos/'
@@ -737,6 +854,18 @@ const AdminRouteChildren: AdminRouteChildren = {
 
 const AdminRouteWithChildren = AdminRoute._addFileChildren(AdminRouteChildren)
 
+interface BlogRouteChildren {
+  BlogSlugRoute: typeof BlogSlugRoute
+  BlogIndexRoute: typeof BlogIndexRoute
+}
+
+const BlogRouteChildren: BlogRouteChildren = {
+  BlogSlugRoute: BlogSlugRoute,
+  BlogIndexRoute: BlogIndexRoute,
+}
+
+const BlogRouteWithChildren = BlogRoute._addFileChildren(BlogRouteChildren)
+
 interface EventosEventIdRouteChildren {
   EventosEventIdAutomatizacionRoute: typeof EventosEventIdAutomatizacionRoute
   EventosEventIdConfiguracionRoute: typeof EventosEventIdConfiguracionRoute
@@ -817,11 +946,15 @@ const RegistroRouteWithChildren = RegistroRoute._addFileChildren(
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRouteWithChildren,
+  BlogRoute: BlogRouteWithChildren,
+  ConfirmacionInvitadosWhatsappRoute: ConfirmacionInvitadosWhatsappRoute,
   EventosRoute: EventosRouteWithChildren,
   IniciarSesionRoute: IniciarSesionRoute,
+  ParaWeddingPlannersRoute: ParaWeddingPlannersRoute,
   RecuperarContrasenaRoute: RecuperarContrasenaRoute,
   RegistroRoute: RegistroRouteWithChildren,
   RestablecerContrasenaRoute: RestablecerContrasenaRoute,
+  SoftwareRsvpBodasRoute: SoftwareRsvpBodasRoute,
   PagoExitoRoute: PagoExitoRoute,
 }
 export const routeTree = rootRouteImport

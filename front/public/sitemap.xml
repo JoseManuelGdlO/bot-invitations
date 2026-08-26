@@ -6,18 +6,63 @@
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://alannaconfirmaciones.com.mx/registro</loc>
+    <loc>https://alannaconfirmaciones.com.mx/para-wedding-planners</loc>
     <changefreq>monthly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://alannaconfirmaciones.com.mx/confirmacion-invitados-whatsapp</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://alannaconfirmaciones.com.mx/software-rsvp-bodas</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://alannaconfirmaciones.com.mx/blog</loc>
+    <changefreq>weekly</changefreq>
     <priority>0.8</priority>
   </url>
   <url>
-    <loc>https://alannaconfirmaciones.com.mx/iniciar-sesion</loc>
+    <loc>https://alannaconfirmaciones.com.mx/blog/como-confirmar-invitados-boda-200</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://alannaconfirmaciones.com.mx/blog/plantilla-lista-invitados-boda</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://alannaconfirmaciones.com.mx/blog/rsvp-whatsapp-vs-excel</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://alannaconfirmaciones.com.mx/blog/software-para-wedding-planners</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://alannaconfirmaciones.com.mx/blog/dejar-de-perseguir-confirmaciones</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://alannaconfirmaciones.com.mx/blog/confirmacion-asistencia-xv-anos</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.7</priority>
+  </url>
+  <url>
+    <loc>https://alannaconfirmaciones.com.mx/registro</loc>
     <changefreq>monthly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://alannaconfirmaciones.com.mx/recuperar-contrasena</loc>
-    <changefreq>yearly</changefreq>
-    <priority>0.3</priority>
+    <loc>https://alannaconfirmaciones.com.mx/iniciar-sesion</loc>
+    <changefreq>monthly</changefreq>
+    <priority>0.4</priority>
   </url>
 </urlset>
