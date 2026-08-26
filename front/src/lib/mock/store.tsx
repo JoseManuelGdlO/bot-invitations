@@ -88,7 +88,7 @@ interface Ctx extends State {
   confirmImport: (
     eventId: string,
     payload: { columns: string[]; rows: string[][]; mapping: Record<string, string> },
-  ) => Promise<{ imported: number; skipped: number }>;
+  ) => Promise<{ imported: number; skipped: number; discarded: number }>;
   exportGuests: (eventId: string, format: "xlsx" | "csv" | "pdf", kind?: "guests" | "final") => Promise<void>;
   updateAI: (eventId: string, patch: Partial<EventData["ai"]>) => void;
   setTemplates: (eventId: string, t: EventData["templates"]) => void;
@@ -261,7 +261,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         return api<ImportPreview>(`/events/${eventId}/guests/import/preview`, { method: "POST", body });
       },
       confirmImport: async (eventId, payload) => {
-        const res = await api<{ imported: number; skipped: number }>(
+        const res = await api<{ imported: number; skipped: number; discarded: number }>(
           `/events/${eventId}/guests/import/confirm`,
           { method: "POST", body: JSON.stringify(payload) },
         );

@@ -91,6 +91,28 @@ describe("guests.controller", () => {
     expect(res.status).toHaveBeenCalledWith(400);
   });
 
+  test("confirmImport reporta discarded cuando faltan nombre o teléfono", async () => {
+    models.Guest.findAll.mockResolvedValue([]);
+    models.Guest.create.mockImplementation(async (data) => fakeGuest(data));
+    const { res } = await callHandler(controller.confirmImport, {
+      req: createMockReq({
+        user: fakeUser(),
+        params: { eventId: "boda-ana" },
+        body: {
+          columns: ["Nombre", "Teléfono"],
+          rows: [
+            ["Luis Pérez", "5511111111"],
+            ["Sin teléfono", ""],
+          ],
+          mapping: { Nombre: "rep", Teléfono: "phone" },
+        },
+      }),
+    });
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ imported: 1, skipped: 0, discarded: 1 }),
+    );
+  });
+
   test("exportGuests csv llama send", async () => {
     models.Guest.findAll.mockResolvedValue([fakeGuest()]);
     const { res } = await callHandler(controller.exportGuests, {

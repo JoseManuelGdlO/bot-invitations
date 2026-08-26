@@ -70,6 +70,11 @@ const previewRows = [
   ["Ana Sofía Bravo", "+52 33 1204 8876", "5", "Mesa 9", "Bravo", "Familia", "Hospedaje reservado"],
 ];
 
+function mappingHasRequiredFields(mapping: Record<string, string>) {
+  const values = Object.values(mapping);
+  return values.includes("rep") && values.includes("phone");
+}
+
 function Importar() {
   const { eventId } = Route.useParams();
   const { previewImport, confirmImport, session } = useStore();
@@ -80,6 +85,7 @@ function Importar() {
   const [mapping, setMapping] = useState(defaultMap);
   const [preview, setPreview] = useState<ImportPreview | null>(null);
   const [importedCount, setImportedCount] = useState(0);
+  const [importing, setImporting] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   const startProcessing = async (file: File) => {
@@ -88,33 +94,71 @@ function Importar() {
     try {
       const data = await previewImport(eventId, file);
       setProgress(100);
+      if (!data.rows.length) {
+        toast.error("El archivo no tiene filas con datos para importar.");
+        setPhase("upload");
+        return;
+      }
+      const nextMapping = Object.keys(data.suggestedMapping).length ? data.suggestedMapping : defaultMap;
       setPreview(data);
-      setMapping(Object.keys(data.suggestedMapping).length ? data.suggestedMapping : defaultMap);
+      setMapping(nextMapping);
+      toast.success(`Archivo leído: ${data.rows.length} filas detectadas`);
+      if (!mappingHasRequiredFields(nextMapping)) {
+        toast.warning("No se detectaron nombre y teléfono. Revisa el mapeo de columnas.");
+      }
       setTimeout(() => setPhase("mapping"), 250);
-    } catch {
+    } catch (err) {
       setPhase("upload");
-      toast.error("No se pudo leer el archivo");
+      toast.error(err instanceof ApiError ? err.message : "No se pudo leer el archivo");
+    } finally {
+      if (fileRef.current) fileRef.current.value = "";
     }
   };
 
   const doImport = async () => {
-    if (!preview) return;
+    if (!preview || importing) return;
+    if (!mappingHasRequiredFields(mapping)) {
+      toast.error("Asigna las columnas de nombre y teléfono antes de importar.");
+      return;
+    }
+    setImporting(true);
     try {
       const res = await confirmImport(eventId, {
         columns: preview.columns,
         rows: preview.rows,
         mapping,
       });
+      const discarded = res.discarded ?? 0;
+      if (res.imported === 0) {
+        if (res.skipped > 0) {
+          toast.warning(`Ningún invitado nuevo: ${res.skipped} ya estaban en la lista.`);
+        } else if (discarded > 0) {
+          toast.error(
+            `${discarded} filas se omitieron porque faltaba nombre o teléfono. Revisa el mapeo.`,
+          );
+        } else {
+          toast.error("No se importó ningún invitado. Revisa el archivo y el mapeo.");
+        }
+        return;
+      }
       setImportedCount(res.imported);
       setPhase("done");
       toast.success(`${res.imported} invitaciones importadas`);
+      if (res.skipped > 0) {
+        toast.info(`${res.skipped} filas se omitieron porque el teléfono ya existía.`);
+      }
+      if (discarded > 0) {
+        toast.info(`${discarded} filas se omitieron por falta de nombre o teléfono.`);
+      }
     } catch (err) {
       toast.error(isUpgradeError(err) || err instanceof ApiError ? (err as Error).message : "No se pudo importar el archivo");
+    } finally {
+      setImporting(false);
     }
   };
 
   return (
-    <main className="mx-auto w-full max-w-5xl flex-1 px-5 py-8 md:px-8">
+    <main className="mx-auto w-full min-w-0 max-w-5xl flex-1 px-5 py-8 md:px-8">
       <div className="mb-6">
         <PlanLimitBanner session={session} kind="guest" />
       </div>
@@ -171,7 +215,7 @@ function Importar() {
       ) : null}
 
       {phase === "mapping" ? (
-        <div className="space-y-6">
+        <div className="min-w-0 space-y-6">
           <div className="rounded-2xl border border-border bg-card p-6 shadow-soft">
             <div className="flex items-center gap-2">
               <CheckCircle2 className="size-5 text-success" />
@@ -180,7 +224,7 @@ function Importar() {
             <p className="mt-1 text-sm text-muted-foreground">
               {preview?.filename} · {preview?.rows.length ?? 0} filas detectadas · {preview?.columns.length ?? 0} columnas
             </p>
-            <div className="mt-5 overflow-x-auto rounded-xl border border-border">
+            <div className="mt-5 min-w-0 overflow-x-auto rounded-xl border border-border">
               <Table>
                 <TableHeader>
                   <TableRow>{(preview?.columns ?? excelColumns).map((c) => <TableHead key={c}>{c}</TableHead>)}</TableRow>
@@ -206,8 +250,8 @@ function Importar() {
               Indica qué representa cada columna de tu archivo.
             </p>
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
-              {(preview?.columns ?? excelColumns).map((c) => (
-                <div key={c} className="flex items-center gap-3 rounded-xl border border-border p-3">
+              {(preview?.columns ?? excelColumns).map((c, i) => (
+                <div key={`${c}-${i}`} className="flex items-center gap-3 rounded-xl border border-border p-3">
                   <div className="w-32 shrink-0">
                     <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Columna Excel</p>
                     <p className="text-sm font-medium">{c}</p>
@@ -215,6 +259,7 @@ function Importar() {
                   <Select
                     value={mapping[c] ?? "ignore"}
                     onValueChange={(v) => setMapping((m) => ({ ...m, [c]: v }))}
+                    disabled={importing}
                   >
                     <SelectTrigger className="flex-1"><SelectValue /></SelectTrigger>
                     <SelectContent>
@@ -225,8 +270,18 @@ function Importar() {
               ))}
             </div>
             <div className="mt-6 flex gap-3">
-              <Button onClick={doImport}>Importar invitados</Button>
-              <Button variant="ghost" onClick={() => setPhase("upload")}>Cancelar</Button>
+              <Button onClick={() => void doImport()} disabled={importing}>
+                {importing ? (
+                  <>
+                    <Loader2 className="size-4 animate-spin" /> Importando…
+                  </>
+                ) : (
+                  "Importar invitados"
+                )}
+              </Button>
+              <Button variant="ghost" disabled={importing} onClick={() => setPhase("upload")}>
+                Cancelar
+              </Button>
             </div>
           </div>
         </div>

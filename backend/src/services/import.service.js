@@ -2,13 +2,17 @@ import XLSX from "xlsx";
 
 const FIELD_ALIASES = {
   nombre: "rep",
+  "nombre completo": "rep",
   representante: "rep",
   name: "rep",
   telefono: "phone",
   teléfono: "phone",
+  celular: "phone",
   whatsapp: "phone",
   phone: "phone",
   invitados: "invited",
+  "nro invitados": "invited",
+  cupo: "invited",
   personas: "invited",
   mesa: "table",
   familia: "family",
