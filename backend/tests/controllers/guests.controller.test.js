@@ -46,6 +46,31 @@ describe("guests.controller", () => {
     models.Guest.create.mockImplementation(async (data) => fakeGuest(data));
   });
 
+  test("createGuest 400 si invited es negativo", async () => {
+    const { res } = await callHandler(controller.createGuest, {
+      req: createMockReq({
+        params: { eventId: "boda-ana" },
+        body: { rep: "Luis", phone: "5511111111", invited: -2 },
+      }),
+    });
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(models.Guest.create).not.toHaveBeenCalled();
+  });
+
+  test("updateGuest 400 si invited es negativo", async () => {
+    const { res } = await callHandler(controller.updateGuest, {
+      req: createMockReq({
+        user: fakeUser(),
+        params: { guestId: "gst_1" },
+        body: { invited: -1 },
+      }),
+    });
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ error: "El número de invitados debe ser al menos 1." }),
+    );
+  });
+
   test("createGuest 400 sin teléfono", async () => {
     const { res } = await callHandler(controller.createGuest, {
       req: createMockReq({ params: { eventId: "boda-ana" }, body: { rep: "Luis" } }),
@@ -184,5 +209,13 @@ describe("guests.controller Asistente", () => {
       req: createMockReq({ user: fakeUser(), params: { guestId: "gst_1" }, body: { phone: "5511111111" } }),
     });
     expect(res.status).toHaveBeenCalledWith(403);
+  });
+
+  test("exportGuests GET 403 sin permiso de exportar", async () => {
+    const { res } = await callHandler(controller.exportGuests, {
+      req: createMockReq({ params: { eventId: "boda-ana" }, query: { format: "csv" } }),
+    });
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.send).not.toHaveBeenCalled();
   });
 });

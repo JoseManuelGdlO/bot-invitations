@@ -36,6 +36,19 @@ describe("outbound.worker", () => {
     );
   });
 
+  test("processJob follow_up se salta sin enviar", async () => {
+    const job = createInstance({
+      type: "whatsapp.send",
+      attempts: 0,
+      payload: { to: "55", text: "hola", kind: "follow_up" },
+    });
+    await service.processJob(job);
+    expect(sendMessage).not.toHaveBeenCalled();
+    expect(job.update).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "skipped", lastError: expect.stringMatching(/follow-ups/i) }),
+    );
+  });
+
   test("processJob marca skipped cuando el stub no envía", async () => {
     const job = createInstance({
       type: "whatsapp.send",

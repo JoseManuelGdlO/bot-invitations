@@ -136,6 +136,7 @@ export const deleteEvent = asyncHandler(async (req, res) => {
 export const listGuests = asyncHandler(async (req, res) => {
   const event = await requireEvent(req, res);
   if (!event) return;
+  if (!(await requirePermission(req, res, event, PERMS.VIEW_GUESTS))) return;
   const where = { eventId: event.id };
   if (req.query.status && req.query.status !== "todos") where.status = req.query.status;
   if (req.query.search) {

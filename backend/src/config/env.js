@@ -65,8 +65,8 @@ export const env = {
     password: process.env.DB_PASSWORD || "alanna",
   },
   jwt: {
-    accessSecret: process.env.JWT_ACCESS_SECRET || "dev-access",
-    refreshSecret: process.env.JWT_REFRESH_SECRET || "dev-refresh",
+    accessSecret: process.env.JWT_ACCESS_SECRET,
+    refreshSecret: process.env.JWT_REFRESH_SECRET,
     accessExpires: process.env.JWT_ACCESS_EXPIRES || "8h",
     refreshDays: Number(process.env.JWT_REFRESH_EXPIRES_DAYS || 7),
     rememberDays: Number(process.env.JWT_REFRESH_REMEMBER_DAYS || 30),

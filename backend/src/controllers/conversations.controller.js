@@ -33,6 +33,7 @@ async function accessibleConversation(userId, conversationId) {
 export const listConversations = asyncHandler(async (req, res) => {
   const event = await requireEvent(req, res);
   if (!event) return;
+  if (!(await requirePermission(req, res, event, PERMS.VIEW_CHATS))) return;
   const conversations = await Conversation.findAll({
     where: { eventId: event.id },
     include: [{ model: Message, as: "messages" }],

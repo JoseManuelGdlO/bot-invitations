@@ -20,18 +20,27 @@ async function findGuestForUser(userId, guestId) {
   return { guest, event };
 }
 
+function parseInvitedCount(value, fallback = 1) {
+  if (value === undefined || value === null || value === "") return fallback;
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < 1) return null;
+  return Math.round(n);
+}
+
 export const createGuest = asyncHandler(async (req, res) => {
   const event = await requireEvent(req, res);
   if (!event) return;
   const body = req.body || {};
   if (!body.rep || !body.phone) return res.status(400).json({ error: "Nombre y teléfono son requeridos." });
-  await assertCanAddGuestsForEvent(req.user, event, Number(body.invited) || 1);
+  const invited = parseInvitedCount(body.invited, 1);
+  if (invited == null) return res.status(400).json({ error: "El número de invitados debe ser al menos 1." });
+  await assertCanAddGuestsForEvent(req.user, event, invited);
   if (!(await requirePermission(req, res, event, PERMS.EDIT_ALL))) return;
   const guest = await Guest.create({
     eventId: event.id,
     rep: body.rep,
     phone: body.phone,
-    invited: Number(body.invited) || 1,
+    invited,
     confirmed: Number(body.confirmed) || 0,
     table: body.table || "",
     family: body.family || "",
@@ -76,7 +85,9 @@ export const updateGuest = asyncHandler(async (req, res) => {
       ]
     : ["status", "confirmed", "whatsapp"];
   if (req.body?.invited !== undefined) {
-    const next = Number(req.body.invited) || 0;
+    const next = parseInvitedCount(req.body.invited, null);
+    if (next == null) return res.status(400).json({ error: "El número de invitados debe ser al menos 1." });
+    req.body.invited = next;
     const delta = next - Number(guest.invited || 0);
     if (delta > 0) await assertCanAddGuestsForEvent(req.user, event, delta);
   }

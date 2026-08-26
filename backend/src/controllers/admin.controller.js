@@ -5,10 +5,10 @@ import { asyncHandler } from "../utils/async.js";
 import { serializePlan } from "../services/plans.service.js";
 
 export async function ensureAdmin() {
-  const email = String(process.env.ADMIN_EMAIL || "admin@alannaconfirmaciones.com.mx")
+  const email = String(process.env.ADMIN_EMAIL)
     .trim()
     .toLowerCase();
-  const password = process.env.ADMIN_PASSWORD || "admin1234";
+  const password = process.env.ADMIN_PASSWORD;
   let user = await User.findOne({ where: { email } });
   if (!user) {
     user = await User.create({

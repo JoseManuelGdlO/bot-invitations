@@ -196,7 +196,7 @@ export async function processGuestMessage({
       instructions,
       items,
       executeTool: (call) =>
-        executeBotTool(call, { guest, event, ai: ctx.ai, plannerName: ctx.plannerName }),
+        executeBotTool(call, { guest, event, ai: ctx.ai, plannerName: ctx.plannerName, dryRun }),
       refreshLock: () => refreshBotSessionLock(session),
     });
     await saveSessionItems(session, result.items);

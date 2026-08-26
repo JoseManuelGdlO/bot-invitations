@@ -38,13 +38,13 @@ services:
       WC_SERVICE_JWT: ${WC_SERVICE_JWT:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
-      BOT_DEV_PLAYGROUND: ${BOT_DEV_PLAYGROUND:-}
       SMTP_HOST: ${SMTP_HOST:-smtp.hostinger.com}
       SMTP_PORT: ${SMTP_PORT:-465}
       SMTP_SECURE: ${SMTP_SECURE:-true}
       SMTP_USER: ${SMTP_USER:-}
       SMTP_PASS: ${SMTP_PASS:-}
       SMTP_FROM: ${SMTP_FROM:-}
+      BOT_DEV_PLAYGROUND: ${BOT_DEV_PLAYGROUND:-false}
 
   front:
     build:

@@ -112,6 +112,31 @@ describe("events.controller", () => {
     expect(res.status).toHaveBeenCalledWith(403);
   });
 
+  test("listGuests GET 403 sin Ver invitados", async () => {
+    ({ mod: controller } = await loadWithMocks("src/controllers/events.controller.js", {
+      extraMocks: {
+        "src/services/access.service.js": () => ({
+          requireEvent: jest.fn(async () => fakeEvent()),
+          userEventIds: jest.fn(async () => ["evt_1"]),
+          requirePermission: jest.fn(async (_req, res) => {
+            res.status(403).json({ error: "No tienes permiso para esta acción." });
+            return false;
+          }),
+          requireEventOwner: jest.fn(async () => true),
+          PERMS,
+        }),
+        "src/services/event-setup.service.js": () => ({ seedEventDefaults: jest.fn(async () => undefined) }),
+        "src/services/activity.service.js": () => ({ logActivity: jest.fn(async () => undefined) }),
+        "src/services/plans.service.js": () => ({ assertCanCreateEvent: jest.fn(async () => undefined) }),
+      },
+    }));
+    const { res } = await callHandler(controller.listGuests, {
+      req: createMockReq({ params: { eventId: "boda-ana" } }),
+    });
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ error: "No tienes permiso para esta acción." }));
+  });
+
   test("listGuests filtra por status", async () => {
     models.Guest.findAll.mockResolvedValue([]);
     await callHandler(controller.listGuests, {

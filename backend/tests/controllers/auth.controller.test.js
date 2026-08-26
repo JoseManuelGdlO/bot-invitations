@@ -231,30 +231,50 @@ describe("auth.controller", () => {
     expect(res.status).toHaveBeenCalledWith(400);
   });
 
-  test("resetPassword revoca refresh y sube tokenVersion", async () => {
-    const user = fakeUser({ tokenVersion: 0 });
-    const resetRow = {
-      userId: user.id,
-      expiresAt: new Date(Date.now() + 60_000),
+  test("resetPassword 400 si el enlace expiró", async () => {
+    models.PasswordReset.findOne.mockResolvedValue({
+      userId: "usr_test_1",
+      expiresAt: new Date(Date.now() - 1000),
+      usedAt: null,
+      save: jest.fn(),
+    });
+    const { res } = await callHandler(controller.resetPassword, {
+      req: createMockReq({ body: { token: "deadbeef", password: "nueva123" } }),
+    });
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ error: "El enlace ya no es válido." }));
+  });
+
+  test("resetPassword actualiza el hash y marca el token usado", async () => {
+    const row = {
+      userId: "usr_test_1",
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000),
       usedAt: null,
       save: jest.fn(async function save() {
         return this;
       }),
     };
-    models.PasswordReset.findOne.mockResolvedValue(resetRow);
+    const user = fakeUser();
+    models.PasswordReset.findOne.mockResolvedValue(row);
     models.User.findByPk.mockResolvedValue(user);
 
     const { res } = await callHandler(controller.resetPassword, {
-      req: createMockReq({ body: { token: "reset-token-value", password: "secret12" } }),
+      req: createMockReq({ body: { token: "alivebeef", password: "nueva123" } }),
     });
 
-    expect(models.RefreshToken.update).toHaveBeenCalledWith(
-      expect.objectContaining({ revokedAt: expect.any(Date) }),
-      expect.objectContaining({ where: expect.objectContaining({ userId: user.id }) }),
-    );
-    expect(user.tokenVersion).toBe(1);
-    expect(resetRow.usedAt).toEqual(expect.any(Date));
+    expect(user.passwordHash).toBe("hashed_password");
+    expect(user.save).toHaveBeenCalled();
+    expect(row.usedAt).toBeInstanceOf(Date);
+    expect(row.save).toHaveBeenCalled();
     expect(res.json).toHaveBeenCalledWith({ ok: true });
+  });
+
+  test("resetPassword 400 si el token ya se usó", async () => {
+    models.PasswordReset.findOne.mockResolvedValue(null);
+    const { res } = await callHandler(controller.resetPassword, {
+      req: createMockReq({ body: { token: "used", password: "nueva123" } }),
+    });
+    expect(res.status).toHaveBeenCalledWith(400);
   });
 
   test("me serializa sesión", async () => {

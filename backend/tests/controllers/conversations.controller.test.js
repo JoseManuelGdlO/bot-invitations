@@ -5,8 +5,12 @@ import { createInstance } from "../helpers/models.js";
 describe("conversations.controller", () => {
   let controller;
   let models;
+  let deliverAiMessage;
+  let assertWhatsappReady;
 
   beforeEach(async () => {
+    deliverAiMessage = jest.fn(async () => undefined);
+    assertWhatsappReady = jest.fn(async () => undefined);
     ({ mod: controller, models } = await loadWithMocks("src/controllers/conversations.controller.js", {
       extraMocks: {
         "src/services/access.service.js": () => ({
@@ -18,12 +22,8 @@ describe("conversations.controller", () => {
         "src/services/outbound.worker.js": () => ({ enqueueJob: jest.fn(async () => undefined) }),
         "src/services/activity.service.js": () => ({ logActivity: jest.fn(async () => undefined) }),
         "src/services/plans.service.js": () => ({ assertCanSendInvitations: jest.fn() }),
-        "src/services/guest-message.service.js": () => ({
-          deliverAiMessage: jest.fn(async () => undefined),
-        }),
-        "src/services/integration-resolver.service.js": () => ({
-          assertWhatsappReady: jest.fn(async () => undefined),
-        }),
+        "src/services/guest-message.service.js": () => ({ deliverAiMessage }),
+        "src/services/integration-resolver.service.js": () => ({ assertWhatsappReady }),
       },
     }));
   });
@@ -66,5 +66,64 @@ describe("conversations.controller", () => {
       req: createMockReq({ params: { eventId: "boda-ana" } }),
     });
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ launched: 1 }));
+  });
+
+  test("segundo launchCampaign no reenvía a quienes ya salieron de sin_contactar", async () => {
+    const guest = fakeGuest({ status: "enviado" });
+    models.AiConfig.findOne.mockResolvedValue({ openingMessage: "Hola {{nombre}}", assistantName: "Sofía" });
+    models.Guest.findAll
+      .mockResolvedValueOnce([fakeGuest()])
+      .mockResolvedValueOnce([guest])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([guest]);
+
+    const first = await callHandler(controller.launchCampaign, {
+      req: createMockReq({ params: { eventId: "boda-ana" } }),
+    });
+    const second = await callHandler(controller.launchCampaign, {
+      req: createMockReq({ params: { eventId: "boda-ana" } }),
+    });
+
+    expect(first.res.json).toHaveBeenCalledWith(expect.objectContaining({ launched: 1 }));
+    expect(second.res.json).toHaveBeenCalledWith(expect.objectContaining({ launched: 0 }));
+    expect(deliverAiMessage).toHaveBeenCalledTimes(1);
+    expect(assertWhatsappReady).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("conversations.controller GET 403", () => {
+  let controller;
+
+  beforeEach(async () => {
+    ({ mod: controller } = await loadWithMocks("src/controllers/conversations.controller.js", {
+      extraMocks: {
+        "src/services/access.service.js": () => ({
+          requireEvent: jest.fn(async () => fakeEvent()),
+          userEventIds: jest.fn(async () => ["evt_1"]),
+          requirePermission: jest.fn(async (_req, res) => {
+            res.status(403).json({ error: "No tienes permiso para esta acción." });
+            return false;
+          }),
+          PERMS,
+        }),
+        "src/services/outbound.worker.js": () => ({ enqueueJob: jest.fn(async () => undefined) }),
+        "src/services/activity.service.js": () => ({ logActivity: jest.fn(async () => undefined) }),
+        "src/services/plans.service.js": () => ({ assertCanSendInvitations: jest.fn() }),
+        "src/services/guest-message.service.js": () => ({
+          deliverAiMessage: jest.fn(async () => undefined),
+        }),
+        "src/services/integration-resolver.service.js": () => ({
+          assertWhatsappReady: jest.fn(async () => undefined),
+        }),
+      },
+    }));
+  });
+
+  test("listConversations 403 sin Ver conversaciones", async () => {
+    const { res } = await callHandler(controller.listConversations, {
+      req: createMockReq({ params: { eventId: "boda-ana" } }),
+    });
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ error: "No tienes permiso para esta acción." }));
   });
 });
