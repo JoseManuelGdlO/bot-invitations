@@ -1,7 +1,7 @@
 import { asyncHandler } from "../utils/async.js";
 import { Conversation, Event, Guest, Message } from "../models/index.js";
 import { requireEvent, userEventIds } from "../services/access.service.js";
-import { processGuestMessage } from "../services/bot/bot.service.js";
+import { appendOutboundToSession, processGuestMessage } from "../services/bot/bot.service.js";
 import {
   deleteBotSession,
   getBotSession,
@@ -10,7 +10,26 @@ import {
 } from "../services/bot/session.service.js";
 import { itemsToChat } from "../services/bot/openai.service.js";
 import { buildInstructions, loadEventBotContext } from "../services/bot/prompt.service.js";
+import { resolveOpeningText } from "../services/templates.service.js";
+import { botLog } from "../services/bot/bot-logger.js";
 import { serializeConversation, serializeMessage } from "../utils/serialize.js";
+
+/** Igual que una campaña real: el playground arranca con la plantilla de Primer contacto ya “enviada”. */
+async function ensurePlaygroundOpening(event, guest, userId) {
+  const existing = await getBotSession({ eventId: event.id, guestId: guest.id, userId });
+  const items = asItems(existing?.items);
+  if (items.length > 0) return items;
+
+  const ctx = await loadEventBotContext(event, guest);
+  const opening = await resolveOpeningText(event, guest, ctx.plannerName, ctx.ai?.openingMessage);
+  botLog("playground invitación inicial", {
+    eventId: event.id,
+    guestId: guest.id,
+    preview: opening.slice(0, 120),
+  });
+  const session = await appendOutboundToSession({ event, guest, text: opening, userId });
+  return asItems(session.items);
+}
 
 export const status = asyncHandler(async (_req, res) => {
   res.json({ enabled: true });
@@ -56,8 +75,7 @@ export const getPlayground = asyncHandler(async (req, res) => {
   const guest = await Guest.findOne({ where: { id: guestId, eventId: event.id } });
   if (!guest) return res.status(404).json({ error: "Invitado no encontrado." });
   const userId = playgroundUserId(event.id, guest.id);
-  const session = await getBotSession({ eventId: event.id, guestId: guest.id, userId });
-  const items = asItems(session?.items);
+  const items = await ensurePlaygroundOpening(event, guest, userId);
   res.json({
     ok: true,
     eventId: event.slug,
@@ -80,11 +98,14 @@ export const postPlayground = asyncHandler(async (req, res) => {
   const userId = playgroundUserId(event.id, guest.id);
   if (reset) {
     await deleteBotSession({ eventId: event.id, guestId: guest.id, userId });
+    botLog("playground reiniciado", { eventId: event.id, guestId: guest.id });
     if (!message) {
-      return res.json({ ok: true, reply: null, messages: [] });
+      const items = await ensurePlaygroundOpening(event, guest, userId);
+      return res.json({ ok: true, reply: null, messages: itemsToChat(items) });
     }
   }
   if (!message) return res.status(400).json({ error: "message es requerido." });
+  await ensurePlaygroundOpening(event, guest, userId);
   const result = await processGuestMessage({
     eventId: event.id,
     guestId: guest.id,
@@ -99,6 +120,8 @@ export const postPlayground = asyncHandler(async (req, res) => {
     locked: Boolean(result.locked),
     skipped: Boolean(result.skipped),
     reason: result.reason || null,
+    intent: result.intent || null,
+    logs: result.logs || [],
     tools: result.tools || [],
     messages: itemsToChat(result.items || []),
   });

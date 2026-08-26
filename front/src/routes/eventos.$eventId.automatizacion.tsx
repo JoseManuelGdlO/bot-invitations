@@ -242,7 +242,7 @@ function Automatizacion() {
                     <h3 className="font-display text-xl">Probar bot</h3>
                   </div>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Solo en desarrollo. Usa el prompt y las plantillas de este evento, sin WhatsApp.
+                    Solo en desarrollo. Arranca con la invitación inicial ya enviada; tú respondes como el invitado. Sin WhatsApp.
                   </p>
                 </div>
                 <Button

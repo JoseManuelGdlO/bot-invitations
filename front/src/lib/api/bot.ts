@@ -13,6 +13,13 @@ export type BotPromptPreview = {
 
 export type BotPlaygroundMessage = { role: "user" | "assistant"; text: string };
 
+export type BotPlaygroundLog = {
+  kind: "intent" | "faq" | "tool" | "template" | string;
+  label: string;
+  value?: string;
+  detail?: string;
+};
+
 export type BotPlaygroundState = {
   ok: boolean;
   eventId: string;
@@ -28,6 +35,8 @@ export type BotPlaygroundReply = {
   locked?: boolean;
   skipped?: boolean;
   reason?: string | null;
+  intent?: string | null;
+  logs?: BotPlaygroundLog[];
   tools?: unknown[];
   messages: BotPlaygroundMessage[];
 };

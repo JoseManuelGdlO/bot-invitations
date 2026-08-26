@@ -1,11 +1,9 @@
 import { env } from "../config/env.js";
 import { enqueueJob } from "../services/outbound.worker.js";
 import { processGuestMessage, rememberWhatsappChatId, resolveGuestForInbound } from "../services/bot/bot.service.js";
+import { botLog, botWarn } from "../services/bot/bot-logger.js";
 import { normalizePhone } from "../services/bot/session.service.js";
 import { extractInboundIdentity, resolveWhatsappTo } from "../utils/whatsapp-identity.js";
-import { Logger } from "../utils/logger.js";
-
-const botLog = new Logger("Bot");
 
 export function extractInboundMessage(payload = {}) {
   const type = String(payload.type || payload.event || "").trim();
@@ -44,7 +42,7 @@ export async function handleInboundWhatsapp({ payload, integration }) {
     return { processed: false, reason: "ignored_event" };
   }
   if (inbound.isGroup) {
-    botLog.info("inbound ignorado", { reason: "group_message_ignored" });
+    botWarn("inbound ignorado: grupo");
     return { processed: true, reason: "group_message_ignored" };
   }
   if (!inbound.chatId) {
@@ -62,8 +60,7 @@ export async function handleInboundWhatsapp({ payload, integration }) {
     displayPhone: inbound.displayPhone,
   });
   if (!resolved?.guest || !resolved?.event) {
-    botLog.info("inbound ignorado", {
-      reason: "guest_not_found",
+    botWarn("inbound ignorado: invitado no encontrado", {
       chatId: inbound.chatId,
       displayPhone: inbound.displayPhone,
       ownerUserId,
@@ -94,10 +91,13 @@ export async function handleInboundWhatsapp({ payload, integration }) {
       dryRun: false,
       persistConversation: true,
     });
-    botLog.info("inbound procesado", {
+    botLog("inbound procesado", {
       eventId: event.id,
       guestId: guest.id,
       reason: result.skipped ? result.reason : "ai_reply",
+      intent: result.intent || null,
+      tools: (result.tools || []).map((t) => t.name).filter(Boolean),
+      logs: (result.logs || []).map((l) => `${l.kind}:${l.value || l.label}`),
     });
     return {
       processed: true,
@@ -107,7 +107,7 @@ export async function handleInboundWhatsapp({ payload, integration }) {
       conversationId: result.conversationId || null,
     };
   } catch (error) {
-    botLog.error("inbound falló", {
+    botLog("inbound falló", {
       eventId: event.id,
       guestId: guest.id,
       error: error.message,

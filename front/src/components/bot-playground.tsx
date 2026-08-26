@@ -10,7 +10,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { botApi, type BotPlaygroundMessage } from "@/lib/api/bot";
+import { botApi, type BotPlaygroundLog, type BotPlaygroundMessage } from "@/lib/api/bot";
 import type { Guest } from "@/lib/mock/types";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -20,9 +20,17 @@ type Props = {
   guests: Guest[];
 };
 
+type PlaygroundRow =
+  | { kind: "msg"; role: "user" | "assistant"; text: string }
+  | { kind: "logs"; items: BotPlaygroundLog[] };
+
+function messagesToRows(messages: BotPlaygroundMessage[]): PlaygroundRow[] {
+  return messages.map((msg) => ({ kind: "msg", role: msg.role, text: msg.text }));
+}
+
 export function BotPlayground({ eventId, guests }: Props) {
   const [guestId, setGuestId] = useState(guests[0]?.id ?? "");
-  const [messages, setMessages] = useState<BotPlaygroundMessage[]>([]);
+  const [rows, setRows] = useState<PlaygroundRow[]>([]);
   const [draft, setDraft] = useState("");
   const [busy, setBusy] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
@@ -33,17 +41,17 @@ export function BotPlayground({ eventId, guests }: Props) {
 
   useEffect(() => {
     if (!guestId) {
-      setMessages([]);
+      setRows([]);
       return;
     }
     let cancelled = false;
     botApi
       .getPlayground(eventId, guestId)
       .then((res) => {
-        if (!cancelled) setMessages(res.messages || []);
+        if (!cancelled) setRows(messagesToRows(res.messages || []));
       })
       .catch(() => {
-        if (!cancelled) setMessages([]);
+        if (!cancelled) setRows([]);
       });
     return () => {
       cancelled = true;
@@ -52,20 +60,26 @@ export function BotPlayground({ eventId, guests }: Props) {
 
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages.length]);
+  }, [rows.length]);
 
-  const send = async (reset = false) => {
+  const send = async () => {
     const text = draft.trim();
     if (!text || !guestId || busy) return;
     setBusy(true);
-    setMessages((prev) => [...(reset ? [] : prev), { role: "user", text }]);
+    setRows((prev) => [...prev, { kind: "msg", role: "user", text }]);
     setDraft("");
     try {
-      const result = await botApi.chat(eventId, { guestId, message: text, reset });
+      const result = await botApi.chat(eventId, { guestId, message: text });
       if (result.messages?.length) {
-        setMessages(result.messages);
+        const next = messagesToRows(result.messages);
+        if (result.logs?.length) next.push({ kind: "logs", items: result.logs });
+        setRows(next);
       } else if (result.reply) {
-        setMessages((prev) => [...prev, { role: "assistant", text: result.reply || "" }]);
+        setRows((prev) => {
+          const next: PlaygroundRow[] = [...prev, { kind: "msg", role: "assistant", text: result.reply || "" }];
+          if (result.logs?.length) next.push({ kind: "logs", items: result.logs });
+          return next;
+        });
       }
       if (result.locked) toast.info("Espera a que termine la respuesta anterior.");
     } catch (error) {
@@ -78,8 +92,8 @@ export function BotPlayground({ eventId, guests }: Props) {
   const reset = async () => {
     if (!guestId) return;
     try {
-      await botApi.chat(eventId, { guestId, message: "", reset: true });
-      setMessages([]);
+      const result = await botApi.chat(eventId, { guestId, message: "", reset: true });
+      setRows(messagesToRows(result.messages || []));
       setDraft("");
       toast.success("Conversación de prueba reiniciada");
     } catch (error) {
@@ -118,24 +132,47 @@ export function BotPlayground({ eventId, guests }: Props) {
         </Button>
       </div>
       <div className="mt-3 min-h-0 flex-1 space-y-2 overflow-y-auto rounded-xl border border-border bg-secondary/30 p-3">
-        {messages.length === 0 ? (
+        {rows.length === 0 ? (
           <p className="py-8 text-center text-xs text-muted-foreground">
-            Escribe como si fueras el invitado. El bot usa el prompt y las plantillas de este evento.
+            Cargando la invitación inicial…
           </p>
         ) : (
-          messages.map((msg, i) => (
-            <div key={`${msg.role}-${i}`} className={cn("flex", msg.role === "user" ? "justify-start" : "justify-end")}>
+          rows.map((row, i) =>
+            row.kind === "logs" ? (
               <div
-                className={cn(
-                  "max-w-[85%] rounded-2xl px-3 py-2 text-xs shadow-soft",
-                  msg.role === "user" ? "rounded-bl-sm bg-card" : "rounded-br-sm bg-success-soft",
-                )}
+                key={`logs-${i}`}
+                className="rounded-lg border border-dashed border-border/80 bg-background/60 px-2.5 py-2 font-mono text-[10px] leading-relaxed text-muted-foreground"
               >
-                <p className="whitespace-pre-line">{msg.text}</p>
+                <p className="mb-1 text-[9px] font-semibold tracking-wide text-muted-foreground/80 uppercase">
+                  Log del turno
+                </p>
+                <ul className="space-y-0.5">
+                  {row.items.map((log, j) => (
+                    <li key={`${log.kind}-${j}`}>
+                      <span className="text-foreground/80">[{log.kind}]</span> {log.label}
+                      {log.detail ? <span className="opacity-80"> — {log.detail}</span> : null}
+                    </li>
+                  ))}
+                </ul>
               </div>
-            </div>
-          ))
+            ) : (
+              <div
+                key={`${row.role}-${i}`}
+                className={cn("flex", row.role === "user" ? "justify-start" : "justify-end")}
+              >
+                <div
+                  className={cn(
+                    "max-w-[85%] rounded-2xl px-3 py-2 text-xs shadow-soft",
+                    row.role === "user" ? "rounded-bl-sm bg-card" : "rounded-br-sm bg-success-soft",
+                  )}
+                >
+                  <p className="whitespace-pre-line">{row.text}</p>
+                </div>
+              </div>
+            ),
+          )
         )}
+
         <div ref={endRef} />
       </div>
       <div className="mt-3 flex items-end gap-2">
@@ -143,7 +180,7 @@ export function BotPlayground({ eventId, guests }: Props) {
           value={draft}
           rows={2}
           disabled={busy}
-          placeholder="Mensaje de prueba…"
+          placeholder="Responde como el invitado…"
           className="min-h-0 resize-none text-sm"
           onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => {

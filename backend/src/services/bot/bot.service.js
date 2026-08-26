@@ -6,6 +6,7 @@ import { resolveWhatsappTo, shouldPersistWhatsappChatId } from "../../utils/what
 import { buildInstructions, loadEventBotContext } from "./prompt.service.js";
 import { processTurn } from "./openai.service.js";
 import { executeBotTool } from "./tools.js";
+import { botError, botLog, botTurnContext, botTurnResult, botWarn } from "./bot-logger.js";
 import {
   appendSessionItems,
   asItems,
@@ -162,11 +163,13 @@ export async function processGuestMessage({
   }
 
   if (persistConversation && conv?.aiPaused) {
+    botWarn("turn omitido: asistente pausado", botTurnContext({ event, guest, message, dryRun, persistConversation, userId: sessionUserId }));
     return { skipped: true, reason: "ai_paused", reply: null, conversationId: conv.id };
   }
   const locked = await tryLockBotSession(session);
   if (!locked) {
     const wait = "Por favor espera a que termine la respuesta anterior.";
+    botWarn("turn bloqueado: sesión ocupada", botTurnContext({ event, guest, message, dryRun, persistConversation, userId: sessionUserId }));
     if (persistConversation) {
       await Message.create({
         conversationId: conv.id,
@@ -191,16 +194,21 @@ export async function processGuestMessage({
   const items = asItems(session.items);
   items.push({ type: "message", role: "user", content: message });
 
+  botLog("turn inicio", botTurnContext({ event, guest, message, dryRun, persistConversation, userId: sessionUserId }));
+
   try {
     const result = await processTurn({
       instructions,
       items,
+      context: { event, guest, dryRun },
       executeTool: (call) =>
         executeBotTool(call, { guest, event, ai: ctx.ai, plannerName: ctx.plannerName, dryRun }),
       refreshLock: () => refreshBotSessionLock(session),
     });
     await saveSessionItems(session, result.items);
     await guest.reload();
+
+    botLog("turn completado", botTurnResult(result));
 
     if (persistConversation) {
       await Message.create({
@@ -227,22 +235,28 @@ export async function processGuestMessage({
       skipped: false,
       locked: false,
       reply: result.reply,
+      intent: result.intent || null,
+      logs: result.logs || [],
       tools: result.tools || [],
       conversationId: conv?.id || null,
       items: result.items,
     };
   } catch (error) {
+    botError("turn falló", {
+      ...botTurnContext({ event, guest, message, dryRun, persistConversation, userId: sessionUserId }),
+      error: error.message,
+    });
     try {
       await saveSessionItems(session, items);
     } catch (saveError) {
-      console.error("[bot] no se pudo persistir la sesión:", saveError.message);
+      botError("no se pudo persistir la sesión", { error: saveError.message });
     }
     throw error;
   } finally {
     try {
       await unlockBotSession(session);
     } catch (unlockError) {
-      console.error("[bot] no se pudo liberar lock:", unlockError.message);
+      botError("no se pudo liberar lock", { error: unlockError.message });
     }
   }
 }

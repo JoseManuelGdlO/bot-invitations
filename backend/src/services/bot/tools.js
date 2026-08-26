@@ -1,6 +1,7 @@
 import { logActivity } from "../activity.service.js";
 import { User } from "../../models/index.js";
 import { findTemplate, renderTemplate } from "../templates.service.js";
+import { botLog } from "./bot-logger.js";
 import {
   defaultIndecisoFollowUpDate,
   formatFollowUpDate,
@@ -12,9 +13,22 @@ export const RESPONSE_SCHEMA = {
   type: "object",
   properties: {
     reply: { type: "string" },
+    intent: {
+      type: "string",
+      enum: ["faq", "asistira", "no_asistira", "seguimiento", "desconocido"],
+      description: "Clasificación principal del mensaje del invitado.",
+    },
   },
-  required: ["reply"],
+  required: ["reply", "intent"],
   additionalProperties: false,
+};
+
+export const INTENT_LABELS = {
+  faq: "FAQ",
+  asistira: "Asistirá",
+  no_asistira: "No asistirá",
+  seguimiento: "Seguimiento",
+  desconocido: "Desconocido",
 };
 
 export const BOT_TOOLS = [
@@ -135,6 +149,14 @@ export async function executeActualizarConfirmacion(args, { guest, event, dryRun
   }
 
   const category = status === "no_asistira" ? "Rechazo" : "Confirmación";
+  botLog("RSVP actualizado", {
+    guestId: guest.id,
+    status,
+    confirmed,
+    invited: guest.invited,
+    dryRun,
+    nextTemplate: category,
+  });
   return {
     success: true,
     status,
@@ -165,6 +187,12 @@ export async function executeMarcarSeguimiento(args, { guest, event, dryRun = fa
       "system",
     );
   }
+  botLog("seguimiento marcado", {
+    guestId: guest.id,
+    followUp: guest.followUp || "",
+    reason: args?.reason || null,
+    dryRun,
+  });
   return {
     success: true,
     status: "seguimiento",
@@ -193,6 +221,13 @@ export async function executeUsarPlantilla(args, { guest, event, plannerName }) 
   if (!text.trim()) {
     return { success: false, error: "La plantilla quedó vacía." };
   }
+  botLog("plantilla resuelta", {
+    guestId: guest.id,
+    category: template.category,
+    title: template.title,
+    id: template.id,
+    preview: text.slice(0, 120),
+  });
   return {
     success: true,
     useAsReply: true,

@@ -54,7 +54,7 @@ ${rules}
 Flujo (obligatorio):
 El primer mensaje (invitación / primer contacto) YA se envió. No lo reenvíes ni uses la plantilla de Primer contacto.
 
-Clasifica CADA mensaje del invitado en UNA intención principal:
+Clasifica CADA mensaje del invitado en UNA intención principal (también en el campo intent del JSON de respuesta):
 - faq: pregunta sobre el evento (lugar, hora, niños, vestimenta, estacionamiento, mesa, etc.).
 - asistira: confirma asistencia con claridad (sí, ahí estaremos, contamos, etc.).
 - no_asistira: decline con claridad (no podemos, no vamos a poder, esa fecha no).

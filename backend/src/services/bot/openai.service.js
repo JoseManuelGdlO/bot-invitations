@@ -1,7 +1,8 @@
 import OpenAI from "openai";
 import { env } from "../../config/env.js";
 import { httpError } from "../../utils/http-error.js";
-import { BOT_TOOLS, RESPONSE_SCHEMA, sortFunctionCalls } from "./tools.js";
+import { botLog, botWarn } from "./bot-logger.js";
+import { BOT_TOOLS, INTENT_LABELS, RESPONSE_SCHEMA, sortFunctionCalls } from "./tools.js";
 
 const MAX_HISTORY_ITEMS = 40;
 const MAX_TOOL_LOOPS = 3;
@@ -64,6 +65,99 @@ export function extractMessageText(item) {
     .trim();
 }
 
+/** Extrae `reply` del json_schema del modelo (el WhatsApp real no debe llevar el envoltorio). */
+export function unwrapReplyText(raw) {
+  const text = String(raw || "").trim();
+  if (!text) return "";
+  try {
+    const parsed = JSON.parse(text);
+    if (parsed && typeof parsed.reply === "string") return parsed.reply.trim();
+  } catch {
+    /* texto plano */
+  }
+  return text;
+}
+
+export function parseStructuredReply(raw) {
+  const text = String(raw || "").trim();
+  if (!text) return { reply: null, intent: null };
+  try {
+    const parsed = JSON.parse(text);
+    if (!parsed || typeof parsed !== "object") return { reply: text, intent: null };
+    return {
+      reply: typeof parsed.reply === "string" ? parsed.reply.trim() : null,
+      intent: typeof parsed.intent === "string" ? parsed.intent.trim() : null,
+    };
+  } catch {
+    return { reply: text, intent: null };
+  }
+}
+
+export function inferIntentFromTools(tools = []) {
+  for (const tool of tools) {
+    if (tool?.name === "marcar_seguimiento") return "seguimiento";
+    if (tool?.name === "actualizar_confirmacion") {
+      return tool?.arguments?.status === "no_asistira" ? "no_asistira" : "asistira";
+    }
+  }
+  return null;
+}
+
+/** Logs legibles para el playground de desarrollo. */
+export function buildPlaygroundLogs({ intent = null, tools = [] } = {}) {
+  const logs = [];
+  const resolved = intent || inferIntentFromTools(tools);
+  if (resolved) {
+    logs.push({
+      kind: "intent",
+      label: INTENT_LABELS[resolved] || resolved,
+      value: resolved,
+      detail: "",
+    });
+  }
+  if (resolved === "faq") {
+    logs.push({
+      kind: "faq",
+      label: "Respondió FAQ / info del evento",
+      value: "faq",
+      detail: "Sin tool: texto libre según FAQs/plantillas de información",
+    });
+  }
+  for (const tool of tools) {
+    if (!tool?.name) continue;
+    if (tool.name === "actualizar_confirmacion") {
+      const status = tool.arguments?.status || tool.result?.status || "";
+      const confirmed = tool.arguments?.confirmed ?? tool.result?.confirmed;
+      logs.push({
+        kind: "tool",
+        label: "actualizar_confirmacion",
+        value: status,
+        detail: [status, confirmed != null ? `${confirmed} personas` : null].filter(Boolean).join(" · "),
+      });
+      continue;
+    }
+    if (tool.name === "marcar_seguimiento") {
+      logs.push({
+        kind: "tool",
+        label: "marcar_seguimiento",
+        value: "seguimiento",
+        detail: tool.arguments?.reason || tool.result?.followUp || "recontacto a 3 días",
+      });
+      continue;
+    }
+    if (tool.name === "usar_plantilla") {
+      const category = tool.result?.category || tool.arguments?.category || "plantilla";
+      logs.push({
+        kind: "template",
+        label: `Plantilla · ${category}`,
+        value: category,
+        detail: tool.result?.title || "",
+      });
+    }
+  }
+  return logs;
+}
+
 export function serializeOutputItem(item) {
   if (!item || !item.type) return null;
   if (item.type === "function_call") {
@@ -107,15 +201,7 @@ function extractResponseText(response) {
 }
 
 export function extraReplyFromResponse(response) {
-  const raw = extractResponseText(response);
-  if (!raw) return "";
-  try {
-    const parsed = JSON.parse(raw);
-    if (parsed && typeof parsed.reply === "string") return parsed.reply.trim();
-  } catch {
-    /* texto plano */
-  }
-  return raw.trim();
+  return unwrapReplyText(extractResponseText(response));
 }
 
 export function combineTemplateReply(template, extra) {
@@ -131,13 +217,11 @@ function parseReply(response) {
   if (!raw) {
     return "Lo siento, no pude generar una respuesta. ¿Puedes intentar de nuevo?";
   }
-  try {
-    const parsed = JSON.parse(raw);
-    if (parsed && typeof parsed.reply === "string") return parsed.reply;
-  } catch {
-    /* texto plano */
-  }
-  return raw;
+  return unwrapReplyText(raw);
+}
+
+function parseIntent(response) {
+  return parseStructuredReply(extractResponseText(response)).intent;
 }
 
 function makeJsonSchemaNullable(schema) {
@@ -207,7 +291,7 @@ function buildResponsesRequest({ instructions, items, tools, toolChoice = null }
   return request;
 }
 
-export async function processTurn({ instructions, items, executeTool, refreshLock }) {
+export async function processTurn({ instructions, items, executeTool, refreshLock, context = {} }) {
   const openai = getClient();
   const tools = normalizeToolsForResponses(BOT_TOOLS);
   let loops = 0;
@@ -221,6 +305,14 @@ export async function processTurn({ instructions, items, executeTool, refreshLoc
     loops += 1;
     if (typeof refreshLock === "function") await refreshLock();
     const lockTools = loops >= MAX_TOOL_LOOPS;
+    botLog("modelo llamada", {
+      loop: loops,
+      maxLoops: MAX_TOOL_LOOPS,
+      toolsLocked: lockTools,
+      historyItems: nextItems.length,
+      eventId: context.event?.id,
+      guestId: context.guest?.id,
+    });
     const response = await openai.responses.create(
       buildResponsesRequest({
         instructions,
@@ -231,6 +323,17 @@ export async function processTurn({ instructions, items, executeTool, refreshLoc
     finalResponse = response;
     const output = Array.isArray(response.output) ? response.output : [];
     const functionCalls = output.filter((item) => item.type === "function_call");
+    const raw = extractResponseText(response);
+    const structured = parseStructuredReply(raw);
+    if (structured.intent || structured.reply) {
+      botLog("modelo respuesta", {
+        loop: loops,
+        intent: structured.intent,
+        intentLabel: structured.intent ? INTENT_LABELS[structured.intent] || structured.intent : null,
+        raw: raw.slice(0, 400),
+        toolCalls: functionCalls.map((c) => c.name),
+      });
+    }
     for (const item of output) {
       const serialized = serializeOutputItem(item);
       if (serialized) nextItems.push(serialized);
@@ -245,6 +348,13 @@ export async function processTurn({ instructions, items, executeTool, refreshLoc
         args = {};
       }
       toolTrace.push({ name: call.name, arguments: args, result });
+      botLog("tool ejecutada", {
+        name: call.name,
+        arguments: args,
+        success: result?.success !== false,
+        useAsReply: Boolean(result?.useAsReply),
+        category: result?.category || null,
+      });
       nextItems.push({
         type: "function_call_output",
         call_id: call.call_id,
@@ -261,10 +371,29 @@ export async function processTurn({ instructions, items, executeTool, refreshLoc
   if (forcedReply) {
     const combined = combineTemplateReply(forcedReply, forcedExtra);
     nextItems.push({ type: "message", role: "assistant", content: combined });
-    return { reply: combined, items: nextItems, tools: toolTrace };
+    const intent = parseIntent(finalResponse) || inferIntentFromTools(toolTrace);
+    const logs = buildPlaygroundLogs({ intent, tools: toolTrace });
+    botLog("respuesta forzada por plantilla", {
+      intent,
+      intentLabel: intent ? INTENT_LABELS[intent] || intent : null,
+      templatePreview: forcedReply.slice(0, 180),
+      faqExtra: forcedExtra ? forcedExtra.slice(0, 180) : null,
+      logs: logs.map((l) => `${l.kind}:${l.value || l.label}`),
+    });
+    return {
+      reply: combined,
+      intent,
+      logs,
+      items: nextItems,
+      tools: toolTrace,
+    };
   }
 
   if (finalResponse && !extractResponseText(finalResponse)) {
+    botWarn("modelo sin texto; pidiendo cierre sin tools", {
+      eventId: context.event?.id,
+      guestId: context.guest?.id,
+    });
     try {
       if (typeof refreshLock === "function") await refreshLock();
       const closing = await openai.responses.create(
@@ -280,14 +409,33 @@ export async function processTurn({ instructions, items, executeTool, refreshLoc
           const serialized = serializeOutputItem(item);
           if (serialized) nextItems.push(serialized);
         }
+        const closingStructured = parseStructuredReply(extractResponseText(closing));
+        botLog("cierre sin tools", {
+          intent: closingStructured.intent,
+          raw: extractResponseText(closing).slice(0, 400),
+        });
       }
     } catch (err) {
-      console.error("[bot] cierre sin tools:", err.message);
+      botWarn("cierre sin tools falló", { error: err.message });
     }
   }
 
   const reply = finalResponse
     ? parseReply(finalResponse)
     : "Hubo un error procesando tu mensaje. Intenta de nuevo.";
-  return { reply, items: nextItems, tools: toolTrace };
+  const intent = (finalResponse && parseIntent(finalResponse)) || inferIntentFromTools(toolTrace);
+  const logs = buildPlaygroundLogs({ intent, tools: toolTrace });
+  if (intent === "faq") {
+    botLog("FAQ respondida sin tool", {
+      intent,
+      replyPreview: reply.slice(0, 180),
+    });
+  }
+  return {
+    reply,
+    intent,
+    logs,
+    items: nextItems,
+    tools: toolTrace,
+  };
 }
