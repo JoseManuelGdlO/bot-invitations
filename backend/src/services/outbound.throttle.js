@@ -1,4 +1,4 @@
-const BULK_KINDS = new Set(["campaign", "follow_up", "reminder"]);
+const BULK_KINDS = new Set(["campaign", "follow_up", "reminder", "seguimiento"]);
 const HOUR_MS = 60 * 60 * 1000;
 
 const nextGapByOwner = new Map();

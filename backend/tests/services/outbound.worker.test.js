@@ -49,6 +49,18 @@ describe("outbound.worker", () => {
     );
   });
 
+  test("processJob seguimiento no se salta", async () => {
+    sendMessage.mockResolvedValueOnce({ provider: "stub", skipped: false });
+    const job = createInstance({
+      type: "whatsapp.send",
+      attempts: 0,
+      payload: { to: "6183218624", text: "hola", kind: "seguimiento" },
+    });
+    await service.processJob(job);
+    expect(sendMessage).toHaveBeenCalledWith("5216183218624", "hola", expect.any(Object));
+    expect(job.update).toHaveBeenCalledWith(expect.objectContaining({ status: "done" }));
+  });
+
   test("processJob marca skipped cuando el stub no envía", async () => {
     const job = createInstance({
       type: "whatsapp.send",

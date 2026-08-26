@@ -331,10 +331,10 @@ function Automatizacion() {
               {[
                 "Mensaje inicial enviado",
                 "El invitado responde",
-                "El asistente interpreta la respuesta",
-                "Identifica el número de asistentes",
-                "Confirma el total con el invitado",
-                "El estado cambia a CONFIRMADO",
+                "El asistente clasifica: FAQ, sí, no, indeciso o desconocido",
+                "FAQ: responde con la información cargada o escala",
+                "Sí / no: actualiza el RSVP y envía la plantilla",
+                "Indeciso: agenda recontacto a 3 días",
               ].map((s, i) => (
                 <li key={s} className="flex gap-3">
                   <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-secondary text-[11px] font-semibold">
@@ -345,7 +345,7 @@ function Automatizacion() {
               ))}
             </ol>
             <Badge variant="outline" className="mt-4 rounded-full bg-warning-soft text-warning">
-              Respuestas ambiguas → Pendiente + seguimiento
+              Indeciso → seguimiento a 3 días
             </Badge>
           </div>
         </div>

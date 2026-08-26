@@ -61,6 +61,7 @@ describe("outbound.throttle", () => {
     expect(isBulkKind("campaign")).toBe(true);
     expect(isBulkKind("follow_up")).toBe(true);
     expect(isBulkKind("reminder")).toBe(true);
+    expect(isBulkKind("seguimiento")).toBe(true);
     expect(isBulkKind("reply")).toBe(false);
   });
 

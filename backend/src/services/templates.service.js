@@ -4,6 +4,8 @@ import { applyTemplate, eventGuestVars } from "../utils/defaults.js";
 export const FALLBACK_OPENING = "Hola {{nombre}}, ¿podrán acompañarnos?";
 export const FALLBACK_REMINDER =
   "Hola {{nombre}}, ¿pudiste revisar la invitación? Nos encantaría contar contigo el {{fecha}}.";
+export const FALLBACK_SEGUIMIENTO =
+  "Hola {{nombre}}, te escribo de nuevo por {{evento}} del {{fecha}}. ¿Ya pudieron confirmar si nos acompañan?";
 
 export async function findTemplate(eventId, { category, id } = {}) {
   const templateId = String(id || "").trim();
@@ -32,4 +34,9 @@ export async function resolveOpeningText(event, guest, plannerName, openingMessa
 export async function resolveReminderText(event, guest, plannerName) {
   const tpl = await findTemplate(event.id, { category: "Recordatorio" });
   return renderTemplate(tpl?.body || FALLBACK_REMINDER, event, guest, plannerName);
+}
+
+export async function resolveSeguimientoText(event, guest, plannerName) {
+  const tpl = await findTemplate(event.id, { category: "Seguimiento" });
+  return renderTemplate(tpl?.body || FALLBACK_SEGUIMIENTO, event, guest, plannerName);
 }

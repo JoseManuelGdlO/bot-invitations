@@ -106,6 +106,26 @@ function extractResponseText(response) {
   );
 }
 
+export function extraReplyFromResponse(response) {
+  const raw = extractResponseText(response);
+  if (!raw) return "";
+  try {
+    const parsed = JSON.parse(raw);
+    if (parsed && typeof parsed.reply === "string") return parsed.reply.trim();
+  } catch {
+    /* texto plano */
+  }
+  return raw.trim();
+}
+
+export function combineTemplateReply(template, extra) {
+  const base = String(template || "").trim();
+  const more = String(extra || "").trim();
+  if (!base) return more;
+  if (!more || more === base) return base;
+  return `${base}\n\n${more}`;
+}
+
 function parseReply(response) {
   const raw = extractResponseText(response);
   if (!raw) {
@@ -193,6 +213,7 @@ export async function processTurn({ instructions, items, executeTool, refreshLoc
   let loops = 0;
   let finalResponse = null;
   let forcedReply = null;
+  let forcedExtra = "";
   const toolTrace = [];
   const nextItems = Array.isArray(items) ? [...items] : [];
 
@@ -231,14 +252,16 @@ export async function processTurn({ instructions, items, executeTool, refreshLoc
       });
       if (result?.useAsReply && result?.text) {
         forcedReply = String(result.text);
+        forcedExtra = extraReplyFromResponse(response);
       }
     }
     if (forcedReply) break;
   }
 
   if (forcedReply) {
-    nextItems.push({ type: "message", role: "assistant", content: forcedReply });
-    return { reply: forcedReply, items: nextItems, tools: toolTrace };
+    const combined = combineTemplateReply(forcedReply, forcedExtra);
+    nextItems.push({ type: "message", role: "assistant", content: combined });
+    return { reply: combined, items: nextItems, tools: toolTrace };
   }
 
   if (finalResponse && !extractResponseText(finalResponse)) {

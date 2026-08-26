@@ -44,6 +44,7 @@ export function createInstance(data = {}) {
       Object.assign(this, patch);
       return this;
     }),
+    changed: jest.fn(),
   };
   row.save.mockImplementation(async () => row);
   row.reload.mockImplementation(async () => row);

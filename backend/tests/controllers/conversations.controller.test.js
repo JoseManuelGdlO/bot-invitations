@@ -68,6 +68,25 @@ describe("conversations.controller", () => {
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ launched: 1 }));
   });
 
+  test("launchCampaign usa la plantilla Primer contacto", async () => {
+    const guest = fakeGuest({ rep: "María López" });
+    models.Template.findOne.mockResolvedValue({
+      category: "Primer contacto",
+      body: "Hola {{nombre}}, ¿podrán acompañarnos a {{evento}}?",
+    });
+    models.AiConfig.findOne.mockResolvedValue({ openingMessage: "fallback {{nombre}}", assistantName: "Sofía" });
+    models.Guest.findAll.mockResolvedValueOnce([guest]).mockResolvedValueOnce([guest]);
+    await callHandler(controller.launchCampaign, {
+      req: createMockReq({ params: { eventId: "boda-ana" } }),
+    });
+    expect(deliverAiMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "campaign",
+        text: "Hola María, ¿podrán acompañarnos a Boda Ana?",
+      }),
+    );
+  });
+
   test("segundo launchCampaign no reenvía a quienes ya salieron de sin_contactar", async () => {
     const guest = fakeGuest({ status: "enviado" });
     models.AiConfig.findOne.mockResolvedValue({ openingMessage: "Hola {{nombre}}", assistantName: "Sofía" });

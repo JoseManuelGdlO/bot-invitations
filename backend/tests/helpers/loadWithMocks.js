@@ -163,13 +163,19 @@ export function fakeGuest(overrides = {}) {
     lastReply: "",
     lastReplyAt: "",
     followUp: "",
+    followUpsSent: [],
     confirmedAt: null,
     contactedAt: null,
     save: jest.fn(async function save() {
       return this;
     }),
+    reload: jest.fn(async function reload() {
+      return this;
+    }),
+    changed: jest.fn(),
     ...overrides,
   };
   guest.save.mockImplementation(async () => guest);
+  guest.reload.mockImplementation(async () => guest);
   return guest;
 }

@@ -1,7 +1,12 @@
 import { logActivity } from "../activity.service.js";
 import { User } from "../../models/index.js";
 import { findTemplate, renderTemplate } from "../templates.service.js";
-import { formatFollowUpDate, nextActiveFollowUpDate, parseFollowUpDateInput } from "../follow-up.service.js";
+import {
+  defaultIndecisoFollowUpDate,
+  formatFollowUpDate,
+  INDECISO_NUDGE_ID,
+  parseFollowUpDateInput,
+} from "../follow-up.service.js";
 
 export const RESPONSE_SCHEMA = {
   type: "object",
@@ -40,7 +45,7 @@ export const BOT_TOOLS = [
     type: "function",
     name: "marcar_seguimiento",
     description:
-      "Marca al invitado como seguimiento cuando la respuesta es ambigua o pospone la confirmación (por ejemplo: luego te digo, creo que sí, lo hablo con mi pareja). No la uses si confirma o decline con claridad.",
+      "Marca al invitado como seguimiento cuando la respuesta es ambigua o pospone la confirmación (por ejemplo: luego te digo, creo que sí, lo hablo con mi pareja). El sistema agenda un recontacto a 3 días. No la uses si confirma o decline con claridad.",
     parameters: {
       type: "object",
       properties: {
@@ -50,7 +55,7 @@ export const BOT_TOOLS = [
         },
         followUpDate: {
           type: ["string", "null"],
-          description: "Fecha de recontacto YYYY-MM-DD o DD/MM/YYYY. Null para calcularla con las reglas de seguimiento.",
+          description: "Fecha de recontacto YYYY-MM-DD o DD/MM/YYYY. Null para agendar a 3 días desde hoy.",
         },
       },
       required: ["reason", "followUpDate"],
@@ -68,7 +73,7 @@ export const BOT_TOOLS = [
       properties: {
         category: {
           type: ["string", "null"],
-          description: "Categoría (Primer contacto, Recordatorio, Confirmación, Rechazo, Ubicación, etc.).",
+          description: "Categoría (Primer contacto, Recordatorio, Confirmación, Rechazo, Seguimiento, Ubicación, etc.).",
         },
         id: {
           type: ["string", "null"],
@@ -139,19 +144,18 @@ export async function executeActualizarConfirmacion(args, { guest, event, dryRun
   };
 }
 
-export async function executeMarcarSeguimiento(args, { guest, event, ai, dryRun = false }) {
+export async function executeMarcarSeguimiento(args, { guest, event, dryRun = false }) {
   if (["confirmado", "parcial", "no_asistira"].includes(guest.status)) {
     return { success: false, error: "El invitado ya tiene un RSVP cerrado." };
   }
   guest.status = "seguimiento";
   guest.whatsapp = "respondido";
   const given = parseFollowUpDateInput(args?.followUpDate);
-  const computed = nextActiveFollowUpDate(ai?.followUps, {
-    contactedAt: guest.contactedAt || new Date(),
-    eventDate: event.date,
-  });
-  const due = given || computed;
-  if (due) guest.followUp = formatFollowUpDate(due);
+  const due = given || defaultIndecisoFollowUpDate();
+  guest.followUp = formatFollowUpDate(due);
+  const sent = Array.isArray(guest.followUpsSent) ? guest.followUpsSent.filter((id) => id !== INDECISO_NUDGE_ID) : [];
+  guest.followUpsSent = sent;
+  if (typeof guest.changed === "function") guest.changed("followUpsSent", true);
   if (!dryRun) {
     await guest.save();
     const reason = String(args?.reason || "").trim();
@@ -166,7 +170,7 @@ export async function executeMarcarSeguimiento(args, { guest, event, ai, dryRun 
     status: "seguimiento",
     followUp: guest.followUp || "",
     instruction:
-      "Responde breve confirmando que les escribes de nuevo más adelante. No insistas ahora en un sí o un no.",
+      "Responde breve confirmando que les escribes de nuevo más adelante. No uses ahora la plantilla Seguimiento ni insistas en un sí o un no.",
   };
 }
 

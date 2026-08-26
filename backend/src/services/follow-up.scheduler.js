@@ -2,40 +2,127 @@ import { Op } from "sequelize";
 import { AiConfig, Conversation, Event, Guest, User } from "../models/index.js";
 import { assertWhatsappReady } from "./integration-resolver.service.js";
 import { deliverAiMessage } from "./guest-message.service.js";
-import { resolveReminderText } from "./templates.service.js";
+import { resolveReminderText, resolveSeguimientoText } from "./templates.service.js";
 import { logActivity } from "./activity.service.js";
 import {
   computeFollowUpDueAt,
   formatFollowUpDate,
+  INDECISO_NUDGE_ID,
   isDue,
   isLaunchFollowUpRule,
   nextActiveFollowUpDate,
+  parseDateOnly,
 } from "./follow-up.service.js";
 import { Logger } from "../utils/logger.js";
 
 const log = new Logger("FollowUp");
 
-const OPEN_STATUSES = [
+const DRIP_OPEN_STATUSES = [
   "enviado",
   "entregado",
   "respondio",
   "en_conversacion",
-  "seguimiento",
   "sin_respuesta",
 ];
+
+const OPEN_STATUSES = [...DRIP_OPEN_STATUSES, "seguimiento"];
 
 let running = false;
 
 const MAX_SENDS_PER_TICK = 5;
 
+function sentIds(guest) {
+  return Array.isArray(guest.followUpsSent) ? [...guest.followUpsSent] : [];
+}
+
+function markFollowUpsSent(guest, sent) {
+  guest.followUpsSent = sent;
+  if (typeof guest.changed === "function") guest.changed("followUpsSent", true);
+}
+
+async function processIndecisoNudges(event, guests, paused, plannerName, budget, now) {
+  for (const guest of guests) {
+    if (budget.left <= 0) return;
+    if (guest.status !== "seguimiento") continue;
+    if (paused.has(guest.id) || !guest.phone) continue;
+    const sent = sentIds(guest);
+    if (sent.includes(INDECISO_NUDGE_ID)) continue;
+    const due = parseDateOnly(guest.followUp);
+    if (!due || !isDue(due, now)) continue;
+
+    const text = await resolveSeguimientoText(event, guest, plannerName);
+    await deliverAiMessage({
+      event,
+      guest,
+      text,
+      kind: "seguimiento",
+      followUpId: INDECISO_NUDGE_ID,
+    });
+
+    sent.push(INDECISO_NUDGE_ID);
+    markFollowUpsSent(guest, sent);
+    guest.followUp = "";
+    await guest.save();
+    await logActivity(event.id, `Recontacto de seguimiento a ${guest.rep}`, "message");
+    log.info("seguimiento disparado", {
+      eventId: event.id,
+      guestId: guest.id,
+      ruleId: INDECISO_NUDGE_ID,
+    });
+    budget.left -= 1;
+  }
+}
+
+async function processDripReminders(event, guests, paused, plannerName, budget, now, rules) {
+  if (!rules.length) return;
+  for (const guest of guests) {
+    if (budget.left <= 0) return;
+    if (guest.status === "seguimiento") continue;
+    if (paused.has(guest.id) || !guest.phone) continue;
+    const sent = sentIds(guest);
+    for (const rule of rules) {
+      if (!rule?.id || sent.includes(rule.id)) continue;
+      const due = computeFollowUpDueAt(rule, {
+        contactedAt: guest.contactedAt,
+        eventDate: event.date,
+      });
+      if (!due || !isDue(due, now)) continue;
+
+      const text = await resolveReminderText(event, guest, plannerName);
+      await deliverAiMessage({
+        event,
+        guest,
+        text,
+        kind: "follow_up",
+        followUpId: rule.id,
+      });
+
+      sent.push(rule.id);
+      markFollowUpsSent(guest, sent);
+      const nextDue = nextActiveFollowUpDate(rules, {
+        contactedAt: guest.contactedAt,
+        eventDate: event.date,
+        now,
+        alreadySent: sent,
+      });
+      guest.followUp = nextDue ? formatFollowUpDate(nextDue) : guest.followUp;
+      await guest.save();
+      await logActivity(event.id, `Recordatorio automático (${rule.label}) a ${guest.rep}`, "message");
+      log.info("recordatorio disparado", {
+        eventId: event.id,
+        guestId: guest.id,
+        ruleId: rule.id,
+      });
+      budget.left -= 1;
+      break;
+    }
+  }
+}
+
 async function processEventFollowUps(event, budget) {
   if (budget.left <= 0) return;
   const ai = await AiConfig.findOne({ where: { eventId: event.id } });
   if (!ai) return;
-  const rules = (Array.isArray(ai.followUps) ? ai.followUps : []).filter(
-    (rule) => rule?.active && !isLaunchFollowUpRule(rule),
-  );
-  if (!rules.length) return;
 
   try {
     await assertWhatsappReady(event);
@@ -57,48 +144,12 @@ async function processEventFollowUps(event, budget) {
   const plannerName = owner?.name || "";
   const now = new Date();
 
-  for (const guest of guests) {
-    if (budget.left <= 0) return;
-    if (paused.has(guest.id) || !guest.phone) continue;
-    const sent = Array.isArray(guest.followUpsSent) ? [...guest.followUpsSent] : [];
-    for (const rule of rules) {
-      if (!rule?.id || sent.includes(rule.id)) continue;
-      const due = computeFollowUpDueAt(rule, {
-        contactedAt: guest.contactedAt,
-        eventDate: event.date,
-      });
-      if (!due || !isDue(due, now)) continue;
+  await processIndecisoNudges(event, guests, paused, plannerName, budget, now);
 
-      const text = await resolveReminderText(event, guest, plannerName);
-      await deliverAiMessage({
-        event,
-        guest,
-        text,
-        kind: "follow_up",
-        followUpId: rule.id,
-      });
-
-      sent.push(rule.id);
-      guest.followUpsSent = sent;
-      guest.changed("followUpsSent", true);
-      const nextDue = nextActiveFollowUpDate(rules, {
-        contactedAt: guest.contactedAt,
-        eventDate: event.date,
-        now,
-        alreadySent: sent,
-      });
-      guest.followUp = nextDue ? formatFollowUpDate(nextDue) : guest.followUp;
-      await guest.save();
-      await logActivity(event.id, `Recordatorio automático (${rule.label}) a ${guest.rep}`, "message");
-      log.info("recordatorio disparado", {
-        eventId: event.id,
-        guestId: guest.id,
-        ruleId: rule.id,
-      });
-      budget.left -= 1;
-      break;
-    }
-  }
+  const rules = (Array.isArray(ai.followUps) ? ai.followUps : []).filter(
+    (rule) => rule?.active && !isLaunchFollowUpRule(rule),
+  );
+  await processDripReminders(event, guests, paused, plannerName, budget, now, rules);
 }
 
 export async function tickFollowUps() {

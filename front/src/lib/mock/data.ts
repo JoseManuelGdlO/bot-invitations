@@ -192,9 +192,14 @@ function defaultAI(assistant: string, hosts: string): AIConfig {
       "Nunca mencionar que eres una IA.",
       "Siempre ser amable y cálida.",
       "Nunca presionar al invitado.",
-      "Preguntar cuántas personas asistirán.",
+      "El primer mensaje ya se envió; no reenvíes la invitación.",
+      "Clasifica cada mensaje en faq, asistira, no_asistira, seguimiento o desconocido.",
+      "Si es FAQ, responde solo con las FAQs o plantillas de información; si no hay dato, no inventes y ofrece pasar al equipo.",
+      "Si confirma o decline con claridad, usa las tools y la plantilla; no parafrasees el cierre.",
+      "Si está indeciso, marca seguimiento; el sistema recontacta a los 3 días.",
+      "Si es desconocido, interpreta y responde; no cierres el RSVP.",
+      "Si confirma pero no dice con cuántas personas, pregunta el número antes de cerrar.",
       "No superar el número máximo de invitados de la invitación.",
-      "Confirmar nuevamente el número final antes de cerrar.",
       "Si existe una situación especial, escalar al Wedding Planner.",
     ],
     followUps: [
@@ -211,10 +216,7 @@ const baseTemplates = (hosts: string) => [
   { id: "t2", category: "Recordatorio", title: "Recordatorio amable", body: "Hola {{nombre}}, ¿pudiste revisar la invitación? Nos encantaría contar contigo el {{fecha}} ✨" },
   { id: "t3", category: "Confirmación", title: "Cierre de confirmación", body: "Perfecto {{nombre}}, entonces confirmamos {{numero_confirmados}} asistentes. ¡Nos vemos el {{fecha}}!" },
   { id: "t4", category: "Rechazo", title: "Respuesta a rechazo", body: "Gracias por avisarnos, {{nombre}}. Te vamos a extrañar, mandamos un abrazo grande." },
-  { id: "t5", category: "Información del evento", title: "Detalles generales", body: "La celebración es el {{fecha}} a las {{hora}} en {{lugar}}. Recomendamos llegar 30 minutos antes." },
-  { id: "t6", category: "Ubicación", title: "Cómo llegar", body: "Te comparto la ubicación de {{lugar}}. Habrá valet parking disponible desde las {{hora}}." },
-  { id: "t7", category: "Dress code", title: "Código de vestimenta", body: "El código de vestimenta es formal. Sugerimos calzado cómodo para jardín." },
-  { id: "t8", category: "Agradecimiento", title: "Gracias por confirmar", body: "¡Gracias {{nombre}}! Quedó registrada tu confirmación. Cualquier cambio, avísanos por aquí." },
+  { id: "t9", category: "Seguimiento", title: "Recontacto a indecisos", body: "Hola {{nombre}}, te escribo de nuevo por {{evento}} del {{fecha}}. ¿Ya pudieron confirmar si nos acompañan?" },
 ];
 
 const baseFaqs = (venue: string) => [

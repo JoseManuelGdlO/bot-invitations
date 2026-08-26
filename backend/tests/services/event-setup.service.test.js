@@ -5,7 +5,9 @@ describe("event-setup.service", () => {
     const { mod, models } = await loadWithMocks("src/services/event-setup.service.js");
     await mod.seedEventDefaults(fakeEvent(), fakeUser(), "Sofía");
     expect(models.AiConfig.create).toHaveBeenCalled();
-    expect(models.Template.bulkCreate).toHaveBeenCalled();
+    expect(models.Template.bulkCreate).toHaveBeenCalledWith(
+      expect.arrayContaining([expect.objectContaining({ category: "Seguimiento", title: "Recontacto a indecisos" })]),
+    );
     expect(models.Faq.bulkCreate).toHaveBeenCalled();
     expect(models.EventMember.create).toHaveBeenCalledWith(expect.objectContaining({ role: "Administrador" }));
     expect(models.EventRolePermission.bulkCreate).toHaveBeenCalled();

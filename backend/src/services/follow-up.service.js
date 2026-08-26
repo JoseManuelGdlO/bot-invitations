@@ -44,6 +44,13 @@ export function isLaunchFollowUpRule(rule) {
   return /primer contacto/i.test(String(rule?.label || ""));
 }
 
+export const INDECISO_NUDGE_ID = "indeciso";
+export const INDECISO_NUDGE_DAYS = 3;
+
+export function defaultIndecisoFollowUpDate(now = new Date()) {
+  return addDays(startOfDay(now), INDECISO_NUDGE_DAYS);
+}
+
 export function parseFollowUpWhen(when) {
   const text = fold(when);
   const match = text.match(/(\d+)\s*dias?/);

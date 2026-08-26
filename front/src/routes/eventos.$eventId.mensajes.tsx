@@ -28,6 +28,7 @@ const categories = [
   "Recordatorio",
   "Confirmación",
   "Rechazo",
+  "Seguimiento",
   "Información del evento",
   "Ubicación",
   "Dress code",
