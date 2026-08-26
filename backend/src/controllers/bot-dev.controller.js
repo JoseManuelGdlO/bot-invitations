@@ -9,10 +9,43 @@ import {
   asItems,
 } from "../services/bot/session.service.js";
 import { itemsToChat } from "../services/bot/openai.service.js";
+import { buildInstructions, loadEventBotContext } from "../services/bot/prompt.service.js";
 import { serializeConversation, serializeMessage } from "../utils/serialize.js";
 
 export const status = asyncHandler(async (_req, res) => {
   res.json({ enabled: true });
+});
+
+export const getPromptPreview = asyncHandler(async (req, res) => {
+  const event = await requireEvent(req, res);
+  if (!event) return;
+  const guestId = String(req.query.guestId || "").trim();
+  let guest = null;
+  if (guestId) {
+    guest = await Guest.findOne({ where: { id: guestId, eventId: event.id } });
+    if (!guest) return res.status(404).json({ error: "Invitado no encontrado." });
+  } else {
+    guest = await Guest.findOne({ where: { eventId: event.id }, order: [["createdAt", "ASC"]] });
+  }
+  if (!guest) {
+    return res.status(400).json({ error: "Agrega un invitado para previsualizar el prompt." });
+  }
+  const ctx = await loadEventBotContext(event, guest);
+  const instructions = buildInstructions({
+    event,
+    guest,
+    ai: ctx.ai,
+    templates: ctx.templates,
+    faqs: ctx.faqs,
+    vars: ctx.vars,
+  });
+  res.json({
+    ok: true,
+    eventId: event.slug,
+    guestId: guest.id,
+    guestName: guest.rep,
+    instructions,
+  });
 });
 
 export const getPlayground = asyncHandler(async (req, res) => {

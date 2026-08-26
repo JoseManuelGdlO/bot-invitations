@@ -1,13 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
-import { Copy, MessageSquarePlus, Plus, Trash2 } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Copy, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { TemplateBodyEditor } from "@/components/template-body-editor";
+import { TemplatePreview } from "@/components/template-preview";
 import { useEvent, useStore } from "@/lib/mock/store";
+import type { EventItem, Guest, Template } from "@/lib/mock/types";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/eventos/$eventId/mensajes")({
@@ -24,23 +26,91 @@ export const Route = createFileRoute("/eventos/$eventId/mensajes")({
 });
 
 const categories = [
-  "Primer contacto",
-  "Recordatorio",
-  "Confirmación",
-  "Rechazo",
-  "Seguimiento",
-  "Información del evento",
-  "Ubicación",
-  "Dress code",
-  "Agradecimiento",
-];
+  { id: "Primer contacto", hint: "Campaña inicial de WhatsApp." },
+  {
+    id: "Recordatorio",
+    hint: "Recordatorio automático. El envío masivo está desactivado; el texto queda listo por si se reactiva.",
+  },
+  { id: "Confirmación", hint: "Cierre cuando el invitado confirma asistencia." },
+  { id: "Rechazo", hint: "Cierre cuando el invitado no podrá asistir." },
+  { id: "Seguimiento", hint: "Recontacto a indecisos, 3 días después." },
+] as const;
+
+function TemplateCategory({
+  eventId,
+  category,
+  hint,
+  template,
+  templates,
+  guests,
+  event,
+  plannerName,
+  setTemplates,
+}: {
+  eventId: string;
+  category: string;
+  hint: string;
+  template: Template | undefined;
+  templates: Template[];
+  guests: Guest[];
+  event: EventItem | undefined;
+  plannerName: string;
+  setTemplates: (eventId: string, t: Template[]) => void;
+}) {
+  const [draft, setDraft] = useState(template?.body ?? "");
+
+  useEffect(() => {
+    setDraft(template?.body ?? "");
+  }, [template?.id, template?.body]);
+
+  return (
+    <section>
+      <h2 className="font-display text-2xl">{category}</h2>
+      <p className="mt-1 text-sm text-muted-foreground">{hint}</p>
+      {template ? (
+        <div className="mt-3 grid gap-4 md:grid-cols-2">
+          <div className="rounded-2xl border border-border bg-card p-5 shadow-soft">
+            <div className="mb-3 flex items-start justify-between gap-2">
+              <p className="font-medium">{template.title}</p>
+              <button
+                type="button"
+                onClick={() => {
+                  void navigator.clipboard.writeText(draft);
+                  toast.success("Plantilla copiada");
+                }}
+                className="rounded-md p-1.5 text-muted-foreground hover:bg-secondary"
+              >
+                <Copy className="size-4" />
+              </button>
+            </div>
+            <TemplateBodyEditor
+              value={template.body}
+              onChange={setDraft}
+              onSave={(body) => {
+                setTemplates(
+                  eventId,
+                  templates.map((x) => (x.id === template.id ? { ...x, body } : x)),
+                );
+                toast.success("Plantilla guardada");
+              }}
+            />
+          </div>
+          <TemplatePreview body={draft} guests={guests} event={event} plannerName={plannerName} />
+        </div>
+      ) : (
+        <p className="mt-3 text-sm text-muted-foreground">No hay plantilla para esta categoría.</p>
+      )}
+    </section>
+  );
+}
 
 function Mensajes() {
   const { eventId } = Route.useParams();
-  const { data } = useEvent(eventId);
-  const { setTemplates, setFaqs } = useStore();
+  const { data, event, guests } = useEvent(eventId);
+  const { setTemplates, setFaqs, session } = useStore();
   const [q, setQ] = useState("");
   const [a, setA] = useState("");
+  const plannerName = session?.name.split(" ")[0] ?? "Planner";
 
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-5 py-8 md:px-8">
@@ -51,68 +121,20 @@ function Mensajes() {
         </TabsList>
 
         <TabsContent value="plantillas" className="mt-6 space-y-8">
-          {categories.map((cat) => {
-            const items = data.templates.filter((t) => t.category === cat);
-            return (
-              <section key={cat}>
-                <div className="flex items-center gap-3">
-                  <h2 className="font-display text-2xl">{cat}</h2>
-                  <Badge variant="outline" className="rounded-full text-[11px]">{items.length}</Badge>
-                </div>
-                <div className="mt-3 grid gap-4 md:grid-cols-2">
-                  {items.map((t) => (
-                    <div
-                      key={t.id}
-                      className="group rounded-2xl border border-border bg-card p-5 shadow-soft transition-all hover:-translate-y-0.5 hover:shadow-lift"
-                    >
-                      <div className="flex items-start justify-between gap-2">
-                        <p className="font-medium">{t.title}</p>
-                        <div className="flex gap-1 opacity-0 transition-opacity group-hover:opacity-100">
-                          <button
-                            onClick={() => {
-                              void navigator.clipboard.writeText(t.body);
-                              toast.success("Plantilla copiada");
-                            }}
-                            className="rounded-md p-1.5 text-muted-foreground hover:bg-secondary"
-                          >
-                            <Copy className="size-4" />
-                          </button>
-                          <button
-                            onClick={() => setTemplates(eventId, data.templates.filter((x) => x.id !== t.id))}
-                            className="rounded-md p-1.5 text-muted-foreground hover:bg-secondary hover:text-destructive"
-                          >
-                            <Trash2 className="size-4" />
-                          </button>
-                        </div>
-                      </div>
-                      <Textarea
-                        defaultValue={t.body}
-                        rows={4}
-                        className="mt-3 resize-none border-none bg-secondary/50 text-sm"
-                        onBlur={(e) =>
-                          setTemplates(
-                            eventId,
-                            data.templates.map((x) => (x.id === t.id ? { ...x, body: e.target.value } : x)),
-                          )
-                        }
-                      />
-                    </div>
-                  ))}
-                  <button
-                    onClick={() =>
-                      setTemplates(eventId, [
-                        ...data.templates,
-                        { id: `t-${Date.now()}`, category: cat, title: "Nueva plantilla", body: "Hola {{nombre}}…" },
-                      ])
-                    }
-                    className="flex min-h-32 items-center justify-center gap-2 rounded-2xl border border-dashed border-border text-sm text-muted-foreground transition-colors hover:bg-secondary/60"
-                  >
-                    <MessageSquarePlus className="size-4" /> Agregar plantilla
-                  </button>
-                </div>
-              </section>
-            );
-          })}
+          {categories.map((cat) => (
+            <TemplateCategory
+              key={cat.id}
+              eventId={eventId}
+              category={cat.id}
+              hint={cat.hint}
+              template={data.templates.find((t) => t.category === cat.id)}
+              templates={data.templates}
+              guests={guests}
+              event={event}
+              plannerName={plannerName}
+              setTemplates={setTemplates}
+            />
+          ))}
         </TabsContent>
 
         <TabsContent value="faq" className="mt-6">

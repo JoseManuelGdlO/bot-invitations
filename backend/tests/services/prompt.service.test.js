@@ -29,16 +29,18 @@ describe("prompt.service", () => {
     expect(text).toMatch(/3 días/);
   });
 
-  test("buildInstructions usa el cerebro guardado y refuerza FAQ / plantillas / tools", () => {
+  test("buildInstructions usa defaultPrompt y añade instrucciones extra", () => {
     const text = prompt.buildInstructions({
       event: fakeEvent(),
       guest: fakeGuest({ status: "enviado" }),
-      ai: { prompt: "Cerebro custom de Sofía." },
+      ai: { prompt: "Menciona el valet parking.", assistantName: "Sofía" },
       templates: [{ id: "t9", category: "Seguimiento", title: "Recontacto", body: "¿Ya pudieron confirmar?" }],
       faqs: [{ q: "¿Pueden ir niños?", a: "Solo adultos." }],
       vars: { nombre: "Luis", evento: "Boda Ana" },
     });
-    expect(text).toContain("Cerebro custom de Sofía.");
+    expect(text).toContain("Flujo (obligatorio)");
+    expect(text).toContain("## Instrucciones extra del evento");
+    expect(text).toContain("Menciona el valet parking.");
     expect(text).toContain("Aislamiento");
     expect(text).toContain("[Seguimiento] Recontacto");
     expect(text).toContain("¿Pueden ir niños?");
@@ -47,13 +49,47 @@ describe("prompt.service", () => {
     expect(text).toContain("{{nombre}}");
   });
 
-  test("buildInstructions cae a defaultPrompt si el cerebro está vacío", () => {
+  test("buildInstructions cae a defaultPrompt si no hay extras", () => {
     const text = prompt.buildInstructions({
       event: fakeEvent(),
       guest: fakeGuest(),
       ai: { prompt: "  ", assistantName: "Luna" },
     });
     expect(text).toContain("Eres Luna");
+    expect(text).not.toContain("## Instrucciones extra del evento");
     expect(text).toContain("no hay FAQs guardadas");
+  });
+
+  test("buildInstructions no trata el cerebro de sistema guardado como extras", () => {
+    const stored = prompt.defaultPrompt({ assistantName: "Luna" });
+    const text = prompt.buildInstructions({
+      event: fakeEvent(),
+      guest: fakeGuest(),
+      ai: { prompt: stored, assistantName: "Luna" },
+    });
+    expect(text).toContain("Eres Luna");
+    expect(text).not.toContain("## Instrucciones extra del evento");
+  });
+
+  test("buildInstructions reescribe personalidad desde los knobs en defaultPrompt", () => {
+    const text = prompt.buildInstructions({
+      event: fakeEvent(),
+      guest: fakeGuest(),
+      ai: {
+        prompt: "Menciona el valet.",
+        assistantName: "Camila",
+        tone: "Divertido",
+        formality: 20,
+        emojis: "frecuentes",
+        length: "detallados",
+      },
+    });
+    expect(text).toContain("Menciona el valet.");
+    expect(text).not.toContain("Personalidad actual (prevalece)");
+    expect(text).toContain("Eres Camila");
+    expect(text).toContain("Tono: Divertido");
+    expect(text).toContain("Formalidad: 20%");
+    expect(text).toContain("emojis con naturalidad");
+    expect(text).toContain("extenderte un poco");
   });
 });

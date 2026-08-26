@@ -5,14 +5,19 @@ import { createInstance } from "../helpers/models.js";
 describe("event-data.controller", () => {
   let controller;
   let models;
+  const resetPlaygroundSessions = jest.fn(async () => 0);
 
   beforeEach(async () => {
+    resetPlaygroundSessions.mockClear();
     ({ mod: controller, models } = await loadWithMocks("src/controllers/event-data.controller.js", {
       extraMocks: {
         "src/services/access.service.js": () => ({
           requireEvent: jest.fn(async () => fakeEvent()),
           requirePermission: jest.fn(async () => true),
           PERMS,
+        }),
+        "src/services/bot/session.service.js": () => ({
+          resetPlaygroundSessions,
         }),
       },
     }));
@@ -32,6 +37,46 @@ describe("event-data.controller", () => {
       req: createMockReq({ params: { eventId: "boda-ana" }, body: { tone: "Cálido" } }),
     });
     expect(res.status).toHaveBeenCalledWith(404);
+  });
+
+  test("updateAi resetea playground si cambia la personalidad", async () => {
+    const ai = createInstance({
+      assistantName: "Sofía",
+      tone: "Elegante",
+      formality: 60,
+      emojis: "algunos",
+      length: "normales",
+      openingMessage: "hola",
+      prompt: "cerebro",
+      rules: [],
+      followUps: [],
+    });
+    models.AiConfig.findOne.mockResolvedValue(ai);
+    await callHandler(controller.updateAi, {
+      req: createMockReq({ params: { eventId: "boda-ana" }, body: { tone: "Casual" } }),
+    });
+    expect(ai.tone).toBe("Casual");
+    expect(resetPlaygroundSessions).toHaveBeenCalledWith("evt_1");
+  });
+
+  test("updateAi no resetea playground si solo cambia openingMessage", async () => {
+    const ai = createInstance({
+      assistantName: "Sofía",
+      tone: "Elegante",
+      formality: 60,
+      emojis: "algunos",
+      length: "normales",
+      openingMessage: "hola",
+      prompt: "cerebro",
+      rules: [],
+      followUps: [],
+    });
+    models.AiConfig.findOne.mockResolvedValue(ai);
+    await callHandler(controller.updateAi, {
+      req: createMockReq({ body: { openingMessage: "otro" } }),
+    });
+    expect(ai.openingMessage).toBe("otro");
+    expect(resetPlaygroundSessions).not.toHaveBeenCalled();
   });
 
   test("setTemplates 400 si no es arreglo", async () => {

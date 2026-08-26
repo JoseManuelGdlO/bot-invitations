@@ -86,6 +86,7 @@ router.put("/events/:eventId/faqs", eventData.setFaqs);
 
 if (env.botDevEnabled) {
   router.get("/dev/bot/status", botDev.status);
+  router.get("/dev/events/:eventId/bot/prompt", botDev.getPromptPreview);
   router.get("/dev/events/:eventId/bot/playground", botDev.getPlayground);
   router.post("/dev/events/:eventId/bot/playground", botDev.postPlayground);
   router.post("/dev/conversations/:conversationId/simulate-guest", botDev.simulateGuest);

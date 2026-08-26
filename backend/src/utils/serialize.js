@@ -1,4 +1,5 @@
 import { formatRelative } from "./time.js";
+import { extraInstructions } from "../services/bot/prompt.service.js";
 
 export function serializeEvent(event) {
   return {
@@ -67,7 +68,7 @@ export function serializeAi(ai) {
     emojis: ai.emojis,
     length: ai.length,
     openingMessage: ai.openingMessage,
-    prompt: ai.prompt || "",
+    prompt: extraInstructions(ai.prompt),
     rules: ai.rules || [],
     followUps: ai.followUps || [],
   };

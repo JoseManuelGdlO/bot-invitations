@@ -187,7 +187,7 @@ function defaultAI(assistant: string, hosts: string): AIConfig {
     emojis: "algunos",
     length: "normales",
     openingMessage: aiOpening(assistant, hosts),
-    prompt: `Eres ${assistant}, asistente del equipo de ${hosts}. Confirmas asistencia por WhatsApp. Nunca digas que eres una IA.`,
+    prompt: "",
     rules: [
       "Nunca mencionar que eres una IA.",
       "Siempre ser amable y cálida.",

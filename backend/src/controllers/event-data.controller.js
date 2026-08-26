@@ -30,11 +30,17 @@ export const updateAi = asyncHandler(async (req, res) => {
     "followUps",
   ];
   const promptChanged = req.body?.prompt !== undefined && String(req.body.prompt) !== String(ai.prompt || "");
+  const personalityKeys = ["assistantName", "tone", "formality", "emojis", "length", "rules"];
+  const personalityChanged = personalityKeys.some((key) => {
+    if (req.body?.[key] === undefined) return false;
+    if (key === "rules") return JSON.stringify(req.body.rules ?? []) !== JSON.stringify(ai.rules ?? []);
+    return String(req.body[key]) !== String(ai[key] ?? "");
+  });
   for (const key of allowed) {
     if (req.body?.[key] !== undefined) ai[key] = req.body[key];
   }
   await ai.save();
-  if (promptChanged) {
+  if (promptChanged || personalityChanged) {
     await resetPlaygroundSessions(event.id);
   }
   res.json(serializeAi(ai));

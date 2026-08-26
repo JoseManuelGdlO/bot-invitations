@@ -3,6 +3,14 @@ import type { ChatMessage, Conversation } from "@/lib/mock/types";
 
 export type BotDevStatus = { enabled: boolean };
 
+export type BotPromptPreview = {
+  ok: boolean;
+  eventId: string;
+  guestId: string;
+  guestName: string;
+  instructions: string;
+};
+
 export type BotPlaygroundMessage = { role: "user" | "assistant"; text: string };
 
 export type BotPlaygroundState = {
@@ -44,6 +52,10 @@ export const botApi = {
       }
       return { enabled: false };
     }
+  },
+  getPromptPreview: (eventId: string, guestId?: string) => {
+    const qs = guestId ? `?guestId=${encodeURIComponent(guestId)}` : "";
+    return api<BotPromptPreview>(`/dev/events/${eventId}/bot/prompt${qs}`);
   },
   getPlayground: (eventId: string, guestId: string) =>
     api<BotPlaygroundState>(`/dev/events/${eventId}/bot/playground?guestId=${encodeURIComponent(guestId)}`),

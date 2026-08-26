@@ -18,12 +18,26 @@ function listRules(ai) {
   return rules.map((rule) => `- ${rule}`).join("\n");
 }
 
-export function defaultPrompt(ai = {}) {
+function personalityFields(ai = {}) {
   const name = ai.assistantName || "Sofía";
   const tone = ai.tone || "Elegante";
   const formality = Number.isFinite(Number(ai.formality)) ? Number(ai.formality) : 60;
   const emojis = EMOJI_HINT[ai.emojis] || EMOJI_HINT.algunos;
   const length = LENGTH_HINT[ai.length] || LENGTH_HINT.normales;
+  return { name, tone, formality, emojis, length };
+}
+
+const SYSTEM_PROMPT_MARKERS = ["Flujo (obligatorio):", "Clasifica CADA mensaje del invitado"];
+
+export function extraInstructions(prompt) {
+  const text = String(prompt || "").trim();
+  if (!text) return "";
+  if (SYSTEM_PROMPT_MARKERS.every((marker) => text.includes(marker))) return "";
+  return text;
+}
+
+export function defaultPrompt(ai = {}) {
+  const { name, tone, formality, emojis, length } = personalityFields(ai);
   const rules = listRules(ai) || "- Sé amable y no presiones al invitado.";
 
   return `Eres ${name}, asistente del equipo del evento. Hablas por WhatsApp con un invitado para confirmar asistencia.
@@ -71,8 +85,9 @@ export async function loadEventBotContext(event, guest) {
 }
 
 export function buildInstructions({ event, guest, ai, templates = [], faqs = [], vars = {} }) {
-  const stored = String(ai?.prompt || "").trim();
-  const brain = stored || defaultPrompt(ai || {});
+  const brain = defaultPrompt(ai || {});
+  const extras = extraInstructions(ai?.prompt);
+  const extraBlock = extras ? `\n## Instrucciones extra del evento\n${extras}\n` : "";
   const templateBlock = templates.length
     ? templates
         .map((t) => `- id=${t.id} | [${t.category}] ${t.title}\n  ${t.body}`)
@@ -86,7 +101,7 @@ export function buildInstructions({ event, guest, ai, templates = [], faqs = [],
     : "{{nombre}}, {{numero_invitados}}, {{evento}}";
 
   return `${brain}
-
+${extraBlock}
 ## Aislamiento (obligatorio, prevalece sobre lo anterior)
 Eres el bot ÚNICAMENTE del evento indicado. Tienes prohibido mencionar, mezclar o inventar datos de otros eventos del mismo planner o de cualquier otro. Si el invitado pregunta algo que no está en los hechos, plantillas o FAQs de ESTE evento, dilo con honestidad y ofrece pasar el tema al equipo. No uses recuerdos de otras conversaciones ni de otros eventos.
 

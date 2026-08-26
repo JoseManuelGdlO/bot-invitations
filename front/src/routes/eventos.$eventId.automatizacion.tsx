@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Bot, Plus, RefreshCw, Save, Sparkles, Trash2 } from "lucide-react";
+import { Bot, Eye, Plus, Save, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -9,6 +9,13 @@ import { Slider } from "@/components/ui/slider";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -16,53 +23,40 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { useEvent, useStore } from "@/lib/mock/store";
-import { formatDate } from "@/lib/mock/format";
-import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { botApi } from "@/lib/api/bot";
 import { BotPlayground } from "@/components/bot-playground";
-import type { AIConfig } from "@/lib/mock/types";
 
 export const Route = createFileRoute("/eventos/$eventId/automatizacion")({
   head: () => ({
     meta: [
       { title: "Asistente de Confirmaciones · Alanna" },
-      { name: "description", content: "Configura la personalidad, el mensaje inicial y las reglas del asistente." },
+      { name: "description", content: "Configura la personalidad, las reglas y el seguimiento del asistente." },
       { property: "og:title", content: "Asistente de Confirmaciones · Alanna" },
-      { property: "og:description", content: "Personalidad, mensaje inicial y reglas de seguimiento." },
+      { property: "og:description", content: "Personalidad, instrucciones extra y reglas de seguimiento." },
       { name: "robots", content: "noindex, nofollow" },
     ],
   }),
   component: Automatizacion,
 });
 
-const variables = [
-  "nombre",
-  "nombre_completo",
-  "numero_invitados",
-  "numero_confirmados",
-  "mesa",
-  "evento",
-  "fecha",
-  "lugar",
-  "direccion",
-  "hora",
-  "planner",
-];
 const tones = ["Elegante", "Casual", "Amable", "Cercano", "Formal", "Divertido"];
 
 function Automatizacion() {
   const { eventId } = Route.useParams();
-  const { data, event, guests } = useEvent(eventId);
-  const { updateAI, session } = useStore();
+  const { data, guests } = useEvent(eventId);
+  const { updateAI } = useStore();
   const ai = data.ai;
-  const [message, setMessage] = useState(ai.openingMessage);
-  const [prompt, setPrompt] = useState(ai.prompt || "");
+  const [extras, setExtras] = useState(ai.prompt || "");
   const [newRule, setNewRule] = useState("");
   const [devBot, setDevBot] = useState(false);
+  const [promptOpen, setPromptOpen] = useState(false);
+  const [promptText, setPromptText] = useState("");
+  const [promptGuest, setPromptGuest] = useState("");
+  const [promptLoading, setPromptLoading] = useState(false);
 
   useEffect(() => {
-    setPrompt(ai.prompt || "");
+    setExtras(ai.prompt || "");
   }, [ai.prompt]);
 
   useEffect(() => {
@@ -75,24 +69,20 @@ function Automatizacion() {
     };
   }, []);
 
-  const insert = (v: string) => setMessage((m) => `${m} {{${v}}}`);
-
-  const preview = (guestIndex: number, greeting: string) => {
-    const g = guests[guestIndex];
-    if (!g || !event) return "";
-    return `${greeting}\n\n${message}`
-      .replace(/{{nombre_completo}}/g, g.rep)
-      .replace(/{{nombre}}/g, g.rep.split(" ")[0] ?? g.rep)
-      .replace(/{{numero_invitados}}/g, String(g.invited))
-      .replace(/{{numero_confirmados}}/g, String(g.confirmed))
-      .replace(/{{confirmados}}/g, String(g.confirmed))
-      .replace(/{{mesa}}/g, g.table || "")
-      .replace(/{{evento}}/g, event.name)
-      .replace(/{{fecha}}/g, formatDate(event.date))
-      .replace(/{{lugar}}/g, event.venue)
-      .replace(/{{direccion}}/g, event.address || "")
-      .replace(/{{hora}}/g, event.time)
-      .replace(/{{planner}}/g, session?.name.split(" ")[0] ?? "Planner");
+  const openPromptPreview = async () => {
+    setPromptLoading(true);
+    setPromptOpen(true);
+    try {
+      const guestId = guests[0]?.id;
+      const res = await botApi.getPromptPreview(eventId, guestId);
+      setPromptText(res.instructions || "");
+      setPromptGuest(res.guestName || "");
+    } catch (error) {
+      setPromptOpen(false);
+      toast.error(error instanceof Error ? error.message : "No se pudo cargar el prompt");
+    } finally {
+      setPromptLoading(false);
+    }
   };
 
   return (
@@ -103,6 +93,9 @@ function Automatizacion() {
             <Bot className="size-5 text-gold" />
             <h2 className="font-display text-2xl">Personalidad del asistente</h2>
           </div>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Estos ajustes se aplican en cada conversación.
+          </p>
           <div className="mt-5 grid gap-5 sm:grid-cols-2">
             <div className="space-y-2">
               <Label>Nombre del asistente</Label>
@@ -161,86 +154,14 @@ function Automatizacion() {
         </section>
 
         <section className="rounded-2xl border border-border bg-card p-6 shadow-soft">
-          <h2 className="font-display text-2xl">Prompt del bot</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Este texto es el cerebro de este evento. Las plantillas y FAQs se inyectan solas en cada turno.
-          </p>
-          <Textarea
-            value={prompt}
-            onChange={(e) => setPrompt(e.target.value)}
-            rows={12}
-            className="mt-4 font-sans text-sm leading-relaxed"
-          />
-          <div className="mt-4 flex flex-wrap gap-2">
-            <Button
-              onClick={() => {
-                updateAI(eventId, { prompt });
-                toast.success("Prompt guardado");
-              }}
-            >
-              <Save className="size-4" /> Guardar prompt
-            </Button>
-            <Button
-              variant="outline"
-              onClick={async () => {
-                if (!window.confirm("¿Regenerar el prompt desde la personalidad? Se pierde el texto actual.")) return;
-                try {
-                  const saved = (await botApi.regeneratePrompt(eventId)) as AIConfig;
-                  const next = saved?.prompt ?? "";
-                  setPrompt(next);
-                  updateAI(eventId, { prompt: next });
-                  toast.success("Prompt regenerado desde la personalidad");
-                } catch (error) {
-                  toast.error(error instanceof Error ? error.message : "No se pudo regenerar");
-                }
-              }}
-            >
-              <RefreshCw className="size-4" /> Regenerar desde personalidad
-            </Button>
-          </div>
-        </section>
-
-        <section className="rounded-2xl border border-border bg-card p-6 shadow-soft">
-          <h2 className="font-display text-2xl">Mensaje inicial</h2>
-          <p className="mt-1 text-sm text-muted-foreground">
-            La campaña usa la plantilla «Primer contacto» de Mensajes. Este texto es el respaldo si no hay plantilla.
-          </p>
-          <Textarea
-            value={message}
-            onChange={(e) => setMessage(e.target.value)}
-            rows={10}
-            className="mt-4 font-sans text-sm leading-relaxed"
-          />
-          <div className="mt-3 flex flex-wrap gap-2">
-            {variables.map((v) => (
-              <button
-                key={v}
-                onClick={() => insert(v)}
-                className="rounded-full border border-border bg-secondary px-2.5 py-1 text-[11px] transition-colors hover:bg-gold-soft"
-              >
-                {`{{${v}}}`}
-              </button>
-            ))}
-          </div>
-          <Button
-            className="mt-4"
-            onClick={() => {
-              updateAI(eventId, { openingMessage: message });
-              toast.success("Mensaje inicial guardado");
-            }}
-          >
-            <Save className="size-4" /> Guardar mensaje
-          </Button>
-        </section>
-
-        <section className="rounded-2xl border border-border bg-card p-6 shadow-soft">
           <h2 className="font-display text-2xl">Reglas de conversación</h2>
           <ul className="mt-4 space-y-2">
             {ai.rules.map((r, i) => (
-              <li key={r} className="flex items-center gap-3 rounded-xl border border-border bg-secondary/40 px-3 py-2 text-sm">
+              <li key={`${i}-${r}`} className="flex items-center gap-3 rounded-xl border border-border bg-secondary/40 px-3 py-2 text-sm">
                 <span className="text-gold">•</span>
                 <span className="flex-1">{r}</span>
                 <button
+                  type="button"
                   onClick={() => updateAI(eventId, { rules: ai.rules.filter((_, j) => j !== i) })}
                   className="text-muted-foreground transition-colors hover:text-destructive"
                 >
@@ -285,45 +206,61 @@ function Automatizacion() {
             ))}
           </div>
         </section>
+
+        <section className="rounded-2xl border border-border bg-card p-6 shadow-soft">
+          <h2 className="font-display text-2xl">Instrucciones extra</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            El flujo de confirmación no se edita aquí. Añade solo matices de este evento; se agregan al final del prompt del sistema.
+          </p>
+          <Textarea
+            value={extras}
+            onChange={(e) => setExtras(e.target.value)}
+            rows={8}
+            placeholder="Ej. Hay valet parking. No hables de la mesa de regalos a menos que pregunten."
+            className="mt-4 font-sans text-sm leading-relaxed"
+          />
+          <Button
+            className="mt-4"
+            onClick={() => {
+              updateAI(eventId, { prompt: extras });
+              toast.success("Instrucciones extra guardadas");
+            }}
+          >
+            <Save className="size-4" /> Guardar instrucciones
+          </Button>
+        </section>
       </div>
 
       <aside className="space-y-4">
         <div className="sticky top-6 space-y-4">
           {devBot ? (
             <div className="rounded-2xl border border-border bg-card p-5 shadow-soft">
-              <div className="flex items-center gap-2">
-                <Bot className="size-4 text-gold" />
-                <h3 className="font-display text-xl">Probar bot</h3>
+              <div className="flex items-start justify-between gap-2">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <Bot className="size-4 text-gold" />
+                    <h3 className="font-display text-xl">Probar bot</h3>
+                  </div>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    Solo en desarrollo. Usa el prompt y las plantillas de este evento, sin WhatsApp.
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="shrink-0"
+                  disabled={promptLoading}
+                  onClick={() => void openPromptPreview()}
+                >
+                  <Eye className="size-4" /> Ver prompt
+                </Button>
               </div>
-              <p className="mt-1 text-xs text-muted-foreground">
-                Solo en desarrollo. Usa el prompt y las plantillas de este evento, sin WhatsApp.
-              </p>
               <div className="mt-4">
                 <BotPlayground eventId={eventId} guests={guests} />
               </div>
             </div>
           ) : null}
-          <div className="rounded-2xl border border-border bg-card p-5 shadow-soft">
-            <div className="flex items-center gap-2">
-              <Sparkles className="size-4 text-gold" />
-              <h3 className="font-display text-xl">Personalización automática</h3>
-            </div>
-            <p className="mt-1 text-xs text-muted-foreground">
-              Cada invitado recibe una variación distinta del mismo mensaje.
-            </p>
-            <div className="mt-4 space-y-3">
-              {[
-                [0, "Hola María, ¿cómo estás? 😊"],
-                [1, "Hola Juan, esperamos que estés teniendo un excelente día."],
-              ].map(([idx, greeting]) => (
-                <div key={String(idx)} className={cn("chat-canvas rounded-xl p-3")}>
-                  <div className="rounded-2xl rounded-br-sm bg-success-soft p-3 text-xs leading-relaxed shadow-soft">
-                    <p className="whitespace-pre-line">{preview(Number(idx), String(greeting))}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
 
           <div className="rounded-2xl border border-border bg-card p-5 shadow-soft">
             <h3 className="font-display text-xl">Flujo de confirmación</h3>
@@ -350,6 +287,22 @@ function Automatizacion() {
           </div>
         </div>
       </aside>
+
+      <Dialog open={promptOpen} onOpenChange={setPromptOpen}>
+        <DialogContent className="flex max-h-[85vh] max-w-3xl flex-col gap-3 overflow-hidden">
+          <DialogHeader>
+            <DialogTitle>Prompt final del asistente</DialogTitle>
+            <DialogDescription>
+              {promptGuest
+                ? `Así se arma el cerebro para ${promptGuest} (personalidad, reglas, extras, plantillas y FAQs).`
+                : "Así se arma el cerebro en cada turno."}
+            </DialogDescription>
+          </DialogHeader>
+          <pre className="min-h-0 flex-1 overflow-auto rounded-xl border border-border bg-secondary/40 p-4 font-sans text-xs leading-relaxed whitespace-pre-wrap">
+            {promptLoading ? "Cargando…" : promptText || "Sin contenido."}
+          </pre>
+        </DialogContent>
+      </Dialog>
     </main>
   );
 }
