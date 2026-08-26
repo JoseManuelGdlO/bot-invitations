@@ -99,6 +99,27 @@ describe("guests.controller", () => {
     expect(res.setHeader).toHaveBeenCalledWith("Content-Type", expect.stringContaining("csv"));
     expect(res.send).toHaveBeenCalled();
   });
+
+  test("deleteGuest 404", async () => {
+    models.Guest.findOne.mockResolvedValue(null);
+    const { res } = await callHandler(controller.deleteGuest, {
+      req: createMockReq({ user: fakeUser(), params: { guestId: "missing" } }),
+    });
+    expect(res.status).toHaveBeenCalledWith(404);
+  });
+
+  test("deleteGuest ok", async () => {
+    const guest = fakeGuest();
+    guest.destroy = jest.fn(async () => guest);
+    models.Guest.findOne.mockResolvedValue(guest);
+    models.Conversation.findOne.mockResolvedValue({ id: "conv_1" });
+    const { res } = await callHandler(controller.deleteGuest, {
+      req: createMockReq({ user: fakeUser(), params: { guestId: "gst_1" } }),
+    });
+    expect(models.Message.destroy).toHaveBeenCalled();
+    expect(guest.destroy).toHaveBeenCalled();
+    expect(res.json).toHaveBeenCalledWith({ ok: true });
+  });
 });
 
 describe("guests.controller Asistente", () => {

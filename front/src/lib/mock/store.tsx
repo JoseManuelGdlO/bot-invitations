@@ -81,6 +81,7 @@ interface Ctx extends State {
   addEvent: (e: EventItem) => Promise<EventItem>;
   updateEvent: (id: string, patch: Partial<EventItem>) => void;
   updateGuest: (id: string, patch: Partial<Guest>) => void;
+  deleteGuest: (id: string) => Promise<void>;
   remindGuest: (id: string) => void;
   importGuests: (eventId: string, rows: Guest[]) => void;
   previewImport: (eventId: string, file: File) => Promise<ImportPreview>;
@@ -232,6 +233,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           guests: s.guests.map((g) => (g.id === id ? { ...g, ...patch } : g)),
         }));
         api(`/guests/${id}`, { method: "PATCH", body: JSON.stringify(patch) }).catch(console.error);
+      },
+      deleteGuest: async (id) => {
+        await api(`/guests/${id}`, { method: "DELETE" });
+        setState((s) => ({
+          ...s,
+          guests: s.guests.filter((g) => g.id !== id),
+          conversations: s.conversations.filter((c) => c.guestId !== id),
+        }));
       },
       remindGuest: (id) => {
         api<Guest>(`/guests/${id}/remind`, { method: "POST" })

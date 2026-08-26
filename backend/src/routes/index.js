@@ -66,6 +66,7 @@ router.delete("/events/:eventId", events.deleteEvent);
 router.get("/events/:eventId/guests", events.listGuests);
 router.post("/events/:eventId/guests", guests.createGuest);
 router.patch("/guests/:guestId", guests.updateGuest);
+router.delete("/guests/:guestId", guests.deleteGuest);
 router.post("/guests/:guestId/remind", guests.remindGuest);
 router.post("/events/:eventId/guests/import/preview", upload.single("file"), guests.previewImport);
 router.post("/events/:eventId/guests/import/confirm", guests.confirmImport);
