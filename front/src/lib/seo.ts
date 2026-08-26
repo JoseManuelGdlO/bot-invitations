@@ -8,6 +8,7 @@ export function pageHead(opts: {
   path?: string;
   noindex?: boolean;
   canonical?: string;
+  ogType?: string;
 }) {
   const canonical = opts.canonical ?? (opts.path ? `${siteOrigin}${opts.path}` : undefined);
   const meta: Array<Record<string, string>> = [
@@ -15,7 +16,7 @@ export function pageHead(opts: {
     { name: "description", content: opts.description },
     { property: "og:title", content: opts.title },
     { property: "og:description", content: opts.description },
-    { property: "og:type", content: "website" },
+    { property: "og:type", content: opts.ogType || "website" },
     { property: "og:url", content: canonical || siteOrigin },
     { property: "og:image", content: `${siteOrigin}/og-image.png` },
     { property: "og:locale", content: "es_MX" },
@@ -79,7 +80,59 @@ export const businessJsonLd = {
   offers: { "@type": "Offer", price: "0", priceCurrency: "MXN" },
   publisher: {
     "@type": "Organization",
-    name: "Alanna",
+    name: "Alanna Confirmaciones",
     url: siteOrigin,
   },
 };
+
+export function buildFaqJsonLd(items: Array<{ q: string; a: string }>) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: items.map((item) => ({
+      "@type": "Question",
+      name: item.q,
+      acceptedAnswer: { "@type": "Answer", text: item.a },
+    })),
+  };
+}
+
+export function buildBreadcrumbJsonLd(items: Array<{ name: string; path: string }>) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: items.map((item, index) => ({
+      "@type": "ListItem",
+      position: index + 1,
+      name: item.name,
+      item: `${siteOrigin}${item.path || ""}`,
+    })),
+  };
+}
+
+export function buildArticleJsonLd(opts: {
+  title: string;
+  description: string;
+  path: string;
+  datePublished: string;
+}) {
+  return {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    headline: opts.title,
+    description: opts.description,
+    inLanguage: "es-MX",
+    datePublished: opts.datePublished,
+    dateModified: opts.datePublished,
+    author: { "@type": "Organization", name: "Alanna Confirmaciones", url: siteOrigin },
+    publisher: { "@type": "Organization", name: "Alanna Confirmaciones", url: siteOrigin },
+    mainEntityOfPage: `${siteOrigin}${opts.path}`,
+  };
+}
+
+export function jsonLdScripts(...payloads: object[]) {
+  return payloads.map((payload) => ({
+    type: "application/ld+json" as const,
+    children: JSON.stringify(payload),
+  }));
+}

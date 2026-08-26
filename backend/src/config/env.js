@@ -33,9 +33,20 @@ function parseWaSendThrottle() {
   return { intervalMinMs, intervalMaxMs, maxPerHour };
 }
 
+const LOG_LEVELS = new Set(["error", "warn", "info", "debug"]);
+
+function parseLogLevel(nodeEnv) {
+  const raw = String(process.env.LOG_LEVEL || "").trim().toLowerCase();
+  if (LOG_LEVELS.has(raw)) return raw;
+  return nodeEnv === "production" ? "info" : "debug";
+}
+
+const nodeEnv = process.env.NODE_ENV || "development";
+
 export const env = {
   port: Number(process.env.PORT || 4000),
-  nodeEnv: process.env.NODE_ENV || "development",
+  nodeEnv,
+  logLevel: parseLogLevel(nodeEnv),
   clientUrl: (process.env.CLIENT_URL || "http://localhost:8080").replace(/\/$/, ""),
   corsOrigins: parseOrigins(
     process.env.CLIENT_URL,

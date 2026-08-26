@@ -1,5 +1,8 @@
 import { env } from "../config/env.js";
 import { httpError } from "../utils/http-error.js";
+import { Logger } from "../utils/logger.js";
+
+const wcLog = new Logger("WhatsApp");
 
 class WcRequestError extends Error {
   constructor(status, message) {
@@ -226,7 +229,13 @@ export const wcClient = {
             };
 
     const scopedTenant = requireWcTenantId(tenantId);
-    return wcFetch(devicePath(deviceId, "/messages/send"), {
+    const path = devicePath(deviceId, "/messages/send");
+    wcLog.info(`POST ${path}`, {
+      to: messageBody.to,
+      type: messageBody.type,
+      chars: String(text || caption || "").length,
+    });
+    return wcFetch(path, {
       method: "POST",
       tenantId: scopedTenant,
       body: {

@@ -37,6 +37,12 @@ function sanitize(data) {
   return clean;
 }
 
+const LEVEL_RANK = { error: 0, warn: 1, info: 2, debug: 3 };
+
+function shouldLog(level) {
+  return LEVEL_RANK[level] <= LEVEL_RANK[env.logLevel];
+}
+
 export class Logger {
   constructor(context = "App") {
     this.context = context;
@@ -55,20 +61,22 @@ export class Logger {
   }
 
   info(message, meta) {
+    if (!shouldLog("info")) return;
     console.log(this._format("info", message, meta));
   }
 
   warn(message, meta) {
+    if (!shouldLog("warn")) return;
     console.warn(this._format("warn", message, meta));
   }
 
   error(message, meta) {
+    if (!shouldLog("error")) return;
     console.error(this._format("error", message, meta));
   }
 
   debug(message, meta) {
-    if (env.nodeEnv !== "production") {
-      console.log(this._format("debug", message, meta));
-    }
+    if (!shouldLog("debug")) return;
+    console.log(this._format("debug", message, meta));
   }
 }

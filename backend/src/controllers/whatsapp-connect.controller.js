@@ -3,6 +3,9 @@ import { httpError } from "../utils/http-error.js";
 import { wcClient } from "../services/wc.client.js";
 import { runWithWcToken } from "../services/wc-auth.js";
 import { resolveWhatsappConnectIntegrationById } from "../services/integration-resolver.service.js";
+import { Logger } from "../utils/logger.js";
+
+const log = new Logger("WhatsApp");
 
 function requireUuid(value, field = "integrationId") {
   const id = String(value || "").trim();
@@ -79,5 +82,6 @@ export const postWhatsappConnectSendTest = asyncHandler(async (req, res) => {
       tenantId: credentials.tenantId,
     }),
   );
+  log.info("send-test", { integrationId });
   res.status(202).json({ ok: true });
 });

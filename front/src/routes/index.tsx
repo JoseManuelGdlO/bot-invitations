@@ -1,20 +1,20 @@
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { CalendarHeart, Check, MessageCircle, Sparkles, Upload, Users } from "lucide-react";
-import logo from "@/assets/alanna-logo.png";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api/client";
 import { pageHead, faqJsonLd, businessJsonLd } from "@/lib/seo";
 import type { BillingInterval, SubscriptionPlan } from "@/lib/mock/types";
 import { useStore } from "@/lib/mock/store";
 import { BillingToggle, PlanPrice } from "@/components/billing-toggle";
+import { MarketingShell } from "@/components/marketing-shell";
 
 export const Route = createFileRoute("/")({
   head: () => ({
     ...pageHead({
-      title: "Alanna · Confirmaciones inteligentes para bodas",
+      title: "Alanna Confirmaciones · Software para wedding planners",
       description:
-        "Alanna confirma invitados de bodas y eventos por WhatsApp, con un asistente que habla por tu estudio. Planes desde $500 MXN al mes.",
+        "Alanna Confirmaciones confirma invitados de bodas por WhatsApp. Software RSVP para wedding planners en México. Planes desde $500 MXN al mes.",
       path: "/",
     }),
     scripts: [
@@ -45,39 +45,13 @@ function Landing() {
   }, []);
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="mx-auto flex w-full max-w-6xl items-center justify-between px-5 py-5">
-        <Link to="/" className="flex items-center gap-2.5">
-          <img src={logo} alt="Logotipo de Alanna Confirmaciones" width={36} height={36} className="size-9 rounded-xl bg-primary object-contain p-1.5" />
-          <div>
-            <p className="font-display text-2xl leading-none">Alanna</p>
-            <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-gold">Confirmaciones</p>
-          </div>
-        </Link>
-        <nav className="flex items-center gap-2">
-          {session ? (
-            <Button asChild>
-              <Link to="/eventos">Ir al panel</Link>
-            </Button>
-          ) : (
-            <>
-              <Button variant="ghost" asChild>
-                <Link to="/iniciar-sesion">Iniciar sesión</Link>
-              </Button>
-              <Button asChild>
-                <Link to="/registro">Registrarse</Link>
-              </Button>
-            </>
-          )}
-        </nav>
-      </header>
-
+    <MarketingShell>
       <main>
         <section className="mx-auto grid w-full max-w-6xl items-center gap-10 px-5 py-12 lg:grid-cols-[1.15fr_0.85fr] lg:py-20">
           <div>
             <p className="text-xs font-medium uppercase tracking-[0.16em] text-gold">Para wedding planners</p>
             <h1 className="mt-3 font-display text-5xl leading-[1.05] sm:text-6xl">
-              Confirmamos a tus invitados mientras tú diseñas el día.
+              Alanna Confirmaciones: confirmamos a tus invitados mientras tú diseñas el día.
             </h1>
             <p className="mt-5 max-w-xl text-base leading-relaxed text-muted-foreground">
               Alanna es el copiloto de tu estudio: importa la lista, lanza las confirmaciones por WhatsApp
@@ -193,17 +167,34 @@ function Landing() {
             ))}
           </div>
         </section>
-      </main>
 
-      <footer className="border-t border-border">
-        <div className="mx-auto flex w-full max-w-6xl flex-wrap items-center justify-between gap-3 px-5 py-6 text-xs text-muted-foreground">
-          <p>Alanna Confirmaciones</p>
-          <div className="flex gap-4">
-            <Link to="/iniciar-sesion" className="hover:text-foreground">Iniciar sesión</Link>
-            <Link to="/registro" className="hover:text-foreground">Registrarse</Link>
+        <section className="border-t border-border bg-card/50">
+          <div className="mx-auto w-full max-w-6xl px-5 py-14">
+            <p className="text-xs font-medium uppercase tracking-[0.16em] text-gold">Recursos</p>
+            <h2 className="mt-2 font-display text-4xl">Guías de RSVP y WhatsApp para tu estudio</h2>
+            <p className="mt-2 max-w-2xl text-sm text-muted-foreground">
+              Cómo confirmar invitados, armar la lista y dejar Excel. El mismo proceso que Alanna Confirmaciones automatiza.
+            </p>
+            <div className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+              {[
+                { href: "/para-wedding-planners", title: "Para wedding planners", text: "Cómo entra Alanna en el flujo de un estudio." },
+                { href: "/confirmacion-invitados-whatsapp", title: "Confirmación WhatsApp", text: "RSVP en el canal donde sí contestan." },
+                { href: "/software-rsvp-bodas", title: "Software RSVP", text: "Deja de copiar respuestas en Excel." },
+                { href: "/blog", title: "Blog", text: "Listas, seguimiento y bodas de 200 invitados." },
+              ].map((item) => (
+                <a
+                  key={item.href}
+                  href={item.href}
+                  className="rounded-2xl border border-border bg-card p-5 shadow-soft transition-colors hover:border-gold"
+                >
+                  <h3 className="font-display text-xl">{item.title}</h3>
+                  <p className="mt-2 text-sm text-muted-foreground">{item.text}</p>
+                </a>
+              ))}
+            </div>
           </div>
-        </div>
-      </footer>
-    </div>
+        </section>
+      </main>
+    </MarketingShell>
   );
 }
