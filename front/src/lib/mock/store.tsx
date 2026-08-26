@@ -7,7 +7,7 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { api, download, setToken } from "@/lib/api/client";
+import { api, download, getToken, setToken } from "@/lib/api/client";
 import type {
   ActivityItem,
   ChatMessage,
@@ -138,6 +138,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     let cancelled = false;
     (async () => {
       try {
+        if (!getToken()) return;
         await refresh();
       } catch {
         setToken(null);
@@ -151,8 +152,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     };
   }, [refresh]);
 
-  const afterAuth = async (res: { accessToken: string; user: SessionUser }) => {
-    setToken(res.accessToken);
+  const afterAuth = async (res: { accessToken: string; user: SessionUser }, rememberMe = false) => {
+    setToken(res.accessToken, rememberMe);
     await refresh();
   };
 
@@ -166,7 +167,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           method: "POST",
           body: JSON.stringify({ email, password, rememberMe }),
         });
-        await afterAuth(res);
+        await afterAuth(res, Boolean(rememberMe));
         return res.user;
       },
       register: async (payload) => {
@@ -177,7 +178,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             body: JSON.stringify(payload),
           },
         );
-        await afterAuth(res);
+        await afterAuth(res, false);
         return { checkoutUrl: res.checkoutUrl ?? null };
       },
       registerInvite: async (payload) => {
@@ -185,7 +186,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           method: "POST",
           body: JSON.stringify(payload),
         });
-        await afterAuth(res);
+        await afterAuth(res, false);
       },
       startCheckout: async (planId, interval = "month") => {
         return api<{ checkoutUrl?: string | null; updated?: boolean }>("/billing/checkout", {

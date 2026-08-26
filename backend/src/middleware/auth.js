@@ -11,6 +11,9 @@ export async function requireAuth(req, res, next) {
     const payload = verifyAccess(token);
     const user = await User.findByPk(payload.sub);
     if (!user) return res.status(401).json({ error: "Sesión inválida" });
+    if (Number(payload.ver || 0) !== Number(user.tokenVersion || 0)) {
+      return res.status(401).json({ error: "Sesión inválida" });
+    }
     req.user = user;
     next();
   } catch {
