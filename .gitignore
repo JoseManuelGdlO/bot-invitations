@@ -6,3 +6,6 @@ backend/.env
 .DS_Store
 docs
 .cursor
+front/.output
+front/.wrangler
+front/dist
