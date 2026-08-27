@@ -71,7 +71,9 @@ export const env = {
     refreshDays: Number(process.env.JWT_REFRESH_EXPIRES_DAYS || 7),
     rememberDays: Number(process.env.JWT_REFRESH_REMEMBER_DAYS || 30),
   },
-  resetUrl: process.env.FRONTEND_RESET_URL || "http://localhost:8080/restablecer-contrasena",
+  resetUrl:
+    process.env.FRONTEND_RESET_URL ||
+    `${(process.env.CLIENT_URL || "http://localhost:8080").replace(/\/$/, "")}/restablecer-contrasena`,
   workerIntervalMs: Number(process.env.WORKER_INTERVAL_MS || 5000),
   waSend: parseWaSendThrottle(),
   stripe: {
@@ -79,10 +81,17 @@ export const env = {
     webhookSecret: process.env.STRIPE_WEBHOOK_SECRET || "",
   },
   smtp: {
+    host: process.env.SMTP_HOST || "smtp.hostinger.com",
+    port: Number(process.env.SMTP_PORT) || 465,
+    secure: process.env.SMTP_SECURE === "true" || Number(process.env.SMTP_PORT || 465) === 465,
     user: process.env.SMTP_USER || "",
     pass: process.env.SMTP_PASS || "",
+    from: process.env.SMTP_FROM || process.env.SMTP_USER || "",
   },
-  frontendUrl: process.env.APP_FRONTEND_URL || "http://localhost:8080",
+  frontendUrl: (process.env.APP_FRONTEND_URL || process.env.CLIENT_URL || "http://localhost:8080").replace(
+    /\/$/,
+    "",
+  ),
   credentialsEncryptionKey: process.env.CREDENTIALS_ENCRYPTION_KEY || "",
   openai: {
     apiKey: process.env.OPENAI_API_KEY || "",

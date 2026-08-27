@@ -11,6 +11,7 @@ export class WhatsAppConnectProvider {
     const event = await Event.findByPk(eventId);
     if (!event) throw httpError(400, "Evento no encontrado para el envío de WhatsApp.");
     const { credentials } = await resolveActiveWhatsappConnectByOwner({ ownerUserId: event.ownerId });
+    if (!credentials.tenantId) throw httpError(400, "Falta tenantId en las credenciales de WhatsApp.");
     const payload = await runWithWcToken(() =>
       wcClient.sendMessageWithRetry({
         deviceId: credentials.deviceId,

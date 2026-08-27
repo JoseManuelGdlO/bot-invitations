@@ -28,6 +28,14 @@ describe("import.service", () => {
     });
   });
 
+  test("suggestMapping reconoce celular, cupo y nombre completo", () => {
+    expect(suggestMapping(["Nombre completo", "Celular", "Cupo"])).toEqual({
+      "Nombre completo": "rep",
+      Celular: "phone",
+      Cupo: "invited",
+    });
+  });
+
   test("mapRows descarta filas sin nombre o teléfono", () => {
     const mapped = mapRows(
       ["Nombre", "Teléfono", "Invitados"],

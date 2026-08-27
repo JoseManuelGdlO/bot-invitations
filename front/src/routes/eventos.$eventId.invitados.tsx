@@ -78,7 +78,7 @@ function Invitados() {
   );
 
   return (
-    <main className="mx-auto w-full max-w-[1400px] flex-1 px-5 py-8 md:px-8">
+    <main className="mx-auto w-full min-w-0 max-w-[1400px] flex-1 px-5 py-8 md:px-8">
       <div className="flex flex-wrap items-center gap-3">
         <div className="relative min-w-56 flex-1">
           <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -119,13 +119,13 @@ function Invitados() {
       </div>
 
       <p className="mt-3 text-xs text-muted-foreground">
-        {rows.length} invitaciones · {rows.reduce((a, g) => a + g.invited, 0)} personas
+        {rows.length} invitaciones · {rows.reduce((a, g) => a + g.invited, 0)} personas totales
       </p>
       <div className="mt-4">
         <PlanLimitBanner session={session} kind="guest" />
       </div>
 
-      <div className="mt-4 overflow-x-auto rounded-2xl border border-border bg-card shadow-soft">
+      <div className="mt-4 min-w-0 max-w-full overflow-x-auto rounded-2xl border border-border bg-card shadow-soft">
         <Table className="min-w-[1200px]">
           <TableHeader>
             <TableRow className="hover:bg-transparent">

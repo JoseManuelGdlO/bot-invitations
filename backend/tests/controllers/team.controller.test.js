@@ -60,11 +60,25 @@ describe("team.controller", () => {
     expect(sendTeamInvitationEmail).toHaveBeenCalledWith(
       expect.objectContaining({
         to: "luis@test.com",
-        inviteLink: expect.stringContaining("/iniciar-sesion?email=luis%40test.com"),
+        inviteLink: expect.stringMatching(
+          /^https?:\/\/.+\/iniciar-sesion\?email=luis%40test\.com$/,
+        ),
       }),
     );
     expect(models.EventMember.create).toHaveBeenCalledWith(
       expect.objectContaining({ email: "luis@test.com", userId: null, removedAt: null }),
+    );
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ emailSent: true }));
+  });
+
+  test("inviteMember guarda el miembro si el correo falla", async () => {
+    sendTeamInvitationEmail.mockRejectedValueOnce(new Error("SMTP_USER FALTA"));
+    const { res } = await callHandler(controller.inviteMember, {
+      req: createMockReq({ body: { name: "Luis", email: "luis@test.com", role: "Asistente" } }),
+    });
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ emailSent: false, emailError: "SMTP_USER FALTA" }),
     );
   });
 

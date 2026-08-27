@@ -6,25 +6,24 @@ import { initialsFromName } from "../utils/slug.js";
 import { sendTeamInvitationEmail } from "../services/email.service.js";
 import { env } from "../config/env.js";
 import { memberWhere, normalizeEmail } from "../services/membership.service.js";
+import { Logger } from "../utils/logger.js";
+
+const teamLog = new Logger("Team");
 
 function isValidEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
 async function sendInviteEmail(member, event, cleanEmail) {
-  const base = (env.frontendUrl || env.clientUrl || "http://localhost:8080").replace(/\/$/, "");
+  const base = String(env.clientUrl || "").replace(/\/$/, "");
   const inviteLink = `${base}/iniciar-sesion?email=${encodeURIComponent(cleanEmail)}`;
-  try {
-    await sendTeamInvitationEmail({
-      to: cleanEmail,
-      name: member.name,
-      eventName: event.name,
-      role: member.role,
-      inviteLink,
-    });
-  } catch (err) {
-    console.error("[Email Error]: Falló el envío de correo de invitación:", err.message);
-  }
+  await sendTeamInvitationEmail({
+    to: cleanEmail,
+    name: member.name,
+    eventName: event.name,
+    role: member.role,
+    inviteLink,
+  });
 }
 
 export const listMembers = asyncHandler(async (req, res) => {
@@ -74,8 +73,20 @@ export const inviteMember = asyncHandler(async (req, res) => {
     ? await existingMember.update(payload)
     : await EventMember.create(payload);
 
-  await sendInviteEmail(member, event, cleanEmail);
-  res.status(201).json(serializeMember(member, event.ownerId));
+  let emailSent = true;
+  let emailError = null;
+  try {
+    await sendInviteEmail(member, event, cleanEmail);
+  } catch (err) {
+    emailSent = false;
+    emailError = err?.message || "No se pudo enviar el correo de invitación.";
+    teamLog.error("Falló el envío de correo de invitación", {
+      eventId: event.id,
+      memberId: member.id,
+      error: emailError,
+    });
+  }
+  res.status(201).json({ ...serializeMember(member, event.ownerId), emailSent, emailError });
 });
 
 export const updateMember = asyncHandler(async (req, res) => {

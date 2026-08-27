@@ -1,20 +1,24 @@
 import bcrypt from "bcryptjs";
-import { PasswordReset, Plan, RefreshToken, User } from "../models/index.js";
+import { PasswordReset, Plan, User } from "../models/index.js";
 import { claimPendingInvitations, displayTeamRole, findInvitationsByEmail, findPendingInvitations, normalizeEmail } from "../services/membership.service.js";
 import { env } from "../config/env.js";
-import {
-  hashToken,
-  randomToken,
-  serializeUser,
-  signAccessToken,
-  signRefreshToken,
-  verifyRefresh,
-} from "../utils/tokens.js";
+import { hashToken, randomToken, serializeUser } from "../utils/tokens.js";
 import { loadUserState } from "../services/state.service.js";
 import { asyncHandler } from "../utils/async.js";
 import { getPlanUsage, serializePlan, settleExpiredSubscription } from "../services/plans.service.js";
 import { startCheckout, stripeEnabled } from "../services/stripe.service.js";
 import { getLatestCancellation, serializeCancellation } from "../services/cancellation.service.js";
+import { sendPasswordResetEmail } from "../services/email.service.js";
+import { Logger } from "../utils/logger.js";
+import {
+  issueTokens,
+  logoutSession,
+  revokeAllUserRefresh,
+  rotateRefreshToken,
+  bumpTokenVersion,
+} from "../services/auth-tokens.service.js";
+
+const authLog = new Logger("Auth");
 
 async function userWithPlan(user) {
   await settleExpiredSubscription(user);
@@ -31,27 +35,15 @@ async function userWithPlan(user) {
   return serialized;
 }
 
-function cookieOpts(days) {
-  return {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: env.nodeEnv === "production",
-    maxAge: days * 24 * 60 * 60 * 1000,
-    path: "/",
-  };
+function resetLinkForToken(raw) {
+  const base = String(env.resetUrl || "").trim();
+  const sep = base.includes("?") ? "&" : "?";
+  return `${base}${sep}token=${encodeURIComponent(raw)}`;
 }
 
-async function issueTokens(res, user, rememberMe = false) {
-  const days = rememberMe ? env.jwt.rememberDays : env.jwt.refreshDays;
-  const accessToken = signAccessToken(user);
-  const refreshToken = signRefreshToken(user, days);
-  await RefreshToken.create({
-    userId: user.id,
-    tokenHash: hashToken(refreshToken),
-    expiresAt: new Date(Date.now() + days * 86400000),
-  });
-  res.cookie("refreshToken", refreshToken, cookieOpts(days));
-  return { accessToken, user: await userWithPlan(user) };
+async function respondWithTokens(res, user, rememberMe = false) {
+  const issued = await issueTokens(res, user, { rememberMe });
+  return { accessToken: issued.accessToken, user: await userWithPlan(user) };
 }
 
 export const listPlans = asyncHandler(async (_req, res) => {
@@ -86,7 +78,7 @@ export const register = asyncHandler(async (req, res) => {
     subscriptionStatus: stripeEnabled() ? "pending" : "active",
   });
   await claimPendingInvitations(user);
-  const tokens = await issueTokens(res, user, false);
+  const tokens = await respondWithTokens(res, user, false);
   let checkoutUrl = null;
   if (stripeEnabled()) {
     const checkout = await startCheckout(user, plan, { interval: billingInterval });
@@ -139,7 +131,7 @@ export const registerInvite = asyncHandler(async (req, res) => {
     subscriptionStatus: "active",
   });
   await claimPendingInvitations(user);
-  const tokens = await issueTokens(res, user, false);
+  const tokens = await respondWithTokens(res, user, false);
   res.status(201).json({ ...tokens, checkoutUrl: null });
 });
 
@@ -150,7 +142,7 @@ export const login = asyncHandler(async (req, res) => {
     return res.status(401).json({ error: "Correo o contraseña incorrectos." });
   }
   await claimPendingInvitations(user);
-  const tokens = await issueTokens(res, user, !!rememberMe);
+  const tokens = await respondWithTokens(res, user, !!rememberMe);
   res.json(tokens);
 });
 
@@ -166,28 +158,13 @@ export const dashboard = asyncHandler(async (req, res) => {
 export const refresh = asyncHandler(async (req, res) => {
   const token = req.body?.refreshToken || req.cookies?.refreshToken;
   if (!token) return res.status(401).json({ error: "Sin refresh token" });
-  let payload;
-  try {
-    payload = verifyRefresh(token);
-  } catch {
-    return res.status(401).json({ error: "Refresh inválido" });
-  }
-  const row = await RefreshToken.findOne({
-    where: { tokenHash: hashToken(token), userId: payload.sub, revokedAt: null },
-  });
-  if (!row || row.expiresAt < new Date()) return res.status(401).json({ error: "Refresh expirado" });
-  const user = await User.findByPk(payload.sub);
-  if (!user) return res.status(401).json({ error: "Usuario no encontrado" });
-  const accessToken = signAccessToken(user);
-  res.json({ accessToken, user: await userWithPlan(user) });
+  const result = await rotateRefreshToken(res, token);
+  if (result.error) return res.status(result.status).json({ error: result.error });
+  res.json({ accessToken: result.accessToken, user: await userWithPlan(result.user) });
 });
 
 export const logout = asyncHandler(async (req, res) => {
-  const token = req.body?.refreshToken || req.cookies?.refreshToken;
-  if (token) {
-    await RefreshToken.update({ revokedAt: new Date() }, { where: { tokenHash: hashToken(token) } });
-  }
-  res.clearCookie("refreshToken", { path: "/" });
+  await logoutSession(req, res);
   res.json({ ok: true });
 });
 
@@ -195,14 +172,25 @@ export const forgotPassword = asyncHandler(async (req, res) => {
   const email = String(req.body?.email || "").trim().toLowerCase();
   const user = await User.findOne({ where: { email } });
   if (user) {
+    await PasswordReset.update({ usedAt: new Date() }, { where: { userId: user.id, usedAt: null } });
     const raw = randomToken();
     await PasswordReset.create({
       userId: user.id,
       tokenHash: hashToken(raw),
       expiresAt: new Date(Date.now() + 60 * 60 * 1000),
     });
-    const link = `${env.resetUrl}?token=${raw}`;
-    console.log(`[auth] reset password for ${email}: ${link}`);
+    try {
+      await sendPasswordResetEmail({
+        to: user.email,
+        name: user.name,
+        resetLink: resetLinkForToken(raw),
+      });
+    } catch (err) {
+      authLog.error("No se pudo enviar el correo de recuperación", {
+        userId: user.id,
+        error: err?.message,
+      });
+    }
   }
   res.json({ ok: true, message: "Si el correo existe, enviamos un enlace de recuperación." });
 });
@@ -220,5 +208,7 @@ export const resetPassword = asyncHandler(async (req, res) => {
   await user.save();
   row.usedAt = new Date();
   await row.save();
+  await revokeAllUserRefresh(user.id);
+  await bumpTokenVersion(user);
   res.json({ ok: true });
 });

@@ -38,6 +38,25 @@ async function getActiveCredentialPayload(ownerUserId, channelIntegrationId) {
   }
 }
 
+export async function assertDeviceIdExclusiveToOwner({ deviceId, ownerUserId }) {
+  const target = String(deviceId || "").trim();
+  if (!target) throw httpError(400, "deviceId es obligatorio.");
+
+  const active = await ChannelCredential.findAll({ where: { isActive: true } });
+  for (const cred of active) {
+    if (cred.ownerUserId === ownerUserId) continue;
+    let payload;
+    try {
+      payload = decryptCredentialsPayload(cred.cipherText);
+    } catch {
+      continue;
+    }
+    if (String(payload.deviceId || "").trim() === target) {
+      throw httpError(409, "Este device ya está vinculado a otra cuenta.");
+    }
+  }
+}
+
 export async function resolveWhatsappConnectIntegrationById({ ownerUserId, integrationId }) {
   const integration = await ChannelIntegration.findOne({
     where: { id: integrationId, ownerUserId },
@@ -64,6 +83,7 @@ export async function resolveActiveWhatsappConnectByOwner({ ownerUserId }) {
   const credentialsPayload = await getActiveCredentialPayload(ownerUserId, integration.id);
   const credentials = normalizeWcCredentials(credentialsPayload);
   if (!credentials.deviceId) throw httpError(400, "La integración de WhatsApp no tiene deviceId.");
+  if (!credentials.tenantId) throw httpError(400, "La integración de WhatsApp no tiene tenantId.");
   return { integration, credentials };
 }
 

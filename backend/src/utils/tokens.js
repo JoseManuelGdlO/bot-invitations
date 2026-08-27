@@ -2,18 +2,31 @@ import jwt from "jsonwebtoken";
 import crypto from "node:crypto";
 import { env } from "../config/env.js";
 
+export function currentTokenVersion(user) {
+  return Number(user?.tokenVersion || 0);
+}
+
 export function signAccessToken(user) {
   return jwt.sign(
-    { sub: user.id, email: user.email, name: user.name, role: user.role },
+    {
+      sub: user.id,
+      email: user.email,
+      name: user.name,
+      role: user.role,
+      ver: currentTokenVersion(user),
+    },
     env.jwt.accessSecret,
     { expiresIn: env.jwt.accessExpires },
   );
 }
 
-export function signRefreshToken(user, days) {
-  return jwt.sign({ sub: user.id, typ: "refresh", jti: randomToken() }, env.jwt.refreshSecret, {
-    expiresIn: `${days}d`,
-  });
+export function signRefreshToken(user, days, { jti, familyId } = {}) {
+  const id = jti || randomToken();
+  return jwt.sign(
+    { sub: user.id, typ: "refresh", jti: id, fam: familyId || undefined },
+    env.jwt.refreshSecret,
+    { expiresIn: `${days}d` },
+  );
 }
 
 export function verifyAccess(token) {

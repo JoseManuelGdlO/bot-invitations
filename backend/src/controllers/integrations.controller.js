@@ -3,7 +3,13 @@ import { ChannelCredential, ChannelIntegration } from "../models/index.js";
 import { asyncHandler } from "../utils/async.js";
 import { decryptCredentialsPayload, encryptCredentialsPayload } from "../utils/credentials-crypto.js";
 import { httpError } from "../utils/http-error.js";
-import { WHATSAPP_CHANNEL, WHATSAPP_PROVIDER } from "../services/integration-resolver.service.js";
+import {
+  WHATSAPP_CHANNEL,
+  WHATSAPP_PROVIDER,
+  assertDeviceIdExclusiveToOwner,
+} from "../services/integration-resolver.service.js";
+import { wcClient } from "../services/wc.client.js";
+import { runWithWcToken } from "../services/wc-auth.js";
 
 const ELIMINATED_STATUS = "eliminated";
 const USER_STATUSES = new Set(["draft", "active", "error", "disabled"]);
@@ -91,9 +97,12 @@ function parsePatchBody(body = {}) {
 function parseWhatsappCredentials(payload = {}) {
   const deviceId = String(payload.deviceId || "").trim();
   const webhookSecret = String(payload.webhookSecret || "").trim();
-  const tenantId = String(payload.tenantId || "").trim() || null;
+  const tenantId = String(payload.tenantId || "").trim();
   if (!deviceId || !webhookSecret) {
     throw httpError(400, "deviceId y webhookSecret son obligatorios.");
+  }
+  if (!tenantId) {
+    throw httpError(400, "tenantId es obligatorio para vincular el device a tu cuenta.");
   }
   return { deviceId, webhookSecret, tenantId };
 }
@@ -154,6 +163,12 @@ export const postIntegrationCredentials = asyncHandler(async (req, res) => {
     row.channel === WHATSAPP_CHANNEL && row.provider === WHATSAPP_PROVIDER
       ? parseWhatsappCredentials(rawPayload)
       : rawPayload;
+  if (row.channel === WHATSAPP_CHANNEL && row.provider === WHATSAPP_PROVIDER) {
+    await runWithWcToken(() =>
+      wcClient.assertDeviceOwnedByTenant({ deviceId: payload.deviceId, tenantId: payload.tenantId }),
+    );
+    await assertDeviceIdExclusiveToOwner({ deviceId: payload.deviceId, ownerUserId: req.user.id });
+  }
   const cipherText = encryptCredentialsPayload(payload);
 
   await ChannelCredential.update(

@@ -170,6 +170,8 @@ export interface TeamMember {
   role: string;
   initials: string;
   isOwner?: boolean;
+  emailSent?: boolean;
+  emailError?: string | null;
 }
 
 export interface RolePermission {

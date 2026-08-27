@@ -130,7 +130,7 @@ function WhatsAppConnectPage() {
       await integrationsApi.postCredentials(integration.id, {
         deviceId,
         webhookSecret,
-        ...(tenantId.trim() ? { tenantId: tenantId.trim() } : {}),
+        tenantId: tenantId.trim(),
       });
       const updated = await load();
       setWebhookSecret("");
@@ -213,8 +213,8 @@ function WhatsAppConnectPage() {
         <p className="text-xs font-medium uppercase tracking-[0.14em] text-gold">Cuenta</p>
         <h1 className="mt-1 font-display text-4xl">WhatsApp</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Un número por cuenta, compartido por todos tus eventos. El QR lo genera el proveedor; aquí solo
-          guardamos el device y probamos el envío.
+          Un número por cuenta, compartido por todos tus eventos. El QR lo genera el proveedor; aquí
+          vinculamos solo un device que pertenezca a tu tenant.
         </p>
       </div>
 
@@ -227,8 +227,8 @@ function WhatsAppConnectPage() {
             <div className="min-w-0 flex-1">
               <h2 className="font-display text-2xl">Conecta tu WhatsApp</h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                El deviceId debe existir ya en WhatsApp Connect. Esta app no crea devices, solo los vincula
-                por QR.
+                El deviceId y el tenantId deben ser tuyos en WhatsApp Connect. Esta app no crea devices, solo
+                los vincula si el proveedor confirma la titularidad.
               </p>
               <Button className="mt-5" onClick={createIntegration} disabled={busy === "create"}>
                 {busy === "create" ? <Loader2 className="size-4 animate-spin" /> : <Smartphone className="size-4" />}
@@ -272,7 +272,11 @@ function WhatsAppConnectPage() {
                   id="deviceId"
                   value={deviceId}
                   onChange={(e) => setDeviceId(e.target.value)}
-                  placeholder={integration.hasActiveCredential ? "Ingresa uno nuevo para reemplazar" : "El ID del device en WhatsApp Connect"}
+                  placeholder={
+                    integration.hasActiveCredential
+                      ? "Ingresa uno nuevo para reemplazar"
+                      : "El ID del device de tu tenant en WhatsApp Connect"
+                  }
                   required
                 />
               </div>
@@ -293,7 +297,8 @@ function WhatsAppConnectPage() {
                   id="tenantId"
                   value={tenantId}
                   onChange={(e) => setTenantId(e.target.value)}
-                  placeholder="Solo si el proveedor lo pide"
+                  placeholder="El tenant dueño del device en WhatsApp Connect"
+                  required
                 />
               </div>
               <div className="flex flex-wrap items-center justify-between gap-3">

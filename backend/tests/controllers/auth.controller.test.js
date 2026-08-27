@@ -6,10 +6,12 @@ describe("auth.controller", () => {
   let models;
   let startCheckout;
   let scheduleCancelAtPeriodEnd;
+  let sendPasswordResetEmail;
 
   beforeEach(async () => {
     startCheckout = jest.fn(async () => ({ checkoutUrl: "https://checkout.test", updated: false }));
     scheduleCancelAtPeriodEnd = jest.fn(async () => ({ scheduled: true, periodEnd: new Date() }));
+    sendPasswordResetEmail = jest.fn(async () => ({ messageId: "mail_1" }));
 
     ({ mod: controller, models } = await loadWithMocks("src/controllers/auth.controller.js", {
       extraMocks: {
@@ -20,6 +22,10 @@ describe("auth.controller", () => {
           },
           hash: jest.fn(async () => "hashed_password"),
           compare: jest.fn(async (plain, hash) => plain === "secret12" || hash === "valid_hash"),
+        }),
+        "src/services/email.service.js": () => ({
+          sendPasswordResetEmail,
+          sendTeamInvitationEmail: jest.fn(),
         }),
         "src/services/stripe.service.js": () => ({
           stripeEnabled: () => false,
@@ -165,23 +171,90 @@ describe("auth.controller", () => {
     expect(res.status).toHaveBeenCalledWith(401);
   });
 
-  test("logout limpia cookie", async () => {
-    const { res } = await callHandler(controller.logout, { req: createMockReq({ cookies: {} }) });
-    expect(res.clearCookie).toHaveBeenCalledWith("refreshToken", { path: "/" });
+  test("logout con Bearer sube tokenVersion", async () => {
+    const user = fakeUser({ tokenVersion: 0 });
+    models.User.findByPk.mockResolvedValue(user);
+    const { signAccessToken } = await import("../../src/utils/tokens.js");
+    const access = signAccessToken(user);
+    const { res } = await callHandler(controller.logout, {
+      req: createMockReq({
+        cookies: {},
+        headers: { authorization: `Bearer ${access}` },
+      }),
+    });
+    expect(user.tokenVersion).toBe(1);
     expect(res.json).toHaveBeenCalledWith({ ok: true });
   });
 
-  test("forgotPassword siempre 200", async () => {
+  test("logout limpia cookie con los mismos flags", async () => {
+    const { res } = await callHandler(controller.logout, { req: createMockReq({ cookies: {}, headers: {} }) });
+    expect(res.clearCookie).toHaveBeenCalledWith(
+      "refreshToken",
+      expect.objectContaining({ path: "/", httpOnly: true, sameSite: "lax" }),
+    );
+    expect(res.json).toHaveBeenCalledWith({ ok: true });
+  });
+
+  test("forgotPassword siempre 200 sin enviar si el correo no existe", async () => {
     models.User.findOne.mockResolvedValue(null);
     const { res } = await callHandler(controller.forgotPassword, {
       req: createMockReq({ body: { email: "nobody@test.com" } }),
     });
+    expect(sendPasswordResetEmail).not.toHaveBeenCalled();
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ ok: true }));
+  });
+
+  test("forgotPassword envía correo y no loguea el token", async () => {
+    const user = fakeUser({ email: "ana@test.com" });
+    models.User.findOne.mockResolvedValue(user);
+    const logs = [];
+    const spy = jest.spyOn(console, "log").mockImplementation((...args) => {
+      logs.push(args.map(String).join(" "));
+    });
+    const { res } = await callHandler(controller.forgotPassword, {
+      req: createMockReq({ body: { email: "ana@test.com" } }),
+    });
+    spy.mockRestore();
+    expect(sendPasswordResetEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        to: "ana@test.com",
+        name: user.name,
+        resetLink: expect.stringContaining("token="),
+      }),
+    );
+    expect(logs.join("\n")).not.toMatch(/token=/);
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ ok: true }));
   });
 
   test("resetPassword 400 sin token", async () => {
     const { res } = await callHandler(controller.resetPassword, { req: createMockReq({ body: {} }) });
     expect(res.status).toHaveBeenCalledWith(400);
+  });
+
+  test("resetPassword revoca refresh y sube tokenVersion", async () => {
+    const user = fakeUser({ tokenVersion: 0 });
+    const resetRow = {
+      userId: user.id,
+      expiresAt: new Date(Date.now() + 60_000),
+      usedAt: null,
+      save: jest.fn(async function save() {
+        return this;
+      }),
+    };
+    models.PasswordReset.findOne.mockResolvedValue(resetRow);
+    models.User.findByPk.mockResolvedValue(user);
+
+    const { res } = await callHandler(controller.resetPassword, {
+      req: createMockReq({ body: { token: "reset-token-value", password: "secret12" } }),
+    });
+
+    expect(models.RefreshToken.update).toHaveBeenCalledWith(
+      expect.objectContaining({ revokedAt: expect.any(Date) }),
+      expect.objectContaining({ where: expect.objectContaining({ userId: user.id }) }),
+    );
+    expect(user.tokenVersion).toBe(1);
+    expect(resetRow.usedAt).toEqual(expect.any(Date));
+    expect(res.json).toHaveBeenCalledWith({ ok: true });
   });
 
   test("me serializa sesión", async () => {

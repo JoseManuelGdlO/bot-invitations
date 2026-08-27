@@ -40,15 +40,24 @@ export const User = sequelize.define("users", {
   billingInterval: { type: DataTypes.ENUM("month", "year"), allowNull: false, defaultValue: "month" },
   cancelAtPeriodEnd: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
   currentPeriodEnd: { type: DataTypes.DATE, allowNull: true },
+  tokenVersion: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
 });
 
-export const RefreshToken = sequelize.define("refresh_tokens", {
-  id: uuid,
-  userId: { type: DataTypes.CHAR(36), allowNull: false },
-  tokenHash: { type: DataTypes.STRING(64), allowNull: false, unique: true },
-  expiresAt: { type: DataTypes.DATE, allowNull: false },
-  revokedAt: { type: DataTypes.DATE, allowNull: true },
-});
+export const RefreshToken = sequelize.define(
+  "refresh_tokens",
+  {
+    id: uuid,
+    userId: { type: DataTypes.CHAR(36), allowNull: false },
+    tokenHash: { type: DataTypes.STRING(64), allowNull: false, unique: true },
+    familyId: { type: DataTypes.CHAR(36), allowNull: true },
+    jti: { type: DataTypes.STRING(64), allowNull: true, unique: true },
+    expiresAt: { type: DataTypes.DATE, allowNull: false },
+    revokedAt: { type: DataTypes.DATE, allowNull: true },
+  },
+  {
+    indexes: [{ fields: ["userId"] }, { fields: ["familyId"] }],
+  },
+);
 
 export const PasswordReset = sequelize.define("password_resets", {
   id: uuid,

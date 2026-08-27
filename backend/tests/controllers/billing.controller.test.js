@@ -90,4 +90,23 @@ describe("billing.controller", () => {
     });
     expect(res.status).toHaveBeenCalledWith(404);
   });
+
+  test("confirmSession 409 si el pago no está complete", async () => {
+    confirmCheckoutSession.mockResolvedValue({ status: "open", payment_status: "unpaid" });
+    const { res } = await callHandler(controller.confirmSession, {
+      req: createMockReq({ params: { sessionId: "cs_open" }, query: {} }),
+    });
+    expect(res.status).toHaveBeenCalledWith(409);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ error: "El pago no se completó.", status: "open", paymentStatus: "unpaid" }),
+    );
+  });
+
+  test("confirmSession 200 si paid o complete", async () => {
+    const { res } = await callHandler(controller.confirmSession, {
+      req: createMockReq({ params: { sessionId: "cs_ok" }, query: {} }),
+    });
+    expect(res.json).toHaveBeenCalledWith({ ok: true, status: "complete", paymentStatus: "paid" });
+    expect(res.status).not.toHaveBeenCalled();
+  });
 });

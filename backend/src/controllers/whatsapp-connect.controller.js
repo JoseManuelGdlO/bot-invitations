@@ -22,6 +22,7 @@ async function getIntegrationContext(integrationId, ownerUserId) {
   });
   if (integration.status !== "active") throw httpError(400, "La integración debe estar activa.");
   if (!credentials.deviceId) throw httpError(400, "Faltan credenciales de deviceId.");
+  if (!credentials.tenantId) throw httpError(400, "Falta tenantId en las credenciales. Vuelve a guardar la conexión.");
   return { integration, credentials };
 }
 
@@ -30,8 +31,8 @@ export const postWhatsappConnectQrLink = asyncHandler(async (req, res) => {
   const { credentials } = await getIntegrationContext(integrationId, req.user.id);
 
   const result = await runWithWcToken(async () => {
-    await wcClient.connectDevice(credentials.deviceId);
-    return wcClient.createPublicLink(credentials.deviceId);
+    await wcClient.connectDevice({ deviceId: credentials.deviceId, tenantId: credentials.tenantId });
+    return wcClient.createPublicLink({ deviceId: credentials.deviceId, tenantId: credentials.tenantId });
   });
 
   res.json({
@@ -43,7 +44,9 @@ export const postWhatsappConnectQrLink = asyncHandler(async (req, res) => {
 export const getWhatsappConnectDeviceStatus = asyncHandler(async (req, res) => {
   const integrationId = requireUuid(req.query?.integrationId);
   const { credentials } = await getIntegrationContext(integrationId, req.user.id);
-  const result = await runWithWcToken(() => wcClient.getDeviceStatus({ deviceId: credentials.deviceId }));
+  const result = await runWithWcToken(() =>
+    wcClient.getDeviceStatus({ deviceId: credentials.deviceId, tenantId: credentials.tenantId }),
+  );
   res.json(result);
 });
 

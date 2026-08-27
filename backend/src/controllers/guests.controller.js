@@ -159,6 +159,7 @@ export const confirmImport = asyncHandler(async (req, res) => {
   const { columns, rows, mapping } = req.body || {};
   if (!columns || !rows || !mapping) return res.status(400).json({ error: "Faltan columnas, filas o mapeo." });
   const mapped = mapRows(columns, rows, mapping);
+  const discarded = Math.max(0, rows.length - mapped.length);
   const existing = await Guest.findAll({ where: { eventId: event.id }, attributes: ["phone"] });
   const phones = new Set(existing.map((g) => g.phone.replace(/\s/g, "")));
   const incoming = mapped.filter((row) => !phones.has(row.phone.replace(/\s/g, "")));
@@ -186,6 +187,7 @@ export const confirmImport = asyncHandler(async (req, res) => {
   res.json({
     imported: created.length,
     skipped,
+    discarded,
     guests: created.map((g) => serializeGuest(g, event.slug)),
   });
 });

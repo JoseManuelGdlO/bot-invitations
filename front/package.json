@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "start": "node .output/server/index.mjs",
     "lint": "eslint .",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "test": "node --experimental-strip-types --test src/lib/api/client.test.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",

@@ -193,10 +193,16 @@ function Configuracion() {
                       invitingRef.current = true;
                       setInviting(true);
                       try {
-                        await inviteMember(eventId, { ...invite, role });
+                        const member = await inviteMember(eventId, { ...invite, role });
                         setInvite({ name: "", email: "", role: defaultRole });
                         setOpen(false);
-                        toast.success("Miembro agregado e invitación enviada");
+                        if (member.emailSent === false) {
+                          toast.error("Miembro guardado, pero no se envió el correo", {
+                            description: member.emailError || "Revisa SMTP_USER y SMTP_PASS en el servidor.",
+                          });
+                        } else {
+                          toast.success("Miembro agregado e invitación enviada");
+                        }
                       } catch (err) {
                         toast.error(err instanceof ApiError ? err.message : "Error al guardar el miembro");
                       } finally {
