@@ -39,14 +39,19 @@ function ClientSupportThread() {
     if (!body.trim()) return;
     setSending(true);
     try {
-      const updated = await api<SupportTicket>(`/support/tickets/${ticketId}/messages`, {
-        method: "POST",
-        body: JSON.stringify({ body }),
-      });
+      const updated = await api<SupportTicket>(
+        `/support/tickets/${ticketId}/messages`,
+        {
+          method: "POST",
+          body: JSON.stringify({ body }),
+        },
+      );
       setTicket(updated);
       setBody("");
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "No se pudo enviar el mensaje");
+      toast.error(
+        err instanceof ApiError ? err.message : "No se pudo enviar el mensaje",
+      );
     } finally {
       setSending(false);
     }
@@ -75,16 +80,23 @@ function ClientSupportThread() {
 
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-5 py-8 md:px-8 md:py-10">
-      <Link to="/eventos/soporte" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
+      <Link
+        to="/eventos/soporte"
+        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+      >
         <ArrowLeft className="size-4" /> Mis tickets
       </Link>
       <div className="mt-4 flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-xs text-muted-foreground">{ticket.code}</p>
           <h1 className="mt-1 font-display text-3xl">{ticket.subject}</h1>
-          <p className="mt-1 text-sm text-muted-foreground">{CATEGORY_LABEL[ticket.category]}</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {CATEGORY_LABEL[ticket.category]}
+          </p>
         </div>
-        <Badge variant={statusTone(ticket.status)}>{STATUS_LABEL[ticket.status]}</Badge>
+        <Badge variant={statusTone(ticket.status)}>
+          {STATUS_LABEL[ticket.status]}
+        </Badge>
       </div>
 
       <div className="mt-8 flex-1 space-y-3">
@@ -93,7 +105,9 @@ function ClientSupportThread() {
             key={message.id}
             className={cn(
               "max-w-[90%] rounded-2xl px-4 py-3",
-              message.from === "client" ? "ml-auto bg-gold-soft text-gold-foreground" : "bg-secondary",
+              message.from === "client"
+                ? "ml-auto bg-gold-soft text-gold-foreground"
+                : "bg-secondary",
             )}
           >
             <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
@@ -114,10 +128,14 @@ function ClientSupportThread() {
 
       {ticket.status === "closed" ? (
         <p className="mt-8 rounded-xl border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
-          Este ticket está cerrado. Si el tema sigue, abre uno nuevo desde Soporte.
+          Este ticket está cerrado. Si el tema sigue, abre uno nuevo desde
+          Soporte.
         </p>
       ) : (
-        <form onSubmit={reply} className="mt-8 space-y-3 border-t border-border pt-6">
+        <form
+          onSubmit={reply}
+          className="mt-8 space-y-3 border-t border-border pt-6"
+        >
           <Label htmlFor="reply">Tu respuesta</Label>
           <Textarea
             id="reply"

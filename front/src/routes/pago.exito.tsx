@@ -69,7 +69,9 @@ function PagoExito() {
       setPhase("error");
       return false;
     }
-    const payload = await api<{ status?: string; paymentStatus?: string }>(`/billing/session/${session_id}`);
+    const payload = await api<{ status?: string; paymentStatus?: string }>(
+      `/billing/session/${session_id}`,
+    );
     if (!isPaid(payload)) {
       throw new ApiError("El pago no se completó.", 409);
     }
@@ -111,7 +113,13 @@ function PagoExito() {
 
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-lg flex-col items-center justify-center px-6 text-center">
-      <img src={logo} alt="Alanna" width={40} height={40} className="size-10 rounded-xl bg-primary object-contain p-1.5" />
+      <img
+        src={logo}
+        alt="Alanna"
+        width={40}
+        height={40}
+        className="size-10 rounded-xl bg-primary object-contain p-1.5"
+      />
       {phase === "loading" ? (
         <>
           <Loader2 className="mt-8 size-6 animate-spin text-gold" />

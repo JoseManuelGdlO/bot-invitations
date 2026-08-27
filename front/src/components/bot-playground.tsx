@@ -10,7 +10,11 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { botApi, type BotPlaygroundLog, type BotPlaygroundMessage } from "@/lib/api/bot";
+import {
+  botApi,
+  type BotPlaygroundLog,
+  type BotPlaygroundMessage,
+} from "@/lib/api/bot";
 import type { Guest } from "@/lib/mock/types";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
@@ -25,7 +29,11 @@ type PlaygroundRow =
   | { kind: "logs"; items: BotPlaygroundLog[] };
 
 function messagesToRows(messages: BotPlaygroundMessage[]): PlaygroundRow[] {
-  return messages.map((msg) => ({ kind: "msg", role: msg.role, text: msg.text }));
+  return messages.map((msg) => ({
+    kind: "msg",
+    role: msg.role,
+    text: msg.text,
+  }));
 }
 
 export function BotPlayground({ eventId, guests }: Props) {
@@ -72,18 +80,26 @@ export function BotPlayground({ eventId, guests }: Props) {
       const result = await botApi.chat(eventId, { guestId, message: text });
       if (result.messages?.length) {
         const next = messagesToRows(result.messages);
-        if (result.logs?.length) next.push({ kind: "logs", items: result.logs });
+        if (result.logs?.length)
+          next.push({ kind: "logs", items: result.logs });
         setRows(next);
       } else if (result.reply) {
         setRows((prev) => {
-          const next: PlaygroundRow[] = [...prev, { kind: "msg", role: "assistant", text: result.reply || "" }];
-          if (result.logs?.length) next.push({ kind: "logs", items: result.logs });
+          const next: PlaygroundRow[] = [
+            ...prev,
+            { kind: "msg", role: "assistant", text: result.reply || "" },
+          ];
+          if (result.logs?.length)
+            next.push({ kind: "logs", items: result.logs });
           return next;
         });
       }
-      if (result.locked) toast.info("Espera a que termine la respuesta anterior.");
+      if (result.locked)
+        toast.info("Espera a que termine la respuesta anterior.");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "No se pudo hablar con el bot");
+      toast.error(
+        error instanceof Error ? error.message : "No se pudo hablar con el bot",
+      );
     } finally {
       setBusy(false);
     }
@@ -92,12 +108,18 @@ export function BotPlayground({ eventId, guests }: Props) {
   const reset = async () => {
     if (!guestId) return;
     try {
-      const result = await botApi.chat(eventId, { guestId, message: "", reset: true });
+      const result = await botApi.chat(eventId, {
+        guestId,
+        message: "",
+        reset: true,
+      });
       setRows(messagesToRows(result.messages || []));
       setDraft("");
       toast.success("Conversación de prueba reiniciada");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "No se pudo reiniciar");
+      toast.error(
+        error instanceof Error ? error.message : "No se pudo reiniciar",
+      );
     }
   };
 
@@ -127,7 +149,13 @@ export function BotPlayground({ eventId, guests }: Props) {
             </SelectContent>
           </Select>
         </div>
-        <Button type="button" variant="outline" size="sm" className="mt-5" onClick={() => void reset()}>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="mt-5"
+          onClick={() => void reset()}
+        >
           <RotateCcw className="size-4" /> Nueva
         </Button>
       </div>
@@ -149,8 +177,11 @@ export function BotPlayground({ eventId, guests }: Props) {
                 <ul className="space-y-0.5">
                   {row.items.map((log, j) => (
                     <li key={`${log.kind}-${j}`}>
-                      <span className="text-foreground/80">[{log.kind}]</span> {log.label}
-                      {log.detail ? <span className="opacity-80"> — {log.detail}</span> : null}
+                      <span className="text-foreground/80">[{log.kind}]</span>{" "}
+                      {log.label}
+                      {log.detail ? (
+                        <span className="opacity-80"> — {log.detail}</span>
+                      ) : null}
                     </li>
                   ))}
                 </ul>
@@ -158,12 +189,17 @@ export function BotPlayground({ eventId, guests }: Props) {
             ) : (
               <div
                 key={`${row.role}-${i}`}
-                className={cn("flex", row.role === "user" ? "justify-start" : "justify-end")}
+                className={cn(
+                  "flex",
+                  row.role === "user" ? "justify-start" : "justify-end",
+                )}
               >
                 <div
                   className={cn(
                     "max-w-[85%] rounded-2xl px-3 py-2 text-xs shadow-soft",
-                    row.role === "user" ? "rounded-bl-sm bg-card" : "rounded-br-sm bg-success-soft",
+                    row.role === "user"
+                      ? "rounded-bl-sm bg-card"
+                      : "rounded-br-sm bg-success-soft",
                   )}
                 >
                   <p className="whitespace-pre-line">{row.text}</p>
@@ -190,7 +226,12 @@ export function BotPlayground({ eventId, guests }: Props) {
             }
           }}
         />
-        <Button type="button" size="icon" disabled={busy || !draft.trim()} onClick={() => void send()}>
+        <Button
+          type="button"
+          size="icon"
+          disabled={busy || !draft.trim()}
+          onClick={() => void send()}
+        >
           <Send className="size-4" />
         </Button>
       </div>

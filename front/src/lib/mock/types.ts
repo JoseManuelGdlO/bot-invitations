@@ -10,7 +10,8 @@ export type ConfirmationStatus =
   | "sin_respuesta"
   | "seguimiento";
 
-export type WhatsappStatus = "pendiente" | "enviado" | "entregado" | "leido" | "respondido";
+export type WhatsappStatus =
+  "pendiente" | "enviado" | "entregado" | "leido" | "respondido";
 
 export interface EventItem {
   id: string;
@@ -149,7 +150,10 @@ export interface SessionUser {
   billingInterval?: BillingInterval;
   cancelAtPeriodEnd?: boolean;
   currentPeriodEnd?: string | null;
-  plan?: Pick<SubscriptionPlan, "id" | "slug" | "name" | "priceMxn" | "eventLimit" | "guestLimit"> | null;
+  plan?: Pick<
+    SubscriptionPlan,
+    "id" | "slug" | "name" | "priceMxn" | "eventLimit" | "guestLimit"
+  > | null;
   usage?: PlanUsage;
   cancellation?: CancellationRequest | null;
 }

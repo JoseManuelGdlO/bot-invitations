@@ -14,7 +14,11 @@ export function StatusBadge({
   return (
     <Badge
       variant="outline"
-      className={cn("rounded-full px-2.5 py-0.5 text-[11px] font-medium transition-colors", meta.className, className)}
+      className={cn(
+        "rounded-full px-2.5 py-0.5 text-[11px] font-medium transition-colors",
+        meta.className,
+        className,
+      )}
     >
       {meta.label}
     </Badge>

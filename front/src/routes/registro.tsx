@@ -1,4 +1,10 @@
-import { Link, Outlet, createFileRoute, useChildMatches, useNavigate } from "@tanstack/react-router";
+import {
+  Link,
+  Outlet,
+  createFileRoute,
+  useChildMatches,
+  useNavigate,
+} from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { CalendarHeart, Check, Loader2, Users } from "lucide-react";
 import logo from "@/assets/alanna-logo.png";
@@ -30,7 +36,8 @@ export const Route = createFileRoute("/registro")({
   head: () =>
     pageHead({
       title: "Crear cuenta · Alanna Confirmaciones",
-      description: "Crea tu cuenta en Alanna y elige el plan según tus eventos e invitados. Desde $500 MXN al mes.",
+      description:
+        "Crea tu cuenta en Alanna y elige el plan según tus eventos e invitados. Desde $500 MXN al mes.",
       path: "/registro",
     }),
   component: Registro,
@@ -75,7 +82,12 @@ function Registro() {
   const { register, registerInvite, session, hydrated } = useStore();
   const navigate = useNavigate();
   const childMatches = useChildMatches();
-  const { plan: planSlug, pago, email: invitedEmail, invite } = Route.useSearch();
+  const {
+    plan: planSlug,
+    pago,
+    email: invitedEmail,
+    invite,
+  } = Route.useSearch();
   const isInvite = invite === "1";
   const [step, setStep] = useState(0);
   const [name, setName] = useState("");
@@ -101,12 +113,20 @@ function Registro() {
     const targetEmail = (invitedEmail || email || "").trim();
     if (!targetEmail) return;
     let cancelled = false;
-    api<{ status: "none" | "pending" | "registered" }>(`/auth/invitation?email=${encodeURIComponent(targetEmail)}`)
+    api<{ status: "none" | "pending" | "registered" }>(
+      `/auth/invitation?email=${encodeURIComponent(targetEmail)}`,
+    )
       .then(({ status }) => {
         if (cancelled) return;
         if (status === "registered") {
-          toast.message("Ya tienes cuenta. Inicia sesión con este correo para ver el evento.");
-          navigate({ to: "/iniciar-sesion", search: { email: targetEmail }, replace: true });
+          toast.message(
+            "Ya tienes cuenta. Inicia sesión con este correo para ver el evento.",
+          );
+          navigate({
+            to: "/iniciar-sesion",
+            search: { email: targetEmail },
+            replace: true,
+          });
         } else if (status === "none") {
           toast.error("No hay una invitación pendiente para este correo.");
         }
@@ -122,7 +142,10 @@ function Registro() {
     api<SubscriptionPlan[]>("/plans")
       .then((rows) => {
         setPlans(rows);
-        const preferred = rows.find((p) => p.slug === planSlug) ?? rows.find((p) => p.highlighted) ?? rows[0];
+        const preferred =
+          rows.find((p) => p.slug === planSlug) ??
+          rows.find((p) => p.highlighted) ??
+          rows[0];
         if (preferred) setPlanId(preferred.id);
       })
       .catch(() => toast.error("No se pudieron cargar los planes"));
@@ -134,16 +157,22 @@ function Registro() {
     e.preventDefault();
     if (isInvite) {
       if (!name.trim() || !email.trim() || password.length < 6) {
-        toast.error("Completa nombre, correo y contraseña (mín. 6) para continuar");
+        toast.error(
+          "Completa nombre, correo y contraseña (mín. 6) para continuar",
+        );
         return;
       }
       setLoading(true);
       try {
         await registerInvite({ name, email, password });
-        toast.success("Cuenta creada", { description: "Ya puedes ver el evento al que te invitaron." });
+        toast.success("Cuenta creada", {
+          description: "Ya puedes ver el evento al que te invitaron.",
+        });
         navigate({ to: "/eventos" });
       } catch (err) {
-        toast.error(err instanceof ApiError ? err.message : "No se pudo crear la cuenta");
+        toast.error(
+          err instanceof ApiError ? err.message : "No se pudo crear la cuenta",
+        );
       } finally {
         setLoading(false);
       }
@@ -174,14 +203,22 @@ function Registro() {
         interval,
       });
       if (checkoutUrl) {
-        toast.success("Cuenta creada", { description: "Te llevamos a Stripe para pagar tu plan." });
+        toast.success("Cuenta creada", {
+          description: "Te llevamos a Stripe para pagar tu plan.",
+        });
         window.location.href = checkoutUrl;
         return;
       }
-      toast.success("Cuenta creada", { description: selected ? `Activamos el plan ${selected.name}.` : undefined });
+      toast.success("Cuenta creada", {
+        description: selected
+          ? `Activamos el plan ${selected.name}.`
+          : undefined,
+      });
       navigate({ to: "/eventos" });
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "No se pudo crear la cuenta");
+      toast.error(
+        err instanceof ApiError ? err.message : "No se pudo crear la cuenta",
+      );
     } finally {
       setLoading(false);
     }
@@ -193,14 +230,28 @@ function Registro() {
   return (
     <main className="mx-auto flex min-h-screen w-full max-w-3xl flex-col justify-center px-6 py-16">
       <Link to="/" className="mb-10 flex items-center gap-2.5">
-        <img src={logo} alt="Logotipo de Alanna Confirmaciones" width={36} height={36} className="size-9 rounded-xl bg-primary object-contain p-1.5" />
+        <img
+          src={logo}
+          alt="Logotipo de Alanna Confirmaciones"
+          width={36}
+          height={36}
+          className="size-9 rounded-xl bg-primary object-contain p-1.5"
+        />
         <span className="font-display text-2xl">Alanna</span>
       </Link>
       <p className="text-xs font-medium uppercase tracking-[0.14em] text-gold">
-        {isInvite ? "Invitación al equipo" : step === 0 ? "Paso 1 de 2" : "Paso 2 de 2"}
+        {isInvite
+          ? "Invitación al equipo"
+          : step === 0
+            ? "Paso 1 de 2"
+            : "Paso 2 de 2"}
       </p>
       <h1 className="mt-2 font-display text-4xl leading-tight">
-        {isInvite ? "Crea tu cuenta" : step === 0 ? "Crea tu cuenta" : "Elige tu suscripción"}
+        {isInvite
+          ? "Crea tu cuenta"
+          : step === 0
+            ? "Crea tu cuenta"
+            : "Elige tu suscripción"}
       </h1>
       <p className="mt-2 text-sm text-muted-foreground">
         {isInvite
@@ -221,7 +272,12 @@ function Registro() {
           <>
             <div className="space-y-2">
               <Label htmlFor="name">Nombre</Label>
-              <Input id="name" value={name} onChange={(e) => setName(e.target.value)} required />
+              <Input
+                id="name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="email">Correo</Label>
@@ -246,7 +302,12 @@ function Registro() {
                 minLength={6}
               />
             </div>
-            <Button type="submit" className="w-full" size="lg" disabled={loading}>
+            <Button
+              type="submit"
+              className="w-full"
+              size="lg"
+              disabled={loading}
+            >
               {loading ? <Loader2 className="size-4 animate-spin" /> : null}
               Crear cuenta
             </Button>
@@ -255,7 +316,12 @@ function Registro() {
           <>
             <div className="space-y-2">
               <Label htmlFor="name">Nombre</Label>
-              <Input id="name" value={name} onChange={(e) => setName(e.target.value)} required />
+              <Input
+                id="name"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                required
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="businessName">Nombre del negocio</Label>
@@ -297,11 +363,24 @@ function Registro() {
             </div>
             <div className="space-y-2">
               <Label htmlFor="email">Correo</Label>
-              <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+              <Input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Contraseña</Label>
-              <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required minLength={6} />
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                minLength={6}
+              />
             </div>
             <Button type="submit" className="w-full" size="lg">
               Continuar al plan
@@ -310,7 +389,9 @@ function Registro() {
         ) : (
           <>
             <div className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
-              <p className="text-sm text-muted-foreground">¿Cómo quieres pagar?</p>
+              <p className="text-sm text-muted-foreground">
+                ¿Cómo quieres pagar?
+              </p>
               <BillingToggle value={interval} onChange={setInterval} />
             </div>
             <div className="grid gap-3">
@@ -321,13 +402,17 @@ function Registro() {
                   onClick={() => setPlanId(plan.id)}
                   className={cn(
                     "rounded-2xl border p-5 text-left transition-colors",
-                    planId === plan.id ? "border-gold bg-gold-soft/40" : "border-border bg-card hover:bg-secondary/50",
+                    planId === plan.id
+                      ? "border-gold bg-gold-soft/40"
+                      : "border-border bg-card hover:bg-secondary/50",
                   )}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="font-display text-2xl">{plan.name}</p>
-                      <p className="mt-0.5 text-sm text-muted-foreground">{plan.tagline}</p>
+                      <p className="mt-0.5 text-sm text-muted-foreground">
+                        {plan.tagline}
+                      </p>
                     </div>
                     <p className="font-display text-2xl">
                       {interval === "year"
@@ -337,10 +422,12 @@ function Registro() {
                   </div>
                   <ul className="mt-3 flex flex-wrap gap-4 text-sm text-muted-foreground">
                     <li className="flex items-center gap-1.5">
-                      <CalendarHeart className="size-3.5 text-gold" /> {plan.eventLimit} eventos
+                      <CalendarHeart className="size-3.5 text-gold" />{" "}
+                      {plan.eventLimit} eventos
                     </li>
                     <li className="flex items-center gap-1.5">
-                      <Users className="size-3.5 text-gold" /> {plan.guestLimit.toLocaleString("es-MX")} invitados
+                      <Users className="size-3.5 text-gold" />{" "}
+                      {plan.guestLimit.toLocaleString("es-MX")} invitados
                     </li>
                     <li className="flex items-center gap-1.5">
                       <Check className="size-3.5 text-success" />{" "}
@@ -353,10 +440,20 @@ function Registro() {
               ))}
             </div>
             <div className="flex gap-3">
-              <Button type="button" variant="outline" className="flex-1" onClick={() => setStep(0)}>
+              <Button
+                type="button"
+                variant="outline"
+                className="flex-1"
+                onClick={() => setStep(0)}
+              >
                 Atrás
               </Button>
-              <Button type="submit" className="flex-1" size="lg" disabled={loading || !planId}>
+              <Button
+                type="submit"
+                className="flex-1"
+                size="lg"
+                disabled={loading || !planId}
+              >
                 {loading ? <Loader2 className="size-4 animate-spin" /> : null}
                 Pagar y crear cuenta
               </Button>

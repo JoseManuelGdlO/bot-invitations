@@ -6,7 +6,10 @@ import { useStore } from "@/lib/mock/store";
 
 const footerLinks = [
   { to: "/para-wedding-planners" as const, label: "Para wedding planners" },
-  { to: "/confirmacion-invitados-whatsapp" as const, label: "Confirmación WhatsApp" },
+  {
+    to: "/confirmacion-invitados-whatsapp" as const,
+    label: "Confirmación WhatsApp",
+  },
   { to: "/software-rsvp-bodas" as const, label: "Software RSVP" },
   { to: "/blog" as const, label: "Blog" },
 ];
@@ -27,7 +30,9 @@ export function MarketingShell({ children }: { children: ReactNode }) {
           />
           <div>
             <p className="font-display text-2xl leading-none">Alanna</p>
-            <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-gold">Confirmaciones</p>
+            <p className="text-[10px] font-medium uppercase tracking-[0.14em] text-gold">
+              Confirmaciones
+            </p>
           </div>
         </Link>
         <nav className="flex items-center gap-1 sm:gap-2">
@@ -37,7 +42,10 @@ export function MarketingShell({ children }: { children: ReactNode }) {
           >
             Para planners
           </Link>
-          <Link to="/blog" className="hidden px-2 py-1.5 text-sm text-muted-foreground hover:text-foreground sm:inline">
+          <Link
+            to="/blog"
+            className="hidden px-2 py-1.5 text-sm text-muted-foreground hover:text-foreground sm:inline"
+          >
             Blog
           </Link>
           {session ? (
@@ -62,12 +70,17 @@ export function MarketingShell({ children }: { children: ReactNode }) {
           <div>
             <p className="font-display text-lg">Alanna Confirmaciones</p>
             <p className="mt-1 max-w-sm text-xs text-muted-foreground">
-              Software de confirmación de invitados por WhatsApp para wedding planners en México.
+              Software de confirmación de invitados por WhatsApp para wedding
+              planners en México.
             </p>
           </div>
           <div className="flex flex-wrap gap-x-4 gap-y-2 text-xs text-muted-foreground">
             {footerLinks.map((link) => (
-              <Link key={link.to} to={link.to} className="hover:text-foreground">
+              <Link
+                key={link.to}
+                to={link.to}
+                className="hover:text-foreground"
+              >
                 {link.label}
               </Link>
             ))}

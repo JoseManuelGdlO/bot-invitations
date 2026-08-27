@@ -31,7 +31,9 @@ function AdminHome() {
 
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-5 py-8 md:px-8 md:py-10">
-      <p className="text-xs font-medium uppercase tracking-[0.14em] text-gold">Backoffice</p>
+      <p className="text-xs font-medium uppercase tracking-[0.14em] text-gold">
+        Backoffice
+      </p>
       <h1 className="mt-1 font-display text-4xl">Resumen de la plataforma</h1>
       <p className="mt-1 text-sm text-muted-foreground">
         Clientes, uso y el valor mensual de las suscripciones activas.
@@ -45,7 +47,11 @@ function AdminHome() {
           tone="success"
           icon={CreditCard}
         />
-        <StatCard label="Eventos" value={data?.events ?? "—"} icon={CalendarHeart} />
+        <StatCard
+          label="Eventos"
+          value={data?.events ?? "—"}
+          icon={CalendarHeart}
+        />
         <StatCard
           label="Ingreso mensual"
           value={data ? `$${data.monthlyMxn.toLocaleString("es-MX")}` : "—"}
@@ -70,12 +76,21 @@ function AdminHome() {
         </div>
         <div className="mt-4 grid gap-4 md:grid-cols-3">
           {(data?.plans ?? []).map((plan) => (
-            <div key={plan.id} className="rounded-2xl border border-border bg-card p-5 shadow-soft">
+            <div
+              key={plan.id}
+              className="rounded-2xl border border-border bg-card p-5 shadow-soft"
+            >
               <p className="font-display text-2xl">{plan.name}</p>
-              <p className="mt-1 text-sm text-muted-foreground">{plan.tagline}</p>
-              <p className="mt-4 font-display text-3xl">${plan.priceMxn.toLocaleString("es-MX")}<span className="text-base text-muted-foreground"> / mes</span></p>
+              <p className="mt-1 text-sm text-muted-foreground">
+                {plan.tagline}
+              </p>
+              <p className="mt-4 font-display text-3xl">
+                ${plan.priceMxn.toLocaleString("es-MX")}
+                <span className="text-base text-muted-foreground"> / mes</span>
+              </p>
               <p className="mt-2 text-sm text-muted-foreground">
-                {plan.eventLimit} eventos · {plan.guestLimit.toLocaleString("es-MX")} invitados
+                {plan.eventLimit} eventos ·{" "}
+                {plan.guestLimit.toLocaleString("es-MX")} invitados
                 {plan.yearlyPriceMxn
                   ? ` · anual $${plan.yearlyPriceMxn.toLocaleString("es-MX")} (−${plan.annualDiscountPercent ?? 20}%)`
                   : ""}

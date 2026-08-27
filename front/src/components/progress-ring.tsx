@@ -16,7 +16,14 @@ export function ProgressRing({
     <div className="flex flex-col items-center gap-2">
       <div className="relative" style={{ width: size, height: size }}>
         <svg width={size} height={size} className="-rotate-90">
-          <circle cx={size / 2} cy={size / 2} r={r} fill="none" stroke="var(--border)" strokeWidth={stroke} />
+          <circle
+            cx={size / 2}
+            cy={size / 2}
+            r={r}
+            fill="none"
+            stroke="var(--border)"
+            strokeWidth={stroke}
+          />
           <circle
             cx={size / 2}
             cy={size / 2}
@@ -27,14 +34,18 @@ export function ProgressRing({
             strokeLinecap="round"
             strokeDasharray={c}
             strokeDashoffset={offset}
-            style={{ transition: "stroke-dashoffset 900ms cubic-bezier(0.22,1,0.36,1)" }}
+            style={{
+              transition: "stroke-dashoffset 900ms cubic-bezier(0.22,1,0.36,1)",
+            }}
           />
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
           <span className="font-display text-3xl">{value}%</span>
         </div>
       </div>
-      {caption ? <p className="text-center text-xs text-muted-foreground">{caption}</p> : null}
+      {caption ? (
+        <p className="text-center text-xs text-muted-foreground">{caption}</p>
+      ) : null}
     </div>
   );
 }

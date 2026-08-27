@@ -49,7 +49,10 @@ describe("api client auth", () => {
 
   test("setToken persist false usa sessionStorage", () => {
     setToken("access-session", false);
-    assert.equal(sessionStorage.getItem("alanna-access-token"), "access-session");
+    assert.equal(
+      sessionStorage.getItem("alanna-access-token"),
+      "access-session",
+    );
     assert.equal(sessionStorage.getItem("alanna-remember"), "0");
     assert.equal(localStorage.getItem("alanna-access-token"), null);
     assert.equal(getToken(), "access-session");
@@ -71,7 +74,10 @@ describe("api client auth", () => {
       jsonResponse({ accessToken: "fresh" }),
       jsonResponse({ ok: true }),
     ];
-    globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    globalThis.fetch = (async (
+      input: string | URL | Request,
+      init?: RequestInit,
+    ) => {
       calls.push({ url: String(input), init });
       const next = responses.shift();
       if (!next) throw new Error("fetch inesperado");
@@ -96,22 +102,31 @@ describe("api client auth", () => {
 
   test("401 en /auth/login no dispara refresh", async () => {
     setToken("stale", true);
-    globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    globalThis.fetch = (async (
+      input: string | URL | Request,
+      init?: RequestInit,
+    ) => {
       calls.push({ url: String(input), init });
       return jsonResponse({ error: "Correo o contraseña incorrectos." }, 401);
     }) as typeof fetch;
 
-    await assert.rejects(() => api("/auth/login", { method: "POST", body: JSON.stringify({}) }), (err: unknown) => {
-      assert.equal((err as { status?: number }).status, 401);
-      return true;
-    });
+    await assert.rejects(
+      () => api("/auth/login", { method: "POST", body: JSON.stringify({}) }),
+      (err: unknown) => {
+        assert.equal((err as { status?: number }).status, 401);
+        return true;
+      },
+    );
     assert.equal(calls.length, 1);
     assert.match(calls[0]?.url ?? "", /\/auth\/login/);
   });
 
   test("refresh 401 limpia token y no entra en bucle", async () => {
     setToken("expired", true);
-    globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    globalThis.fetch = (async (
+      input: string | URL | Request,
+      init?: RequestInit,
+    ) => {
       calls.push({ url: String(input), init });
       if (String(input).includes("/auth/refresh")) {
         return jsonResponse({ error: "Refresh inválido" }, 401);
@@ -119,10 +134,13 @@ describe("api client auth", () => {
       return jsonResponse({ error: "Sesión inválida" }, 401);
     }) as typeof fetch;
 
-    await assert.rejects(() => api("/dashboard"), (err: unknown) => {
-      assert.equal((err as { status?: number }).status, 401);
-      return true;
-    });
+    await assert.rejects(
+      () => api("/dashboard"),
+      (err: unknown) => {
+        assert.equal((err as { status?: number }).status, 401);
+        return true;
+      },
+    );
     assert.equal(calls.length, 2);
     assert.match(calls[1]?.url ?? "", /\/auth\/refresh/);
     assert.equal(getToken(), null);
@@ -136,7 +154,10 @@ describe("api client auth", () => {
       releaseRefresh = resolve;
     });
 
-    globalThis.fetch = (async (input: string | URL | Request, init?: RequestInit) => {
+    globalThis.fetch = (async (
+      input: string | URL | Request,
+      init?: RequestInit,
+    ) => {
       calls.push({ url: String(input), init });
       const url = String(input);
       if (url.includes("/auth/refresh")) return refreshGate;
@@ -149,10 +170,16 @@ describe("api client auth", () => {
     const b = api("/events");
     await Promise.resolve();
     await Promise.resolve();
-    assert.equal(calls.filter((c) => c.url.includes("/auth/refresh")).length, 1);
+    assert.equal(
+      calls.filter((c) => c.url.includes("/auth/refresh")).length,
+      1,
+    );
     releaseRefresh?.(jsonResponse({ accessToken: "fresh" }));
     assert.deepEqual(await a, { ok: true });
     assert.deepEqual(await b, { ok: true });
-    assert.equal(calls.filter((c) => c.url.includes("/auth/refresh")).length, 1);
+    assert.equal(
+      calls.filter((c) => c.url.includes("/auth/refresh")).length,
+      1,
+    );
   });
 });

@@ -19,7 +19,9 @@ function NotFoundComponent() {
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
         <h1 className="font-display text-7xl text-foreground">404</h1>
-        <h2 className="mt-4 text-xl font-semibold text-foreground">Página no encontrada</h2>
+        <h2 className="mt-4 text-xl font-semibold text-foreground">
+          Página no encontrada
+        </h2>
         <p className="mt-2 text-sm text-muted-foreground">
           La página que buscas no existe o fue movida.
         </p>
@@ -74,53 +76,69 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   );
 }
 
-export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()({
-  head: () => ({
-    meta: [
-      { charSet: "utf-8" },
-      { name: "viewport", content: "width=device-width, initial-scale=1" },
-      { title: "Alanna Confirmaciones · RSVP para wedding planners" },
-      {
-        name: "description",
-        content:
-          "Plataforma para confirmar invitados de bodas y eventos con conversaciones asistidas por IA.",
-      },
-      { property: "og:type", content: "website" },
-      { property: "og:image", content: "/og-image.png" },
-      { name: "twitter:card", content: "summary_large_image" },
-      ...(import.meta.env.VITE_GSC_VERIFICATION
-        ? [{ name: "google-site-verification", content: String(import.meta.env.VITE_GSC_VERIFICATION) }]
-        : []),
-    ],
-    links: [
-      { rel: "stylesheet", href: appCss },
-      { rel: "preconnect", href: "https://fonts.googleapis.com" },
-      { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-      {
-        rel: "stylesheet",
-        href: "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Karla:wght@400;500;600;700&display=swap",
-      },
-      { rel: "icon", href: "/favicon.ico", sizes: "any" },
-      { rel: "icon", href: "/favicon-32x32.png", type: "image/png", sizes: "32x32" },
-      { rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
-    ],
-    scripts: import.meta.env.VITE_GA4_MEASUREMENT_ID
-      ? [
-          {
-            src: `https://www.googletagmanager.com/gtag/js?id=${import.meta.env.VITE_GA4_MEASUREMENT_ID}`,
-            async: true,
-          },
-          {
-            children: `window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${import.meta.env.VITE_GA4_MEASUREMENT_ID}');`,
-          },
-        ]
-      : [],
-  }),
-  shellComponent: RootShell,
-  component: RootComponent,
-  notFoundComponent: NotFoundComponent,
-  errorComponent: ErrorComponent,
-});
+export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
+  {
+    head: () => ({
+      meta: [
+        { charSet: "utf-8" },
+        { name: "viewport", content: "width=device-width, initial-scale=1" },
+        { title: "Alanna Confirmaciones · RSVP para wedding planners" },
+        {
+          name: "description",
+          content:
+            "Plataforma para confirmar invitados de bodas y eventos con conversaciones asistidas por IA.",
+        },
+        { property: "og:type", content: "website" },
+        { property: "og:image", content: "/og-image.png" },
+        { name: "twitter:card", content: "summary_large_image" },
+        ...(import.meta.env.VITE_GSC_VERIFICATION
+          ? [
+              {
+                name: "google-site-verification",
+                content: String(import.meta.env.VITE_GSC_VERIFICATION),
+              },
+            ]
+          : []),
+      ],
+      links: [
+        { rel: "stylesheet", href: appCss },
+        { rel: "preconnect", href: "https://fonts.googleapis.com" },
+        {
+          rel: "preconnect",
+          href: "https://fonts.gstatic.com",
+          crossOrigin: "anonymous",
+        },
+        {
+          rel: "stylesheet",
+          href: "https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;500;600&family=Karla:wght@400;500;600;700&display=swap",
+        },
+        { rel: "icon", href: "/favicon.ico", sizes: "any" },
+        {
+          rel: "icon",
+          href: "/favicon-32x32.png",
+          type: "image/png",
+          sizes: "32x32",
+        },
+        { rel: "apple-touch-icon", href: "/apple-touch-icon.png" },
+      ],
+      scripts: import.meta.env.VITE_GA4_MEASUREMENT_ID
+        ? [
+            {
+              src: `https://www.googletagmanager.com/gtag/js?id=${import.meta.env.VITE_GA4_MEASUREMENT_ID}`,
+              async: true,
+            },
+            {
+              children: `window.dataLayer=window.dataLayer||[];function gtag(){dataLayer.push(arguments);}gtag('js',new Date());gtag('config','${import.meta.env.VITE_GA4_MEASUREMENT_ID}');`,
+            },
+          ]
+        : [],
+    }),
+    shellComponent: RootShell,
+    component: RootComponent,
+    notFoundComponent: NotFoundComponent,
+    errorComponent: ErrorComponent,
+  },
+);
 
 function RootShell({ children }: { children: ReactNode }) {
   return (

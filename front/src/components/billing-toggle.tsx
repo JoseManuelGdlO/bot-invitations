@@ -1,7 +1,12 @@
 import { cn } from "@/lib/utils";
 import type { BillingInterval, SubscriptionPlan } from "@/lib/mock/types";
 
-export function yearlyAmount(plan: Pick<SubscriptionPlan, "priceMxn" | "yearlyPriceMxn" | "annualDiscountPercent">) {
+export function yearlyAmount(
+  plan: Pick<
+    SubscriptionPlan,
+    "priceMxn" | "yearlyPriceMxn" | "annualDiscountPercent"
+  >,
+) {
   if (plan.yearlyPriceMxn != null) return plan.yearlyPriceMxn;
   const discount = Math.min(80, Math.max(0, plan.annualDiscountPercent ?? 20));
   return Math.round(plan.priceMxn * 12 * (1 - discount / 100));
@@ -21,7 +26,9 @@ export function BillingToggle({
         onClick={() => onChange("month")}
         className={cn(
           "rounded-full px-4 py-1.5 text-sm transition-colors",
-          value === "month" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
+          value === "month"
+            ? "bg-primary text-primary-foreground"
+            : "text-muted-foreground hover:text-foreground",
         )}
       >
         Mensual
@@ -31,7 +38,9 @@ export function BillingToggle({
         onClick={() => onChange("year")}
         className={cn(
           "rounded-full px-4 py-1.5 text-sm transition-colors",
-          value === "year" ? "bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground",
+          value === "year"
+            ? "bg-primary text-primary-foreground"
+            : "text-muted-foreground hover:text-foreground",
         )}
       >
         Anual
@@ -54,10 +63,13 @@ export function PlanPrice({
       <div>
         <p className="font-display text-4xl">
           ${yearly.toLocaleString("es-MX")}
-          <span className="ml-1 text-base text-muted-foreground">MXN / año</span>
+          <span className="ml-1 text-base text-muted-foreground">
+            MXN / año
+          </span>
         </p>
         <p className="mt-1 text-xs text-muted-foreground">
-          Equivale a ${Math.round(yearly / 12).toLocaleString("es-MX")} al mes · ahorras {discount}%
+          Equivale a ${Math.round(yearly / 12).toLocaleString("es-MX")} al mes ·
+          ahorras {discount}%
         </p>
       </div>
     );

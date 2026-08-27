@@ -1,6 +1,11 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useRef, useState } from "react";
-import { CheckCircle2, FileSpreadsheet, Loader2, UploadCloud } from "lucide-react";
+import {
+  CheckCircle2,
+  FileSpreadsheet,
+  Loader2,
+  UploadCloud,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import {
@@ -29,16 +34,33 @@ export const Route = createFileRoute("/eventos/$eventId/importar")({
   head: () => ({
     meta: [
       { title: "Importar Excel · Alanna Confirmaciones" },
-      { name: "description", content: "Sube tu lista de invitados y mapea las columnas del archivo." },
-      { property: "og:title", content: "Importar Excel · Alanna Confirmaciones" },
-      { property: "og:description", content: "Carga y mapeo de columnas de la lista de invitados." },
+      {
+        name: "description",
+        content: "Sube tu lista de invitados y mapea las columnas del archivo.",
+      },
+      {
+        property: "og:title",
+        content: "Importar Excel · Alanna Confirmaciones",
+      },
+      {
+        property: "og:description",
+        content: "Carga y mapeo de columnas de la lista de invitados.",
+      },
       { name: "robots", content: "noindex, nofollow" },
     ],
   }),
   component: Importar,
 });
 
-const excelColumns = ["NOMBRE", "TELÉFONO", "INVITADOS", "MESA", "FAMILIA", "TIPO", "NOTAS"];
+const excelColumns = [
+  "NOMBRE",
+  "TELÉFONO",
+  "INVITADOS",
+  "MESA",
+  "FAMILIA",
+  "TIPO",
+  "NOTAS",
+];
 
 const fields = [
   { id: "rep", label: "Nombre del representante" },
@@ -53,21 +75,61 @@ const fields = [
 ];
 
 const defaultMap: Record<string, string> = {
-  "NOMBRE": "rep",
-  "TELÉFONO": "phone",
-  "INVITADOS": "invited",
-  "MESA": "table",
-  "FAMILIA": "family",
-  "TIPO": "guestType",
-  "NOTAS": "notes",
+  NOMBRE: "rep",
+  TELÉFONO: "phone",
+  INVITADOS: "invited",
+  MESA: "table",
+  FAMILIA: "family",
+  TIPO: "guestType",
+  NOTAS: "notes",
 };
 
 const previewRows = [
-  ["Laura Escobedo", "+52 999 431 2210", "4", "Mesa 2", "Escobedo", "Familia", "Menú sin gluten"],
-  ["Ernesto Villalobos", "+52 811 220 3391", "2", "Mesa 7", "Villalobos", "Amigos", ""],
-  ["Paola Arroyo", "+52 555 908 1123", "3", "Mesa 11", "Arroyo", "Trabajo", "Llega tarde"],
-  ["Gustavo Rendón", "+52 998 771 5540", "1", "Mesa 5", "Rendón", "Padrinos", ""],
-  ["Ana Sofía Bravo", "+52 33 1204 8876", "5", "Mesa 9", "Bravo", "Familia", "Hospedaje reservado"],
+  [
+    "Laura Escobedo",
+    "+52 999 431 2210",
+    "4",
+    "Mesa 2",
+    "Escobedo",
+    "Familia",
+    "Menú sin gluten",
+  ],
+  [
+    "Ernesto Villalobos",
+    "+52 811 220 3391",
+    "2",
+    "Mesa 7",
+    "Villalobos",
+    "Amigos",
+    "",
+  ],
+  [
+    "Paola Arroyo",
+    "+52 555 908 1123",
+    "3",
+    "Mesa 11",
+    "Arroyo",
+    "Trabajo",
+    "Llega tarde",
+  ],
+  [
+    "Gustavo Rendón",
+    "+52 998 771 5540",
+    "1",
+    "Mesa 5",
+    "Rendón",
+    "Padrinos",
+    "",
+  ],
+  [
+    "Ana Sofía Bravo",
+    "+52 33 1204 8876",
+    "5",
+    "Mesa 9",
+    "Bravo",
+    "Familia",
+    "Hospedaje reservado",
+  ],
 ];
 
 function mappingHasRequiredFields(mapping: Record<string, string>) {
@@ -79,7 +141,9 @@ function Importar() {
   const { eventId } = Route.useParams();
   const { previewImport, confirmImport, session } = useStore();
   const navigate = useNavigate();
-  const [phase, setPhase] = useState<"upload" | "processing" | "mapping" | "done">("upload");
+  const [phase, setPhase] = useState<
+    "upload" | "processing" | "mapping" | "done"
+  >("upload");
   const [progress, setProgress] = useState(0);
   const [dragging, setDragging] = useState(false);
   const [mapping, setMapping] = useState(defaultMap);
@@ -99,17 +163,23 @@ function Importar() {
         setPhase("upload");
         return;
       }
-      const nextMapping = Object.keys(data.suggestedMapping).length ? data.suggestedMapping : defaultMap;
+      const nextMapping = Object.keys(data.suggestedMapping).length
+        ? data.suggestedMapping
+        : defaultMap;
       setPreview(data);
       setMapping(nextMapping);
       toast.success(`Archivo leído: ${data.rows.length} filas detectadas`);
       if (!mappingHasRequiredFields(nextMapping)) {
-        toast.warning("No se detectaron nombre y teléfono. Revisa el mapeo de columnas.");
+        toast.warning(
+          "No se detectaron nombre y teléfono. Revisa el mapeo de columnas.",
+        );
       }
       setTimeout(() => setPhase("mapping"), 250);
     } catch (err) {
       setPhase("upload");
-      toast.error(err instanceof ApiError ? err.message : "No se pudo leer el archivo");
+      toast.error(
+        err instanceof ApiError ? err.message : "No se pudo leer el archivo",
+      );
     } finally {
       if (fileRef.current) fileRef.current.value = "";
     }
@@ -118,7 +188,9 @@ function Importar() {
   const doImport = async () => {
     if (!preview || importing) return;
     if (!mappingHasRequiredFields(mapping)) {
-      toast.error("Asigna las columnas de nombre y teléfono antes de importar.");
+      toast.error(
+        "Asigna las columnas de nombre y teléfono antes de importar.",
+      );
       return;
     }
     setImporting(true);
@@ -131,13 +203,17 @@ function Importar() {
       const discarded = res.discarded ?? 0;
       if (res.imported === 0) {
         if (res.skipped > 0) {
-          toast.warning(`Ningún invitado nuevo: ${res.skipped} ya estaban en la lista.`);
+          toast.warning(
+            `Ningún invitado nuevo: ${res.skipped} ya estaban en la lista.`,
+          );
         } else if (discarded > 0) {
           toast.error(
             `${discarded} filas se omitieron porque faltaba nombre o teléfono. Revisa el mapeo.`,
           );
         } else {
-          toast.error("No se importó ningún invitado. Revisa el archivo y el mapeo.");
+          toast.error(
+            "No se importó ningún invitado. Revisa el archivo y el mapeo.",
+          );
         }
         return;
       }
@@ -145,13 +221,21 @@ function Importar() {
       setPhase("done");
       toast.success(`${res.imported} invitaciones importadas`);
       if (res.skipped > 0) {
-        toast.info(`${res.skipped} filas se omitieron porque el teléfono ya existía.`);
+        toast.info(
+          `${res.skipped} filas se omitieron porque el teléfono ya existía.`,
+        );
       }
       if (discarded > 0) {
-        toast.info(`${discarded} filas se omitieron por falta de nombre o teléfono.`);
+        toast.info(
+          `${discarded} filas se omitieron por falta de nombre o teléfono.`,
+        );
       }
     } catch (err) {
-      toast.error(isUpgradeError(err) || err instanceof ApiError ? (err as Error).message : "No se pudo importar el archivo");
+      toast.error(
+        isUpgradeError(err) || err instanceof ApiError
+          ? (err as Error).message
+          : "No se pudo importar el archivo",
+      );
     } finally {
       setImporting(false);
     }
@@ -177,15 +261,21 @@ function Importar() {
           }}
           className={cn(
             "flex flex-col items-center justify-center rounded-2xl border-2 border-dashed p-16 text-center transition-all duration-300",
-            dragging ? "border-gold bg-gold-soft/60 scale-[1.01]" : "border-border bg-card",
+            dragging
+              ? "border-gold bg-gold-soft/60 scale-[1.01]"
+              : "border-border bg-card",
           )}
         >
           <UploadCloud className="size-10 text-gold" />
-          <h2 className="mt-4 font-display text-3xl">Sube tu lista de invitados</h2>
+          <h2 className="mt-4 font-display text-3xl">
+            Sube tu lista de invitados
+          </h2>
           <p className="mt-2 text-sm text-muted-foreground">
             Arrastra tu archivo aquí o selecciónalo desde tu equipo
           </p>
-          <p className="mt-1 text-xs text-muted-foreground">Formatos aceptados: .xlsx · .xls · .csv</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Formatos aceptados: .xlsx · .xls · .csv
+          </p>
           <input
             ref={fileRef}
             type="file"
@@ -206,7 +296,9 @@ function Importar() {
         <div className="rounded-2xl border border-border bg-card p-16 text-center shadow-soft">
           <Loader2 className="mx-auto size-8 animate-spin text-gold" />
           <h2 className="mt-4 font-display text-2xl">Procesando archivo…</h2>
-          <p className="mt-1 text-sm text-muted-foreground">{preview?.filename || "Procesando archivo"}</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {preview?.filename || "Procesando archivo"}
+          </p>
           <Progress value={progress} className="mx-auto mt-6 h-2 max-w-md" />
           <p className="mt-3 text-xs text-muted-foreground">
             Detectando columnas y validando números de WhatsApp…
@@ -222,18 +314,26 @@ function Importar() {
               <h2 className="font-display text-2xl">Archivo procesado</h2>
             </div>
             <p className="mt-1 text-sm text-muted-foreground">
-              {preview?.filename} · {preview?.rows.length ?? 0} filas detectadas · {preview?.columns.length ?? 0} columnas
+              {preview?.filename} · {preview?.rows.length ?? 0} filas detectadas
+              · {preview?.columns.length ?? 0} columnas
             </p>
             <div className="mt-5 min-w-0 overflow-x-auto rounded-xl border border-border">
               <Table>
                 <TableHeader>
-                  <TableRow>{(preview?.columns ?? excelColumns).map((c) => <TableHead key={c}>{c}</TableHead>)}</TableRow>
+                  <TableRow>
+                    {(preview?.columns ?? excelColumns).map((c) => (
+                      <TableHead key={c}>{c}</TableHead>
+                    ))}
+                  </TableRow>
                 </TableHeader>
                 <TableBody>
                   {(preview?.rows ?? previewRows).slice(0, 8).map((r, i) => (
                     <TableRow key={i}>
                       {r.map((c, j) => (
-                        <TableCell key={j} className="whitespace-nowrap text-muted-foreground">
+                        <TableCell
+                          key={j}
+                          className="whitespace-nowrap text-muted-foreground"
+                        >
                           {c || "—"}
                         </TableCell>
                       ))}
@@ -251,9 +351,14 @@ function Importar() {
             </p>
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
               {(preview?.columns ?? excelColumns).map((c, i) => (
-                <div key={`${c}-${i}`} className="flex items-center gap-3 rounded-xl border border-border p-3">
+                <div
+                  key={`${c}-${i}`}
+                  className="flex items-center gap-3 rounded-xl border border-border p-3"
+                >
                   <div className="w-32 shrink-0">
-                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Columna Excel</p>
+                    <p className="text-[11px] uppercase tracking-wide text-muted-foreground">
+                      Columna Excel
+                    </p>
                     <p className="text-sm font-medium">{c}</p>
                   </div>
                   <Select
@@ -261,9 +366,15 @@ function Importar() {
                     onValueChange={(v) => setMapping((m) => ({ ...m, [c]: v }))}
                     disabled={importing}
                   >
-                    <SelectTrigger className="flex-1"><SelectValue /></SelectTrigger>
+                    <SelectTrigger className="flex-1">
+                      <SelectValue />
+                    </SelectTrigger>
                     <SelectContent>
-                      {fields.map((f) => <SelectItem key={f.id} value={f.id}>{f.label}</SelectItem>)}
+                      {fields.map((f) => (
+                        <SelectItem key={f.id} value={f.id}>
+                          {f.label}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -279,7 +390,11 @@ function Importar() {
                   "Importar invitados"
                 )}
               </Button>
-              <Button variant="ghost" disabled={importing} onClick={() => setPhase("upload")}>
+              <Button
+                variant="ghost"
+                disabled={importing}
+                onClick={() => setPhase("upload")}
+              >
                 Cancelar
               </Button>
             </div>
@@ -294,13 +409,23 @@ function Importar() {
           </span>
           <h2 className="mt-4 font-display text-3xl">Invitados importados</h2>
           <p className="mt-2 text-sm text-muted-foreground">
-            {importedCount} invitaciones nuevas se agregaron a este evento y están listas para contactar.
+            {importedCount} invitaciones nuevas se agregaron a este evento y
+            están listas para contactar.
           </p>
           <div className="mt-6 flex justify-center gap-3">
-            <Button onClick={() => navigate({ to: "/eventos/$eventId/invitados", params: { eventId } })}>
+            <Button
+              onClick={() =>
+                navigate({
+                  to: "/eventos/$eventId/invitados",
+                  params: { eventId },
+                })
+              }
+            >
               Ver invitados
             </Button>
-            <Button variant="outline" onClick={() => setPhase("upload")}>Importar otro archivo</Button>
+            <Button variant="outline" onClick={() => setPhase("upload")}>
+              Importar otro archivo
+            </Button>
           </div>
         </div>
       ) : null}

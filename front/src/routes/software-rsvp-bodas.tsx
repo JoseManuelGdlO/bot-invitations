@@ -1,5 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { pageHead, buildFaqJsonLd, buildBreadcrumbJsonLd, jsonLdScripts } from "@/lib/seo";
+import {
+  pageHead,
+  buildFaqJsonLd,
+  buildBreadcrumbJsonLd,
+  jsonLdScripts,
+} from "@/lib/seo";
 import { SeoLanding, SeoSection } from "@/components/seo-landing";
 
 const faqs = [
@@ -45,30 +50,42 @@ function SoftwareRsvpBodas() {
       faqs={faqs}
       related={[
         { href: "/para-wedding-planners", label: "Para wedding planners" },
-        { href: "/confirmacion-invitados-whatsapp", label: "Confirmación de invitados por WhatsApp" },
-        { href: "/blog/plantilla-lista-invitados-boda", label: "Plantilla de lista de invitados" },
+        {
+          href: "/confirmacion-invitados-whatsapp",
+          label: "Confirmación de invitados por WhatsApp",
+        },
+        {
+          href: "/blog/plantilla-lista-invitados-boda",
+          label: "Plantilla de lista de invitados",
+        },
       ]}
     >
       <SeoSection title="Qué debe hacer un RSVP de verdad">
         <p>
-          Importar nombres sin reescribirlos. Hablar con el invitado en el canal que ya usa. Guardar un estado por
-          invitación: pendiente, confirmado, rechazado, y cuántos lugares ocupa. Exportar para el proveedor. Si falta
-          una de esas piezas, sigues haciendo el trabajo a mano.
+          Importar nombres sin reescribirlos. Hablar con el invitado en el canal
+          que ya usa. Guardar un estado por invitación: pendiente, confirmado,
+          rechazado, y cuántos lugares ocupa. Exportar para el proveedor. Si
+          falta una de esas piezas, sigues haciendo el trabajo a mano.
         </p>
         <p>
-          Alanna cubre ese ciclo. No es un editor de invitaciones digitales ni un timeline de proveedores. Es el
-          copiloto de confirmaciones del wedding planner.
+          Alanna cubre ese ciclo. No es un editor de invitaciones digitales ni
+          un timeline de proveedores. Es el copiloto de confirmaciones del
+          wedding planner.
         </p>
       </SeoSection>
       <SeoSection title="De la hoja de cálculo al tablero">
         <p>
-          Subes Excel o CSV, mapeas columnas (responsable, teléfono, lugares) y lanzas el primer lote. El asistente
-          conversa; tú miras KPIs y la bandeja cuando un caso se sale del guion.
+          Subes Excel o CSV, mapeas columnas (responsable, teléfono, lugares) y
+          lanzas el primer lote. El asistente conversa; tú miras KPIs y la
+          bandeja cuando un caso se sale del guion.
         </p>
         <p>
-          La lista deja de tener cinco colores y tres copias en Drive. Hay una versión por evento. Si estás armando el
-          archivo, usa la{" "}
-          <a href="/blog/plantilla-lista-invitados-boda" className="text-foreground underline-offset-4 hover:underline">
+          La lista deja de tener cinco colores y tres copias en Drive. Hay una
+          versión por evento. Si estás armando el archivo, usa la{" "}
+          <a
+            href="/blog/plantilla-lista-invitados-boda"
+            className="text-foreground underline-offset-4 hover:underline"
+          >
             guía de plantilla de invitados
           </a>
           .
@@ -76,9 +93,11 @@ function SoftwareRsvpBodas() {
       </SeoSection>
       <SeoSection title="Cuándo vale la pena cambiarse">
         <p>
-          Si todavía confirmas 40 invitados por chat personal, puedes aguantar. Si tu estudio lleva varias fechas, 150
-          personas o más, o un cliente que pide avance cada dos días, el copiado en Excel ya te está costando horas
-          que no facturas. Los planes de Alanna empiezan en $500 MXN al mes.
+          Si todavía confirmas 40 invitados por chat personal, puedes aguantar.
+          Si tu estudio lleva varias fechas, 150 personas o más, o un cliente
+          que pide avance cada dos días, el copiado en Excel ya te está costando
+          horas que no facturas. Los planes de Alanna empiezan en $500 MXN al
+          mes.
         </p>
       </SeoSection>
     </SeoLanding>

@@ -1,6 +1,13 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { Download, MessageSquare, Search, Send, SlidersHorizontal, Trash2 } from "lucide-react";
+import {
+  Download,
+  MessageSquare,
+  Search,
+  Send,
+  SlidersHorizontal,
+  Trash2,
+} from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/status-badge";
@@ -19,7 +26,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -42,9 +54,16 @@ export const Route = createFileRoute("/eventos/$eventId/invitados")({
   head: () => ({
     meta: [
       { title: "Invitados · Alanna Confirmaciones" },
-      { name: "description", content: "Tabla CRM con todas las invitaciones y su estado de confirmación." },
+      {
+        name: "description",
+        content:
+          "Tabla CRM con todas las invitaciones y su estado de confirmación.",
+      },
       { property: "og:title", content: "Invitados · Alanna Confirmaciones" },
-      { property: "og:description", content: "Todas las invitaciones y su estado de confirmación." },
+      {
+        property: "og:description",
+        content: "Todas las invitaciones y su estado de confirmación.",
+      },
       { name: "robots", content: "noindex, nofollow" },
     ],
   }),
@@ -54,7 +73,14 @@ export const Route = createFileRoute("/eventos/$eventId/invitados")({
 function Invitados() {
   const { eventId } = Route.useParams();
   const { guests } = useEvent(eventId);
-  const { updateGuest, remindGuest, exportGuests, session, hasPerm, deleteGuest } = useStore();
+  const {
+    updateGuest,
+    remindGuest,
+    exportGuests,
+    session,
+    hasPerm,
+    deleteGuest,
+  } = useStore();
   const canExport = hasPerm(eventId, PERMS.EXPORT);
   const canConfirm = hasPerm(eventId, PERMS.CONFIRM);
   const canEditGuest = hasPerm(eventId, PERMS.EDIT_ALL);
@@ -72,7 +98,8 @@ function Invitados() {
       guests.filter(
         (g) =>
           (status === "todos" || g.status === status) &&
-          (g.rep.toLowerCase().includes(q.toLowerCase()) || g.phone.includes(q)),
+          (g.rep.toLowerCase().includes(q.toLowerCase()) ||
+            g.phone.includes(q)),
       ),
     [guests, q, status],
   );
@@ -97,29 +124,32 @@ function Invitados() {
           <SelectContent>
             <SelectItem value="todos">Todos los estados</SelectItem>
             {Object.entries(STATUS_META).map(([k, v]) => (
-              <SelectItem key={k} value={k}>{v.label}</SelectItem>
+              <SelectItem key={k} value={k}>
+                {v.label}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
         {canExport ? (
-        <Button
-          variant="outline"
-          onClick={async () => {
-            try {
-              await exportGuests(eventId, "xlsx");
-              toast.success("Exportación generada");
-            } catch {
-              toast.error("No se pudo exportar");
-            }
-          }}
-        >
-          <Download className="size-4" /> Exportar
-        </Button>
+          <Button
+            variant="outline"
+            onClick={async () => {
+              try {
+                await exportGuests(eventId, "xlsx");
+                toast.success("Exportación generada");
+              } catch {
+                toast.error("No se pudo exportar");
+              }
+            }}
+          >
+            <Download className="size-4" /> Exportar
+          </Button>
         ) : null}
       </div>
 
       <p className="mt-3 text-xs text-muted-foreground">
-        {rows.length} invitaciones · {rows.reduce((a, g) => a + g.invited, 0)} personas totales
+        {rows.length} invitaciones · {rows.reduce((a, g) => a + g.invited, 0)}{" "}
+        personas totales
       </p>
       <div className="mt-4">
         <PlanLimitBanner session={session} kind="guest" />
@@ -131,14 +161,26 @@ function Invitados() {
             <TableRow className="hover:bg-transparent">
               <TableHead className="whitespace-nowrap">Representante</TableHead>
               <TableHead className="whitespace-nowrap">Teléfono</TableHead>
-              <TableHead className="whitespace-nowrap text-center">Invitados</TableHead>
-              <TableHead className="whitespace-nowrap text-center">Confirmados</TableHead>
-              <TableHead className="whitespace-nowrap">Estado WhatsApp</TableHead>
-              <TableHead className="whitespace-nowrap">Último mensaje</TableHead>
-              <TableHead className="max-w-56 whitespace-nowrap">Última respuesta</TableHead>
+              <TableHead className="whitespace-nowrap text-center">
+                Invitados
+              </TableHead>
+              <TableHead className="whitespace-nowrap text-center">
+                Confirmados
+              </TableHead>
+              <TableHead className="whitespace-nowrap">
+                Estado WhatsApp
+              </TableHead>
+              <TableHead className="whitespace-nowrap">
+                Último mensaje
+              </TableHead>
+              <TableHead className="max-w-56 whitespace-nowrap">
+                Última respuesta
+              </TableHead>
               <TableHead className="whitespace-nowrap">Confirmación</TableHead>
               <TableHead className="whitespace-nowrap">Seguimiento</TableHead>
-              <TableHead className="whitespace-nowrap text-center">Acciones</TableHead>
+              <TableHead className="whitespace-nowrap text-center">
+                Acciones
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -151,22 +193,44 @@ function Invitados() {
                 <TableCell className="whitespace-nowrap">
                   <div className="flex items-center gap-2.5">
                     <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-gold-soft text-[11px] font-semibold text-gold-foreground">
-                      {g.rep.split(" ").map((p) => p[0]).join("").slice(0, 2)}
+                      {g.rep
+                        .split(" ")
+                        .map((p) => p[0])
+                        .join("")
+                        .slice(0, 2)}
                     </span>
                     <div>
                       <p className="font-medium leading-tight">{g.rep}</p>
-                      <p className="text-[11px] text-muted-foreground">{g.guestType} · {g.table}</p>
+                      <p className="text-[11px] text-muted-foreground">
+                        {g.guestType} · {g.table}
+                      </p>
                     </div>
                   </div>
                 </TableCell>
-                <TableCell className="whitespace-nowrap text-muted-foreground">{g.phone}</TableCell>
-                <TableCell className="text-center font-medium">{g.invited}</TableCell>
-                <TableCell className="text-center font-medium text-success">{g.confirmed}</TableCell>
-                <TableCell className="text-muted-foreground">{WHATSAPP_LABEL[g.whatsapp]}</TableCell>
-                <TableCell className="whitespace-nowrap text-muted-foreground">{g.lastMessage || "—"}</TableCell>
-                <TableCell className="max-w-56 truncate text-muted-foreground">{g.lastReply || "—"}</TableCell>
-                <TableCell><StatusBadge status={g.status} /></TableCell>
-                <TableCell className="whitespace-nowrap text-muted-foreground">{g.followUp || "—"}</TableCell>
+                <TableCell className="whitespace-nowrap text-muted-foreground">
+                  {g.phone}
+                </TableCell>
+                <TableCell className="text-center font-medium">
+                  {g.invited}
+                </TableCell>
+                <TableCell className="text-center font-medium text-success">
+                  {g.confirmed}
+                </TableCell>
+                <TableCell className="text-muted-foreground">
+                  {WHATSAPP_LABEL[g.whatsapp]}
+                </TableCell>
+                <TableCell className="whitespace-nowrap text-muted-foreground">
+                  {g.lastMessage || "—"}
+                </TableCell>
+                <TableCell className="max-w-56 truncate text-muted-foreground">
+                  {g.lastReply || "—"}
+                </TableCell>
+                <TableCell>
+                  <StatusBadge status={g.status} />
+                </TableCell>
+                <TableCell className="whitespace-nowrap text-muted-foreground">
+                  {g.followUp || "—"}
+                </TableCell>
                 <TableCell className="text-center">
                   <div className="flex items-center justify-center gap-1">
                     {canRemind ? (
@@ -210,7 +274,9 @@ function Invitados() {
           {selected ? (
             <>
               <SheetHeader>
-                <SheetTitle className="font-display text-2xl">{selected.rep}</SheetTitle>
+                <SheetTitle className="font-display text-2xl">
+                  {selected.rep}
+                </SheetTitle>
               </SheetHeader>
               <div className="space-y-4 px-4 pb-6 text-sm">
                 <StatusBadge status={selected.status} />
@@ -227,17 +293,28 @@ function Invitados() {
                     ["notes", "Notas"],
                   ] as const
                 ).map(([key, label]) => (
-                  <div key={key} className="flex items-center justify-between gap-6 border-b border-border/60 pb-2">
+                  <div
+                    key={key}
+                    className="flex items-center justify-between gap-6 border-b border-border/60 pb-2"
+                  >
                     <span className="text-muted-foreground">{label}</span>
                     <Input
                       className="h-8 max-w-48 text-right"
-                      type={key === "invited" || key === "confirmed" ? "number" : "text"}
+                      type={
+                        key === "invited" || key === "confirmed"
+                          ? "number"
+                          : "text"
+                      }
                       value={String(selected[key] ?? "")}
-                      disabled={!canEditGuest && !(canConfirm && (key === "confirmed"))}
+                      disabled={
+                        !canEditGuest && !(canConfirm && key === "confirmed")
+                      }
                       onChange={(e) =>
                         updateGuest(selected.id, {
                           [key]:
-                            key === "invited" || key === "confirmed" ? Number(e.target.value) || 0 : e.target.value,
+                            key === "invited" || key === "confirmed"
+                              ? Number(e.target.value) || 0
+                              : e.target.value,
                         })
                       }
                     />
@@ -245,7 +322,9 @@ function Invitados() {
                 ))}
                 {selected.lastReply ? (
                   <div className="rounded-xl bg-secondary/60 p-3">
-                    <p className="text-xs text-muted-foreground">Última respuesta</p>
+                    <p className="text-xs text-muted-foreground">
+                      Última respuesta
+                    </p>
                     <p className="mt-1">“{selected.lastReply}”</p>
                   </div>
                 ) : null}
@@ -286,12 +365,18 @@ function Invitados() {
         </SheetContent>
       </Sheet>
 
-      <AlertDialog open={!!guestToDelete} onOpenChange={(open) => !open && !deleting && setGuestToDelete(null)}>
+      <AlertDialog
+        open={!!guestToDelete}
+        onOpenChange={(open) => !open && !deleting && setGuestToDelete(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>¿Eliminar a {guestToDelete?.rep}?</AlertDialogTitle>
+            <AlertDialogTitle>
+              ¿Eliminar a {guestToDelete?.rep}?
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              Se quitará de la lista de invitados y se borrará su conversación. Esta acción no se puede deshacer.
+              Se quitará de la lista de invitados y se borrará su conversación.
+              Esta acción no se puede deshacer.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -309,7 +394,11 @@ function Invitados() {
                   toast.success("Invitación eliminada");
                   setGuestToDelete(null);
                 } catch (err) {
-                  toast.error(err instanceof ApiError ? err.message : "No se pudo eliminar al invitado");
+                  toast.error(
+                    err instanceof ApiError
+                      ? err.message
+                      : "No se pudo eliminar al invitado",
+                  );
                 } finally {
                   setDeleting(false);
                 }

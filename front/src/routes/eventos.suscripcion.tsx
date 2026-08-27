@@ -14,7 +14,10 @@ export const Route = createFileRoute("/eventos/suscripcion")({
   component: ClientSubscription,
 });
 
-const STATUS_COPY: Record<CancellationRequest["status"], { label: string; text: string }> = {
+const STATUS_COPY: Record<
+  CancellationRequest["status"],
+  { label: string; text: string }
+> = {
   pending: {
     label: "En revisión",
     text: "Tu solicitud ya llegó al equipo de Alanna. La suscripción sigue activa hasta que un administrador la acepte.",
@@ -60,10 +63,15 @@ function ClientSubscription() {
       await refresh();
       setReason("");
       toast.success("Solicitud enviada", {
-        description: "Un administrador debe aceptarla para que la suscripción se cancele.",
+        description:
+          "Un administrador debe aceptarla para que la suscripción se cancele.",
       });
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "No se pudo enviar la solicitud");
+      toast.error(
+        err instanceof ApiError
+          ? err.message
+          : "No se pudo enviar la solicitud",
+      );
     } finally {
       setLoading(false);
     }
@@ -76,7 +84,11 @@ function ClientSubscription() {
       await refresh();
       toast.success("Solicitud retirada");
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "No se pudo retirar la solicitud");
+      toast.error(
+        err instanceof ApiError
+          ? err.message
+          : "No se pudo retirar la solicitud",
+      );
     } finally {
       setLoading(false);
     }
@@ -84,25 +96,44 @@ function ClientSubscription() {
 
   return (
     <main className="mx-auto w-full max-w-2xl flex-1 px-5 py-8 md:px-8 md:py-10">
-      <p className="text-xs font-medium uppercase tracking-[0.14em] text-gold">Cuenta</p>
+      <p className="text-xs font-medium uppercase tracking-[0.14em] text-gold">
+        Cuenta
+      </p>
       <h1 className="mt-1 font-display text-4xl">Suscripción</h1>
       <p className="mt-1 text-sm text-muted-foreground">
-        Puedes pedir la baja; un administrador debe aceptarla. Si la acepta, terminas el periodo pagado y después la
-        cuenta deja de crecer. Las invitaciones en curso no se detienen.
+        Puedes pedir la baja; un administrador debe aceptarla. Si la acepta,
+        terminas el periodo pagado y después la cuenta deja de crecer. Las
+        invitaciones en curso no se detienen.
       </p>
 
       <section className="mt-8 rounded-2xl border border-border bg-card p-5 shadow-soft">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div>
-            <p className="text-xs uppercase tracking-wide text-muted-foreground">Plan actual</p>
-            <h2 className="mt-1 font-display text-2xl">{session?.plan?.name || "Sin plan"}</h2>
+            <p className="text-xs uppercase tracking-wide text-muted-foreground">
+              Plan actual
+            </p>
+            <h2 className="mt-1 font-display text-2xl">
+              {session?.plan?.name || "Sin plan"}
+            </h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              {session?.billingInterval === "year" ? "Facturación anual" : "Facturación mensual"}
+              {session?.billingInterval === "year"
+                ? "Facturación anual"
+                : "Facturación mensual"}
               {until ? ` · vigente hasta el ${until}` : ""}
             </p>
           </div>
-          <Badge variant={canceled ? "secondary" : ending ? "destructive" : "outline"}>
-            {canceled ? "Periodo terminado" : ending ? "No se renueva" : session?.subscriptionStatus === "active" ? "Activa" : "Pendiente de pago"}
+          <Badge
+            variant={
+              canceled ? "secondary" : ending ? "destructive" : "outline"
+            }
+          >
+            {canceled
+              ? "Periodo terminado"
+              : ending
+                ? "No se renueva"
+                : session?.subscriptionStatus === "active"
+                  ? "Activa"
+                  : "Pendiente de pago"}
           </Badge>
         </div>
         <Button
@@ -114,7 +145,11 @@ function ClientSubscription() {
             try {
               await openBillingPortal();
             } catch (err) {
-              toast.error(err instanceof ApiError ? err.message : "No se pudo abrir el portal de pagos");
+              toast.error(
+                err instanceof ApiError
+                  ? err.message
+                  : "No se pudo abrir el portal de pagos",
+              );
             }
           }}
         >
@@ -126,9 +161,13 @@ function ClientSubscription() {
         <section className="mt-6 rounded-2xl border border-border bg-card p-5 shadow-soft">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <h2 className="font-display text-2xl">Solicitud de cancelación</h2>
-            <Badge variant={pending ? "destructive" : "secondary"}>{STATUS_COPY[cancellation.status].label}</Badge>
+            <Badge variant={pending ? "destructive" : "secondary"}>
+              {STATUS_COPY[cancellation.status].label}
+            </Badge>
           </div>
-          <p className="mt-2 text-sm text-muted-foreground">{STATUS_COPY[cancellation.status].text}</p>
+          <p className="mt-2 text-sm text-muted-foreground">
+            {STATUS_COPY[cancellation.status].text}
+          </p>
           <p className="mt-4 text-sm">{cancellation.reason}</p>
           {cancellation.adminNote ? (
             <p className="mt-3 rounded-xl bg-secondary px-3 py-2 text-sm">
@@ -136,7 +175,13 @@ function ClientSubscription() {
             </p>
           ) : null}
           {pending ? (
-            <Button type="button" variant="outline" className="mt-4" onClick={withdraw} disabled={loading}>
+            <Button
+              type="button"
+              variant="outline"
+              className="mt-4"
+              onClick={withdraw}
+              disabled={loading}
+            >
               Retirar solicitud
             </Button>
           ) : null}
@@ -144,11 +189,15 @@ function ClientSubscription() {
       ) : null}
 
       {!canceled && !pending && !ending ? (
-        <form onSubmit={request} className="mt-6 space-y-4 rounded-2xl border border-border bg-card p-5 shadow-soft">
+        <form
+          onSubmit={request}
+          className="mt-6 space-y-4 rounded-2xl border border-border bg-card p-5 shadow-soft"
+        >
           <h2 className="font-display text-2xl">Pedir cancelación</h2>
           <p className="text-sm text-muted-foreground">
-            Si el administrador acepta, no se corta hoy: terminas el periodo pagado. Después, para crear o agregar más,
-            hay que volver a pagar. Los envíos siguen.
+            Si el administrador acepta, no se corta hoy: terminas el periodo
+            pagado. Después, para crear o agregar más, hay que volver a pagar.
+            Los envíos siguen.
           </p>
           <div className="space-y-2">
             <Label htmlFor="reason">Motivo</Label>

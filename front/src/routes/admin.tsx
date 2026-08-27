@@ -1,6 +1,19 @@
-import { Link, Outlet, createFileRoute, useNavigate } from "@tanstack/react-router";
+import {
+  Link,
+  Outlet,
+  createFileRoute,
+  useNavigate,
+} from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Ban, Headset, LayoutDashboard, LogOut, Package, Users, Wallet } from "lucide-react";
+import {
+  Ban,
+  Headset,
+  LayoutDashboard,
+  LogOut,
+  Package,
+  Users,
+  Wallet,
+} from "lucide-react";
 import logo from "@/assets/alanna-logo.png";
 import { initialsFrom, useStore } from "@/lib/mock/store";
 import { cn } from "@/lib/utils";
@@ -77,28 +90,40 @@ function AdminShell() {
             className={cn(
               "flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent",
             )}
-            activeProps={{ className: "bg-sidebar-accent font-medium text-sidebar-foreground" }}
+            activeProps={{
+              className:
+                "bg-sidebar-accent font-medium text-sidebar-foreground",
+            }}
           >
             <LayoutDashboard className="size-4" /> Resumen
           </Link>
           <Link
             to="/admin/clientes"
             className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent"
-            activeProps={{ className: "bg-sidebar-accent font-medium text-sidebar-foreground" }}
+            activeProps={{
+              className:
+                "bg-sidebar-accent font-medium text-sidebar-foreground",
+            }}
           >
             <Users className="size-4" /> Clientes
           </Link>
           <Link
             to="/admin/finanzas"
             className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent"
-            activeProps={{ className: "bg-sidebar-accent font-medium text-sidebar-foreground" }}
+            activeProps={{
+              className:
+                "bg-sidebar-accent font-medium text-sidebar-foreground",
+            }}
           >
             <Wallet className="size-4" /> Finanzas
           </Link>
           <Link
             to="/admin/cancelaciones"
             className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent"
-            activeProps={{ className: "bg-sidebar-accent font-medium text-sidebar-foreground" }}
+            activeProps={{
+              className:
+                "bg-sidebar-accent font-medium text-sidebar-foreground",
+            }}
           >
             <Ban className="size-4" /> Cancelaciones
             {cancelUnread > 0 ? (
@@ -110,7 +135,10 @@ function AdminShell() {
           <Link
             to="/admin/soporte"
             className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent"
-            activeProps={{ className: "bg-sidebar-accent font-medium text-sidebar-foreground" }}
+            activeProps={{
+              className:
+                "bg-sidebar-accent font-medium text-sidebar-foreground",
+            }}
           >
             <Headset className="size-4" /> Soporte
             {supportUnread > 0 ? (
@@ -122,7 +150,10 @@ function AdminShell() {
           <Link
             to="/admin/planes"
             className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent"
-            activeProps={{ className: "bg-sidebar-accent font-medium text-sidebar-foreground" }}
+            activeProps={{
+              className:
+                "bg-sidebar-accent font-medium text-sidebar-foreground",
+            }}
           >
             <Package className="size-4" /> Planes y precios
           </Link>
@@ -134,7 +165,9 @@ function AdminShell() {
             </span>
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium">{session.name}</p>
-              <p className="truncate text-[11px] text-muted-foreground">Administrador</p>
+              <p className="truncate text-[11px] text-muted-foreground">
+                Administrador
+              </p>
             </div>
             <button
               onClick={() => {

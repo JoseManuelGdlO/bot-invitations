@@ -1,5 +1,7 @@
-export type TicketStatus = "open" | "waiting_admin" | "waiting_client" | "closed";
-export type TicketCategory = "facturacion" | "cuenta" | "eventos" | "tecnico" | "otro";
+export type TicketStatus =
+  "open" | "waiting_admin" | "waiting_client" | "closed";
+export type TicketCategory =
+  "facturacion" | "cuenta" | "eventos" | "tecnico" | "otro";
 export type TicketPriority = "low" | "normal" | "high";
 
 export interface SupportUser {

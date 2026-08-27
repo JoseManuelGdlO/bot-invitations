@@ -11,9 +11,9 @@ const AUTH_PUBLIC_PATHS = new Set([
   "/auth/reset-password",
 ]);
 
-const viteApiUrl = (import.meta as ImportMeta & { env?: { [key: string]: string | undefined } }).env?.[
-  "VITE_API_URL"
-];
+const viteApiUrl = (
+  import.meta as ImportMeta & { env?: { [key: string]: string | undefined } }
+).env?.["VITE_API_URL"];
 export const apiBase = viteApiUrl || "/api";
 
 function readStore(kind: "session" | "local"): Storage | null {
@@ -139,7 +139,10 @@ function applyAuthHeaders(headers: Headers) {
   else headers.delete("Authorization");
 }
 
-async function fetchWithAuth(path: string, init: RequestInit = {}): Promise<Response> {
+async function fetchWithAuth(
+  path: string,
+  init: RequestInit = {},
+): Promise<Response> {
   const headers = new Headers(init.headers);
   applyAuthHeaders(headers);
   const res = await fetch(`${apiBase}${path}`, {
@@ -164,7 +167,10 @@ async function fetchWithAuth(path: string, init: RequestInit = {}): Promise<Resp
   });
 }
 
-export async function api<T = unknown>(path: string, init: RequestInit = {}): Promise<T> {
+export async function api<T = unknown>(
+  path: string,
+  init: RequestInit = {},
+): Promise<T> {
   const headers = new Headers(init.headers);
   if (!(init.body instanceof FormData) && !headers.has("Content-Type")) {
     headers.set("Content-Type", "application/json");
@@ -177,7 +183,10 @@ export async function download(path: string, filename: string) {
   const res = await fetchWithAuth(path, {});
   if (!res.ok) {
     const data = await res.json().catch(() => ({}));
-    throw new ApiError((data as { error?: string }).error || "No se pudo descargar", res.status);
+    throw new ApiError(
+      (data as { error?: string }).error || "No se pudo descargar",
+      res.status,
+    );
   }
   const blob = await res.blob();
   const url = URL.createObjectURL(blob);

@@ -32,16 +32,30 @@ export const Route = createFileRoute("/eventos/$eventId/automatizacion")({
   head: () => ({
     meta: [
       { title: "Asistente de Confirmaciones · Alanna" },
-      { name: "description", content: "Configura la personalidad, las reglas y el seguimiento del asistente." },
+      {
+        name: "description",
+        content:
+          "Configura la personalidad, las reglas y el seguimiento del asistente.",
+      },
       { property: "og:title", content: "Asistente de Confirmaciones · Alanna" },
-      { property: "og:description", content: "Personalidad, instrucciones extra y reglas de seguimiento." },
+      {
+        property: "og:description",
+        content: "Personalidad, instrucciones extra y reglas de seguimiento.",
+      },
       { name: "robots", content: "noindex, nofollow" },
     ],
   }),
   component: Automatizacion,
 });
 
-const tones = ["Elegante", "Casual", "Amable", "Cercano", "Formal", "Divertido"];
+const tones = [
+  "Elegante",
+  "Casual",
+  "Amable",
+  "Cercano",
+  "Formal",
+  "Divertido",
+];
 
 const FOLLOW_UP_DAYS_MIN = 1;
 const FOLLOW_UP_DAYS_MAX = 180;
@@ -51,17 +65,27 @@ const FOLLOW_UP_DESCRIPTIONS = {
   f2: "Este solo se manda si el invitado ya recibió el primer contacto y todavía no confirma ni declina.",
   f3: "Se manda si, después del primer recordatorio, el invitado sigue sin confirmar ni declinar.",
   f4: "Último recordatorio automático antes del evento, solo a quien aún no tiene RSVP.",
-  indeciso: "Cuando el invitado pospone la confirmación (luego te digo), el bot agenda este recontacto. Usa la plantilla Seguimiento.",
+  indeciso:
+    "Cuando el invitado pospone la confirmación (luego te digo), el bot agenda este recontacto. Usa la plantilla Seguimiento.",
 } as const;
 
 type FollowUpFrom = "eventDate" | "contactedAt" | "seguimiento";
 
 function followUpFrom(rule: FollowUpRule): FollowUpFrom {
   const when = String(rule.when || "");
-  if (rule.id === "indeciso" || /indeciso|recontacto/i.test(rule.label) || /marcar seguimiento|del seguimiento/i.test(when)) {
+  if (
+    rule.id === "indeciso" ||
+    /indeciso|recontacto/i.test(rule.label) ||
+    /marcar seguimiento|del seguimiento/i.test(when)
+  ) {
     return "seguimiento";
   }
-  if (rule.id === "f2" || rule.id === "f3" || /después del primer contacto/i.test(when)) return "contactedAt";
+  if (
+    rule.id === "f2" ||
+    rule.id === "f3" ||
+    /después del primer contacto/i.test(when)
+  )
+    return "contactedAt";
   return "eventDate";
 }
 
@@ -83,29 +107,43 @@ function clampFollowUpDays(raw: string | number) {
 }
 
 function ruleDays(rule: FollowUpRule) {
-  if (Number.isFinite(Number(rule.days))) return clampFollowUpDays(Number(rule.days));
+  if (Number.isFinite(Number(rule.days)))
+    return clampFollowUpDays(Number(rule.days));
   const match = String(rule.when || "").match(/(\d+)/);
   return match?.[1] != null ? clampFollowUpDays(match[1]) : FOLLOW_UP_DAYS_MIN;
 }
 
-function withFollowUpDays(rule: FollowUpRule, days = ruleDays(rule)): FollowUpRule {
+function withFollowUpDays(
+  rule: FollowUpRule,
+  days = ruleDays(rule),
+): FollowUpRule {
   const from = followUpFrom(rule);
-  return { ...rule, description: followUpDescription(rule), days, when: formatFollowUpWhen(days, from) };
+  return {
+    ...rule,
+    description: followUpDescription(rule),
+    days,
+    when: formatFollowUpWhen(days, from),
+  };
 }
 
 function followUpDescription(rule: FollowUpRule): string {
   const custom = String(rule.description || "").trim();
   if (custom) return custom;
   if (rule.id in FOLLOW_UP_DESCRIPTIONS) {
-    return FOLLOW_UP_DESCRIPTIONS[rule.id as keyof typeof FOLLOW_UP_DESCRIPTIONS];
+    return FOLLOW_UP_DESCRIPTIONS[
+      rule.id as keyof typeof FOLLOW_UP_DESCRIPTIONS
+    ];
   }
-  if (/indeciso|recontacto/i.test(rule.label)) return FOLLOW_UP_DESCRIPTIONS.indeciso;
+  if (/indeciso|recontacto/i.test(rule.label))
+    return FOLLOW_UP_DESCRIPTIONS.indeciso;
   if (/primer contacto/i.test(rule.label)) return FOLLOW_UP_DESCRIPTIONS.f1;
   return "";
 }
 
 function indecisoDays(followUps: FollowUpRule[]) {
-  const rule = followUps.find((item) => item.id === "indeciso" || /indeciso|recontacto/i.test(item.label));
+  const rule = followUps.find(
+    (item) => item.id === "indeciso" || /indeciso|recontacto/i.test(item.label),
+  );
   return rule ? ruleDays(rule) : 3;
 }
 
@@ -147,7 +185,9 @@ function Automatizacion() {
       setPromptGuest(res.guestName || "");
     } catch (error) {
       setPromptOpen(false);
-      toast.error(error instanceof Error ? error.message : "No se pudo cargar el prompt");
+      toast.error(
+        error instanceof Error ? error.message : "No se pudo cargar el prompt",
+      );
     } finally {
       setPromptLoading(false);
     }
@@ -161,9 +201,16 @@ function Automatizacion() {
       return next;
     });
     const nextRule = withFollowUpDays(rule, days);
-    if (nextRule.days === ruleDays(rule) && nextRule.when === rule.when && rule.days != null) return;
+    if (
+      nextRule.days === ruleDays(rule) &&
+      nextRule.when === rule.when &&
+      rule.days != null
+    )
+      return;
     updateAI(eventId, {
-      followUps: ai.followUps.map((item) => (item.id === rule.id ? nextRule : withFollowUpDays(item))),
+      followUps: ai.followUps.map((item) =>
+        item.id === rule.id ? nextRule : withFollowUpDays(item),
+      ),
     });
   };
 
@@ -175,7 +222,9 @@ function Automatizacion() {
         <section className="rounded-2xl border border-border bg-card p-6 shadow-soft">
           <div className="flex items-center gap-2">
             <Bot className="size-5 text-gold" />
-            <h2 className="font-display text-2xl">Personalidad del asistente</h2>
+            <h2 className="font-display text-2xl">
+              Personalidad del asistente
+            </h2>
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
             Estos ajustes se aplican en cada conversación.
@@ -185,37 +234,60 @@ function Automatizacion() {
               <Label>Nombre del asistente</Label>
               <Input
                 value={ai.assistantName}
-                onChange={(e) => updateAI(eventId, { assistantName: e.target.value })}
+                onChange={(e) =>
+                  updateAI(eventId, { assistantName: e.target.value })
+                }
               />
             </div>
             <div className="space-y-2">
               <Label>Tono</Label>
-              <Select value={ai.tone} onValueChange={(v) => updateAI(eventId, { tone: v })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+              <Select
+                value={ai.tone}
+                onValueChange={(v) => updateAI(eventId, { tone: v })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
-                  {tones.map((t) => <SelectItem key={t} value={t}>{t}</SelectItem>)}
+                  {tones.map((t) => (
+                    <SelectItem key={t} value={t}>
+                      {t}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
             <div className="space-y-3 sm:col-span-2">
               <div className="flex justify-between">
                 <Label>Nivel de formalidad</Label>
-                <span className="text-xs text-muted-foreground">{ai.formality}%</span>
+                <span className="text-xs text-muted-foreground">
+                  {ai.formality}%
+                </span>
               </div>
               <Slider
                 value={[ai.formality]}
                 max={100}
                 step={5}
-                onValueChange={([v]) => updateAI(eventId, { formality: v ?? 50 })}
+                onValueChange={([v]) =>
+                  updateAI(eventId, { formality: v ?? 50 })
+                }
               />
               <div className="flex justify-between text-[11px] text-muted-foreground">
-                <span>Muy cercano</span><span>Muy formal</span>
+                <span>Muy cercano</span>
+                <span>Muy formal</span>
               </div>
             </div>
             <div className="space-y-2">
               <Label>Uso de emojis</Label>
-              <Select value={ai.emojis} onValueChange={(v) => updateAI(eventId, { emojis: v as typeof ai.emojis })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+              <Select
+                value={ai.emojis}
+                onValueChange={(v) =>
+                  updateAI(eventId, { emojis: v as typeof ai.emojis })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="ninguno">Ninguno</SelectItem>
                   <SelectItem value="algunos">Algunos</SelectItem>
@@ -225,8 +297,15 @@ function Automatizacion() {
             </div>
             <div className="space-y-2">
               <Label>Longitud de mensajes</Label>
-              <Select value={ai.length} onValueChange={(v) => updateAI(eventId, { length: v as typeof ai.length })}>
-                <SelectTrigger><SelectValue /></SelectTrigger>
+              <Select
+                value={ai.length}
+                onValueChange={(v) =>
+                  updateAI(eventId, { length: v as typeof ai.length })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="cortos">Cortos</SelectItem>
                   <SelectItem value="normales">Normales</SelectItem>
@@ -241,12 +320,19 @@ function Automatizacion() {
           <h2 className="font-display text-2xl">Reglas de conversación</h2>
           <ul className="mt-4 space-y-2">
             {ai.rules.map((r, i) => (
-              <li key={`${i}-${r}`} className="flex items-center gap-3 rounded-xl border border-border bg-secondary/40 px-3 py-2 text-sm">
+              <li
+                key={`${i}-${r}`}
+                className="flex items-center gap-3 rounded-xl border border-border bg-secondary/40 px-3 py-2 text-sm"
+              >
                 <span className="text-gold">•</span>
                 <span className="flex-1">{r}</span>
                 <button
                   type="button"
-                  onClick={() => updateAI(eventId, { rules: ai.rules.filter((_, j) => j !== i) })}
+                  onClick={() =>
+                    updateAI(eventId, {
+                      rules: ai.rules.filter((_, j) => j !== i),
+                    })
+                  }
                   className="text-muted-foreground transition-colors hover:text-destructive"
                 >
                   <Trash2 className="size-4" />
@@ -255,7 +341,11 @@ function Automatizacion() {
             ))}
           </ul>
           <div className="mt-3 flex gap-2">
-            <Input value={newRule} onChange={(e) => setNewRule(e.target.value)} placeholder="Agregar instrucción…" />
+            <Input
+              value={newRule}
+              onChange={(e) => setNewRule(e.target.value)}
+              placeholder="Agregar instrucción…"
+            />
             <Button
               variant="outline"
               onClick={() => {
@@ -272,19 +362,25 @@ function Automatizacion() {
         <section className="rounded-2xl border border-border bg-card p-6 shadow-soft">
           <h2 className="font-display text-2xl">Reglas de seguimiento</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            La campaña de primer contacto se lanza desde Resumen. El recontacto a indecisos usa la plantilla Seguimiento.
+            La campaña de primer contacto se lanza desde Resumen. El recontacto
+            a indecisos usa la plantilla Seguimiento.
           </p>
           <div className="mt-4 space-y-3">
             {ai.followUps.map((f) => {
               const from = followUpFrom(f);
               const description = followUpDescription(f);
               return (
-                <div key={f.id} className="flex flex-col gap-3 rounded-xl border border-border p-3 sm:flex-row sm:items-center">
+                <div
+                  key={f.id}
+                  className="flex flex-col gap-3 rounded-xl border border-border p-3 sm:flex-row sm:items-center"
+                >
                   <div className="flex-1 space-y-2">
                     <div>
                       <p className="text-sm font-medium">{f.label}</p>
                       {description ? (
-                        <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>
+                        <p className="mt-0.5 text-xs text-muted-foreground">
+                          {description}
+                        </p>
                       ) : null}
                     </div>
                     <div className="flex items-center gap-2">
@@ -296,14 +392,23 @@ function Automatizacion() {
                         className="h-8 w-20"
                         aria-label={`Días para ${f.label}`}
                         value={daysDraft[f.id] ?? String(ruleDays(f))}
-                        onChange={(e) => setDaysDraft((draft) => ({ ...draft, [f.id]: e.target.value }))}
+                        onChange={(e) =>
+                          setDaysDraft((draft) => ({
+                            ...draft,
+                            [f.id]: e.target.value,
+                          }))
+                        }
                         onBlur={(e) => commitFollowUpDays(f, e.target.value)}
                         onKeyDown={(e) => {
-                          if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                          if (e.key === "Enter")
+                            (e.target as HTMLInputElement).blur();
                         }}
                       />
                       <p className="text-xs text-muted-foreground">
-                        {clampFollowUpDays(daysDraft[f.id] ?? ruleDays(f)) === 1 ? "día" : "días"} {followUpAnchor(from)}
+                        {clampFollowUpDays(daysDraft[f.id] ?? ruleDays(f)) === 1
+                          ? "día"
+                          : "días"}{" "}
+                        {followUpAnchor(from)}
                       </p>
                     </div>
                   </div>
@@ -312,7 +417,9 @@ function Automatizacion() {
                     onCheckedChange={(c) =>
                       updateAI(eventId, {
                         followUps: ai.followUps.map((x) =>
-                          x.id === f.id ? { ...withFollowUpDays(x), active: c } : withFollowUpDays(x),
+                          x.id === f.id
+                            ? { ...withFollowUpDays(x), active: c }
+                            : withFollowUpDays(x),
                         ),
                       })
                     }
@@ -326,7 +433,8 @@ function Automatizacion() {
         <section className="rounded-2xl border border-border bg-card p-6 shadow-soft">
           <h2 className="font-display text-2xl">Instrucciones extra</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            El flujo de confirmación no se edita aquí. Añade solo matices de este evento; se agregan al final del prompt del sistema.
+            El flujo de confirmación no se edita aquí. Añade solo matices de
+            este evento; se agregan al final del prompt del sistema.
           </p>
           <Textarea
             value={extras}
@@ -358,7 +466,8 @@ function Automatizacion() {
                     <h3 className="font-display text-xl">Probar bot</h3>
                   </div>
                   <p className="mt-1 text-xs text-muted-foreground">
-                    Solo en desarrollo. Arranca con la invitación inicial ya enviada; tú respondes como el invitado. Sin WhatsApp.
+                    Solo en desarrollo. Arranca con la invitación inicial ya
+                    enviada; tú respondes como el invitado. Sin WhatsApp.
                   </p>
                 </div>
                 <Button
@@ -387,7 +496,8 @@ function Automatizacion() {
                 "El asistente clasifica: FAQ, sí, no, indeciso o desconocido",
                 "FAQ: responde con la información cargada o escala",
                 "Sí / no: actualiza el RSVP y envía la plantilla",
-                "Indeciso: agenda recontacto a " + (nudgeDays === 1 ? "1 día" : `${nudgeDays} días`),
+                "Indeciso: agenda recontacto a " +
+                  (nudgeDays === 1 ? "1 día" : `${nudgeDays} días`),
               ].map((s, i) => (
                 <li key={s} className="flex gap-3">
                   <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-secondary text-[11px] font-semibold">
@@ -397,8 +507,12 @@ function Automatizacion() {
                 </li>
               ))}
             </ol>
-            <Badge variant="outline" className="mt-4 rounded-full bg-warning-soft text-warning">
-              Indeciso → seguimiento a {nudgeDays === 1 ? "1 día" : `${nudgeDays} días`}
+            <Badge
+              variant="outline"
+              className="mt-4 rounded-full bg-warning-soft text-warning"
+            >
+              Indeciso → seguimiento a{" "}
+              {nudgeDays === 1 ? "1 día" : `${nudgeDays} días`}
             </Badge>
           </div>
         </div>

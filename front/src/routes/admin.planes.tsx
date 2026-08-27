@@ -21,8 +21,16 @@ function AdminPlans() {
       .catch(() => toast.error("No se pudieron cargar los planes"));
   }, []);
 
-  const set = (id: string, key: keyof SubscriptionPlan, value: string | number | boolean) => {
-    setPlans((current) => current.map((plan) => (plan.id === id ? { ...plan, [key]: value } : plan)));
+  const set = (
+    id: string,
+    key: keyof SubscriptionPlan,
+    value: string | number | boolean,
+  ) => {
+    setPlans((current) =>
+      current.map((plan) =>
+        plan.id === id ? { ...plan, [key]: value } : plan,
+      ),
+    );
   };
 
   const save = async (plan: SubscriptionPlan) => {
@@ -40,7 +48,9 @@ function AdminPlans() {
           highlighted: !!plan.highlighted,
         }),
       });
-      setPlans((current) => current.map((item) => (item.id === plan.id ? updated : item)));
+      setPlans((current) =>
+        current.map((item) => (item.id === plan.id ? updated : item)),
+      );
       toast.success(`Plan ${updated.name} actualizado`);
     } catch {
       toast.error("No se pudo guardar el plan");
@@ -51,10 +61,13 @@ function AdminPlans() {
 
   return (
     <main className="mx-auto w-full max-w-5xl flex-1 px-5 py-8 md:px-8 md:py-10">
-      <p className="text-xs font-medium uppercase tracking-[0.14em] text-gold">Backoffice</p>
+      <p className="text-xs font-medium uppercase tracking-[0.14em] text-gold">
+        Backoffice
+      </p>
       <h1 className="mt-1 font-display text-4xl">Planes y precios</h1>
       <p className="mt-1 text-sm text-muted-foreground">
-        Estos límites se aplican de inmediato al crear eventos o importar invitados.
+        Estos límites se aplican de inmediato al crear eventos o importar
+        invitados.
       </p>
 
       <div className="mt-8 space-y-5">
@@ -70,7 +83,10 @@ function AdminPlans() {
             <div className="grid gap-4 sm:grid-cols-2">
               <div className="space-y-2">
                 <Label>Nombre</Label>
-                <Input value={plan.name} onChange={(e) => set(plan.id, "name", e.target.value)} />
+                <Input
+                  value={plan.name}
+                  onChange={(e) => set(plan.id, "name", e.target.value)}
+                />
               </div>
               <div className="space-y-2">
                 <Label>Precio mensual (MXN)</Label>
@@ -78,12 +94,17 @@ function AdminPlans() {
                   type="number"
                   min={0}
                   value={plan.priceMxn}
-                  onChange={(e) => set(plan.id, "priceMxn", Number(e.target.value))}
+                  onChange={(e) =>
+                    set(plan.id, "priceMxn", Number(e.target.value))
+                  }
                 />
               </div>
               <div className="space-y-2 sm:col-span-2">
                 <Label>Descripción</Label>
-                <Input value={plan.tagline} onChange={(e) => set(plan.id, "tagline", e.target.value)} />
+                <Input
+                  value={plan.tagline}
+                  onChange={(e) => set(plan.id, "tagline", e.target.value)}
+                />
               </div>
               <div className="space-y-2">
                 <Label>Eventos incluidos</Label>
@@ -91,7 +112,9 @@ function AdminPlans() {
                   type="number"
                   min={1}
                   value={plan.eventLimit}
-                  onChange={(e) => set(plan.id, "eventLimit", Number(e.target.value))}
+                  onChange={(e) =>
+                    set(plan.id, "eventLimit", Number(e.target.value))
+                  }
                 />
               </div>
               <div className="space-y-2">
@@ -100,7 +123,9 @@ function AdminPlans() {
                   type="number"
                   min={1}
                   value={plan.guestLimit}
-                  onChange={(e) => set(plan.id, "guestLimit", Number(e.target.value))}
+                  onChange={(e) =>
+                    set(plan.id, "guestLimit", Number(e.target.value))
+                  }
                 />
               </div>
               <div className="space-y-2">
@@ -110,13 +135,25 @@ function AdminPlans() {
                   min={0}
                   max={80}
                   value={plan.annualDiscountPercent ?? 20}
-                  onChange={(e) => set(plan.id, "annualDiscountPercent", Number(e.target.value))}
+                  onChange={(e) =>
+                    set(
+                      plan.id,
+                      "annualDiscountPercent",
+                      Number(e.target.value),
+                    )
+                  }
                 />
               </div>
               <div className="space-y-2">
                 <Label>Precio anual resultante</Label>
                 <p className="rounded-md border border-border bg-secondary/40 px-3 py-2 text-sm">
-                  ${Math.round((plan.priceMxn * 12 * (100 - (plan.annualDiscountPercent ?? 20))) / 100).toLocaleString("es-MX")}{" "}
+                  $
+                  {Math.round(
+                    (plan.priceMxn *
+                      12 *
+                      (100 - (plan.annualDiscountPercent ?? 20))) /
+                      100,
+                  ).toLocaleString("es-MX")}{" "}
                   MXN / año
                 </p>
               </div>

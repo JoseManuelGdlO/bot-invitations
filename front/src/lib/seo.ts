@@ -1,5 +1,6 @@
 export const siteOrigin = (
-  (import.meta.env.VITE_SITE_URL as string | undefined) || "https://alannaconfirmaciones.com.mx"
+  (import.meta.env.VITE_SITE_URL as string | undefined) ||
+  "https://alannaconfirmaciones.com.mx"
 ).replace(/\/$/, "");
 
 export function pageHead(opts: {
@@ -10,7 +11,8 @@ export function pageHead(opts: {
   canonical?: string;
   ogType?: string;
 }) {
-  const canonical = opts.canonical ?? (opts.path ? `${siteOrigin}${opts.path}` : undefined);
+  const canonical =
+    opts.canonical ?? (opts.path ? `${siteOrigin}${opts.path}` : undefined);
   const meta: Array<Record<string, string>> = [
     { title: opts.title },
     { name: "description", content: opts.description },
@@ -76,7 +78,8 @@ export const businessJsonLd = {
   name: "Alanna Confirmaciones",
   applicationCategory: "BusinessApplication",
   operatingSystem: "Web",
-  description: "Copiloto inteligente para confirmar invitados de bodas y eventos.",
+  description:
+    "Copiloto inteligente para confirmar invitados de bodas y eventos.",
   offers: { "@type": "Offer", price: "0", priceCurrency: "MXN" },
   publisher: {
     "@type": "Organization",
@@ -97,7 +100,9 @@ export function buildFaqJsonLd(items: Array<{ q: string; a: string }>) {
   };
 }
 
-export function buildBreadcrumbJsonLd(items: Array<{ name: string; path: string }>) {
+export function buildBreadcrumbJsonLd(
+  items: Array<{ name: string; path: string }>,
+) {
   return {
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
@@ -124,8 +129,16 @@ export function buildArticleJsonLd(opts: {
     inLanguage: "es-MX",
     datePublished: opts.datePublished,
     dateModified: opts.datePublished,
-    author: { "@type": "Organization", name: "Alanna Confirmaciones", url: siteOrigin },
-    publisher: { "@type": "Organization", name: "Alanna Confirmaciones", url: siteOrigin },
+    author: {
+      "@type": "Organization",
+      name: "Alanna Confirmaciones",
+      url: siteOrigin,
+    },
+    publisher: {
+      "@type": "Organization",
+      name: "Alanna Confirmaciones",
+      url: siteOrigin,
+    },
     mainEntityOfPage: `${siteOrigin}${opts.path}`,
   };
 }
