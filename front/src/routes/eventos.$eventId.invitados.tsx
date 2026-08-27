@@ -3,12 +3,15 @@ import { useMemo, useState } from "react";
 import {
   Download,
   MessageSquare,
+  Plus,
   Search,
   Send,
   SlidersHorizontal,
   Trash2,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/status-badge";
 import {
@@ -33,6 +36,13 @@ import {
   SheetTitle,
 } from "@/components/ui/sheet";
 import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
   AlertDialog,
   AlertDialogAction,
   AlertDialogCancel,
@@ -49,6 +59,25 @@ import { toast } from "sonner";
 import { PlanLimitBanner } from "@/components/plan-limit";
 import { PERMS } from "@/lib/permissions";
 import { ApiError } from "@/lib/api/client";
+
+const TAG_OPTIONS = [
+  "Sin etiqueta",
+  "VIP",
+  "Hospedaje",
+  "Foráneo",
+  "Mesa principal",
+] as const;
+
+const EMPTY_GUEST_FORM = {
+  rep: "",
+  phone: "",
+  invited: "1",
+  table: "",
+  family: "",
+  guestType: "",
+  tag: "Sin etiqueta" as string,
+  notes: "",
+};
 
 export const Route = createFileRoute("/eventos/$eventId/invitados")({
   head: () => ({
@@ -75,6 +104,7 @@ function Invitados() {
   const { guests } = useEvent(eventId);
   const {
     updateGuest,
+    createGuest,
     remindGuest,
     exportGuests,
     session,
@@ -91,6 +121,9 @@ function Invitados() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [guestToDelete, setGuestToDelete] = useState<Guest | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState(EMPTY_GUEST_FORM);
   const selected = guests.find((g) => g.id === selectedId) ?? null;
 
   const rows = useMemo(
@@ -144,6 +177,174 @@ function Invitados() {
           >
             <Download className="size-4" /> Exportar
           </Button>
+        ) : null}
+        {canEditGuest ? (
+          <Dialog
+            open={addOpen}
+            onOpenChange={(next) => {
+              if (!saving) {
+                setAddOpen(next);
+                if (!next) setForm(EMPTY_GUEST_FORM);
+              }
+            }}
+          >
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="size-4" /> Agregar invitado
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Agregar invitado</DialogTitle>
+              </DialogHeader>
+              <form
+                className="space-y-3"
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  const rep = form.rep.trim();
+                  const phone = form.phone.trim();
+                  if (!rep || !phone) {
+                    toast.error("Nombre y teléfono son requeridos");
+                    return;
+                  }
+                  const invited = Number(form.invited) || 1;
+                  setSaving(true);
+                  try {
+                    await createGuest(eventId, {
+                      rep,
+                      phone,
+                      invited,
+                      table: form.table.trim(),
+                      family: form.family.trim(),
+                      guestType: form.guestType.trim(),
+                      tag: form.tag.trim(),
+                      notes: form.notes.trim(),
+                    });
+                    toast.success("Invitado agregado");
+                    setForm(EMPTY_GUEST_FORM);
+                    setAddOpen(false);
+                  } catch (err) {
+                    toast.error(
+                      err instanceof ApiError
+                        ? err.message
+                        : "No se pudo agregar al invitado",
+                    );
+                  } finally {
+                    setSaving(false);
+                  }
+                }}
+              >
+                <div className="space-y-2">
+                  <Label htmlFor="guest-rep">Nombre</Label>
+                  <Input
+                    id="guest-rep"
+                    value={form.rep}
+                    disabled={saving}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, rep: e.target.value }))
+                    }
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="guest-phone">Teléfono</Label>
+                  <Input
+                    id="guest-phone"
+                    value={form.phone}
+                    disabled={saving}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, phone: e.target.value }))
+                    }
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="guest-invited">Invitados</Label>
+                  <Input
+                    id="guest-invited"
+                    type="number"
+                    min={1}
+                    value={form.invited}
+                    disabled={saving}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, invited: e.target.value }))
+                    }
+                  />
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="guest-table">Mesa</Label>
+                    <Input
+                      id="guest-table"
+                      value={form.table}
+                      disabled={saving}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, table: e.target.value }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="guest-family">Familia</Label>
+                    <Input
+                      id="guest-family"
+                      value={form.family}
+                      disabled={saving}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, family: e.target.value }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="guest-type">Tipo</Label>
+                    <Input
+                      id="guest-type"
+                      value={form.guestType}
+                      disabled={saving}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, guestType: e.target.value }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Etiqueta</Label>
+                    <Select
+                      value={form.tag}
+                      disabled={saving}
+                      onValueChange={(value) =>
+                        setForm((f) => ({ ...f, tag: value }))
+                      }
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Etiqueta" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {TAG_OPTIONS.map((tag) => (
+                          <SelectItem key={tag} value={tag}>
+                            {tag}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="guest-notes">Notas</Label>
+                  <Textarea
+                    id="guest-notes"
+                    rows={3}
+                    value={form.notes}
+                    disabled={saving}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, notes: e.target.value }))
+                    }
+                  />
+                </div>
+                <Button type="submit" className="w-full" disabled={saving}>
+                  {saving ? "Guardando…" : "Guardar"}
+                </Button>
+              </form>
+            </DialogContent>
+          </Dialog>
         ) : null}
       </div>
 
@@ -288,9 +489,6 @@ function Invitados() {
                     ["table", "Mesa"],
                     ["family", "Familia"],
                     ["guestType", "Tipo de invitado"],
-                    ["tag", "Etiqueta"],
-                    ["followUp", "Seguimiento"],
-                    ["notes", "Notas"],
                   ] as const
                 ).map(([key, label]) => (
                   <div
@@ -320,7 +518,44 @@ function Invitados() {
                     />
                   </div>
                 ))}
-                {selected.lastReply ? (
+                <div className="flex items-center justify-between gap-6 border-b border-border/60 pb-2">
+                  <span className="text-muted-foreground">Etiqueta</span>
+                  <Select
+                    value={
+                      TAG_OPTIONS.includes(
+                        selected.tag as (typeof TAG_OPTIONS)[number],
+                      )
+                        ? selected.tag
+                        : "Sin etiqueta"
+                    }
+                    disabled={!canEditGuest}
+                    onValueChange={(value) =>
+                      updateGuest(selected.id, { tag: value })
+                    }
+                  >
+                    <SelectTrigger className="h-8 max-w-48">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TAG_OPTIONS.map((tag) => (
+                        <SelectItem key={tag} value={tag}>
+                          {tag}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2 border-b border-border/60 pb-2">
+                  <span className="text-muted-foreground">Notas</span>
+                  <Textarea
+                    rows={3}
+                    value={selected.notes ?? ""}
+                    disabled={!canEditGuest}
+                    onChange={(e) =>
+                      updateGuest(selected.id, { notes: e.target.value })
+                    }
+                  />
+                </div>                {selected.lastReply ? (
                   <div className="rounded-xl bg-secondary/60 p-3">
                     <p className="text-xs text-muted-foreground">
                       Última respuesta
@@ -328,7 +563,7 @@ function Invitados() {
                     <p className="mt-1">“{selected.lastReply}”</p>
                   </div>
                 ) : null}
-                <div className="flex gap-2 pt-2">
+                <div className="flex flex-wrap gap-2 pt-2">
                   {canConfirm ? (
                     <Button
                       className="flex-1"
@@ -358,6 +593,15 @@ function Invitados() {
                   >
                     <MessageSquare className="size-4" /> Conversación
                   </Button>
+                  {canEditGuest ? (
+                    <Button
+                      variant="outline"
+                      className="w-full text-destructive hover:bg-destructive/10 hover:text-destructive"
+                      onClick={() => setGuestToDelete(selected)}
+                    >
+                      <Trash2 className="size-4" /> Eliminar
+                    </Button>
+                  ) : null}
                 </div>
               </div>
             </>

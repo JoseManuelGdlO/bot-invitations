@@ -128,6 +128,86 @@ describe("event-data.controller", () => {
     ]);
   });
 
+  test("getAiDefaults devuelve reglas con flag technical", async () => {
+    const { res } = await callHandler(controller.getAiDefaults, {
+      req: createMockReq({ params: { eventId: "boda-ana" } }),
+    });
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        tone: "Elegante",
+        prompt: "",
+        rules: expect.arrayContaining([
+          expect.objectContaining({
+            text: "Nunca mencionar que eres una IA.",
+            technical: false,
+          }),
+          expect.objectContaining({
+            text: "Clasifica cada mensaje en faq, asistira, no_asistira, seguimiento o desconocido.",
+            technical: true,
+          }),
+        ]),
+      }),
+    );
+  });
+
+  test("resetAi restaura tono, reglas y prompt", async () => {
+    const ai = createInstance({
+      assistantName: "Sofía",
+      tone: "Casual",
+      formality: 20,
+      emojis: "frecuentes",
+      length: "cortos",
+      openingMessage: "hola",
+      prompt: "instrucciones custom",
+      rules: ["regla custom"],
+      followUps: [{ id: "f1", label: "Primer contacto", days: 30, when: "30 días antes del evento", active: true }],
+    });
+    models.AiConfig.findOne.mockResolvedValue(ai);
+    await callHandler(controller.resetAi, {
+      req: createMockReq({ params: { eventId: "boda-ana" } }),
+    });
+    expect(ai.tone).toBe("Elegante");
+    expect(ai.formality).toBe(60);
+    expect(ai.emojis).toBe("algunos");
+    expect(ai.length).toBe("normales");
+    expect(ai.prompt).toBe("");
+    expect(ai.assistantName).toBe("Sofía");
+    expect(ai.rules).toEqual(
+      expect.arrayContaining([
+        "Nunca mencionar que eres una IA.",
+        "Clasifica cada mensaje en faq, asistira, no_asistira, seguimiento o desconocido.",
+      ]),
+    );
+    expect(resetPlaygroundSessions).toHaveBeenCalledWith("evt_1");
+  });
+
+  test("updateAi reinyecta reglas técnicas si el cliente las omite", async () => {
+    const ai = createInstance({
+      assistantName: "Sofía",
+      tone: "Elegante",
+      formality: 60,
+      emojis: "algunos",
+      length: "normales",
+      openingMessage: "hola",
+      prompt: "",
+      rules: [],
+      followUps: [],
+    });
+    models.AiConfig.findOne.mockResolvedValue(ai);
+    await callHandler(controller.updateAi, {
+      req: createMockReq({
+        body: { rules: ["Nunca mencionar que eres una IA.", "Hablar de valet"] },
+      }),
+    });
+    expect(ai.rules).toEqual(
+      expect.arrayContaining([
+        "Nunca mencionar que eres una IA.",
+        "El primer mensaje ya se envió; no reenvíes la invitación.",
+        "Hablar de valet",
+      ]),
+    );
+  });
+
   test("setTemplates 400 si no es arreglo", async () => {
     const { res } = await callHandler(controller.setTemplates, {
       req: createMockReq({ body: { templates: "nope" } }),

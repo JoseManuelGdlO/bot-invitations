@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
-import { Bot, Eye, Plus, Save, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Bot, Eye, Plus, RotateCcw, Save, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,6 +16,16 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Select,
   SelectContent,
   SelectItem,
@@ -24,6 +34,7 @@ import {
 } from "@/components/ui/select";
 import { useEvent, useStore } from "@/lib/mock/store";
 import { toast } from "sonner";
+import { api, ApiError } from "@/lib/api/client";
 import { botApi } from "@/lib/api/bot";
 import { BotPlayground } from "@/components/bot-playground";
 import type { FollowUpRule } from "@/lib/mock/types";
@@ -57,6 +68,16 @@ const tones = [
   "Divertido",
 ];
 
+type AiRuleDefault = { text: string; technical: boolean };
+
+type AiDefaults = {
+  tone: string;
+  formality: number;
+  emojis: string;
+  length: string;
+  prompt: string;
+  rules: AiRuleDefault[];
+};
 const FOLLOW_UP_DAYS_MIN = 1;
 const FOLLOW_UP_DAYS_MAX = 180;
 
@@ -150,7 +171,7 @@ function indecisoDays(followUps: FollowUpRule[]) {
 function Automatizacion() {
   const { eventId } = Route.useParams();
   const { data, guests } = useEvent(eventId);
-  const { updateAI } = useStore();
+  const { updateAI, resetAI } = useStore();
   const ai = data.ai;
   const [extras, setExtras] = useState(ai.prompt || "");
   const [newRule, setNewRule] = useState("");
@@ -160,6 +181,31 @@ function Automatizacion() {
   const [promptText, setPromptText] = useState("");
   const [promptGuest, setPromptGuest] = useState("");
   const [promptLoading, setPromptLoading] = useState(false);
+  const [resetOpen, setResetOpen] = useState(false);
+  const [resetting, setResetting] = useState(false);
+  const [aiDefaults, setAiDefaults] = useState<AiDefaults | null>(null);
+
+  const technicalRules = useMemo(
+    () =>
+      new Set(
+        (aiDefaults?.rules ?? [])
+          .filter((rule) => rule.technical)
+          .map((rule) => rule.text),
+      ),
+    [aiDefaults],
+  );
+  const defaultRules = useMemo(
+    () => new Set((aiDefaults?.rules ?? []).map((rule) => rule.text)),
+    [aiDefaults],
+  );
+
+  const visibleRules = useMemo(
+    () =>
+      ai.rules
+        .map((rule, index) => ({ rule, index }))
+        .filter(({ rule }) => !technicalRules.has(rule)),
+    [ai.rules, technicalRules],
+  );
 
   useEffect(() => {
     setExtras(ai.prompt || "");
@@ -174,6 +220,20 @@ function Automatizacion() {
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    api<AiDefaults>(`/events/${eventId}/ai-config/defaults`)
+      .then((res) => {
+        if (!cancelled) setAiDefaults(res);
+      })
+      .catch(() => {
+        if (!cancelled) setAiDefaults(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [eventId]);
 
   const openPromptPreview = async () => {
     setPromptLoading(true);
@@ -317,28 +377,42 @@ function Automatizacion() {
         </section>
 
         <section className="rounded-2xl border border-border bg-card p-6 shadow-soft">
-          <h2 className="font-display text-2xl">Reglas de conversación</h2>
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <h2 className="font-display text-2xl">Reglas de conversación</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Puedes añadir instrucciones propias. Las reglas del sistema del
+                bot no se muestran ni se pueden borrar.
+              </p>
+            </div>
+          </div>
           <ul className="mt-4 space-y-2">
-            {ai.rules.map((r, i) => (
-              <li
-                key={`${i}-${r}`}
-                className="flex items-center gap-3 rounded-xl border border-border bg-secondary/40 px-3 py-2 text-sm"
-              >
-                <span className="text-gold">•</span>
-                <span className="flex-1">{r}</span>
-                <button
-                  type="button"
-                  onClick={() =>
-                    updateAI(eventId, {
-                      rules: ai.rules.filter((_, j) => j !== i),
-                    })
-                  }
-                  className="text-muted-foreground transition-colors hover:text-destructive"
+            {visibleRules.map(({ rule, index }) => {
+              const locked = !aiDefaults || defaultRules.has(rule);
+              return (
+                <li
+                  key={`${index}-${rule}`}
+                  className="flex items-center gap-3 rounded-xl border border-border bg-secondary/40 px-3 py-2 text-sm"
                 >
-                  <Trash2 className="size-4" />
-                </button>
-              </li>
-            ))}
+                  <span className="text-gold">•</span>
+                  <span className="flex-1">{rule}</span>
+                  {locked ? null : (
+                    <button
+                      type="button"
+                      aria-label="Eliminar regla"
+                      onClick={() =>
+                        updateAI(eventId, {
+                          rules: ai.rules.filter((_, j) => j !== index),
+                        })
+                      }
+                      className="text-muted-foreground transition-colors hover:text-destructive"
+                    >
+                      <Trash2 className="size-4" />
+                    </button>
+                  )}
+                </li>
+              );
+            })}
           </ul>
           <div className="mt-3 flex gap-2">
             <Input
@@ -443,16 +517,23 @@ function Automatizacion() {
             placeholder="Ej. Hay valet parking. No hables de la mesa de regalos a menos que pregunten."
             className="mt-4 font-sans text-sm leading-relaxed"
           />
-          <Button
-            className="mt-4"
-            onClick={() => {
-              updateAI(eventId, { prompt: extras });
-              toast.success("Instrucciones extra guardadas");
-            }}
-          >
-            <Save className="size-4" /> Guardar instrucciones
-          </Button>
-        </section>
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+            <Button
+              onClick={() => {
+                updateAI(eventId, { prompt: extras });
+                toast.success("Instrucciones extra guardadas");
+              }}
+            >
+              <Save className="size-4" /> Guardar instrucciones
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setResetOpen(true)}
+            >
+              <RotateCcw className="size-4" /> Restablecer configuración
+            </Button>
+          </div>        </section>
       </div>
 
       <aside className="space-y-4">
@@ -533,6 +614,48 @@ function Automatizacion() {
           </pre>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={resetOpen} onOpenChange={setResetOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              ¿Restablecer configuración del asistente?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              Se restaurarán el tono, las reglas de conversación y las
+              instrucciones extra a los valores por defecto. El nombre del
+              asistente y las reglas de seguimiento no cambian.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={resetting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={resetting}
+              onClick={async (e) => {
+                e.preventDefault();
+                setResetting(true);
+                try {
+                  await resetAI(eventId);
+                  setExtras("");
+                  setNewRule("");
+                  setResetOpen(false);
+                  toast.success("Configuración restablecida");
+                } catch (err) {
+                  toast.error(
+                    err instanceof ApiError
+                      ? err.message
+                      : "No se pudo restablecer la configuración",
+                  );
+                } finally {
+                  setResetting(false);
+                }
+              }}
+            >
+              {resetting ? "Restableciendo…" : "Restablecer"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </main>
   );
 }

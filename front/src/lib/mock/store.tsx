@@ -87,6 +87,19 @@ interface Ctx extends State {
   addEvent: (e: EventItem) => Promise<EventItem>;
   updateEvent: (id: string, patch: Partial<EventItem>) => void;
   updateGuest: (id: string, patch: Partial<Guest>) => void;
+  createGuest: (
+    eventId: string,
+    payload: {
+      rep: string;
+      phone: string;
+      invited?: number;
+      table?: string;
+      family?: string;
+      guestType?: string;
+      tag?: string;
+      notes?: string;
+    },
+  ) => Promise<Guest>;
   deleteGuest: (id: string) => Promise<void>;
   remindGuest: (id: string) => void;
   importGuests: (eventId: string, rows: Guest[]) => void;
@@ -105,6 +118,7 @@ interface Ctx extends State {
     kind?: "guests" | "final",
   ) => Promise<void>;
   updateAI: (eventId: string, patch: Partial<EventData["ai"]>) => void;
+  resetAI: (eventId: string) => Promise<void>;
   setTemplates: (eventId: string, t: EventData["templates"]) => void;
   setFaqs: (eventId: string, f: EventData["faqs"]) => void;
   sendMessage: (convId: string, msg: ChatMessage) => void;
@@ -286,6 +300,14 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           body: JSON.stringify(patch),
         }).catch(console.error);
       },
+      createGuest: async (eventId, payload) => {
+        const guest = await api<Guest>(`/events/${eventId}/guests`, {
+          method: "POST",
+          body: JSON.stringify(payload),
+        });
+        setState((s) => ({ ...s, guests: [...s.guests, guest] }));
+        return guest;
+      },
       deleteGuest: async (id) => {
         await api(`/guests/${id}`, { method: "DELETE" });
         setState((s) => ({
@@ -353,6 +375,22 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           method: "PATCH",
           body: JSON.stringify(patch),
         }).catch(console.error);
+      },
+      resetAI: async (eventId) => {
+        const ai = await api<EventData["ai"]>(
+          `/events/${eventId}/ai-config/reset`,
+          { method: "POST" },
+        );
+        setState((s) => ({
+          ...s,
+          data: {
+            ...s.data,
+            [eventId]: {
+              ...s.data[eventId]!,
+              ai: { ...s.data[eventId]!.ai, ...ai },
+            },
+          },
+        }));
       },
       setTemplates: (eventId, t) => {
         setState((s) => ({
