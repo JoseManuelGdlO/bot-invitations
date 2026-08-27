@@ -6,9 +6,11 @@ import { resolveReminderText, resolveSeguimientoText } from "./templates.service
 import { logActivity } from "./activity.service.js";
 import {
   computeFollowUpDueAt,
+  findIndecisoFollowUpRule,
   formatFollowUpDate,
   INDECISO_NUDGE_ID,
   isDue,
+  isIndecisoFollowUpRule,
   isLaunchFollowUpRule,
   nextActiveFollowUpDate,
   parseDateOnly,
@@ -40,7 +42,8 @@ function markFollowUpsSent(guest, sent) {
   if (typeof guest.changed === "function") guest.changed("followUpsSent", true);
 }
 
-async function processIndecisoNudges(event, guests, paused, plannerName, budget, now) {
+async function processIndecisoNudges(event, guests, paused, plannerName, budget, now, indecisoRule) {
+  if (indecisoRule && indecisoRule.active === false) return;
   for (const guest of guests) {
     if (budget.left <= 0) return;
     if (guest.status !== "seguimiento") continue;
@@ -144,10 +147,19 @@ async function processEventFollowUps(event, budget) {
   const plannerName = owner?.name || "";
   const now = new Date();
 
-  await processIndecisoNudges(event, guests, paused, plannerName, budget, now);
+  const followUps = Array.isArray(ai.followUps) ? ai.followUps : [];
+  await processIndecisoNudges(
+    event,
+    guests,
+    paused,
+    plannerName,
+    budget,
+    now,
+    findIndecisoFollowUpRule(followUps),
+  );
 
-  const rules = (Array.isArray(ai.followUps) ? ai.followUps : []).filter(
-    (rule) => rule?.active && !isLaunchFollowUpRule(rule),
+  const rules = followUps.filter(
+    (rule) => rule?.active && !isLaunchFollowUpRule(rule) && !isIndecisoFollowUpRule(rule),
   );
   await processDripReminders(event, guests, paused, plannerName, budget, now, rules);
 }

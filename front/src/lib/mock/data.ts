@@ -196,17 +196,18 @@ function defaultAI(assistant: string, hosts: string): AIConfig {
       "Clasifica cada mensaje en faq, asistira, no_asistira, seguimiento o desconocido.",
       "Si es FAQ, responde solo con las FAQs o plantillas de información; si no hay dato, no inventes y ofrece pasar al equipo.",
       "Si confirma o decline con claridad, usa las tools y la plantilla; no parafrasees el cierre.",
-      "Si está indeciso, marca seguimiento; el sistema recontacta a los 3 días.",
+      "Si está indeciso, marca seguimiento; el sistema recontacta según las reglas de seguimiento.",
       "Si es desconocido, interpreta y responde; no cierres el RSVP.",
       "Si confirma pero no dice con cuántas personas, pregunta el número antes de cerrar.",
       "No superar el número máximo de invitados de la invitación.",
       "Si existe una situación especial, escalar al Wedding Planner.",
     ],
     followUps: [
-      { id: "f1", label: "Primer contacto", when: "30 días antes del evento", active: true },
-      { id: "f2", label: "Primer recordatorio", when: "7 días después del primer contacto", active: true },
-      { id: "f3", label: "Segundo recordatorio", when: "14 días después del primer contacto", active: true },
-      { id: "f4", label: "Último intento", when: "7 días antes del evento", active: false },
+      { id: "f1", label: "Primer contacto", description: "Es la invitación inicial. No se envía sola: la lanzas desde Resumen.", days: 30, when: "30 días antes del evento", active: true },
+      { id: "f2", label: "Primer recordatorio", description: "Este solo se manda si el invitado ya recibió el primer contacto y todavía no confirma ni declina.", days: 7, when: "7 días después del primer contacto", active: true },
+      { id: "f3", label: "Segundo recordatorio", description: "Se manda si, después del primer recordatorio, el invitado sigue sin confirmar ni declinar.", days: 14, when: "14 días después del primer contacto", active: true },
+      { id: "f4", label: "Último intento", description: "Último recordatorio automático antes del evento, solo a quien aún no tiene RSVP.", days: 7, when: "7 días antes del evento", active: false },
+      { id: "indeciso", label: "Recontacto a indecisos", description: "Cuando el invitado pospone la confirmación (luego te digo), el bot agenda este recontacto. Usa la plantilla Seguimiento.", days: 3, when: "3 días después de marcar seguimiento", active: true },
     ],
   };
 }

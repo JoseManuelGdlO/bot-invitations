@@ -83,4 +83,37 @@ describe("follow-up.scheduler", () => {
     expect(deliverAiMessage.mock.calls[0][0].kind).toBe("seguimiento");
     expect(resolveReminderText).not.toHaveBeenCalled();
   });
+
+  test("no envía nudge si la regla indeciso está apagada", async () => {
+    const guest = fakeGuest({
+      status: "seguimiento",
+      followUp: formatFollowUpDate(addDays(new Date(), -1)),
+      followUpsSent: [],
+    });
+    stubEventGuests([guest], {
+      followUps: [{ id: "indeciso", label: "Recontacto a indecisos", days: 3, when: "3 días después de marcar seguimiento", active: false }],
+    });
+    await scheduler.tickFollowUps();
+    expect(deliverAiMessage).not.toHaveBeenCalled();
+  });
+
+  test("el drip no envía la regla indeciso aunque esté activa", async () => {
+    const guest = fakeGuest({
+      status: "enviado",
+      followUp: "",
+      followUpsSent: [],
+      contactedAt: addDays(new Date(), -10),
+    });
+    stubEventGuests([guest], {
+      followUps: [
+        { id: "indeciso", label: "Recontacto a indecisos", days: 3, when: "3 días después de marcar seguimiento", active: true },
+        { id: "f2", label: "Primer recordatorio", days: 7, when: "7 días después del primer contacto", active: true },
+      ],
+    });
+    await scheduler.tickFollowUps();
+    expect(deliverAiMessage).toHaveBeenCalledTimes(1);
+    expect(deliverAiMessage.mock.calls[0][0].kind).toBe("follow_up");
+    expect(deliverAiMessage.mock.calls[0][0].followUpId).toBe("f2");
+    expect(resolveSeguimientoText).not.toHaveBeenCalled();
+  });
 });

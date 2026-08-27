@@ -141,7 +141,7 @@ export function buildPlaygroundLogs({ intent = null, tools = [] } = {}) {
         kind: "tool",
         label: "marcar_seguimiento",
         value: "seguimiento",
-        detail: tool.arguments?.reason || tool.result?.followUp || "recontacto a 3 días",
+        detail: tool.arguments?.reason || tool.result?.followUp || "recontacto de seguimiento",
       });
       continue;
     }

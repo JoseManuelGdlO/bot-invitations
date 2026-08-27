@@ -33,7 +33,7 @@ const categories = [
   },
   { id: "Confirmación", hint: "Cierre cuando el invitado confirma asistencia." },
   { id: "Rechazo", hint: "Cierre cuando el invitado no podrá asistir." },
-  { id: "Seguimiento", hint: "Recontacto a indecisos, 3 días después." },
+  { id: "Seguimiento", hint: "Recontacto a indecisos, según las reglas de seguimiento." },
 ] as const;
 
 function TemplateCategory({

@@ -63,6 +63,15 @@ export interface Conversation {
   messages: ChatMessage[];
 }
 
+export interface FollowUpRule {
+  id: string;
+  label: string;
+  description?: string;
+  days?: number;
+  when: string;
+  active: boolean;
+}
+
 export interface AIConfig {
   assistantName: string;
   tone: string;
@@ -72,7 +81,7 @@ export interface AIConfig {
   openingMessage: string;
   prompt: string;
   rules: string[];
-  followUps: { id: string; label: string; when: string; active: boolean }[];
+  followUps: FollowUpRule[];
 }
 
 export interface Template {

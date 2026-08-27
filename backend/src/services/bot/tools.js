@@ -6,6 +6,7 @@ import {
   defaultIndecisoFollowUpDate,
   formatFollowUpDate,
   INDECISO_NUDGE_ID,
+  indecisoFollowUpDays,
   parseFollowUpDateInput,
 } from "../follow-up.service.js";
 
@@ -59,7 +60,7 @@ export const BOT_TOOLS = [
     type: "function",
     name: "marcar_seguimiento",
     description:
-      "Marca al invitado como seguimiento cuando la respuesta es ambigua o pospone la confirmación (por ejemplo: luego te digo, creo que sí, lo hablo con mi pareja). El sistema agenda un recontacto a 3 días. No la uses si confirma o decline con claridad.",
+      "Marca al invitado como seguimiento cuando la respuesta es ambigua o pospone la confirmación (por ejemplo: luego te digo, creo que sí, lo hablo con mi pareja). El sistema agenda un recontacto según las reglas de seguimiento del evento. No la uses si confirma o decline con claridad.",
     parameters: {
       type: "object",
       properties: {
@@ -69,7 +70,7 @@ export const BOT_TOOLS = [
         },
         followUpDate: {
           type: ["string", "null"],
-          description: "Fecha de recontacto YYYY-MM-DD o DD/MM/YYYY. Null para agendar a 3 días desde hoy.",
+          description: "Fecha de recontacto YYYY-MM-DD o DD/MM/YYYY. Null para agendar según las reglas de seguimiento del evento.",
         },
       },
       required: ["reason", "followUpDate"],
@@ -166,14 +167,14 @@ export async function executeActualizarConfirmacion(args, { guest, event, dryRun
   };
 }
 
-export async function executeMarcarSeguimiento(args, { guest, event, dryRun = false }) {
+export async function executeMarcarSeguimiento(args, { guest, event, ai, dryRun = false }) {
   if (["confirmado", "parcial", "no_asistira"].includes(guest.status)) {
     return { success: false, error: "El invitado ya tiene un RSVP cerrado." };
   }
   guest.status = "seguimiento";
   guest.whatsapp = "respondido";
   const given = parseFollowUpDateInput(args?.followUpDate);
-  const due = given || defaultIndecisoFollowUpDate();
+  const due = given || defaultIndecisoFollowUpDate(new Date(), indecisoFollowUpDays(ai?.followUps));
   guest.followUp = formatFollowUpDate(due);
   const sent = Array.isArray(guest.followUpsSent) ? guest.followUpsSent.filter((id) => id !== INDECISO_NUDGE_ID) : [];
   guest.followUpsSent = sent;

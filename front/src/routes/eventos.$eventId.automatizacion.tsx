@@ -26,6 +26,7 @@ import { useEvent, useStore } from "@/lib/mock/store";
 import { toast } from "sonner";
 import { botApi } from "@/lib/api/bot";
 import { BotPlayground } from "@/components/bot-playground";
+import type { FollowUpRule } from "@/lib/mock/types";
 
 export const Route = createFileRoute("/eventos/$eventId/automatizacion")({
   head: () => ({
@@ -42,6 +43,72 @@ export const Route = createFileRoute("/eventos/$eventId/automatizacion")({
 
 const tones = ["Elegante", "Casual", "Amable", "Cercano", "Formal", "Divertido"];
 
+const FOLLOW_UP_DAYS_MIN = 1;
+const FOLLOW_UP_DAYS_MAX = 180;
+
+const FOLLOW_UP_DESCRIPTIONS = {
+  f1: "Es la invitación inicial. No se envía sola: la lanzas desde Resumen.",
+  f2: "Este solo se manda si el invitado ya recibió el primer contacto y todavía no confirma ni declina.",
+  f3: "Se manda si, después del primer recordatorio, el invitado sigue sin confirmar ni declinar.",
+  f4: "Último recordatorio automático antes del evento, solo a quien aún no tiene RSVP.",
+  indeciso: "Cuando el invitado pospone la confirmación (luego te digo), el bot agenda este recontacto. Usa la plantilla Seguimiento.",
+} as const;
+
+type FollowUpFrom = "eventDate" | "contactedAt" | "seguimiento";
+
+function followUpFrom(rule: FollowUpRule): FollowUpFrom {
+  const when = String(rule.when || "");
+  if (rule.id === "indeciso" || /indeciso|recontacto/i.test(rule.label) || /marcar seguimiento|del seguimiento/i.test(when)) {
+    return "seguimiento";
+  }
+  if (rule.id === "f2" || rule.id === "f3" || /después del primer contacto/i.test(when)) return "contactedAt";
+  return "eventDate";
+}
+
+function followUpAnchor(from: FollowUpFrom) {
+  if (from === "contactedAt") return "después del primer contacto";
+  if (from === "seguimiento") return "después de marcar seguimiento";
+  return "antes del evento";
+}
+
+function formatFollowUpWhen(days: number, from: FollowUpFrom) {
+  const unit = days === 1 ? "día" : "días";
+  return `${days} ${unit} ${followUpAnchor(from)}`;
+}
+
+function clampFollowUpDays(raw: string | number) {
+  const n = Math.round(Number(raw));
+  if (!Number.isFinite(n)) return FOLLOW_UP_DAYS_MIN;
+  return Math.min(FOLLOW_UP_DAYS_MAX, Math.max(FOLLOW_UP_DAYS_MIN, n));
+}
+
+function ruleDays(rule: FollowUpRule) {
+  if (Number.isFinite(Number(rule.days))) return clampFollowUpDays(Number(rule.days));
+  const match = String(rule.when || "").match(/(\d+)/);
+  return match?.[1] != null ? clampFollowUpDays(match[1]) : FOLLOW_UP_DAYS_MIN;
+}
+
+function withFollowUpDays(rule: FollowUpRule, days = ruleDays(rule)): FollowUpRule {
+  const from = followUpFrom(rule);
+  return { ...rule, description: followUpDescription(rule), days, when: formatFollowUpWhen(days, from) };
+}
+
+function followUpDescription(rule: FollowUpRule): string {
+  const custom = String(rule.description || "").trim();
+  if (custom) return custom;
+  if (rule.id in FOLLOW_UP_DESCRIPTIONS) {
+    return FOLLOW_UP_DESCRIPTIONS[rule.id as keyof typeof FOLLOW_UP_DESCRIPTIONS];
+  }
+  if (/indeciso|recontacto/i.test(rule.label)) return FOLLOW_UP_DESCRIPTIONS.indeciso;
+  if (/primer contacto/i.test(rule.label)) return FOLLOW_UP_DESCRIPTIONS.f1;
+  return "";
+}
+
+function indecisoDays(followUps: FollowUpRule[]) {
+  const rule = followUps.find((item) => item.id === "indeciso" || /indeciso|recontacto/i.test(item.label));
+  return rule ? ruleDays(rule) : 3;
+}
+
 function Automatizacion() {
   const { eventId } = Route.useParams();
   const { data, guests } = useEvent(eventId);
@@ -49,6 +116,7 @@ function Automatizacion() {
   const ai = data.ai;
   const [extras, setExtras] = useState(ai.prompt || "");
   const [newRule, setNewRule] = useState("");
+  const [daysDraft, setDaysDraft] = useState<Record<string, string>>({});
   const [devBot, setDevBot] = useState(false);
   const [promptOpen, setPromptOpen] = useState(false);
   const [promptText, setPromptText] = useState("");
@@ -84,6 +152,22 @@ function Automatizacion() {
       setPromptLoading(false);
     }
   };
+
+  const commitFollowUpDays = (rule: FollowUpRule, raw: string) => {
+    const days = clampFollowUpDays(raw);
+    setDaysDraft((draft) => {
+      const next = { ...draft };
+      delete next[rule.id];
+      return next;
+    });
+    const nextRule = withFollowUpDays(rule, days);
+    if (nextRule.days === ruleDays(rule) && nextRule.when === rule.when && rule.days != null) return;
+    updateAI(eventId, {
+      followUps: ai.followUps.map((item) => (item.id === rule.id ? nextRule : withFollowUpDays(item))),
+    });
+  };
+
+  const nudgeDays = indecisoDays(ai.followUps);
 
   return (
     <main className="mx-auto grid w-full max-w-7xl flex-1 gap-6 px-5 py-8 md:px-8 lg:grid-cols-[1.35fr_1fr]">
@@ -187,23 +271,55 @@ function Automatizacion() {
 
         <section className="rounded-2xl border border-border bg-card p-6 shadow-soft">
           <h2 className="font-display text-2xl">Reglas de seguimiento</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            La campaña de primer contacto se lanza desde Resumen. El recontacto a indecisos usa la plantilla Seguimiento.
+          </p>
           <div className="mt-4 space-y-3">
-            {ai.followUps.map((f) => (
-              <div key={f.id} className="flex items-center gap-4 rounded-xl border border-border p-3">
-                <div className="flex-1">
-                  <p className="text-sm font-medium">{f.label}</p>
-                  <p className="text-xs text-muted-foreground">{f.when}</p>
+            {ai.followUps.map((f) => {
+              const from = followUpFrom(f);
+              const description = followUpDescription(f);
+              return (
+                <div key={f.id} className="flex flex-col gap-3 rounded-xl border border-border p-3 sm:flex-row sm:items-center">
+                  <div className="flex-1 space-y-2">
+                    <div>
+                      <p className="text-sm font-medium">{f.label}</p>
+                      {description ? (
+                        <p className="mt-0.5 text-xs text-muted-foreground">{description}</p>
+                      ) : null}
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="number"
+                        min={FOLLOW_UP_DAYS_MIN}
+                        max={FOLLOW_UP_DAYS_MAX}
+                        inputMode="numeric"
+                        className="h-8 w-20"
+                        aria-label={`Días para ${f.label}`}
+                        value={daysDraft[f.id] ?? String(ruleDays(f))}
+                        onChange={(e) => setDaysDraft((draft) => ({ ...draft, [f.id]: e.target.value }))}
+                        onBlur={(e) => commitFollowUpDays(f, e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+                        }}
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        {clampFollowUpDays(daysDraft[f.id] ?? ruleDays(f)) === 1 ? "día" : "días"} {followUpAnchor(from)}
+                      </p>
+                    </div>
+                  </div>
+                  <Switch
+                    checked={f.active}
+                    onCheckedChange={(c) =>
+                      updateAI(eventId, {
+                        followUps: ai.followUps.map((x) =>
+                          x.id === f.id ? { ...withFollowUpDays(x), active: c } : withFollowUpDays(x),
+                        ),
+                      })
+                    }
+                  />
                 </div>
-                <Switch
-                  checked={f.active}
-                  onCheckedChange={(c) =>
-                    updateAI(eventId, {
-                      followUps: ai.followUps.map((x) => (x.id === f.id ? { ...x, active: c } : x)),
-                    })
-                  }
-                />
-              </div>
-            ))}
+              );
+            })}
           </div>
         </section>
 
@@ -271,7 +387,7 @@ function Automatizacion() {
                 "El asistente clasifica: FAQ, sí, no, indeciso o desconocido",
                 "FAQ: responde con la información cargada o escala",
                 "Sí / no: actualiza el RSVP y envía la plantilla",
-                "Indeciso: agenda recontacto a 3 días",
+                "Indeciso: agenda recontacto a " + (nudgeDays === 1 ? "1 día" : `${nudgeDays} días`),
               ].map((s, i) => (
                 <li key={s} className="flex gap-3">
                   <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-secondary text-[11px] font-semibold">
@@ -282,7 +398,7 @@ function Automatizacion() {
               ))}
             </ol>
             <Badge variant="outline" className="mt-4 rounded-full bg-warning-soft text-warning">
-              Indeciso → seguimiento a 3 días
+              Indeciso → seguimiento a {nudgeDays === 1 ? "1 día" : `${nudgeDays} días`}
             </Badge>
           </div>
         </div>

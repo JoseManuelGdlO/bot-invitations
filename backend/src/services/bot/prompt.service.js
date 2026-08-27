@@ -1,5 +1,6 @@
 import { AiConfig, Faq, Template, User } from "../../models/index.js";
 import { eventGuestVars } from "../../utils/defaults.js";
+import { indecisoFollowUpDays } from "../follow-up.service.js";
 
 const EMOJI_HINT = {
   ninguno: "No uses emojis.",
@@ -27,6 +28,11 @@ function personalityFields(ai = {}) {
   return { name, tone, formality, emojis, length };
 }
 
+function indecisoDaysPhrase(ai) {
+  const days = indecisoFollowUpDays(ai?.followUps);
+  return days === 1 ? "1 día" : `${days} días`;
+}
+
 const SYSTEM_PROMPT_MARKERS = ["Flujo (obligatorio):", "Clasifica CADA mensaje del invitado"];
 
 export function extraInstructions(prompt) {
@@ -39,6 +45,7 @@ export function extraInstructions(prompt) {
 export function defaultPrompt(ai = {}) {
   const { name, tone, formality, emojis, length } = personalityFields(ai);
   const rules = listRules(ai) || "- Sé amable y no presiones al invitado.";
+  const indecisoDays = indecisoDaysPhrase(ai);
 
   return `Eres ${name}, asistente del equipo del evento. Hablas por WhatsApp con un invitado para confirmar asistencia.
 
@@ -65,7 +72,7 @@ Según la intención:
 - faq: responde SOLO con las Preguntas frecuentes o plantillas de información de ESTE evento. Si no hay dato, no lo inventes: dilo con honestidad y ofrece pasar el tema al equipo. No actualices el RSVP.
 - asistira: llama actualizar_confirmacion (confirmado si van todos, parcial si van menos) y después usar_plantilla con category "Confirmación". No parafrasees ese cierre.
 - no_asistira: llama actualizar_confirmacion con status no_asistira y después usar_plantilla con category "Rechazo". No parafrasees ese cierre.
-- seguimiento: llama marcar_seguimiento (deja followUpDate en null; el sistema agenda el recontacto a 3 días). Responde breve que les escribes de nuevo más adelante. No uses ahora la plantilla Seguimiento ni insistas en un sí o un no.
+- seguimiento: llama marcar_seguimiento (deja followUpDate en null; el sistema agenda el recontacto a ${indecisoDays}). Responde breve que les escribes de nuevo más adelante. No uses ahora la plantilla Seguimiento ni insistas en un sí o un no.
 - desconocido: interpreta el mensaje y responde con naturalidad según estas reglas. Puedes repreguntar la asistencia con suavidad. No cierres el RSVP.
 - Si confirma o decline Y además hace una FAQ: primero el RSVP (tool + plantilla). Escribe la respuesta de la FAQ en reply para que el sistema la concatene.
 
@@ -99,6 +106,7 @@ export function buildInstructions({ event, guest, ai, templates = [], faqs = [],
   const varKeys = Object.keys(vars).length
     ? Object.keys(vars).map((key) => `{{${key}}}`).join(", ")
     : "{{nombre}}, {{numero_invitados}}, {{evento}}";
+  const indecisoDays = indecisoDaysPhrase(ai);
 
   return `${brain}
 ${extraBlock}
@@ -134,7 +142,7 @@ Clasifica CADA mensaje en: faq | asistira | no_asistira | seguimiento | desconoc
 - faq: responde con las Preguntas frecuentes. Si no hay dato, no inventes: ofrece al usuario esperar unos momentos para poder confirmar la información. No llames actualizar_confirmacion ni marcar_seguimiento.
 - asistira: actualizar_confirmacion (confirmado o parcial) y después usar_plantilla con category "Confirmación". El número confirmado nunca puede superar el cupo. Si confirma pero no dice con cuántas personas, pregunta el número antes de cerrar.
 - no_asistira: actualizar_confirmacion (no_asistira) y después usar_plantilla con category "Rechazo".
-- seguimiento: marcar_seguimiento (followUpDate null; el sistema agenda a 3 días). Ack breve. No uses ahora la plantilla Seguimiento ni Primer contacto.
+- seguimiento: marcar_seguimiento (followUpDate null; el sistema agenda a ${indecisoDays}). Ack breve. No uses ahora la plantilla Seguimiento ni Primer contacto.
 - desconocido: responde según el cerebro; puedes repreguntar asistencia con suavidad. No cierres el RSVP.
 - RSVP + FAQ en el mismo mensaje: primero el RSVP (tool + plantilla) y escribe la FAQ en reply para concatenarla.
 - No reenvíes Primer contacto. No llames actualizar_confirmacion si el estado ya es confirmado, parcial o no_asistira, salvo corrección explícita del invitado.`;

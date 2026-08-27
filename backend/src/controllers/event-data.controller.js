@@ -4,6 +4,7 @@ import { requireEvent, requirePermission, PERMS } from "../services/access.servi
 import { serializeAi, serializeFaq, serializeTemplate } from "../utils/serialize.js";
 import { defaultPrompt } from "../services/bot/prompt.service.js";
 import { resetPlaygroundSessions } from "../services/bot/session.service.js";
+import { normalizeFollowUps } from "../services/follow-up.service.js";
 
 export const getAi = asyncHandler(async (req, res) => {
   const event = await requireEvent(req, res);
@@ -36,6 +37,11 @@ export const updateAi = asyncHandler(async (req, res) => {
     if (key === "rules") return JSON.stringify(req.body.rules ?? []) !== JSON.stringify(ai.rules ?? []);
     return String(req.body[key]) !== String(ai[key] ?? "");
   });
+  if (req.body?.followUps !== undefined) {
+    const followUps = normalizeFollowUps(req.body.followUps);
+    if (!followUps) return res.status(400).json({ error: "Se esperaba un arreglo de reglas de seguimiento." });
+    req.body.followUps = followUps;
+  }
   for (const key of allowed) {
     if (req.body?.[key] !== undefined) ai[key] = req.body[key];
   }

@@ -1,5 +1,6 @@
 import { formatRelative } from "./time.js";
 import { extraInstructions } from "../services/bot/prompt.service.js";
+import { mergeFollowUps, normalizeFollowUp } from "../services/follow-up.service.js";
 
 export function serializeEvent(event) {
   return {
@@ -70,7 +71,7 @@ export function serializeAi(ai) {
     openingMessage: ai.openingMessage,
     prompt: extraInstructions(ai.prompt),
     rules: ai.rules || [],
-    followUps: ai.followUps || [],
+    followUps: mergeFollowUps(ai.followUps).map(normalizeFollowUp),
   };
 }
 

@@ -79,6 +79,55 @@ describe("event-data.controller", () => {
     expect(resetPlaygroundSessions).not.toHaveBeenCalled();
   });
 
+  test("updateAi 400 si followUps no es arreglo", async () => {
+    const ai = createInstance({
+      assistantName: "Sofía",
+      tone: "Elegante",
+      formality: 60,
+      emojis: "algunos",
+      length: "normales",
+      openingMessage: "hola",
+      prompt: "cerebro",
+      rules: [],
+      followUps: [],
+    });
+    models.AiConfig.findOne.mockResolvedValue(ai);
+    const { res } = await callHandler(controller.updateAi, {
+      req: createMockReq({ body: { followUps: "nope" } }),
+    });
+    expect(res.status).toHaveBeenCalledWith(400);
+  });
+
+  test("updateAi normaliza días de followUps", async () => {
+    const ai = createInstance({
+      assistantName: "Sofía",
+      tone: "Elegante",
+      formality: 60,
+      emojis: "algunos",
+      length: "normales",
+      openingMessage: "hola",
+      prompt: "cerebro",
+      rules: [],
+      followUps: [],
+    });
+    models.AiConfig.findOne.mockResolvedValue(ai);
+    await callHandler(controller.updateAi, {
+      req: createMockReq({
+        body: {
+          followUps: [{ id: "f2", label: "Primer recordatorio", days: 999, when: "texto viejo", active: true }],
+        },
+      }),
+    });
+    expect(ai.followUps).toEqual([
+      expect.objectContaining({
+        id: "f2",
+        days: 180,
+        when: "180 días después del primer contacto",
+        active: true,
+      }),
+    ]);
+  });
+
   test("setTemplates 400 si no es arreglo", async () => {
     const { res } = await callHandler(controller.setTemplates, {
       req: createMockReq({ body: { templates: "nope" } }),
