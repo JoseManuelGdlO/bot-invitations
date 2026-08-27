@@ -1,6 +1,61 @@
 import { jest } from "@jest/globals";
+import { Op } from "sequelize";
 import { loadWithMocks } from "../helpers/loadWithMocks.js";
 import { createInstance } from "../helpers/models.js";
+
+function opVal(obj, op) {
+  if (!obj || typeof obj !== "object") return undefined;
+  return obj[op];
+}
+
+function jobMatchesWhere(job, where = {}) {
+  if (where.type && job.type !== where.type) return false;
+  if (typeof where.status === "string" && job.status !== where.status) return false;
+  const idNe = opVal(where.id, Op.ne);
+  if (idNe && job.id === idNe) return false;
+  if (where.scheduledAt) {
+    const at = new Date(job.scheduledAt).getTime();
+    const lte = opVal(where.scheduledAt, Op.lte);
+    const lt = opVal(where.scheduledAt, Op.lt);
+    if (lte != null && at > new Date(lte).getTime()) return false;
+    if (lt != null && at >= new Date(lt).getTime()) return false;
+  }
+  if (where.updatedAt) {
+    const at = new Date(job.updatedAt || 0).getTime();
+    const gte = opVal(where.updatedAt, Op.gte);
+    if (gte != null && at < new Date(gte).getTime()) return false;
+  }
+  return true;
+}
+
+function stubOwnerQueue(models, jobs, events) {
+  models.Guest.findByPk.mockImplementation(async (id) => createInstance({ id, phone: "6183218624" }));
+  models.Event.findByPk.mockImplementation(async (id) => {
+    const event = events.find((row) => row.id === id);
+    return event ? { ownerId: event.ownerId } : null;
+  });
+  models.Event.findAll.mockImplementation(async (opts = {}) => {
+    if (opts.where?.ownerId) {
+      return events.filter((row) => row.ownerId === opts.where.ownerId).map((row) => ({ id: row.id }));
+    }
+    return events.map((row) => ({ id: row.id, ownerId: row.ownerId }));
+  });
+  models.OutboundJob.findAll.mockImplementation(async (opts = {}) =>
+    jobs.filter((job) => jobMatchesWhere(job, opts.where)),
+  );
+}
+
+function campaignJob({ id, eventId, guestId, to, scheduledAt = new Date(), status = "queued", kind = "campaign" }) {
+  return createInstance({
+    id,
+    type: "whatsapp.send",
+    status,
+    attempts: 0,
+    scheduledAt,
+    updatedAt: scheduledAt,
+    payload: { to, text: "hola", kind, eventId, guestId },
+  });
+}
 
 describe("outbound.worker", () => {
   let sendMessage;
@@ -391,6 +446,167 @@ describe("outbound.worker", () => {
     } finally {
       Math.random.mockRestore();
     }
+  });
+
+  test("enqueueJob de dos campañas del mismo owner comparte la cascada de jitter", async () => {
+    jest.spyOn(Math, "random").mockReturnValue(0);
+    models.Event.findByPk.mockImplementation(async (id) => ({ ownerId: "owner_1" }));
+    try {
+      await service.enqueueJob("whatsapp.send", {
+        kind: "campaign",
+        eventId: "evt_a",
+        to: "6183218624",
+        text: "hola",
+      });
+      await service.enqueueJob("whatsapp.send", {
+        kind: "campaign",
+        eventId: "evt_b",
+        to: "6181111111",
+        text: "hola",
+      });
+      const firstAt = new Date(models.OutboundJob.create.mock.calls[0][0].scheduledAt).getTime();
+      const secondAt = new Date(models.OutboundJob.create.mock.calls[1][0].scheduledAt).getTime();
+      expect(secondAt - firstAt).toBeGreaterThanOrEqual(15000);
+      expect(secondAt - firstAt).toBeLessThan(16000);
+    } finally {
+      Math.random.mockRestore();
+    }
+  });
+
+  test("tickWorker con dos campañas del mismo owner envía una y aplaza la otra", async () => {
+    sendMessage.mockResolvedValue({ provider: "stub", skipped: false });
+    jest.spyOn(Math, "random").mockReturnValue(0);
+    const started = Date.now();
+    const now = new Date();
+    const jobA = campaignJob({
+      id: "job_camp_a",
+      eventId: "evt_a",
+      guestId: "ga",
+      to: "6183218624",
+      scheduledAt: now,
+    });
+    const jobB = campaignJob({
+      id: "job_camp_b",
+      eventId: "evt_b",
+      guestId: "gb",
+      to: "6181111111",
+      scheduledAt: now,
+    });
+    stubOwnerQueue(
+      models,
+      [jobA, jobB],
+      [
+        { id: "evt_a", ownerId: "owner_1" },
+        { id: "evt_b", ownerId: "owner_1" },
+      ],
+    );
+
+    try {
+      await service.tickWorker();
+
+      expect(sendMessage).toHaveBeenCalledTimes(1);
+      expect(jobA.status).toBe("done");
+      expect(jobB.status).toBe("queued");
+      const deferredAt = new Date(jobB.scheduledAt).getTime();
+      expect(deferredAt - started).toBeGreaterThanOrEqual(15000 - 100);
+      expect(deferredAt - started).toBeLessThan(16000);
+    } finally {
+      Math.random.mockRestore();
+    }
+  });
+
+  test("tickWorker en dos ticks seguidos no manda el segundo masivo", async () => {
+    sendMessage.mockResolvedValue({ provider: "stub", skipped: false });
+    jest.spyOn(Math, "random").mockReturnValue(0);
+    const now = new Date();
+    const job1 = campaignJob({
+      id: "job_tick_1",
+      eventId: "evt_1",
+      guestId: "g1",
+      to: "6183218624",
+      scheduledAt: now,
+    });
+    const job2 = campaignJob({
+      id: "job_tick_2",
+      eventId: "evt_1",
+      guestId: "g2",
+      to: "6181111111",
+      scheduledAt: now,
+    });
+    stubOwnerQueue(models, [job1, job2], [{ id: "evt_1", ownerId: "owner_1" }]);
+
+    try {
+      await service.tickWorker();
+      expect(sendMessage).toHaveBeenCalledTimes(1);
+      expect(job1.status).toBe("done");
+      expect(job2.status).toBe("queued");
+      expect(new Date(job2.scheduledAt).getTime()).toBeGreaterThan(Date.now());
+
+      await service.tickWorker();
+
+      expect(sendMessage).toHaveBeenCalledTimes(1);
+      expect(job2.status).toBe("queued");
+    } finally {
+      Math.random.mockRestore();
+    }
+  });
+
+  test("tickWorker aplaza el 21º masivo por tope horario", async () => {
+    sendMessage.mockResolvedValue({ provider: "stub", skipped: false });
+    const hourAgo = new Date(Date.now() - 2 * 60 * 1000);
+    const done = Array.from({ length: 20 }, (_, i) =>
+      campaignJob({
+        id: `job_done_${i}`,
+        eventId: "evt_1",
+        guestId: `gd${i}`,
+        to: "6183218624",
+        scheduledAt: hourAgo,
+        status: "done",
+      }),
+    );
+    const pending = campaignJob({
+      id: "job_21",
+      eventId: "evt_1",
+      guestId: "g21",
+      to: "6181111111",
+      scheduledAt: new Date(),
+    });
+    stubOwnerQueue(models, [...done, pending], [{ id: "evt_1", ownerId: "owner_1" }]);
+
+    await service.tickWorker();
+
+    expect(sendMessage).not.toHaveBeenCalled();
+    expect(pending.status).toBe("queued");
+    expect(new Date(pending.scheduledAt).getTime()).toBeGreaterThan(Date.now());
+  });
+
+  test("tickWorker deja pasar un reply aunque el tope horario de masivos esté lleno", async () => {
+    sendMessage.mockResolvedValue({ provider: "stub", skipped: false });
+    const sentAt = new Date(Date.now() - 2 * 60 * 1000);
+    const done = Array.from({ length: 20 }, (_, i) =>
+      campaignJob({
+        id: `job_bulk_${i}`,
+        eventId: "evt_1",
+        guestId: `gd${i}`,
+        to: "6183218624",
+        scheduledAt: sentAt,
+        status: "done",
+      }),
+    );
+    const reply = campaignJob({
+      id: "job_reply",
+      eventId: "evt_1",
+      guestId: "gr",
+      to: "6181111111",
+      scheduledAt: new Date(),
+      kind: "reply",
+    });
+    stubOwnerQueue(models, [...done, reply], [{ id: "evt_1", ownerId: "owner_1" }]);
+
+    await service.tickWorker();
+
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect(reply.status).toBe("done");
   });
 
   test("startOutboundWorker dispara tick y se puede limpiar", async () => {
