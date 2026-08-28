@@ -16,3 +16,5 @@ process.env.FRONTEND_RESET_URL = "http://localhost:8080/restablecer-contrasena";
 process.env.WORKER_INTERVAL_MS = "5000";
 process.env.WC_API_URL = "https://wc.example.test";
 process.env.WC_SERVICE_JWT = "test-wc-service-jwt";
+process.env.ADMIN_EMAIL = "admin@alannaconfirmaciones.com.mx";
+process.env.ADMIN_PASSWORD = "test-admin-password";
