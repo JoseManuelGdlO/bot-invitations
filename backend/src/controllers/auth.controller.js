@@ -54,7 +54,8 @@ export const listPlans = asyncHandler(async (_req, res) => {
 export const register = asyncHandler(async (req, res) => {
   const { name, email, password, planId, phone, state, businessName, interval } = req.body || {};
   const billingInterval = interval === "year" ? "year" : "month";
-  if (!name?.trim() || !email?.trim() || !password || String(password).length < 6) {
+  const cleanEmail = normalizeEmail(email);
+  if (!name?.trim() || !cleanEmail || !password || String(password).length < 6) {
     return res.status(400).json({ error: "Nombre, correo y contraseña (mín. 6) son requeridos." });
   }
   if (!businessName?.trim() || !phone?.trim() || !state?.trim()) {
@@ -63,11 +64,11 @@ export const register = asyncHandler(async (req, res) => {
   if (!planId) return res.status(400).json({ error: "Selecciona un plan para continuar." });
   const plan = await Plan.findByPk(planId);
   if (!plan) return res.status(400).json({ error: "El plan seleccionado no existe." });
-  const exists = await User.findOne({ where: { email: email.trim().toLowerCase() } });
+  const exists = await User.findOne({ where: { email: cleanEmail } });
   if (exists) return res.status(409).json({ error: "Ese correo ya está registrado." });
   const user = await User.create({
     name: name.trim(),
-    email: email.trim().toLowerCase(),
+    email: cleanEmail,
     passwordHash: await bcrypt.hash(password, 10),
     role: "Wedding Planner",
     businessName: businessName.trim(),
@@ -91,6 +92,14 @@ export const register = asyncHandler(async (req, res) => {
     }
   }
   res.status(201).json({ ...tokens, checkoutUrl });
+});
+
+export const emailAvailable = asyncHandler(async (req, res) => {
+  const email = normalizeEmail(req.query?.email);
+  if (!email) return res.status(400).json({ error: "Ingresa un correo válido." });
+  const exists = await User.findOne({ where: { email } });
+  if (exists) return res.status(409).json({ error: "Ese correo ya está registrado." });
+  res.json({ available: true });
 });
 
 export const invitationStatus = asyncHandler(async (req, res) => {

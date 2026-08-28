@@ -116,6 +116,47 @@ describe("auth.controller", () => {
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ accessToken: expect.any(String) }));
   });
 
+  test("register 409 si el correo ya está registrado", async () => {
+    const plan = fakePlan({ id: "plan_1" });
+    models.Plan.findByPk.mockResolvedValue(plan);
+    models.User.findOne.mockResolvedValue(fakeUser({ email: "ana@test.com" }));
+
+    const { res } = await callHandler(controller.register, {
+      req: createMockReq({
+        body: {
+          name: "Ana",
+          email: "Ana@Test.com",
+          password: "secret12",
+          planId: "plan_1",
+          phone: "5511111111",
+          state: "CDMX",
+          businessName: "Studio Ana",
+        },
+      }),
+    });
+
+    expect(res.status).toHaveBeenCalledWith(409);
+    expect(res.json).toHaveBeenCalledWith({ error: "Ese correo ya está registrado." });
+    expect(models.User.create).not.toHaveBeenCalled();
+  });
+
+  test("emailAvailable 409 si el correo ya existe", async () => {
+    models.User.findOne.mockResolvedValue(fakeUser({ email: "ana@test.com" }));
+    const { res } = await callHandler(controller.emailAvailable, {
+      req: createMockReq({ query: { email: "Ana@Test.com" } }),
+    });
+    expect(res.status).toHaveBeenCalledWith(409);
+    expect(res.json).toHaveBeenCalledWith({ error: "Ese correo ya está registrado." });
+  });
+
+  test("emailAvailable confirma correo libre", async () => {
+    models.User.findOne.mockResolvedValue(null);
+    const { res } = await callHandler(controller.emailAvailable, {
+      req: createMockReq({ query: { email: "nueva@test.com" } }),
+    });
+    expect(res.json).toHaveBeenCalledWith({ available: true });
+  });
+
   test("registerInvite 403 sin invitación pendiente", async () => {
     models.User.findOne.mockResolvedValue(null);
     models.EventMember.findAll.mockResolvedValue([]);

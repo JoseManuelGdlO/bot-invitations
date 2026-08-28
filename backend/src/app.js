@@ -28,6 +28,7 @@ export function createApp() {
   app.use(express.json({ limit: "8mb" }));
   app.use(express.urlencoded({ extended: true}));
   app.use(requestLogger);
+  app.get("/health", (_req, res) => res.json({ ok: true }));
   app.get("/api/health", (_req, res) => res.json({ ok: true }));
   app.use("/api", router);
   app.use((err, _req, res, _next) => {
