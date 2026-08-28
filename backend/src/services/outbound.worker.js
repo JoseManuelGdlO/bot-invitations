@@ -86,9 +86,6 @@ async function syncWhatsappSendJob(job, { ok }) {
 function skipWhatsappSendReason(payload) {
   if (!String(payload?.text || "").trim()) return "texto vacío";
   if (!String(payload?.to || "").trim()) return "sin destinatario";
-  if (payload?.kind === "follow_up") {
-    return "follow-ups desactivados ";
-  }
   return null;
 }
 
