@@ -11,9 +11,26 @@ import { toast } from "sonner";
 import { api, ApiError } from "@/lib/api/client";
 import { pageHead } from "@/lib/seo";
 
+type RegistroSearch = {
+  plan: string | undefined;
+  pago: string | undefined;
+  email: string | undefined;
+  invite: string | undefined;
+};
+
+function registroSearch(partial: Partial<RegistroSearch> = {}): RegistroSearch {
+  return {
+    plan: undefined,
+    pago: undefined,
+    email: undefined,
+    invite: undefined,
+    ...partial,
+  };
+}
+
 export const Route = createFileRoute("/iniciar-sesion")({
   validateSearch: (s: Record<string, unknown>) => ({
-    email: typeof s.email === "string" ? s.email : undefined,
+    email: typeof s["email"] === "string" ? s["email"] : undefined,
   }),
   head: () =>
     pageHead({
@@ -38,7 +55,7 @@ function Login() {
     e.preventDefault();
     const targetEmail = (email || invitedEmail || "").trim();
     if (!targetEmail && !invitedEmail) {
-      navigate({ to: "/registro" });
+      navigate({ to: "/registro", search: registroSearch() });
       return;
     }
     try {
@@ -54,7 +71,7 @@ function Login() {
       if (status === "pending") {
         navigate({
           to: "/registro",
-          search: { email: targetEmail, invite: "1" },
+          search: registroSearch({ email: targetEmail, invite: "1" }),
         });
         return;
       }
@@ -64,13 +81,18 @@ function Login() {
     if (invitedEmail) {
       navigate({
         to: "/registro",
-        search: { email: targetEmail || invitedEmail, invite: "1" },
+        search: registroSearch({
+          email: targetEmail || invitedEmail,
+          invite: "1",
+        }),
       });
       return;
     }
     navigate({
       to: "/registro",
-      search: targetEmail ? { email: targetEmail } : undefined,
+      search: registroSearch(
+        targetEmail ? { email: targetEmail } : undefined,
+      ),
     });
   };
 
@@ -165,11 +187,11 @@ function Login() {
               ¿Aún no tienes cuenta?{" "}
               <Link
                 to="/registro"
-                search={
+                search={registroSearch(
                   invitedEmail
                     ? { email: invitedEmail, invite: "1" }
-                    : undefined
-                }
+                    : undefined,
+                )}
                 onClick={goToRegister}
                 className="text-gold underline-offset-4 hover:underline"
               >
@@ -181,33 +203,31 @@ function Login() {
       </div>
 
       <aside
-        className="relative hidden overflow-hidden lg:block"
+        className="hidden min-h-svh flex-col justify-center gap-6 overflow-hidden p-14 lg:flex"
         style={{
           background:
             "linear-gradient(150deg, var(--rose), var(--gold-soft) 55%, var(--secondary))",
         }}
       >
-        <div className="absolute inset-0 flex flex-col justify-end gap-6 p-14">
-          <Sparkles className="size-7 text-gold" />
-          <p className="max-w-lg font-display text-4xl leading-snug text-primary">
-            “El copiloto inteligente de un Wedding Planner para confirmar
-            invitados.”
-          </p>
-          <div className="grid max-w-lg grid-cols-3 gap-4">
-            {[
-              ["2+", "eventos por plan"],
-              ["300+", "invitados incluidos"],
-              ["MXN", "planes desde $500"],
-            ].map(([v, l]) => (
-              <div
-                key={l}
-                className="rounded-xl border border-border/60 bg-card/70 p-4 backdrop-blur"
-              >
-                <p className="font-display text-2xl">{v}</p>
-                <p className="text-xs text-muted-foreground">{l}</p>
-              </div>
-            ))}
-          </div>
+        <Sparkles className="size-7 text-gold" />
+        <p className="max-w-lg font-display text-4xl leading-snug text-primary">
+          “El copiloto inteligente de un Wedding Planner para confirmar
+          invitados.”
+        </p>
+        <div className="grid max-w-lg grid-cols-3 gap-4">
+          {[
+            ["2+", "eventos por plan"],
+            ["300+", "invitados incluidos"],
+            ["MXN", "planes desde $500"],
+          ].map(([v, l]) => (
+            <div
+              key={l}
+              className="rounded-xl border border-border/60 bg-card/70 p-4 backdrop-blur"
+            >
+              <p className="font-display text-2xl">{v}</p>
+              <p className="text-xs text-muted-foreground">{l}</p>
+            </div>
+          ))}
         </div>
       </aside>
     </main>
