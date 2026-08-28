@@ -78,7 +78,8 @@ export const createEvent = asyncHandler(async (req, res) => {
   });
   await seedEventDefaults(event, req.user);
   await logActivity(event.id, `Se creó el evento ${event.name}`, "system");
-  res.status(201).json(serializeEvent(event));
+  const campaign = await findCurrentCampaign(event.id);
+  res.status(201).json(serializeEvent(event, campaign));
 });
 
 export const getEvent = asyncHandler(async (req, res) => {
@@ -110,7 +111,8 @@ export const updateEvent = asyncHandler(async (req, res) => {
     event[key] = key === "cover" ? sanitizeCover(req.body[key]) : req.body[key];
   }
   await event.save();
-  res.json(serializeEvent(event));
+  const campaign = await findCurrentCampaign(event.id);
+  res.json(serializeEvent(event, campaign));
 });
 
 export const deleteEvent = asyncHandler(async (req, res) => {

@@ -3,6 +3,7 @@ import { sequelize, ensureEventMemberRemovedAt, ensureCampaignColumns } from "./
 import { createApp } from "./app.js";
 import { startOutboundWorker } from "./services/outbound.worker.js";
 import { startFollowUpScheduler } from "./services/follow-up.scheduler.js";
+import { finalizePastEvents } from "./services/event-status.service.js";
 
 const app = createApp();
 
@@ -18,6 +19,7 @@ try {
 
 startOutboundWorker();
 startFollowUpScheduler(env.workerIntervalMs);
+finalizePastEvents().catch((err) => console.error("[event-status] finalize on boot", err.message));
 
 app.listen(env.port, "0.0.0.0", () => {
   console.log(`[alanna] backend en http://0.0.0.0:${env.port}`);

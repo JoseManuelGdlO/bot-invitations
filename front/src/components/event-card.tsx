@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { CalendarDays, MapPin, Users } from "lucide-react";
 import { Progress } from "@/components/ui/progress";
-import { Badge } from "@/components/ui/badge";
+import { EventStatusBadge } from "@/components/event-status-badge";
 import { formatDate, daysUntil } from "@/lib/mock/format";
 import type { EventItem, Guest } from "@/lib/mock/types";
 import { statsFor } from "@/lib/mock/store";
@@ -25,12 +25,10 @@ export function EventCard({
         <span className="absolute left-4 top-4 font-display text-2xl text-primary/70">
           {event.shortName}
         </span>
-        <Badge
-          variant="outline"
-          className="absolute right-4 top-4 rounded-full border-transparent bg-card/80 text-[11px] capitalize backdrop-blur"
-        >
-          {event.status}
-        </Badge>
+        <EventStatusBadge
+          status={event.status}
+          className="absolute right-4 top-4 text-[11px] backdrop-blur"
+        />
       </div>
       <div className="space-y-4 p-5">
         <div>

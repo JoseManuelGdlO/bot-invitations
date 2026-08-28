@@ -34,6 +34,7 @@ describe("campaign.service", () => {
 
     const snap = await service.planCampaign(event, { mode: "now" }, new Date("2026-08-28T15:00:00"));
 
+    expect(event.status).toBe("activo");
     expect(snap.status).toBe("scheduled");
     expect(models.Campaign.create).toHaveBeenCalledWith(
       expect.objectContaining({ eventId: event.id, status: "queued", scheduledAt: "2026-08-28" }),
@@ -74,6 +75,7 @@ describe("campaign.service", () => {
       new Date("2026-08-28T15:00:00"),
     );
 
+    expect(event.status).toBe("borrador");
     expect(snap.scheduledAt).toBe("2026-12-01");
     const jobAt = models.OutboundJob.create.mock.calls[0][0].scheduledAt;
     expect(jobAt.getFullYear()).toBe(2026);
@@ -165,9 +167,10 @@ describe("campaign.service", () => {
       processed: 0,
     });
     const guest = fakeGuest();
+    const event = fakeEvent({ status: "borrador" });
     models.Campaign.findByPk.mockResolvedValue(campaign);
     models.Campaign.update.mockResolvedValue([1]);
-    models.Event.findByPk.mockResolvedValue(fakeEvent());
+    models.Event.findByPk.mockResolvedValue(event);
     models.Guest.findAll.mockResolvedValue([guest]);
     models.Guest.update.mockResolvedValue([1]);
     models.AiConfig.findOne.mockResolvedValue({ openingMessage: "Hola {{nombre}}", assistantName: "Sofía" });
@@ -176,6 +179,7 @@ describe("campaign.service", () => {
     await service.executeCampaignLaunch({ payload: { campaignId: "cmp_1", eventId: "evt_1" } });
 
     expect(campaign.status).toBe("running");
+    expect(event.status).toBe("activo");
     expect(campaign.total).toBe(1);
     expect(deliverAiMessage).toHaveBeenCalledWith(
       expect.objectContaining({

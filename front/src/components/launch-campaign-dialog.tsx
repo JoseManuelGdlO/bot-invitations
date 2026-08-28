@@ -47,8 +47,8 @@ export function LaunchCampaignDialog({
       ? campaign.scheduledAt
       : "";
     setMode(next ? "schedule" : "now");
-    setDate(next || today);
-  }, [open, campaign.status, campaign.scheduledAt, today]);
+    setDate(next || toInputDate());
+  }, [open, campaign.status, campaign.scheduledAt]);
 
   const dateError =
     mode === "schedule" && date

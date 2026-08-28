@@ -20,7 +20,7 @@ import { useEvent } from "@/lib/mock/store";
 import { coverStyle } from "@/lib/cover";
 import { formatDate } from "@/lib/mock/format";
 import { cn } from "@/lib/utils";
-import { Badge } from "@/components/ui/badge";
+import { EventStatusBadge } from "@/components/event-status-badge";
 import { eventTabAllowed } from "@/lib/permissions";
 
 export const Route = createFileRoute("/eventos/$eventId")({
@@ -125,9 +125,7 @@ function EventLayout() {
               {formatDate(event.date)} · {event.time} · {event.venue}
             </p>
           </div>
-          <Badge variant="outline" className="ml-auto rounded-full capitalize">
-            {event.status}
-          </Badge>
+          <EventStatusBadge status={event.status} className="ml-auto" />
         </div>
         <nav className="flex gap-1 overflow-x-auto px-3 md:px-6">
           {visibleTabs.map((t) => {

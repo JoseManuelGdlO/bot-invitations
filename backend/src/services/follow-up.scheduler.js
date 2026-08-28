@@ -16,6 +16,7 @@ import {
   parseDateOnly,
 } from "./follow-up.service.js";
 import { Logger } from "../utils/logger.js";
+import { finalizePastEvents } from "./event-status.service.js";
 
 const log = new Logger("FollowUp");
 
@@ -168,6 +169,7 @@ export async function tickFollowUps() {
   if (running) return;
   running = true;
   try {
+    await finalizePastEvents();
     const events = await Event.findAll({ where: { status: "activo" } });
     const budget = { left: MAX_SENDS_PER_TICK };
     for (const event of events) {

@@ -18,6 +18,7 @@ import { FALLBACK_OPENING, findTemplate, renderTemplate } from "./templates.serv
 import { logActivity } from "./activity.service.js";
 import { resetOwnerThrottle } from "./outbound.throttle.js";
 import { recordCampaignSendResult } from "./campaign-progress.js";
+import { activateEvent } from "./event-status.service.js";
 
 const log = new Logger("Campaign");
 const ACTIVE_STATUSES = ["queued", "running"];
@@ -117,7 +118,11 @@ export async function planCampaign(event, body = {}, now = new Date()) {
   }
 
   return sequelize.transaction(async (transaction) => {
-    await Event.findByPk(event.id, { lock: transaction.LOCK.UPDATE, transaction });
+    const lockedEvent = await Event.findByPk(event.id, {
+      lock: transaction.LOCK.UPDATE,
+      transaction,
+    });
+    if (isNow && lockedEvent) await activateEvent(lockedEvent, { transaction });
     const existing = await Campaign.findOne({
       where: { eventId: event.id, status: { [Op.in]: ACTIVE_STATUSES } },
       lock: transaction.LOCK.UPDATE,
@@ -196,6 +201,7 @@ export async function executeCampaignLaunch(job) {
   campaign.status = "running";
   campaign.launchedAt = campaign.launchedAt || new Date();
   await campaign.reload();
+  await activateEvent(event);
 
   resetOwnerThrottle(event.ownerId);
   const ai = await AiConfig.findOne({ where: { eventId: event.id } });
