@@ -339,6 +339,20 @@ export const OutboundJob = sequelize.define("outbound_jobs", {
   lastError: { type: DataTypes.TEXT, allowNull: true },
 });
 
+/** Idempotencia de webhooks inbound (replay dentro de la ventana HMAC). */
+export const InboundEventDedup = sequelize.define(
+  "inbound_event_dedup",
+  {
+    id: uuid,
+    ownerUserId: { type: DataTypes.CHAR(36), allowNull: false },
+    dedupeKey: { type: DataTypes.STRING(191), allowNull: false },
+  },
+  {
+    freezeTableName: true,
+    indexes: [{ unique: true, fields: ["ownerUserId", "dedupeKey"] }, { fields: ["ownerUserId"] }],
+  },
+);
+
 Plan.hasMany(User, { foreignKey: "planId" });
 User.belongsTo(Plan, { foreignKey: "planId", as: "plan" });
 User.hasMany(Event, { foreignKey: "ownerId" });
@@ -399,6 +413,8 @@ ChannelIntegration.hasMany(ChannelCredential, { foreignKey: "channelIntegrationI
 ChannelCredential.belongsTo(ChannelIntegration, { foreignKey: "channelIntegrationId" });
 User.hasMany(ChannelCredential, { foreignKey: "ownerUserId" });
 ChannelCredential.belongsTo(User, { foreignKey: "ownerUserId" });
+User.hasMany(InboundEventDedup, { foreignKey: "ownerUserId" });
+InboundEventDedup.belongsTo(User, { foreignKey: "ownerUserId" });
 
 export { sequelize };
 
@@ -420,4 +436,8 @@ export async function ensureEventMemberRemovedAt() {
     allowNull: true,
   });
   console.log("[db] columna event_members.removedAt creada");
+}
+
+export async function ensureInboundEventDedupTable() {
+  await InboundEventDedup.sync();
 }

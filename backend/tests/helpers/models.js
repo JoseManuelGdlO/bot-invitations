@@ -75,6 +75,7 @@ const MODEL_NAMES = [
   "SupportMessage",
   "CancellationRequest",
   "OutboundJob",
+  "InboundEventDedup",
   "BotSession",
   "ChannelIntegration",
   "ChannelCredential",
