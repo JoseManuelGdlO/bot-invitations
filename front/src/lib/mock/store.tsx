@@ -10,6 +10,7 @@ import {
 import { api, download, getToken, setToken } from "@/lib/api/client";
 import type {
   ActivityItem,
+  CampaignSnapshot,
   ChatMessage,
   Conversation,
   EventAnalytics,
@@ -124,7 +125,10 @@ interface Ctx extends State {
   sendMessage: (convId: string, msg: ChatMessage) => void;
   toggleAI: (convId: string, paused: boolean) => void;
   logActivity: (item: ActivityItem) => void;
-  launchCampaign: (eventId: string) => Promise<void>;
+  launchCampaign: (
+    eventId: string,
+    payload?: { mode: "now" | "schedule"; date?: string },
+  ) => Promise<CampaignSnapshot>;
   inviteMember: (
     eventId: string,
     payload: { name: string; email?: string; role: string },
@@ -459,9 +463,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           ...s,
           activity: [item, ...s.activity].slice(0, 40),
         })),
-      launchCampaign: async (eventId) => {
-        await api(`/events/${eventId}/campaigns/launch`, { method: "POST" });
+      launchCampaign: async (eventId, payload = { mode: "now" }) => {
+        const campaign = await api<CampaignSnapshot>(
+          `/events/${eventId}/campaigns/launch`,
+          { method: "POST", body: JSON.stringify(payload) },
+        );
+        setState((s) => ({
+          ...s,
+          events: s.events.map((event) =>
+            event.id === eventId ? { ...event, campaign } : event,
+          ),
+        }));
         await refresh();
+        return campaign;
       },
       inviteMember: async (eventId, payload) => {
         const member = await api<TeamMember>(`/events/${eventId}/members`, {

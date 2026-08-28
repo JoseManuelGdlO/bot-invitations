@@ -1,5 +1,5 @@
 import { Link, createFileRoute } from "@tanstack/react-router";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   CheckCircle2,
   Clock,
@@ -11,12 +11,15 @@ import {
 import { StatCard } from "@/components/stat-card";
 import { ProgressRing } from "@/components/progress-ring";
 import { Button } from "@/components/ui/button";
+import { Progress } from "@/components/ui/progress";
+import { LaunchCampaignDialog } from "@/components/launch-campaign-dialog";
 import { statsFor, useEvent, useStore } from "@/lib/mock/store";
-import { daysUntil } from "@/lib/mock/format";
+import { daysUntil, formatShortDate } from "@/lib/mock/format";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { PERMS } from "@/lib/permissions";
-import { ApiError } from "@/lib/api/client";
+import { api, ApiError } from "@/lib/api/client";
+import { IDLE_CAMPAIGN, type CampaignSnapshot } from "@/lib/mock/types";
 
 export const Route = createFileRoute("/eventos/$eventId/resumen")({
   head: () => ({
@@ -50,10 +53,64 @@ const kindTone: Record<string, string> = {
 function Resumen() {
   const { eventId } = Route.useParams();
   const { event, guests } = useEvent(eventId);
-  const { activity, launchCampaign, hasPerm } = useStore();
+  const { activity, launchCampaign, hasPerm, refresh } = useStore();
   const s = statsFor(guests);
   const eventActivity = activity.filter((a) => a.eventId === eventId);
-  const [launching, setLaunching] = useState(false);
+  const pendingUncontacted = guests.filter(
+    (g) => g.status === "sin_contactar",
+  ).length;
+  const [campaign, setCampaign] = useState<CampaignSnapshot>(
+    event?.campaign ?? IDLE_CAMPAIGN,
+  );
+  const [modalOpen, setModalOpen] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    setCampaign(event?.campaign ?? IDLE_CAMPAIGN);
+  }, [event?.campaign]);
+
+  useEffect(() => {
+    if (!["running", "scheduled"].includes(campaign.status)) return;
+    let cancelled = false;
+    const tick = async () => {
+      try {
+        const snap = await api<CampaignSnapshot>(
+          `/events/${eventId}/campaigns/current`,
+        );
+        if (cancelled) return;
+        setCampaign(snap);
+        if (snap.status === "done") await refresh();
+      } catch {
+        /* el poll no debe romper la pantalla */
+      }
+    };
+    void tick();
+    const id = window.setInterval(() => {
+      void tick();
+    }, 3000);
+    return () => {
+      cancelled = true;
+      window.clearInterval(id);
+    };
+  }, [campaign.status, eventId, refresh]);
+
+  const running = campaign.status === "running";
+  const complete =
+    campaign.status === "done" && pendingUncontacted === 0;
+  const canLaunch = !running && !complete;
+  const percent = complete ? 100 : campaign.percent;
+
+  let label = "Iniciar campaña";
+  if (campaign.status === "scheduled" && campaign.scheduledAt) {
+    label = `Empieza el ${formatShortDate(campaign.scheduledAt)}`;
+  } else if (running) {
+    label =
+      campaign.total > 0
+        ? `Enviando ${campaign.processed}/${campaign.total}`
+        : "Enviando…";
+  } else if (complete) {
+    label = "Campaña enviada";
+  }
 
   return (
     <main className="mx-auto w-full max-w-7xl flex-1 px-5 py-8 md:px-8">
@@ -124,29 +181,57 @@ function Resumen() {
             </div>
             <div className="flex w-full flex-col gap-2 pt-2">
               {hasPerm(eventId, PERMS.REPLY) ? (
-                <Button
-                  disabled={launching}
-                  onClick={async () => {
-                    setLaunching(true);
-                    try {
-                      await launchCampaign(eventId);
-                      toast.success("Campaña iniciada", {
-                        description:
-                          "El asistente comenzó a enviar los mensajes iniciales.",
-                      });
-                    } catch (err) {
-                      toast.error(
-                        err instanceof ApiError
-                          ? err.message
-                          : "No se pudo iniciar la campaña",
-                      );
-                    } finally {
-                      setLaunching(false);
-                    }
-                  }}
-                >
-                  <Send className="size-4" /> Iniciar confirmaciones
-                </Button>
+                <>
+                  <Button
+                    className="relative h-auto min-h-9 w-full overflow-hidden disabled:opacity-100"
+                    disabled={running || submitting || complete}
+                    onClick={() => {
+                      if (canLaunch) setModalOpen(true);
+                    }}
+                  >
+                    <Send className="size-4" /> {label}
+                    {running || complete ? (
+                      <Progress
+                        value={percent}
+                        className="absolute inset-x-0 bottom-0 h-1 rounded-none"
+                      />
+                    ) : null}
+                  </Button>
+                  <LaunchCampaignDialog
+                    open={modalOpen}
+                    onOpenChange={setModalOpen}
+                    campaign={campaign}
+                    {...(event?.date ? { eventDate: event.date } : {})}
+                    submitting={submitting}
+                    onConfirm={async (payload) => {
+                      setSubmitting(true);
+                      try {
+                        const snap = await launchCampaign(eventId, payload);
+                        setCampaign(snap);
+                        setModalOpen(false);
+                        toast.success(
+                          payload.mode === "schedule"
+                            ? "Campaña programada"
+                            : "Campaña iniciada",
+                          {
+                            description:
+                              payload.mode === "schedule" && payload.date
+                                ? `El primer contacto se enviará el ${formatShortDate(payload.date)}.`
+                                : "El asistente comenzó a enviar los mensajes iniciales.",
+                          },
+                        );
+                      } catch (err) {
+                        toast.error(
+                          err instanceof ApiError
+                            ? err.message
+                            : "No se pudo iniciar la campaña",
+                        );
+                      } finally {
+                        setSubmitting(false);
+                      }
+                    }}
+                  />
+                </>
               ) : null}
               {hasPerm(eventId, PERMS.EXPORT) ? (
                 <Button variant="outline" asChild>

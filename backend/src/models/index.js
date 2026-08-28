@@ -202,7 +202,10 @@ export const Campaign = sequelize.define("campaigns", {
   id: uuid,
   eventId: { type: DataTypes.CHAR(36), allowNull: false },
   status: { type: DataTypes.ENUM("queued", "running", "done"), allowNull: false, defaultValue: "queued" },
-  launchedAt: { type: DataTypes.DATE, allowNull: false, defaultValue: DataTypes.NOW },
+  scheduledAt: { type: DataTypes.DATEONLY, allowNull: true },
+  launchedAt: { type: DataTypes.DATE, allowNull: true },
+  total: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
+  processed: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
 });
 
 export const Payment = sequelize.define("payments", {
@@ -420,4 +423,44 @@ export async function ensureEventMemberRemovedAt() {
     allowNull: true,
   });
   console.log("[db] columna event_members.removedAt creada");
+}
+
+export async function ensureCampaignColumns() {
+  const qi = sequelize.getQueryInterface();
+  let table;
+  try {
+    table = await qi.describeTable("campaigns");
+  } catch {
+    return;
+  }
+  if (!table.scheduledAt) {
+    await qi.addColumn("campaigns", "scheduledAt", {
+      type: DataTypes.DATEONLY,
+      allowNull: true,
+    });
+    console.log("[db] columna campaigns.scheduledAt creada");
+  }
+  if (!table.total) {
+    await qi.addColumn("campaigns", "total", {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 0,
+    });
+    console.log("[db] columna campaigns.total creada");
+  }
+  if (!table.processed) {
+    await qi.addColumn("campaigns", "processed", {
+      type: DataTypes.INTEGER,
+      allowNull: false,
+      defaultValue: 0,
+    });
+    console.log("[db] columna campaigns.processed creada");
+  }
+  if (table.launchedAt && table.launchedAt.allowNull === false) {
+    await qi.changeColumn("campaigns", "launchedAt", {
+      type: DataTypes.DATE,
+      allowNull: true,
+    });
+    console.log("[db] columna campaigns.launchedAt ahora admite null");
+  }
 }

@@ -92,6 +92,10 @@ const FOLLOW_UP_DESCRIPTIONS = {
 
 type FollowUpFrom = "eventDate" | "contactedAt" | "seguimiento";
 
+function isLaunchFollowUpRule(rule: FollowUpRule) {
+  return rule.id === "f1" || /primer contacto/i.test(rule.label);
+}
+
 function followUpFrom(rule: FollowUpRule): FollowUpFrom {
   const when = String(rule.when || "");
   if (
@@ -436,11 +440,10 @@ function Automatizacion() {
         <section className="rounded-2xl border border-border bg-card p-6 shadow-soft">
           <h2 className="font-display text-2xl">Reglas de seguimiento</h2>
           <p className="mt-1 text-sm text-muted-foreground">
-            La campaña de primer contacto se lanza desde Resumen. El recontacto
-            a indecisos usa la plantilla Seguimiento.
+            Recordatorios y el recontacto a indecisos.
           </p>
           <div className="mt-4 space-y-3">
-            {ai.followUps.map((f) => {
+            {ai.followUps.filter((f) => !isLaunchFollowUpRule(f)).map((f) => {
               const from = followUpFrom(f);
               const description = followUpDescription(f);
               return (

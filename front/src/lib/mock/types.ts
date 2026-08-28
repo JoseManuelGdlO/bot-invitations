@@ -13,6 +13,26 @@ export type ConfirmationStatus =
 export type WhatsappStatus =
   "pendiente" | "enviado" | "entregado" | "leido" | "respondido";
 
+export type CampaignStatus = "idle" | "scheduled" | "running" | "done";
+
+export interface CampaignSnapshot {
+  status: CampaignStatus;
+  scheduledAt: string | null;
+  launchedAt: string | null;
+  total: number;
+  processed: number;
+  percent: number;
+}
+
+export const IDLE_CAMPAIGN: CampaignSnapshot = {
+  status: "idle",
+  scheduledAt: null,
+  launchedAt: null,
+  total: 0,
+  processed: 0,
+  percent: 0,
+};
+
 export interface EventItem {
   id: string;
   name: string;
@@ -26,6 +46,7 @@ export interface EventItem {
   estimatedGuests: number;
   cover: string;
   status: "activo" | "borrador" | "finalizado";
+  campaign?: CampaignSnapshot;
 }
 
 export interface Guest {

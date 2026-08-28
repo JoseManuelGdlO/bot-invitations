@@ -20,6 +20,7 @@ import { requireEvent, requirePermission, requireEventOwner, userEventIds, PERMS
 import { seedEventDefaults } from "../services/event-setup.service.js";
 import { logActivity } from "../services/activity.service.js";
 import { assertCanCreateEvent } from "../services/plans.service.js";
+import { findCurrentCampaign } from "../services/campaign.service.js";
 
 const DEFAULT_COVER = "linear-gradient(135deg, var(--gold-soft), var(--rose))";
 
@@ -83,7 +84,8 @@ export const createEvent = asyncHandler(async (req, res) => {
 export const getEvent = asyncHandler(async (req, res) => {
   const event = await requireEvent(req, res);
   if (!event) return;
-  res.json(serializeEvent(event));
+  const campaign = await findCurrentCampaign(event.id);
+  res.json(serializeEvent(event, campaign));
 });
 
 export const updateEvent = asyncHandler(async (req, res) => {

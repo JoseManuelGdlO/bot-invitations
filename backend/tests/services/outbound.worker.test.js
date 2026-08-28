@@ -62,14 +62,20 @@ describe("outbound.worker", () => {
   let service;
   let models;
   let timer;
+  let executeCampaignLaunch;
+  let recordCampaignSendResult;
 
   beforeEach(async () => {
     sendMessage = jest.fn(async () => ({ provider: "stub", skipped: true }));
+    executeCampaignLaunch = jest.fn(async () => ({}));
+    recordCampaignSendResult = jest.fn(async () => undefined);
     ({ mod: service, models } = await loadWithMocks("src/services/outbound.worker.js", {
       extraMocks: {
         "src/services/whatsapp.adapter.js": () => ({
           createWhatsAppProvider: () => ({ sendMessage }),
         }),
+        "src/services/campaign.service.js": () => ({ executeCampaignLaunch }),
+        "src/services/campaign-progress.js": () => ({ recordCampaignSendResult }),
       },
     }));
   });
@@ -130,6 +136,75 @@ describe("outbound.worker", () => {
     const job = createInstance({ type: "unknown", attempts: 0, payload: {} });
     await service.processJob(job);
     expect(job.update).toHaveBeenCalledWith(expect.objectContaining({ status: "skipped" }));
+  });
+
+  test("processJob campaign.launch ejecuta y marca done", async () => {
+    const job = createInstance({
+      id: "launch_1",
+      type: "campaign.launch",
+      attempts: 0,
+      payload: { eventId: "evt_1", campaignId: "cmp_1" },
+    });
+    await service.processJob(job);
+    expect(executeCampaignLaunch).toHaveBeenCalledWith(job);
+    expect(job.update).toHaveBeenCalledWith(expect.objectContaining({ status: "done" }));
+  });
+
+  test("processJob campaign.launch reencola si WhatsApp no está listo", async () => {
+    const retryAt = new Date("2026-08-28T16:00:00");
+    executeCampaignLaunch.mockResolvedValueOnce({ retryAt, reason: "sin WA" });
+    const job = createInstance({
+      id: "launch_1",
+      type: "campaign.launch",
+      attempts: 0,
+      payload: { eventId: "evt_1", campaignId: "cmp_1" },
+    });
+    await service.processJob(job);
+    expect(job.update).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "queued", scheduledAt: retryAt, lastError: "sin WA" }),
+    );
+  });
+
+  test("processJob campaign.launch no relanza si execute no hace nada", async () => {
+    executeCampaignLaunch.mockResolvedValueOnce({});
+    const job = createInstance({
+      type: "campaign.launch",
+      attempts: 0,
+      payload: { campaignId: "cmp_1" },
+    });
+    await service.processJob(job);
+    expect(executeCampaignLaunch).toHaveBeenCalledTimes(1);
+    expect(job.update).toHaveBeenCalledWith(expect.objectContaining({ status: "done" }));
+  });
+
+  test("processJob whatsapp.send de campaña cuenta done failed y skipped", async () => {
+    sendMessage.mockResolvedValueOnce({ provider: "stub", skipped: false });
+    const doneJob = createInstance({
+      type: "whatsapp.send",
+      attempts: 0,
+      payload: { to: "6183218624", text: "hola", kind: "campaign", campaignId: "cmp_1", guestId: "gst_1" },
+    });
+    await service.processJob(doneJob);
+    expect(recordCampaignSendResult).toHaveBeenCalledWith("cmp_1");
+
+    recordCampaignSendResult.mockClear();
+    sendMessage.mockRejectedValueOnce(new Error("boom"));
+    const failedJob = createInstance({
+      type: "whatsapp.send",
+      attempts: 0,
+      payload: { to: "6183218624", text: "hola", kind: "campaign", campaignId: "cmp_1", guestId: "gst_1" },
+    });
+    await service.processJob(failedJob);
+    expect(recordCampaignSendResult).toHaveBeenCalledWith("cmp_1");
+
+    recordCampaignSendResult.mockClear();
+    const skippedJob = createInstance({
+      type: "whatsapp.send",
+      attempts: 0,
+      payload: { to: "", text: "hola", kind: "campaign", campaignId: "cmp_1" },
+    });
+    await service.processJob(skippedJob);
+    expect(recordCampaignSendResult).toHaveBeenCalledWith("cmp_1");
   });
 
   test("processJob captura errores como failed", async () => {

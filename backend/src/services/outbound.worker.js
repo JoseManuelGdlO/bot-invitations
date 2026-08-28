@@ -12,6 +12,7 @@ import {
   rememberNextGap,
   summarizeOwnerSends,
 } from "./outbound.throttle.js";
+import { recordCampaignSendResult } from "./campaign-progress.js";
 
 const provider = createWhatsAppProvider();
 const workerLog = new Logger("Worker");
@@ -61,26 +62,30 @@ export async function enqueueJob(type, payload, scheduledAt) {
   return job;
 }
 
+async function maybeRecordCampaignProgress(job) {
+  if (job.payload?.kind !== "campaign") return;
+  await recordCampaignSendResult(job.payload?.campaignId);
+}
+
 async function syncWhatsappSendJob(job, { ok }) {
   const guestId = job.payload?.guestId;
-  if (!guestId) return;
-  const guest = await Guest.findByPk(guestId);
-  if (!guest) return;
-
-  if (ok) {
-    if (["pendiente", "enviado"].includes(guest.whatsapp)) {
-      guest.whatsapp = "enviado";
-      await guest.save();
+  if (guestId) {
+    const guest = await Guest.findByPk(guestId);
+    if (guest) {
+      if (ok) {
+        if (["pendiente", "enviado"].includes(guest.whatsapp)) {
+          guest.whatsapp = "enviado";
+          await guest.save();
+        }
+      } else if (job.payload?.kind === "campaign" && guest.status === "enviado" && !guest.lastReply) {
+        guest.status = "sin_contactar";
+        guest.whatsapp = "pendiente";
+        guest.contactedAt = null;
+        await guest.save();
+      }
     }
-    return;
   }
-
-  if (job.payload?.kind === "campaign" && guest.status === "enviado" && !guest.lastReply) {
-    guest.status = "sin_contactar";
-    guest.whatsapp = "pendiente";
-    guest.contactedAt = null;
-    await guest.save();
-  }
+  await maybeRecordCampaignProgress(job);
 }
 
 function skipWhatsappSendReason(payload) {
@@ -122,11 +127,37 @@ export async function processJob(job) {
   let to = null;
   // Jobs already queued keep sending even if the owner's subscription expired or was canceled.
   try {
+    if (job.type === "campaign.launch") {
+      const { executeCampaignLaunch } = await import("./campaign.service.js");
+      const result = await executeCampaignLaunch(job);
+      if (result?.retryAt) {
+        await job.update({
+          status: "queued",
+          scheduledAt: result.retryAt,
+          lastError: result.reason || null,
+        });
+        workerLog.info("campaign.launch aplazado", {
+          jobId: job.id,
+          eventId: job.payload?.eventId,
+          campaignId: job.payload?.campaignId,
+          retryAt: result.retryAt instanceof Date ? result.retryAt.toISOString() : result.retryAt,
+        });
+        return;
+      }
+      await job.update({ status: "done" });
+      workerLog.info("campaign.launch done", {
+        jobId: job.id,
+        eventId: job.payload?.eventId,
+        campaignId: job.payload?.campaignId,
+      });
+      return;
+    }
     if (job.type === "whatsapp.send") {
       const skip = skipWhatsappSendReason(job.payload);
       if (skip) {
         await job.update({ status: "skipped", lastError: skip });
         waLog.info(`whatsapp.send skipped: ${skip}`, sendMeta(job, { status: "skipped", reason: skip }));
+        await maybeRecordCampaignProgress(job);
         return;
       }
       to = formatWhatsappTo(job.payload.to);

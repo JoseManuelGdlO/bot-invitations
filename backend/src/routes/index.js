@@ -77,6 +77,7 @@ router.get("/events/:eventId/conversations", conversations.listConversations);
 router.patch("/conversations/:conversationId", conversations.toggleConversation);
 router.post("/conversations/:conversationId/messages", conversations.sendMessage);
 router.post("/events/:eventId/campaigns/launch", conversations.launchCampaign);
+router.get("/events/:eventId/campaigns/current", conversations.getCurrentCampaign);
 
 router.get("/events/:eventId/ai-config", eventData.getAi);
 router.get("/events/:eventId/ai-config/defaults", eventData.getAiDefaults);

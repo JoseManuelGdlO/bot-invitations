@@ -2,7 +2,55 @@ import { formatRelative } from "./time.js";
 import { extraInstructions } from "../services/bot/prompt.service.js";
 import { mergeFollowUps, normalizeFollowUp } from "../services/follow-up.service.js";
 
-export function serializeEvent(event) {
+function dateOnly(value) {
+  if (!value) return null;
+  const raw = String(value);
+  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) return raw.slice(0, 10);
+  const d = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(d.getTime())) return null;
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
+export function toCampaignSnapshot(campaign) {
+  if (!campaign) {
+    return {
+      status: "idle",
+      scheduledAt: null,
+      launchedAt: null,
+      total: 0,
+      processed: 0,
+      percent: 0,
+    };
+  }
+  const total = Number(campaign.total) || 0;
+  const processed = Number(campaign.processed) || 0;
+  const status =
+    campaign.status === "queued"
+      ? "scheduled"
+      : campaign.status === "running"
+        ? "running"
+        : campaign.status === "done"
+          ? "done"
+          : "idle";
+  const percent = total
+    ? Math.min(100, Math.round((processed / total) * 100))
+    : status === "done"
+      ? 100
+      : 0;
+  return {
+    status,
+    scheduledAt: dateOnly(campaign.scheduledAt),
+    launchedAt: campaign.launchedAt ? new Date(campaign.launchedAt).toISOString() : null,
+    total,
+    processed,
+    percent,
+  };
+}
+
+export function serializeEvent(event, campaign) {
   return {
     id: event.slug,
     name: event.name,
@@ -16,6 +64,7 @@ export function serializeEvent(event) {
     estimatedGuests: event.estimatedGuests,
     cover: event.cover,
     status: event.status,
+    campaign: toCampaignSnapshot(campaign),
   };
 }
 
