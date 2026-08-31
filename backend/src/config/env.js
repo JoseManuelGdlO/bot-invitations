@@ -117,8 +117,12 @@ export const env = {
     templateName: process.env.META_TEMPLATE_NAME || "",
     templateNameDocument: process.env.META_TEMPLATE_NAME_DOCUMENT || "rg_eventos",
     templateLanguage: process.env.META_TEMPLATE_LANGUAGE || "es_MX",
-    graphVersion: (process.env.META_GRAPH_VERSION || "v21.0").replace(/^\//, ""),
+    graphVersion: (process.env.META_GRAPH_VERSION || "v21.0").replace(/^\/*/, ""),
     timeoutMs: Number(process.env.META_TIMEOUT_MS || 8000),
     mediaTimeoutMs: Number(process.env.META_MEDIA_TIMEOUT_MS || 60000),
+    appId: process.env.META_APP_ID || "",
+    appSecret: process.env.META_APP_SECRET || "",
+    configId: process.env.META_EMBEDDED_SIGNUP_CONFIG_ID || "",
+    systemUserToken: process.env.META_SYSTEM_USER_TOKEN || "",
   },
 };

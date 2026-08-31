@@ -12,6 +12,19 @@ export type IntegrationDto = {
   lastHealthcheckAt: string | null;
   lastError: string | null;
   hasActiveCredential: boolean;
+  wabaId?: string | null;
+  phoneNumberId?: string | null;
+  displayPhoneNumber?: string | null;
+  coexistenceEnabled?: boolean;
+};
+
+export type MetaSignupConfigDto = {
+  configured: boolean;
+  appId: string;
+  configId: string;
+  graphVersion: string;
+  featureType: string;
+  sessionInfoVersion: string;
 };
 
 export type WhatsAppMetaStatusDto = {
@@ -120,4 +133,22 @@ export const integrationsApi = {
         body: JSON.stringify(body),
       },
     ),
+  getMetaSignupConfig: () =>
+    api<MetaSignupConfigDto>("/integrations/whatsapp/meta/config"),
+  completeMetaSignup: (body: {
+    code: string;
+    wabaId?: string | null;
+    phoneNumberId?: string | null;
+    businessId?: string | null;
+    event?: string | null;
+  }) =>
+    api<IntegrationDto>("/integrations/whatsapp/meta/signup", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
+  disconnectMeta: () =>
+    api<IntegrationDto>("/integrations/whatsapp/meta/disconnect", {
+      method: "POST",
+      body: JSON.stringify({}),
+    }),
 };

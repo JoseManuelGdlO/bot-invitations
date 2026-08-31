@@ -10,6 +10,7 @@ import { verifyMetaWebhook, metaWebhook } from "./controllers/meta-webhook.contr
 
 /** Rutas públicas de webhook (sin requireAuth). Registradas antes de app.use("/api", router). */
 const META_WEBHOOK_PATH = "/api/webhooks/meta";
+const META_WHATSAPP_WEBHOOK_PATH = "/api/webhooks/meta/whatsapp";
 
 export function createApp() {
   const app = express();
@@ -26,8 +27,10 @@ export function createApp() {
   app.post("/api/billing/webhook", express.raw({ type: "application/json" }), stripeWebhook);
   app.get(META_WEBHOOK_PATH, verifyMetaWebhook);
   app.get(`${META_WEBHOOK_PATH}/webhook`, verifyMetaWebhook);
+  app.get(META_WHATSAPP_WEBHOOK_PATH, verifyMetaWebhook);
   app.post(META_WEBHOOK_PATH, express.raw({ type: "application/json", limit: "1mb" }), ...metaWebhook);
   app.post(`${META_WEBHOOK_PATH}/webhook`, express.raw({ type: "application/json", limit: "1mb" }), ...metaWebhook);
+  app.post(META_WHATSAPP_WEBHOOK_PATH, express.raw({ type: "application/json", limit: "1mb" }), ...metaWebhook);
   // WhatsApp Connect inbound — desconectado
   // app.post(
   //   "/api/webhooks/whatsapp-connect/events",
@@ -42,7 +45,9 @@ export function createApp() {
   app.use("/api", router);
   app.use((err, _req, res, _next) => {
     console.error(err);
-    res.status(err.status || 500).json({ error: err.message || "Error interno" });
+    const body = { error: err.message || "Error interno" };
+    if (err.meta) body.meta = err.meta;
+    res.status(err.status || 500).json(body);
   });
   return app;
 }

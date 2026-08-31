@@ -7,6 +7,7 @@ import {
   KeyRound,
   Loader2,
   Smartphone,
+  Unplug,
   Webhook,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -26,9 +27,14 @@ import { Textarea } from "@/components/ui/textarea";
 import { apiBase, ApiError } from "@/lib/api/client";
 import {
   integrationsApi,
+  type MetaSignupConfigDto,
   type WhatsAppMetaStatusDto,
   type WhatsAppSendTestType,
 } from "@/lib/api/integrations";
+import {
+  launchEmbeddedSignup,
+  loadFacebookSdk,
+} from "@/lib/meta-embedded-signup";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 
@@ -68,7 +74,9 @@ function WhatsAppMetaPage() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [savingCreds, setSavingCreds] = useState(false);
+  const [connectingMeta, setConnectingMeta] = useState(false);
   const [status, setStatus] = useState<WhatsAppMetaStatusDto | null>(null);
+  const [metaConfig, setMetaConfig] = useState<MetaSignupConfigDto | null>(null);
   const [webhookOpen, setWebhookOpen] = useState(false);
   const [credsOpen, setCredsOpen] = useState(false);
   const [credsForm, setCredsForm] = useState(emptyCredentialsForm);
@@ -86,7 +94,8 @@ function WhatsAppMetaPage() {
   }, []);
 
   useEffect(() => {
-    load()
+    Promise.all([load(), integrationsApi.getMetaSignupConfig()])
+      .then(([, config]) => setMetaConfig(config))
       .catch((err) =>
         toast.error(
           err instanceof ApiError
@@ -100,6 +109,60 @@ function WhatsAppMetaPage() {
   const webhookUrl = import.meta.env.DEV
     ? status?.webhookUrl || metaWebhookPublicUrl()
     : null;
+
+  const connectMeta = async () => {
+    if (!metaConfig?.configured) {
+      toast.error("Embedded Signup no está configurado en el servidor.");
+      return;
+    }
+    setConnectingMeta(true);
+    try {
+      await loadFacebookSdk(metaConfig.appId, metaConfig.graphVersion);
+      const { code, session } = await launchEmbeddedSignup({
+        configId: metaConfig.configId,
+        featureType: metaConfig.featureType,
+        sessionInfoVersion: metaConfig.sessionInfoVersion,
+      });
+      const connected = await integrationsApi.completeMetaSignup({
+        code,
+        wabaId: session?.wabaId ?? null,
+        phoneNumberId: session?.phoneNumberId ?? null,
+        businessId: session?.businessId ?? null,
+        event: session?.event ?? null,
+      });
+      await load();
+      toast.success("WhatsApp conectado", {
+        description: connected.displayPhoneNumber
+          ? `Número ${connected.displayPhoneNumber}`
+          : "La cuenta quedó vinculada a Cloud API.",
+      });
+    } catch (err) {
+      const message =
+        err instanceof ApiError || err instanceof Error
+          ? err.message
+          : "No se pudo conectar WhatsApp";
+      toast.error(message);
+    } finally {
+      setConnectingMeta(false);
+    }
+  };
+
+  const disconnectMeta = async () => {
+    setConnectingMeta(true);
+    try {
+      await integrationsApi.disconnectMeta();
+      await load();
+      toast.success("WhatsApp desconectado");
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError
+          ? err.message
+          : "No se pudo desconectar WhatsApp",
+      );
+    } finally {
+      setConnectingMeta(false);
+    }
+  };
 
   const openCredentials = () => {
     setCredsForm({
@@ -215,7 +278,8 @@ function WhatsAppMetaPage() {
             <div>
               <h2 className="font-display text-2xl">Meta Cloud API</h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                Un WABA por planner. El token se guarda cifrado en el servidor.
+                Un WABA por planner. Conéctalo con Facebook o pega el token
+                manualmente.
               </p>
             </div>
           </div>
@@ -229,9 +293,39 @@ function WhatsAppMetaPage() {
                 Falta configurar
               </Badge>
             )}
+            {configured ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={disconnectMeta}
+                disabled={connectingMeta}
+              >
+                {connectingMeta ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : (
+                  <Unplug className="size-3.5" />
+                )}
+                Desconectar
+              </Button>
+            ) : (
+              <Button
+                type="button"
+                size="sm"
+                onClick={connectMeta}
+                disabled={connectingMeta || !metaConfig?.configured}
+              >
+                {connectingMeta ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : (
+                  <Smartphone className="size-3.5" />
+                )}
+                Conectar con Facebook
+              </Button>
+            )}
             <Button type="button" variant="outline" size="sm" onClick={openCredentials}>
               <KeyRound className="size-3.5" />
-              {configured ? "Actualizar credenciales" : "Conectar WhatsApp"}
+              {configured ? "Actualizar credenciales" : "Pegar token"}
             </Button>
             {webhookUrl ? (
               <Button
@@ -301,11 +395,18 @@ function WhatsAppMetaPage() {
             Falta META_TEMPLATE_NAME. Sin plantilla no se puede enviar en frío.
           </p>
         ) : null}
-        <p className="mt-3 text-xs text-muted-foreground">
-          El formulario de credenciales es temporal. Cuando Meta apruebe
-          Embedded Signup, la conexión se hará desde Facebook sin pegar el
-          token.
-        </p>
+        {!metaConfig?.configured ? (
+          <p className="mt-3 text-xs text-muted-foreground">
+            Falta configurar META_APP_ID, META_APP_SECRET y
+            META_EMBEDDED_SIGNUP_CONFIG_ID en el servidor para conectar con
+            Facebook. Mientras tanto puedes pegar el token a mano.
+          </p>
+        ) : (
+          <p className="mt-3 text-xs text-muted-foreground">
+            Conectar con Facebook usa Embedded Signup. Pegar el token queda
+            como alternativa si Meta no completa el flujo.
+          </p>
+        )}
       </section>
 
       <section className="rounded-2xl border border-border bg-card p-6 shadow-soft">
@@ -412,8 +513,8 @@ function WhatsAppMetaPage() {
             </DialogTitle>
             <DialogDescription>
               Pega el token de usuario del sistema, el WABA ID y el phone
-              number ID que te da Meta. Este formulario se sustituirá por
-              Embedded Signup.
+              number ID que te da Meta. Preferimos Embedded Signup cuando esté
+              configurado.
             </DialogDescription>
           </DialogHeader>
           <form className="space-y-4" onSubmit={saveCredentials}>

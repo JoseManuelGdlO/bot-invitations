@@ -300,11 +300,17 @@ export const ChannelIntegration = sequelize.define(
     webhookUrl: { type: DataTypes.STRING(500), allowNull: true },
     lastHealthcheckAt: { type: DataTypes.DATE, allowNull: true },
     lastError: { type: DataTypes.TEXT, allowNull: true },
+    wabaId: { type: DataTypes.STRING(40), allowNull: true },
+    phoneNumberId: { type: DataTypes.STRING(40), allowNull: true },
+    displayPhoneNumber: { type: DataTypes.STRING(40), allowNull: true },
+    coexistenceEnabled: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
   },
   {
     indexes: [
       { fields: ["ownerUserId"] },
       { unique: true, fields: ["ownerUserId", "channel", "provider"] },
+      { fields: ["phoneNumberId"] },
+      { fields: ["wabaId"] },
     ],
   },
 );
@@ -745,4 +751,25 @@ export async function ensureGuestStatusCleanup() {
     `ALTER TABLE guests MODIFY COLUMN status ENUM(${enumSql}) NOT NULL DEFAULT 'sin_contactar'`,
   );
   console.log("[db] guests.status ENUM sin valores legacy");
+}
+
+export async function ensureChannelIntegrationMetaColumns() {
+  const qi = sequelize.getQueryInterface();
+  let table;
+  try {
+    table = await qi.describeTable("channel_integrations");
+  } catch {
+    return;
+  }
+  const columns = {
+    wabaId: { type: DataTypes.STRING(40), allowNull: true },
+    phoneNumberId: { type: DataTypes.STRING(40), allowNull: true },
+    displayPhoneNumber: { type: DataTypes.STRING(40), allowNull: true },
+    coexistenceEnabled: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+  };
+  for (const [name, spec] of Object.entries(columns)) {
+    if (table[name]) continue;
+    await qi.addColumn("channel_integrations", name, spec);
+    console.log(`[db] columna channel_integrations.${name} creada`);
+  }
 }
