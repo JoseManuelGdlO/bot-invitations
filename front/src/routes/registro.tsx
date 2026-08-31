@@ -26,12 +26,20 @@ import type { BillingInterval, SubscriptionPlan } from "@/lib/mock/types";
 import { cn } from "@/lib/utils";
 import { BillingToggle, yearlyAmount } from "@/components/billing-toggle";
 
+type LoginSearch = {
+  email: string | undefined;
+};
+
+function loginSearch(email = ""): LoginSearch {
+  return { email: email.trim() || undefined };
+}
+
 export const Route = createFileRoute("/registro")({
   validateSearch: (s: Record<string, unknown>) => ({
-    plan: typeof s.plan === "string" ? s.plan : undefined,
-    pago: typeof s.pago === "string" ? s.pago : undefined,
-    email: typeof s.email === "string" ? s.email : undefined,
-    invite: s.invite === "1" || s.invite === true ? "1" : undefined,
+    plan: typeof s["plan"] === "string" ? s["plan"] : undefined,
+    pago: typeof s["pago"] === "string" ? s["pago"] : undefined,
+    email: typeof s["email"] === "string" ? s["email"] : undefined,
+    invite: s["invite"] === "1" || s["invite"] === true ? "1" : undefined,
   }),
   head: () =>
     pageHead({
@@ -95,6 +103,7 @@ function Registro() {
   const [phone, setPhone] = useState("");
   const [state, setState] = useState("");
   const [email, setEmail] = useState(invitedEmail || "");
+  const [emailError, setEmailError] = useState("");
   const [password, setPassword] = useState("");
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [planId, setPlanId] = useState("");
@@ -153,6 +162,12 @@ function Registro() {
 
   const selected = plans.find((p) => p.id === planId);
 
+  const checkEmailAvailable = async (targetEmail: string) => {
+    await api<{ available: true }>(
+      `/auth/email-available?email=${encodeURIComponent(targetEmail.trim())}`,
+    );
+  };
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isInvite) {
@@ -170,9 +185,10 @@ function Registro() {
         });
         navigate({ to: "/eventos" });
       } catch (err) {
-        toast.error(
-          err instanceof ApiError ? err.message : "No se pudo crear la cuenta",
-        );
+        const message =
+          err instanceof ApiError ? err.message : "No se pudo crear la cuenta";
+        if (err instanceof ApiError) setEmailError(message);
+        toast.error(message);
       } finally {
         setLoading(false);
       }
@@ -183,7 +199,27 @@ function Registro() {
         toast.error("Completa negocio, teléfono y estado para continuar");
         return;
       }
-      setStep(1);
+      if (!name.trim() || !email.trim() || password.length < 6) {
+        toast.error(
+          "Completa nombre, correo y contraseña (mín. 6) para continuar",
+        );
+        return;
+      }
+      setLoading(true);
+      try {
+        await checkEmailAvailable(email);
+        setEmailError("");
+        setStep(1);
+      } catch (err) {
+        const message =
+          err instanceof ApiError
+            ? err.message
+            : "No se pudo validar el correo";
+        setEmailError(message);
+        toast.error(message);
+      } finally {
+        setLoading(false);
+      }
       return;
     }
     if (!planId) {
@@ -216,9 +252,13 @@ function Registro() {
       });
       navigate({ to: "/eventos" });
     } catch (err) {
-      toast.error(
-        err instanceof ApiError ? err.message : "No se pudo crear la cuenta",
-      );
+      const message =
+        err instanceof ApiError ? err.message : "No se pudo crear la cuenta";
+      if (err instanceof ApiError && err.status === 409) {
+        setEmailError(message);
+        setStep(0);
+      }
+      toast.error(message);
     } finally {
       setLoading(false);
     }
@@ -285,11 +325,27 @@ function Registro() {
                 id="email"
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  if (emailError) setEmailError("");
+                }}
                 readOnly={Boolean(invitedEmail)}
+                aria-invalid={Boolean(emailError)}
                 required
                 className={invitedEmail ? "bg-muted" : undefined}
               />
+              {emailError ? (
+                <p className="text-sm text-destructive">
+                  {emailError}{" "}
+                  <Link
+                    to="/iniciar-sesion"
+                    search={loginSearch(email)}
+                    className="underline underline-offset-4"
+                  >
+                    Inicia sesión
+                  </Link>
+                </p>
+              ) : null}
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Contraseña</Label>
@@ -367,9 +423,25 @@ function Registro() {
                 id="email"
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  if (emailError) setEmailError("");
+                }}
+                aria-invalid={Boolean(emailError)}
                 required
               />
+              {emailError ? (
+                <p className="text-sm text-destructive">
+                  {emailError}{" "}
+                  <Link
+                    to="/iniciar-sesion"
+                    search={loginSearch(email)}
+                    className="underline underline-offset-4"
+                  >
+                    Inicia sesión
+                  </Link>
+                </p>
+              ) : null}
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Contraseña</Label>
@@ -382,7 +454,8 @@ function Registro() {
                 minLength={6}
               />
             </div>
-            <Button type="submit" className="w-full" size="lg">
+            <Button type="submit" className="w-full" size="lg" disabled={loading}>
+              {loading ? <Loader2 className="size-4 animate-spin" /> : null}
               Continuar al plan
             </Button>
           </>
@@ -464,7 +537,7 @@ function Registro() {
           ¿Ya tienes cuenta?{" "}
           <Link
             to="/iniciar-sesion"
-            search={email ? { email } : undefined}
+            search={loginSearch(email)}
             className="text-gold underline-offset-4 hover:underline"
           >
             Inicia sesión

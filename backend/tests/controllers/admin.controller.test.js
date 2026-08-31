@@ -56,8 +56,10 @@ describe("admin.controller", () => {
   });
 
   test("listClients sin search", async () => {
-    models.User.findAll.mockResolvedValue([]);
+    models.User.findAndCountAll.mockResolvedValue({ count: 0, rows: [] });
     const { res } = await callHandler(controller.listClients, { req: createMockReq({ query: {} }) });
-    expect(res.json).toHaveBeenCalledWith([]);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ items: [], total: 0, page: 1, limit: 20, totalPages: 1 }),
+    );
   });
 });

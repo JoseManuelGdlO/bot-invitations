@@ -22,6 +22,7 @@ export function createModelMock(name = "Model") {
     update: jest.fn(async () => [1]),
     destroy: jest.fn(async () => 1),
     count: jest.fn(async () => 0),
+    findAndCountAll: jest.fn(async () => ({ count: 0, rows: [] })),
     sum: jest.fn(async () => 0),
     bulkCreate: jest.fn(async (rows = []) => rows.map((row) => createInstance(row))),
     findOrCreate: jest.fn(async ({ defaults = {} } = {}) => [createInstance(defaults), true]),

@@ -117,23 +117,37 @@ export async function loadUserState(userId) {
   const events = await Event.findAll({ where: { id: ids }, order: [["createdAt", "DESC"]] });
   const slugById = Object.fromEntries(events.map((e) => [e.id, e.slug]));
 
-  const [guests, conversations, messages, ais, templates, faqs, activities, members, perms, campaigns] = await Promise.all([
-    Guest.findAll({ where: { eventId: ids }, order: [["createdAt", "ASC"]] }),
-    Conversation.findAll({ where: { eventId: ids }, order: [["updatedAt", "DESC"]] }),
-    Message.findAll({ order: [["createdAt", "ASC"]] }),
-    AiConfig.findAll({ where: { eventId: ids } }),
-    Template.findAll({ where: { eventId: ids }, order: [["createdAt", "ASC"]] }),
-    Faq.findAll({ where: { eventId: ids }, order: [["createdAt", "ASC"]] }),
-    Activity.findAll({ where: { eventId: ids }, order: [["createdAt", "DESC"]], limit: 40 }),
+  const [members, perms, activities, campaigns] = await Promise.all([
     EventMember.findAll({ where: { eventId: ids, removedAt: null }, order: [["createdAt", "ASC"]] }),
     EventRolePermission.findAll({ where: { eventId: ids } }),
+    Activity.findAll({ where: { eventId: ids }, order: [["createdAt", "DESC"]], limit: 40 }),
     Campaign.findAll({ where: { eventId: ids }, order: [["createdAt", "DESC"]] }),
   ]);
 
-  const convIds = new Set(conversations.map((c) => c.id));
+  const accessByEventId = {};
+  for (const event of events) {
+    accessByEventId[event.id] = resolveEventAccess(event, userId, members, perms);
+  }
+
+  const guestEventIds = eventIdsWithPerm(events, accessByEventId, PERMS.VIEW_GUESTS);
+  const chatEventIds = eventIdsWithPerm(events, accessByEventId, PERMS.VIEW_CHATS);
+  const aiEventIds = eventIdsWithPerm(events, accessByEventId, PERMS.CONFIG_AI);
+
+  const [guests, conversations, ais, templates, faqs] = await Promise.all([
+    findAllByEventIds(Guest, guestEventIds, { order: [["createdAt", "ASC"]] }),
+    findAllByEventIds(Conversation, chatEventIds, { order: [["updatedAt", "DESC"]] }),
+    findAllByEventIds(AiConfig, aiEventIds),
+    findAllByEventIds(Template, aiEventIds, { order: [["createdAt", "ASC"]] }),
+    findAllByEventIds(Faq, aiEventIds, { order: [["createdAt", "ASC"]] }),
+  ]);
+
+  const convIds = conversations.map((c) => c.id);
+  const messages = convIds.length
+    ? await Message.findAll({ where: { conversationId: convIds }, order: [["createdAt", "ASC"]] })
+    : [];
+
   const messagesByConv = new Map();
   for (const m of messages) {
-    if (!convIds.has(m.conversationId)) continue;
     if (!messagesByConv.has(m.conversationId)) messagesByConv.set(m.conversationId, []);
     messagesByConv.get(m.conversationId).push(m);
   }
@@ -145,41 +159,45 @@ export async function loadUserState(userId) {
   const eventAccess = {};
 
   for (const event of events) {
+    const access = accessByEventId[event.id];
+    const viewGuests = canAccess(access, PERMS.VIEW_GUESTS);
+    const viewChats = canAccess(access, PERMS.VIEW_CHATS);
+    const configAi = canAccess(access, PERMS.CONFIG_AI);
+    const manageTeam = canAccess(access, PERMS.MANAGE_TEAM);
     const ai = ais.find((a) => a.eventId === event.id);
     data[event.slug] = {
-      ai: ai ? serializeAi(ai) : defaultEmptyAi(),
-      templates: templates.filter((t) => t.eventId === event.id).map(serializeTemplate),
-      faqs: faqs.filter((f) => f.eventId === event.id).map(serializeFaq),
+      ai: configAi && ai ? serializeAi(ai) : defaultEmptyAi(),
+      templates: configAi ? templates.filter((t) => t.eventId === event.id).map(serializeTemplate) : [],
+      faqs: configAi ? faqs.filter((f) => f.eventId === event.id).map(serializeFaq) : [],
     };
     const eventMembers = members.filter((m) => m.eventId === event.id && !m.removedAt);
-    membersByEvent[event.slug] = eventMembers.map((m) => serializeMember(m, event.ownerId));
-    permsByEvent[event.slug] = perms.filter((p) => p.eventId === event.id).map(serializeRolePermission);
-    const eventGuests = guests.filter((g) => g.eventId === event.id);
-    const eventConvs = conversations.filter((c) => c.eventId === event.id);
-    const eventMsgs = eventConvs.flatMap((c) => messagesByConv.get(c.id) || []);
-    analytics[event.slug] = buildAnalytics(eventGuests, eventConvs, eventMsgs);
-    const isOwner = event.ownerId === userId;
-    const self = eventMembers.find((m) => m.userId === userId);
-    const role = isOwner ? "Administrador" : self?.role || null;
-    const permissions = role
-      ? perms.filter((p) => p.eventId === event.id && p.role === role && p.enabled).map((p) => p.permission)
+    membersByEvent[event.slug] = manageTeam
+      ? eventMembers.map((m) => serializeMember(m, event.ownerId))
       : [];
-    eventAccess[event.slug] = {
-      role,
-      permissions: isOwner && !permissions.includes(PERMS.EDIT_ALL)
-        ? [...new Set([...permissions, PERMS.EDIT_ALL])]
-        : permissions,
-      isOwner,
-    };
+    permsByEvent[event.slug] = perms.filter((p) => p.eventId === event.id).map(serializeRolePermission);
+    const eventGuests = viewGuests ? guests.filter((g) => g.eventId === event.id) : [];
+    const eventConvs = viewChats ? conversations.filter((c) => c.eventId === event.id) : [];
+    const eventMsgs = viewChats ? eventConvs.flatMap((c) => messagesByConv.get(c.id) || []) : [];
+    analytics[event.slug] = buildAnalytics(eventGuests, eventConvs, eventMsgs);
+    eventAccess[event.slug] = access;
   }
 
   return {
     events: events.map((event) =>
       serializeEvent(event, currentCampaignForEvent(campaigns, event.id)),
     ),
-    guests: guests.map((g) => serializeGuest(g, slugById[g.eventId])),
+    guests: guests.map((g) =>
+      serializeGuestForState(g, slugById[g.eventId], {
+        viewGuests: canAccess(accessByEventId[g.eventId], PERMS.VIEW_GUESTS),
+        viewChats: canAccess(accessByEventId[g.eventId], PERMS.VIEW_CHATS),
+      }),
+    ),
     conversations: conversations.map((c) =>
-      serializeConversation(c, slugById[c.eventId], messagesByConv.get(c.id) || []),
+      serializeConversation(
+        c,
+        slugById[c.eventId],
+        canAccess(accessByEventId[c.eventId], PERMS.VIEW_CHATS) ? messagesByConv.get(c.id) || [] : [],
+      ),
     ),
     data,
     activity: activities.map((a) => serializeActivity(a, slugById[a.eventId])),
@@ -188,6 +206,48 @@ export async function loadUserState(userId) {
     analytics,
     eventAccess,
   };
+}
+
+function canAccess(access, permission) {
+  if (!access) return false;
+  if (access.permissions.includes(PERMS.EDIT_ALL)) return true;
+  return access.permissions.includes(permission);
+}
+
+function resolveEventAccess(event, userId, members, perms) {
+  const isOwner = event.ownerId === userId;
+  const self = members.find((m) => m.eventId === event.id && m.userId === userId && !m.removedAt);
+  const role = isOwner ? "Administrador" : self?.role || null;
+  const permissions = role
+    ? perms.filter((p) => p.eventId === event.id && p.role === role && p.enabled).map((p) => p.permission)
+    : [];
+  return {
+    role,
+    permissions: isOwner && !permissions.includes(PERMS.EDIT_ALL)
+      ? [...new Set([...permissions, PERMS.EDIT_ALL])]
+      : permissions,
+    isOwner,
+  };
+}
+
+function eventIdsWithPerm(events, accessByEventId, permission) {
+  return events.filter((event) => canAccess(accessByEventId[event.id], permission)).map((event) => event.id);
+}
+
+function findAllByEventIds(Model, eventIds, extra = {}) {
+  if (!eventIds.length) return [];
+  return Model.findAll({ where: { eventId: eventIds }, ...extra });
+}
+
+function serializeGuestForState(guest, slug, { viewGuests, viewChats }) {
+  const row = serializeGuest(guest, slug);
+  if (!viewGuests) row.phone = "";
+  if (!viewChats) {
+    row.lastMessage = "";
+    row.lastReply = "";
+    row.lastReplyAt = "";
+  }
+  return row;
 }
 
 function defaultEmptyAi() {

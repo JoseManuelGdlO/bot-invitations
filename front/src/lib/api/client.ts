@@ -5,6 +5,7 @@ const AUTH_PUBLIC_PATHS = new Set([
   "/auth/login",
   "/auth/register",
   "/auth/register-invite",
+  "/auth/email-available",
   "/auth/refresh",
   "/auth/logout",
   "/auth/forgot-password",
