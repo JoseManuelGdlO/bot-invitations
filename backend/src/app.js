@@ -5,7 +5,10 @@ import { env } from "./config/env.js";
 import { router } from "./routes/index.js";
 import { webhook as stripeWebhook } from "./controllers/billing.controller.js";
 import { requestLogger } from "./middleware/logger.middleware.js";
-import { whatsappConnectWebhook } from "./controllers/whatsapp-connect-webhook.controller.js";
+import {
+  verifyMetaWebhook,
+  whatsappConnectWebhook,
+} from "./controllers/whatsapp-connect-webhook.controller.js";
 
 export function createApp() {
   const app = express();
@@ -20,6 +23,7 @@ export function createApp() {
   );
   app.use(cookieParser());
   app.post("/api/billing/webhook", express.raw({ type: "application/json" }), stripeWebhook);
+  app.get("/api/webhooks/whatsapp-connect/events", verifyMetaWebhook);
   app.post(
     "/api/webhooks/whatsapp-connect/events",
     express.raw({ type: "application/json", limit: "1mb" }),
