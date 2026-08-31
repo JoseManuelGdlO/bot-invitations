@@ -367,6 +367,17 @@ function Registro() {
               {loading ? <Loader2 className="size-4 animate-spin" /> : null}
               Crear cuenta
             </Button>
+            <p className="text-center text-xs text-muted-foreground">
+              Al crear tu cuenta aceptas las{" "}
+              <Link to="/terminos" className="underline underline-offset-4">
+                Condiciones del servicio
+              </Link>{" "}
+              y la{" "}
+              <Link to="/privacidad" className="underline underline-offset-4">
+                Política de privacidad
+              </Link>
+              .
+            </p>
           </>
         ) : step === 0 ? (
           <>

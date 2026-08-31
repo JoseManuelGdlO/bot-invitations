@@ -20,6 +20,9 @@ import { Route as RecuperarContrasenaRouteImport } from './routes/recuperar-cont
 import { Route as RegistroRouteImport } from './routes/registro'
 import { Route as RestablecerContrasenaRouteImport } from './routes/restablecer-contrasena'
 import { Route as SoftwareRsvpBodasRouteImport } from './routes/software-rsvp-bodas'
+import { Route as PrivacidadRouteImport } from './routes/privacidad'
+import { Route as TerminosRouteImport } from './routes/terminos'
+import { Route as EliminarDatosRouteImport } from './routes/eliminar-datos'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as AdminCancelacionesRouteImport } from './routes/admin.cancelaciones'
 import { Route as AdminClientesRouteImport } from './routes/admin.clientes'
@@ -105,6 +108,21 @@ const RestablecerContrasenaRoute = RestablecerContrasenaRouteImport.update({
 const SoftwareRsvpBodasRoute = SoftwareRsvpBodasRouteImport.update({
   id: '/software-rsvp-bodas',
   path: '/software-rsvp-bodas',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrivacidadRoute = PrivacidadRouteImport.update({
+  id: '/privacidad',
+  path: '/privacidad',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const TerminosRoute = TerminosRouteImport.update({
+  id: '/terminos',
+  path: '/terminos',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const EliminarDatosRoute = EliminarDatosRouteImport.update({
+  id: '/eliminar-datos',
+  path: '/eliminar-datos',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminIndexRoute = AdminIndexRouteImport.update({
@@ -275,6 +293,9 @@ export interface FileRoutesByFullPath {
   '/registro': typeof RegistroRouteWithChildren
   '/restablecer-contrasena': typeof RestablecerContrasenaRoute
   '/software-rsvp-bodas': typeof SoftwareRsvpBodasRoute
+  '/privacidad': typeof PrivacidadRoute
+  '/terminos': typeof TerminosRoute
+  '/eliminar-datos': typeof EliminarDatosRoute
   '/admin/cancelaciones': typeof AdminCancelacionesRoute
   '/admin/clientes': typeof AdminClientesRoute
   '/admin/finanzas': typeof AdminFinanzasRoute
@@ -315,6 +336,9 @@ export interface FileRoutesByTo {
   '/registro': typeof RegistroRouteWithChildren
   '/restablecer-contrasena': typeof RestablecerContrasenaRoute
   '/software-rsvp-bodas': typeof SoftwareRsvpBodasRoute
+  '/privacidad': typeof PrivacidadRoute
+  '/terminos': typeof TerminosRoute
+  '/eliminar-datos': typeof EliminarDatosRoute
   '/admin/cancelaciones': typeof AdminCancelacionesRoute
   '/admin/clientes': typeof AdminClientesRoute
   '/admin/finanzas': typeof AdminFinanzasRoute
@@ -356,6 +380,9 @@ export interface FileRoutesById {
   '/registro': typeof RegistroRouteWithChildren
   '/restablecer-contrasena': typeof RestablecerContrasenaRoute
   '/software-rsvp-bodas': typeof SoftwareRsvpBodasRoute
+  '/privacidad': typeof PrivacidadRoute
+  '/terminos': typeof TerminosRoute
+  '/eliminar-datos': typeof EliminarDatosRoute
   '/admin/cancelaciones': typeof AdminCancelacionesRoute
   '/admin/clientes': typeof AdminClientesRoute
   '/admin/finanzas': typeof AdminFinanzasRoute
@@ -401,6 +428,9 @@ export interface FileRouteTypes {
     | '/registro'
     | '/restablecer-contrasena'
     | '/software-rsvp-bodas'
+    | '/privacidad'
+    | '/terminos'
+    | '/eliminar-datos'
     | '/admin/cancelaciones'
     | '/admin/clientes'
     | '/admin/finanzas'
@@ -441,6 +471,9 @@ export interface FileRouteTypes {
     | '/registro'
     | '/restablecer-contrasena'
     | '/software-rsvp-bodas'
+    | '/privacidad'
+    | '/terminos'
+    | '/eliminar-datos'
     | '/admin/cancelaciones'
     | '/admin/clientes'
     | '/admin/finanzas'
@@ -481,6 +514,9 @@ export interface FileRouteTypes {
     | '/registro'
     | '/restablecer-contrasena'
     | '/software-rsvp-bodas'
+    | '/privacidad'
+    | '/terminos'
+    | '/eliminar-datos'
     | '/admin/cancelaciones'
     | '/admin/clientes'
     | '/admin/finanzas'
@@ -525,6 +561,9 @@ export interface RootRouteChildren {
   RegistroRoute: typeof RegistroRouteWithChildren
   RestablecerContrasenaRoute: typeof RestablecerContrasenaRoute
   SoftwareRsvpBodasRoute: typeof SoftwareRsvpBodasRoute
+  PrivacidadRoute: typeof PrivacidadRoute
+  TerminosRoute: typeof TerminosRoute
+  EliminarDatosRoute: typeof EliminarDatosRoute
   PagoExitoRoute: typeof PagoExitoRoute
 }
 
@@ -605,6 +644,27 @@ declare module '@tanstack/react-router' {
       path: '/software-rsvp-bodas'
       fullPath: '/software-rsvp-bodas'
       preLoaderRoute: typeof SoftwareRsvpBodasRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/privacidad': {
+      id: '/privacidad'
+      path: '/privacidad'
+      fullPath: '/privacidad'
+      preLoaderRoute: typeof PrivacidadRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/terminos': {
+      id: '/terminos'
+      path: '/terminos'
+      fullPath: '/terminos'
+      preLoaderRoute: typeof TerminosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/eliminar-datos': {
+      id: '/eliminar-datos'
+      path: '/eliminar-datos'
+      fullPath: '/eliminar-datos'
+      preLoaderRoute: typeof EliminarDatosRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/': {
@@ -955,6 +1015,9 @@ const rootRouteChildren: RootRouteChildren = {
   RegistroRoute: RegistroRouteWithChildren,
   RestablecerContrasenaRoute: RestablecerContrasenaRoute,
   SoftwareRsvpBodasRoute: SoftwareRsvpBodasRoute,
+  PrivacidadRoute: PrivacidadRoute,
+  TerminosRoute: TerminosRoute,
+  EliminarDatosRoute: EliminarDatosRoute,
   PagoExitoRoute: PagoExitoRoute,
 }
 export const routeTree = rootRouteImport
