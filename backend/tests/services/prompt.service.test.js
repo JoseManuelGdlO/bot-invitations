@@ -27,6 +27,7 @@ describe("prompt.service", () => {
     expect(text).toMatch(/seguimiento/);
     expect(text).toMatch(/desconocido/);
     expect(text).toMatch(/3 días/);
+    expect(text).toContain("MÁS personas que el cupo");
   });
 
   test("defaultPrompt interpola los días de la regla indeciso", () => {
@@ -54,6 +55,7 @@ describe("prompt.service", () => {
     expect(text).toContain("[Seguimiento] Recontacto");
     expect(text).toContain("¿Pueden ir niños?");
     expect(text).toContain("faq | asistira | no_asistira | seguimiento | desconocido");
+    expect(text).toContain("cierra YA el RSVP");
     expect(text).toContain("marcar_seguimiento");
     expect(text).toContain("{{nombre}}");
   });

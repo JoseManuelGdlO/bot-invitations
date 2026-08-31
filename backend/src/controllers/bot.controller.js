@@ -2,6 +2,7 @@ import { env } from "../config/env.js";
 import { enqueueJob } from "../services/outbound.worker.js";
 import { processGuestMessage, rememberWhatsappChatId, resolveGuestForInbound } from "../services/bot/bot.service.js";
 import { botLog, botWarn } from "../services/bot/bot-logger.js";
+import { claimInboundEvent, inboundDedupeKey } from "../services/inbound-dedupe.service.js";
 import { normalizePhone } from "../services/bot/session.service.js";
 import { extractInboundIdentity, resolveWhatsappTo } from "../utils/whatsapp-identity.js";
 
@@ -36,7 +37,13 @@ async function sendNotice({ event, guest, text }) {
   });
 }
 
-export async function handleInboundWhatsapp({ payload, integration }) {
+function readRawBody(rawBody, payload) {
+  if (typeof rawBody === "string" && rawBody.trim()) return rawBody;
+  if (Buffer.isBuffer(rawBody)) return rawBody.toString("utf8");
+  return JSON.stringify(payload || {});
+}
+
+export async function handleInboundWhatsapp({ payload, integration, rawBody = "" }) {
   const inbound = extractInboundMessage(payload || {});
   if (!inbound.isInbound) {
     return { processed: false, reason: "ignored_event" };
@@ -71,6 +78,14 @@ export async function handleInboundWhatsapp({ payload, integration }) {
   const { guest, event } = resolved;
   await rememberWhatsappChatId(guest, inbound.chatId);
   if (inbound.contentType && inbound.contentType !== "text" && !inbound.text) {
+    const claimed = await claimInboundEvent({
+      ownerUserId,
+      dedupeKey: inboundDedupeKey({ payload, rawBody: readRawBody(rawBody, payload), messageId: inbound.messageId }),
+    });
+    if (claimed.duplicate) {
+      botLog("inbound duplicado", { eventId: event.id, guestId: guest.id, reason: "not_text_message" });
+      return { processed: true, reason: "duplicate_event", eventId: event.id, guestId: guest.id };
+    }
     await sendNotice({
       event,
       guest,
@@ -80,6 +95,15 @@ export async function handleInboundWhatsapp({ payload, integration }) {
   }
   if (!inbound.text) {
     return { processed: true, reason: "empty_message" };
+  }
+
+  const claimed = await claimInboundEvent({
+    ownerUserId,
+    dedupeKey: inboundDedupeKey({ payload, rawBody: readRawBody(rawBody, payload), messageId: inbound.messageId }),
+  });
+  if (claimed.duplicate) {
+    botLog("inbound duplicado", { eventId: event.id, guestId: guest.id });
+    return { processed: true, reason: "duplicate_event", eventId: event.id, guestId: guest.id };
   }
 
   try {
@@ -132,6 +156,7 @@ export async function postWhatsappConnectEvents(req, res, next) {
     const result = await handleInboundWhatsapp({
       payload: req.wc?.payload || {},
       integration: req.wc?.integration || null,
+      rawBody: req.rawBody,
     });
     res.status(202).json({ ok: true, ...result });
   } catch (error) {

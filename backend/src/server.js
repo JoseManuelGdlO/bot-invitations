@@ -1,5 +1,5 @@
 import { env } from "./config/env.js";
-import { sequelize, ensureEventMemberRemovedAt, ensureCampaignColumns } from "./models/index.js";
+import { sequelize, ensureEventMemberRemovedAt, ensureInboundEventDedupTable, ensureCampaignColumns } from "./models/index.js";
 import { createApp } from "./app.js";
 import { startOutboundWorker } from "./services/outbound.worker.js";
 import { startFollowUpScheduler } from "./services/follow-up.scheduler.js";
@@ -10,6 +10,7 @@ const app = createApp();
 try {
   await sequelize.authenticate();
   await ensureEventMemberRemovedAt();
+  await ensureInboundEventDedupTable();
   await ensureCampaignColumns();
   console.log("[db] conectado a MySQL");
 } catch (err) {
