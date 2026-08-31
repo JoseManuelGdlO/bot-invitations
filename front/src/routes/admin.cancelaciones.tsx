@@ -34,7 +34,8 @@ function AdminCancellations() {
   const [busy, setBusy] = useState<string | null>(null);
 
   const load = (next = status) => {
-    const query = next && next !== "all" ? `?status=${encodeURIComponent(next)}` : "";
+    const query =
+      next && next !== "all" ? `?status=${encodeURIComponent(next)}` : "";
     api<CancellationRequest[]>(`/admin/cancellations${query}`)
       .then(setRows)
       .catch(() => toast.error("No se pudieron cargar las solicitudes"));
@@ -51,10 +52,18 @@ function AdminCancellations() {
         method: "POST",
         body: JSON.stringify({ note: notes[id] || "" }),
       });
-      toast.success(action === "approve" ? "Se dejará de renovar al terminar el periodo" : "Solicitud rechazada");
+      toast.success(
+        action === "approve"
+          ? "Se dejará de renovar al terminar el periodo"
+          : "Solicitud rechazada",
+      );
       load(status);
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "No se pudo resolver la solicitud");
+      toast.error(
+        err instanceof ApiError
+          ? err.message
+          : "No se pudo resolver la solicitud",
+      );
     } finally {
       setBusy(null);
     }
@@ -62,11 +71,14 @@ function AdminCancellations() {
 
   return (
     <main className="mx-auto w-full max-w-4xl flex-1 px-5 py-8 md:px-8 md:py-10">
-      <p className="text-xs font-medium uppercase tracking-[0.14em] text-gold">Backoffice</p>
+      <p className="text-xs font-medium uppercase tracking-[0.14em] text-gold">
+        Backoffice
+      </p>
       <h1 className="mt-1 font-display text-4xl">Cancelaciones</h1>
       <p className="mt-1 text-sm text-muted-foreground">
-        Si aceptas, Stripe deja de renovar y el cliente termina el periodo que ya pagó. Los envíos de invitaciones no
-        se detienen. Cuando se venza, para crear o agregar más tendrá que pagar.
+        Si aceptas, Stripe deja de renovar y el cliente termina el periodo que
+        ya pagó. Los envíos de invitaciones no se detienen. Cuando se venza,
+        para crear o agregar más tendrá que pagar.
       </p>
 
       <div className="mt-6 max-w-xs">
@@ -97,7 +109,10 @@ function AdminCancellations() {
           </div>
         ) : (
           rows.map((row) => (
-            <article key={row.id} className="rounded-2xl border border-border bg-card p-5 shadow-soft">
+            <article
+              key={row.id}
+              className="rounded-2xl border border-border bg-card p-5 shadow-soft"
+            >
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <p className="text-xs text-muted-foreground">
@@ -108,38 +123,64 @@ function AdminCancellations() {
                       year: "numeric",
                     })}
                   </p>
-                  <h2 className="mt-1 font-display text-2xl">{row.user?.name || "Cliente"}</h2>
+                  <h2 className="mt-1 font-display text-2xl">
+                    {row.user?.name || "Cliente"}
+                  </h2>
                   <p className="text-sm text-muted-foreground">
-                    {row.user?.businessName ? `${row.user.businessName} · ` : ""}
+                    {row.user?.businessName
+                      ? `${row.user.businessName} · `
+                      : ""}
                     {row.user?.email}
                   </p>
                 </div>
-                <Badge variant={row.status === "pending" ? "destructive" : "secondary"}>
+                <Badge
+                  variant={
+                    row.status === "pending" ? "destructive" : "secondary"
+                  }
+                >
                   {STATUS_LABEL[row.status]}
                 </Badge>
               </div>
               <p className="mt-4 text-sm">{row.reason}</p>
               {row.adminNote ? (
-                <p className="mt-3 text-sm text-muted-foreground">Nota: {row.adminNote}</p>
+                <p className="mt-3 text-sm text-muted-foreground">
+                  Nota: {row.adminNote}
+                </p>
               ) : null}
               {row.status === "pending" ? (
                 <div className="mt-4 space-y-3">
                   <div className="space-y-2">
-                    <Label htmlFor={`note-${row.id}`}>Nota para el cliente (opcional)</Label>
+                    <Label htmlFor={`note-${row.id}`}>
+                      Nota para el cliente (opcional)
+                    </Label>
                     <Textarea
                       id={`note-${row.id}`}
                       rows={2}
                       value={notes[row.id] || ""}
-                      onChange={(e) => setNotes((current) => ({ ...current, [row.id]: e.target.value }))}
+                      onChange={(e) =>
+                        setNotes((current) => ({
+                          ...current,
+                          [row.id]: e.target.value,
+                        }))
+                      }
                       placeholder="Ej. Aceptamos la baja a partir de hoy."
                     />
                   </div>
                   <div className="flex flex-wrap gap-2">
-                    <Button onClick={() => decide(row.id, "approve")} disabled={busy === row.id}>
-                      {busy === row.id ? <Loader2 className="size-4 animate-spin" /> : null}
+                    <Button
+                      onClick={() => decide(row.id, "approve")}
+                      disabled={busy === row.id}
+                    >
+                      {busy === row.id ? (
+                        <Loader2 className="size-4 animate-spin" />
+                      ) : null}
                       Aceptar: termina al final del periodo
                     </Button>
-                    <Button variant="outline" onClick={() => decide(row.id, "reject")} disabled={busy === row.id}>
+                    <Button
+                      variant="outline"
+                      onClick={() => decide(row.id, "reject")}
+                      disabled={busy === row.id}
+                    >
                       Rechazar
                     </Button>
                   </div>

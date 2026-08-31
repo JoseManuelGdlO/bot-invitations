@@ -46,10 +46,13 @@ function AdminSupportList() {
 
   return (
     <main className="mx-auto w-full max-w-5xl flex-1 px-5 py-8 md:px-8 md:py-10">
-      <p className="text-xs font-medium uppercase tracking-[0.14em] text-gold">Backoffice</p>
+      <p className="text-xs font-medium uppercase tracking-[0.14em] text-gold">
+        Backoffice
+      </p>
       <h1 className="mt-1 font-display text-4xl">Soporte</h1>
       <p className="mt-1 text-sm text-muted-foreground">
-        Tickets que levantan los clientes desde su panel. Responde aquí para que lo vean en su cuenta.
+        Tickets que levantan los clientes desde su panel. Responde aquí para que
+        lo vean en su cuenta.
       </p>
 
       <div className="mt-6 flex flex-wrap gap-3">
@@ -100,21 +103,33 @@ function AdminSupportList() {
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <p className="text-xs text-muted-foreground">{ticket.code}</p>
-                  <h2 className="mt-0.5 font-display text-xl">{ticket.subject}</h2>
+                  <h2 className="mt-0.5 font-display text-xl">
+                    {ticket.subject}
+                  </h2>
                   <p className="mt-1 text-sm text-muted-foreground">
                     {ticket.user?.name || "Cliente"}
-                    {ticket.user?.businessName ? ` · ${ticket.user.businessName}` : ""}
+                    {ticket.user?.businessName
+                      ? ` · ${ticket.user.businessName}`
+                      : ""}
                     {ticket.user?.email ? ` · ${ticket.user.email}` : ""}
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
-                  <Badge variant={statusTone(ticket.status)}>{STATUS_LABEL[ticket.status as TicketStatus]}</Badge>
-                  <Badge variant="outline">{CATEGORY_LABEL[ticket.category]}</Badge>
-                  <Badge variant="secondary">{PRIORITY_LABEL[ticket.priority]}</Badge>
+                  <Badge variant={statusTone(ticket.status)}>
+                    {STATUS_LABEL[ticket.status as TicketStatus]}
+                  </Badge>
+                  <Badge variant="outline">
+                    {CATEGORY_LABEL[ticket.category]}
+                  </Badge>
+                  <Badge variant="secondary">
+                    {PRIORITY_LABEL[ticket.priority]}
+                  </Badge>
                 </div>
               </div>
               {ticket.lastMessagePreview ? (
-                <p className="mt-3 line-clamp-2 text-sm text-muted-foreground">{ticket.lastMessagePreview}</p>
+                <p className="mt-3 line-clamp-2 text-sm text-muted-foreground">
+                  {ticket.lastMessagePreview}
+                </p>
               ) : null}
             </Link>
           ))

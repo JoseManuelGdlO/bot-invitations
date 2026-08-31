@@ -3,7 +3,7 @@ import { jest } from "@jest/globals";
 export function createSequelizeMock() {
   return {
     transaction: jest.fn(async (cb) => {
-      const t = { commit: jest.fn(), rollback: jest.fn() };
+      const t = { commit: jest.fn(), rollback: jest.fn(), LOCK: { UPDATE: "UPDATE" } };
       return typeof cb === "function" ? await cb(t) : t;
     }),
     fn: jest.fn((name, ...args) => ({ fn: name, args })),

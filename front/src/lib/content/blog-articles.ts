@@ -11,7 +11,8 @@ export type BlogArticle = {
 export const blogArticles: BlogArticle[] = [
   {
     slug: "como-confirmar-invitados-boda-200",
-    title: "Cómo confirmar invitados de una boda de 200 personas sin perseguir a nadie",
+    title:
+      "Cómo confirmar invitados de una boda de 200 personas sin perseguir a nadie",
     description:
       "Guía práctica para wedding planners: cómo organizar la lista, cuándo enviar el RSVP por WhatsApp y cómo cerrar una boda de 200 invitados a tiempo.",
     datePublished: "2026-08-26",
@@ -50,7 +51,8 @@ export const blogArticles: BlogArticle[] = [
   },
   {
     slug: "plantilla-lista-invitados-boda",
-    title: "Plantilla de lista de invitados para bodas: qué columnas sí importan",
+    title:
+      "Plantilla de lista de invitados para bodas: qué columnas sí importan",
     description:
       "Qué debe llevar un Excel de invitados para confirmar asistencia: responsable, teléfono, lugares, mesa y notas. Evita el archivo que nadie puede importar.",
     datePublished: "2026-08-26",
@@ -116,7 +118,8 @@ export const blogArticles: BlogArticle[] = [
   },
   {
     slug: "software-para-wedding-planners",
-    title: "Software para wedding planners: qué sí necesitas para confirmar invitados",
+    title:
+      "Software para wedding planners: qué sí necesitas para confirmar invitados",
     description:
       "Qué debe tener una herramienta para wedding planners además del timeline: lista, WhatsApp, estados de RSVP y lista final. Sin humo de ‘app para todo’.",
     datePublished: "2026-08-26",
@@ -148,7 +151,8 @@ export const blogArticles: BlogArticle[] = [
   },
   {
     slug: "dejar-de-perseguir-confirmaciones",
-    title: "Cómo dejar de perseguir confirmaciones de invitados (sin ser grosero)",
+    title:
+      "Cómo dejar de perseguir confirmaciones de invitados (sin ser grosero)",
     description:
       "Tono, timing y corte de fecha para el RSVP de una boda. Cómo un wedding planner puede hacer seguimiento por WhatsApp sin desgastar a los novios.",
     datePublished: "2026-08-26",

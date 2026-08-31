@@ -5,6 +5,7 @@ import {
   nextAllowedAt,
   randomIntervalMs,
   rememberNextGap,
+  resetOwnerThrottle,
   summarizeOwnerSends,
 } from "../../src/services/outbound.throttle.js";
 
@@ -37,6 +38,21 @@ describe("outbound.throttle", () => {
       oldestBulkAt: null,
     });
     expect(result).toEqual({ at: nextAt, reason: "gap" });
+  });
+
+  test("nextAllowedAt no aplica tope horario a replies", () => {
+    const result = nextAllowedAt({
+      now: new Date("2026-01-01T00:30:00.000Z"),
+      ownerId: "owner_hourly_reply",
+      lastSendAt: new Date("2026-01-01T00:00:00.000Z"),
+      intervalMinMs: 15000,
+      intervalMaxMs: 30000,
+      isBulk: false,
+      bulkCount: 20,
+      maxPerHour: 20,
+      oldestBulkAt: new Date("2026-01-01T00:00:00.000Z"),
+    });
+    expect(result).toEqual({ at: null, reason: null });
   });
 
   test("nextAllowedAt aplaza masivos por tope horario", () => {
@@ -130,6 +146,50 @@ describe("outbound.throttle", () => {
       oldestBulkAt: null,
     });
     expect(result).toEqual({ at: null, reason: null });
+  });
+
+  test("resetOwnerThrottle reinicia la cascada de slots", () => {
+    jest.spyOn(Math, "random").mockReturnValue(0);
+    try {
+      const now = new Date("2026-01-01T00:00:00.000Z");
+      const opts = { now, intervalMinMs: 15000, intervalMaxMs: 30000 };
+      allocateBulkSlot("owner_reset_1", opts);
+      const second = allocateBulkSlot("owner_reset_1", opts);
+      expect(second.toISOString()).toBe("2026-01-01T00:00:15.000Z");
+      resetOwnerThrottle("owner_reset_1");
+      const again = allocateBulkSlot("owner_reset_1", opts);
+      expect(again.toISOString()).toBe("2026-01-01T00:00:00.000Z");
+    } finally {
+      Math.random.mockRestore();
+    }
+  });
+
+  test("summarizeOwnerSends suma masivos de dos eventos del mismo owner", () => {
+    const hourAgo = new Date("2026-01-01T00:00:00.000Z");
+    const result = summarizeOwnerSends(
+      [
+        {
+          status: "done",
+          updatedAt: new Date("2026-01-01T00:10:00.000Z"),
+          payload: { eventId: "evt_a", kind: "campaign" },
+        },
+        {
+          status: "done",
+          updatedAt: new Date("2026-01-01T00:20:00.000Z"),
+          payload: { eventId: "evt_b", kind: "campaign" },
+        },
+        {
+          status: "done",
+          updatedAt: new Date("2026-01-01T00:25:00.000Z"),
+          payload: { eventId: "evt_other", kind: "campaign" },
+        },
+      ],
+      new Set(["evt_a", "evt_b"]),
+      hourAgo,
+    );
+    expect(result.bulkCount).toBe(2);
+    expect(result.oldestBulkAt.toISOString()).toBe("2026-01-01T00:10:00.000Z");
+    expect(result.lastSendAt.toISOString()).toBe("2026-01-01T00:20:00.000Z");
   });
 
   test("summarizeOwnerSends no cuenta failed hacia el tope horario", () => {

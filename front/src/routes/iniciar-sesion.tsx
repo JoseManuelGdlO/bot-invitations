@@ -11,9 +11,26 @@ import { toast } from "sonner";
 import { api, ApiError } from "@/lib/api/client";
 import { pageHead } from "@/lib/seo";
 
+type RegistroSearch = {
+  plan: string | undefined;
+  pago: string | undefined;
+  email: string | undefined;
+  invite: string | undefined;
+};
+
+function registroSearch(partial: Partial<RegistroSearch> = {}): RegistroSearch {
+  return {
+    plan: undefined,
+    pago: undefined,
+    email: undefined,
+    invite: undefined,
+    ...partial,
+  };
+}
+
 export const Route = createFileRoute("/iniciar-sesion")({
   validateSearch: (s: Record<string, unknown>) => ({
-    email: typeof s.email === "string" ? s.email : undefined,
+    email: typeof s["email"] === "string" ? s["email"] : undefined,
   }),
   head: () =>
     pageHead({
@@ -38,29 +55,45 @@ function Login() {
     e.preventDefault();
     const targetEmail = (email || invitedEmail || "").trim();
     if (!targetEmail && !invitedEmail) {
-      navigate({ to: "/registro" });
+      navigate({ to: "/registro", search: registroSearch() });
       return;
     }
     try {
-      const { status } = await api<{ status: "none" | "pending" | "registered" }>(
-        `/auth/invitation?email=${encodeURIComponent(targetEmail)}`,
-      );
+      const { status } = await api<{
+        status: "none" | "pending" | "registered";
+      }>(`/auth/invitation?email=${encodeURIComponent(targetEmail)}`);
       if (status === "registered") {
-        toast.message("Ya tienes cuenta. Inicia sesión con este correo para ver el evento.");
+        toast.message(
+          "Ya tienes cuenta. Inicia sesión con este correo para ver el evento.",
+        );
         return;
       }
       if (status === "pending") {
-        navigate({ to: "/registro", search: { email: targetEmail, invite: "1" } });
+        navigate({
+          to: "/registro",
+          search: registroSearch({ email: targetEmail, invite: "1" }),
+        });
         return;
       }
     } catch {
       /* si no se puede consultar, seguimos al registro normal o de invitación */
     }
     if (invitedEmail) {
-      navigate({ to: "/registro", search: { email: targetEmail || invitedEmail, invite: "1" } });
+      navigate({
+        to: "/registro",
+        search: registroSearch({
+          email: targetEmail || invitedEmail,
+          invite: "1",
+        }),
+      });
       return;
     }
-    navigate({ to: "/registro", search: targetEmail ? { email: targetEmail } : undefined });
+    navigate({
+      to: "/registro",
+      search: registroSearch(
+        targetEmail ? { email: targetEmail } : undefined,
+      ),
+    });
   };
 
   const submit = async (e: React.FormEvent) => {
@@ -70,7 +103,9 @@ function Login() {
       const user = await login(email, password, rememberMe);
       navigate({ to: user.isAdmin ? "/admin" : "/eventos" });
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "No se pudo iniciar sesión");
+      toast.error(
+        err instanceof ApiError ? err.message : "No se pudo iniciar sesión",
+      );
     } finally {
       setLoading(false);
     }
@@ -106,21 +141,45 @@ function Login() {
           <form onSubmit={submit} className="mt-8 space-y-5">
             <div className="space-y-2">
               <Label htmlFor="email">Correo</Label>
-              <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+              <Input
+                id="email"
+                type="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="password">Contraseña</Label>
-              <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+              <Input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
             </div>
             <div className="flex items-center justify-between">
               <label className="flex cursor-pointer items-center gap-2 text-sm text-muted-foreground">
-                <Checkbox checked={rememberMe} onCheckedChange={(v) => setRememberMe(!!v)} /> Recordarme
+                <Checkbox
+                  checked={rememberMe}
+                  onCheckedChange={(v) => setRememberMe(!!v)}
+                />{" "}
+                Recordarme
               </label>
-              <Link to="/recuperar-contrasena" className="text-sm text-gold underline-offset-4 hover:underline">
+              <Link
+                to="/recuperar-contrasena"
+                className="text-sm text-gold underline-offset-4 hover:underline"
+              >
                 Recuperar contraseña
               </Link>
             </div>
-            <Button type="submit" className="w-full" size="lg" disabled={loading}>
+            <Button
+              type="submit"
+              className="w-full"
+              size="lg"
+              disabled={loading}
+            >
               {loading ? <Loader2 className="size-4 animate-spin" /> : null}
               Iniciar sesión
             </Button>
@@ -128,7 +187,11 @@ function Login() {
               ¿Aún no tienes cuenta?{" "}
               <Link
                 to="/registro"
-                search={invitedEmail ? { email: invitedEmail, invite: "1" } : undefined}
+                search={registroSearch(
+                  invitedEmail
+                    ? { email: invitedEmail, invite: "1" }
+                    : undefined,
+                )}
                 onClick={goToRegister}
                 className="text-gold underline-offset-4 hover:underline"
               >
@@ -140,26 +203,31 @@ function Login() {
       </div>
 
       <aside
-        className="relative hidden overflow-hidden lg:block"
-        style={{ background: "linear-gradient(150deg, var(--rose), var(--gold-soft) 55%, var(--secondary))" }}
+        className="hidden min-h-svh flex-col justify-center gap-6 overflow-hidden p-14 lg:flex"
+        style={{
+          background:
+            "linear-gradient(150deg, var(--rose), var(--gold-soft) 55%, var(--secondary))",
+        }}
       >
-        <div className="absolute inset-0 flex flex-col justify-end gap-6 p-14">
-          <Sparkles className="size-7 text-gold" />
-          <p className="max-w-lg font-display text-4xl leading-snug text-primary">
-            “El copiloto inteligente de un Wedding Planner para confirmar invitados.”
-          </p>
-          <div className="grid max-w-lg grid-cols-3 gap-4">
-            {[
-              ["2+", "eventos por plan"],
-              ["300+", "invitados incluidos"],
-              ["MXN", "planes desde $500"],
-            ].map(([v, l]) => (
-              <div key={l} className="rounded-xl border border-border/60 bg-card/70 p-4 backdrop-blur">
-                <p className="font-display text-2xl">{v}</p>
-                <p className="text-xs text-muted-foreground">{l}</p>
-              </div>
-            ))}
-          </div>
+        <Sparkles className="size-7 text-gold" />
+        <p className="max-w-lg font-display text-4xl leading-snug text-primary">
+          “El copiloto inteligente de un Wedding Planner para confirmar
+          invitados.”
+        </p>
+        <div className="grid max-w-lg grid-cols-3 gap-4">
+          {[
+            ["2+", "eventos por plan"],
+            ["300+", "invitados incluidos"],
+            ["MXN", "planes desde $500"],
+          ].map(([v, l]) => (
+            <div
+              key={l}
+              className="rounded-xl border border-border/60 bg-card/70 p-4 backdrop-blur"
+            >
+              <p className="font-display text-2xl">{v}</p>
+              <p className="text-xs text-muted-foreground">{l}</p>
+            </div>
+          ))}
         </div>
       </aside>
     </main>

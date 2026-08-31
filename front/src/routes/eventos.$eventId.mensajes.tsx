@@ -16,9 +16,18 @@ export const Route = createFileRoute("/eventos/$eventId/mensajes")({
   head: () => ({
     meta: [
       { title: "Centro de mensajes · Alanna Confirmaciones" },
-      { name: "description", content: "Biblioteca de plantillas y respuestas frecuentes del evento." },
-      { property: "og:title", content: "Centro de mensajes · Alanna Confirmaciones" },
-      { property: "og:description", content: "Plantillas por categoría y respuestas frecuentes." },
+      {
+        name: "description",
+        content: "Biblioteca de plantillas y respuestas frecuentes del evento.",
+      },
+      {
+        property: "og:title",
+        content: "Centro de mensajes · Alanna Confirmaciones",
+      },
+      {
+        property: "og:description",
+        content: "Plantillas por categoría y respuestas frecuentes.",
+      },
       { name: "robots", content: "noindex, nofollow" },
     ],
   }),
@@ -31,9 +40,15 @@ const categories = [
     id: "Recordatorio",
     hint: "Recordatorio automático. El envío masivo está desactivado; el texto queda listo por si se reactiva.",
   },
-  { id: "Confirmación", hint: "Cierre cuando el invitado confirma asistencia." },
+  {
+    id: "Confirmación",
+    hint: "Cierre cuando el invitado confirma asistencia.",
+  },
   { id: "Rechazo", hint: "Cierre cuando el invitado no podrá asistir." },
-  { id: "Seguimiento", hint: "Recontacto a indecisos, 3 días después." },
+  {
+    id: "Seguimiento",
+    hint: "Recontacto a indecisos, según las reglas de seguimiento.",
+  },
 ] as const;
 
 function TemplateCategory({
@@ -89,16 +104,25 @@ function TemplateCategory({
               onSave={(body) => {
                 setTemplates(
                   eventId,
-                  templates.map((x) => (x.id === template.id ? { ...x, body } : x)),
+                  templates.map((x) =>
+                    x.id === template.id ? { ...x, body } : x,
+                  ),
                 );
                 toast.success("Plantilla guardada");
               }}
             />
           </div>
-          <TemplatePreview body={draft} guests={guests} event={event} plannerName={plannerName} />
+          <TemplatePreview
+            body={draft}
+            guests={guests}
+            event={event}
+            plannerName={plannerName}
+          />
         </div>
       ) : (
-        <p className="mt-3 text-sm text-muted-foreground">No hay plantilla para esta categoría.</p>
+        <p className="mt-3 text-sm text-muted-foreground">
+          No hay plantilla para esta categoría.
+        </p>
       )}
     </section>
   );
@@ -141,11 +165,19 @@ function Mensajes() {
           <div className="grid gap-6 lg:grid-cols-[1.4fr_1fr]">
             <div className="space-y-3">
               {data.faqs.map((f) => (
-                <div key={f.id} className="rounded-2xl border border-border bg-card p-5 shadow-soft">
+                <div
+                  key={f.id}
+                  className="rounded-2xl border border-border bg-card p-5 shadow-soft"
+                >
                   <p className="font-medium">{f.q}</p>
                   <p className="mt-1 text-sm text-muted-foreground">{f.a}</p>
                   <button
-                    onClick={() => setFaqs(eventId, data.faqs.filter((x) => x.id !== f.id))}
+                    onClick={() =>
+                      setFaqs(
+                        eventId,
+                        data.faqs.filter((x) => x.id !== f.id),
+                      )
+                    }
                     className="mt-3 text-xs text-muted-foreground underline-offset-4 hover:text-destructive hover:underline"
                   >
                     Eliminar
@@ -158,17 +190,28 @@ function Mensajes() {
               <div className="mt-4 space-y-3">
                 <div className="space-y-2">
                   <Label>Pregunta</Label>
-                  <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="¿Hay estacionamiento?" />
+                  <Input
+                    value={q}
+                    onChange={(e) => setQ(e.target.value)}
+                    placeholder="¿Hay estacionamiento?"
+                  />
                 </div>
                 <div className="space-y-2">
                   <Label>Respuesta</Label>
-                  <Textarea value={a} onChange={(e) => setA(e.target.value)} rows={3} />
+                  <Textarea
+                    value={a}
+                    onChange={(e) => setA(e.target.value)}
+                    rows={3}
+                  />
                 </div>
                 <Button
                   className="w-full"
                   onClick={() => {
                     if (!q.trim()) return;
-                    setFaqs(eventId, [...data.faqs, { id: `q-${Date.now()}`, q, a }]);
+                    setFaqs(eventId, [
+                      ...data.faqs,
+                      { id: `q-${Date.now()}`, q, a },
+                    ]);
                     setQ("");
                     setA("");
                     toast.success("Respuesta agregada");

@@ -1,7 +1,17 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { Download, MessageSquare, Search, Send, SlidersHorizontal, Trash2 } from "lucide-react";
+import {
+  Download,
+  MessageSquare,
+  Plus,
+  Search,
+  Send,
+  SlidersHorizontal,
+  Trash2,
+} from "lucide-react";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/status-badge";
 import {
@@ -19,7 +29,19 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import {
+  Sheet,
+  SheetContent,
+  SheetHeader,
+  SheetTitle,
+} from "@/components/ui/sheet";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -38,13 +60,39 @@ import { PlanLimitBanner } from "@/components/plan-limit";
 import { PERMS } from "@/lib/permissions";
 import { ApiError } from "@/lib/api/client";
 
+const TAG_OPTIONS = [
+  "Sin etiqueta",
+  "VIP",
+  "Hospedaje",
+  "Foráneo",
+  "Mesa principal",
+] as const;
+
+const EMPTY_GUEST_FORM = {
+  rep: "",
+  phone: "",
+  invited: "1",
+  table: "",
+  family: "",
+  guestType: "",
+  tag: "Sin etiqueta" as string,
+  notes: "",
+};
+
 export const Route = createFileRoute("/eventos/$eventId/invitados")({
   head: () => ({
     meta: [
       { title: "Invitados · Alanna Confirmaciones" },
-      { name: "description", content: "Tabla CRM con todas las invitaciones y su estado de confirmación." },
+      {
+        name: "description",
+        content:
+          "Tabla CRM con todas las invitaciones y su estado de confirmación.",
+      },
       { property: "og:title", content: "Invitados · Alanna Confirmaciones" },
-      { property: "og:description", content: "Todas las invitaciones y su estado de confirmación." },
+      {
+        property: "og:description",
+        content: "Todas las invitaciones y su estado de confirmación.",
+      },
       { name: "robots", content: "noindex, nofollow" },
     ],
   }),
@@ -54,7 +102,15 @@ export const Route = createFileRoute("/eventos/$eventId/invitados")({
 function Invitados() {
   const { eventId } = Route.useParams();
   const { guests } = useEvent(eventId);
-  const { updateGuest, remindGuest, exportGuests, session, hasPerm, deleteGuest } = useStore();
+  const {
+    updateGuest,
+    createGuest,
+    remindGuest,
+    exportGuests,
+    session,
+    hasPerm,
+    deleteGuest,
+  } = useStore();
   const canExport = hasPerm(eventId, PERMS.EXPORT);
   const canConfirm = hasPerm(eventId, PERMS.CONFIRM);
   const canEditGuest = hasPerm(eventId, PERMS.EDIT_ALL);
@@ -65,6 +121,9 @@ function Invitados() {
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [guestToDelete, setGuestToDelete] = useState<Guest | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [addOpen, setAddOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [form, setForm] = useState(EMPTY_GUEST_FORM);
   const selected = guests.find((g) => g.id === selectedId) ?? null;
 
   const rows = useMemo(
@@ -72,7 +131,8 @@ function Invitados() {
       guests.filter(
         (g) =>
           (status === "todos" || g.status === status) &&
-          (g.rep.toLowerCase().includes(q.toLowerCase()) || g.phone.includes(q)),
+          (g.rep.toLowerCase().includes(q.toLowerCase()) ||
+            g.phone.includes(q)),
       ),
     [guests, q, status],
   );
@@ -97,29 +157,200 @@ function Invitados() {
           <SelectContent>
             <SelectItem value="todos">Todos los estados</SelectItem>
             {Object.entries(STATUS_META).map(([k, v]) => (
-              <SelectItem key={k} value={k}>{v.label}</SelectItem>
+              <SelectItem key={k} value={k}>
+                {v.label}
+              </SelectItem>
             ))}
           </SelectContent>
         </Select>
         {canExport ? (
-        <Button
-          variant="outline"
-          onClick={async () => {
-            try {
-              await exportGuests(eventId, "xlsx");
-              toast.success("Exportación generada");
-            } catch {
-              toast.error("No se pudo exportar");
-            }
-          }}
-        >
-          <Download className="size-4" /> Exportar
-        </Button>
+          <Button
+            variant="outline"
+            onClick={async () => {
+              try {
+                await exportGuests(eventId, "xlsx");
+                toast.success("Exportación generada");
+              } catch {
+                toast.error("No se pudo exportar");
+              }
+            }}
+          >
+            <Download className="size-4" /> Exportar
+          </Button>
+        ) : null}
+        {canEditGuest ? (
+          <Dialog
+            open={addOpen}
+            onOpenChange={(next) => {
+              if (!saving) {
+                setAddOpen(next);
+                if (!next) setForm(EMPTY_GUEST_FORM);
+              }
+            }}
+          >
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="size-4" /> Agregar invitado
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Agregar invitado</DialogTitle>
+              </DialogHeader>
+              <form
+                className="space-y-3"
+                onSubmit={async (e) => {
+                  e.preventDefault();
+                  const rep = form.rep.trim();
+                  const phone = form.phone.trim();
+                  if (!rep || !phone) {
+                    toast.error("Nombre y teléfono son requeridos");
+                    return;
+                  }
+                  const invited = Number(form.invited) || 1;
+                  setSaving(true);
+                  try {
+                    await createGuest(eventId, {
+                      rep,
+                      phone,
+                      invited,
+                      table: form.table.trim(),
+                      family: form.family.trim(),
+                      guestType: form.guestType.trim(),
+                      tag: form.tag.trim(),
+                      notes: form.notes.trim(),
+                    });
+                    toast.success("Invitado agregado");
+                    setForm(EMPTY_GUEST_FORM);
+                    setAddOpen(false);
+                  } catch (err) {
+                    toast.error(
+                      err instanceof ApiError
+                        ? err.message
+                        : "No se pudo agregar al invitado",
+                    );
+                  } finally {
+                    setSaving(false);
+                  }
+                }}
+              >
+                <div className="space-y-2">
+                  <Label htmlFor="guest-rep">Nombre</Label>
+                  <Input
+                    id="guest-rep"
+                    value={form.rep}
+                    disabled={saving}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, rep: e.target.value }))
+                    }
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="guest-phone">Teléfono</Label>
+                  <Input
+                    id="guest-phone"
+                    value={form.phone}
+                    disabled={saving}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, phone: e.target.value }))
+                    }
+                    required
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="guest-invited">Invitados</Label>
+                  <Input
+                    id="guest-invited"
+                    type="number"
+                    min={1}
+                    value={form.invited}
+                    disabled={saving}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, invited: e.target.value }))
+                    }
+                  />
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="guest-table">Mesa</Label>
+                    <Input
+                      id="guest-table"
+                      value={form.table}
+                      disabled={saving}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, table: e.target.value }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="guest-family">Familia</Label>
+                    <Input
+                      id="guest-family"
+                      value={form.family}
+                      disabled={saving}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, family: e.target.value }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="guest-type">Tipo</Label>
+                    <Input
+                      id="guest-type"
+                      value={form.guestType}
+                      disabled={saving}
+                      onChange={(e) =>
+                        setForm((f) => ({ ...f, guestType: e.target.value }))
+                      }
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Etiqueta</Label>
+                    <Select
+                      value={form.tag}
+                      disabled={saving}
+                      onValueChange={(value) =>
+                        setForm((f) => ({ ...f, tag: value }))
+                      }
+                    >
+                      <SelectTrigger className="w-full">
+                        <SelectValue placeholder="Etiqueta" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {TAG_OPTIONS.map((tag) => (
+                          <SelectItem key={tag} value={tag}>
+                            {tag}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="guest-notes">Notas</Label>
+                  <Textarea
+                    id="guest-notes"
+                    rows={3}
+                    value={form.notes}
+                    disabled={saving}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, notes: e.target.value }))
+                    }
+                  />
+                </div>
+                <Button type="submit" className="w-full" disabled={saving}>
+                  {saving ? "Guardando…" : "Guardar"}
+                </Button>
+              </form>
+            </DialogContent>
+          </Dialog>
         ) : null}
       </div>
 
       <p className="mt-3 text-xs text-muted-foreground">
-        {rows.length} invitaciones · {rows.reduce((a, g) => a + g.invited, 0)} personas totales
+        {rows.length} invitaciones · {rows.reduce((a, g) => a + g.invited, 0)}{" "}
+        personas totales
       </p>
       <div className="mt-4">
         <PlanLimitBanner session={session} kind="guest" />
@@ -131,14 +362,26 @@ function Invitados() {
             <TableRow className="hover:bg-transparent">
               <TableHead className="whitespace-nowrap">Representante</TableHead>
               <TableHead className="whitespace-nowrap">Teléfono</TableHead>
-              <TableHead className="whitespace-nowrap text-center">Invitados</TableHead>
-              <TableHead className="whitespace-nowrap text-center">Confirmados</TableHead>
-              <TableHead className="whitespace-nowrap">Estado WhatsApp</TableHead>
-              <TableHead className="whitespace-nowrap">Último mensaje</TableHead>
-              <TableHead className="max-w-56 whitespace-nowrap">Última respuesta</TableHead>
+              <TableHead className="whitespace-nowrap text-center">
+                Invitados
+              </TableHead>
+              <TableHead className="whitespace-nowrap text-center">
+                Confirmados
+              </TableHead>
+              <TableHead className="whitespace-nowrap">
+                Estado WhatsApp
+              </TableHead>
+              <TableHead className="whitespace-nowrap">
+                Último mensaje
+              </TableHead>
+              <TableHead className="max-w-56 whitespace-nowrap">
+                Última respuesta
+              </TableHead>
               <TableHead className="whitespace-nowrap">Confirmación</TableHead>
               <TableHead className="whitespace-nowrap">Seguimiento</TableHead>
-              <TableHead className="whitespace-nowrap text-center">Acciones</TableHead>
+              <TableHead className="whitespace-nowrap text-center">
+                Acciones
+              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
@@ -151,22 +394,44 @@ function Invitados() {
                 <TableCell className="whitespace-nowrap">
                   <div className="flex items-center gap-2.5">
                     <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-gold-soft text-[11px] font-semibold text-gold-foreground">
-                      {g.rep.split(" ").map((p) => p[0]).join("").slice(0, 2)}
+                      {g.rep
+                        .split(" ")
+                        .map((p) => p[0])
+                        .join("")
+                        .slice(0, 2)}
                     </span>
                     <div>
                       <p className="font-medium leading-tight">{g.rep}</p>
-                      <p className="text-[11px] text-muted-foreground">{g.guestType} · {g.table}</p>
+                      <p className="text-[11px] text-muted-foreground">
+                        {g.guestType} · {g.table}
+                      </p>
                     </div>
                   </div>
                 </TableCell>
-                <TableCell className="whitespace-nowrap text-muted-foreground">{g.phone}</TableCell>
-                <TableCell className="text-center font-medium">{g.invited}</TableCell>
-                <TableCell className="text-center font-medium text-success">{g.confirmed}</TableCell>
-                <TableCell className="text-muted-foreground">{WHATSAPP_LABEL[g.whatsapp]}</TableCell>
-                <TableCell className="whitespace-nowrap text-muted-foreground">{g.lastMessage || "—"}</TableCell>
-                <TableCell className="max-w-56 truncate text-muted-foreground">{g.lastReply || "—"}</TableCell>
-                <TableCell><StatusBadge status={g.status} /></TableCell>
-                <TableCell className="whitespace-nowrap text-muted-foreground">{g.followUp || "—"}</TableCell>
+                <TableCell className="whitespace-nowrap text-muted-foreground">
+                  {g.phone}
+                </TableCell>
+                <TableCell className="text-center font-medium">
+                  {g.invited}
+                </TableCell>
+                <TableCell className="text-center font-medium text-success">
+                  {g.confirmed}
+                </TableCell>
+                <TableCell className="text-muted-foreground">
+                  {WHATSAPP_LABEL[g.whatsapp]}
+                </TableCell>
+                <TableCell className="whitespace-nowrap text-muted-foreground">
+                  {g.lastMessage || "—"}
+                </TableCell>
+                <TableCell className="max-w-56 truncate text-muted-foreground">
+                  {g.lastReply || "—"}
+                </TableCell>
+                <TableCell>
+                  <StatusBadge status={g.status} />
+                </TableCell>
+                <TableCell className="whitespace-nowrap text-muted-foreground">
+                  {g.followUp || "—"}
+                </TableCell>
                 <TableCell className="text-center">
                   <div className="flex items-center justify-center gap-1">
                     {canRemind ? (
@@ -210,7 +475,9 @@ function Invitados() {
           {selected ? (
             <>
               <SheetHeader>
-                <SheetTitle className="font-display text-2xl">{selected.rep}</SheetTitle>
+                <SheetTitle className="font-display text-2xl">
+                  {selected.rep}
+                </SheetTitle>
               </SheetHeader>
               <div className="space-y-4 px-4 pb-6 text-sm">
                 <StatusBadge status={selected.status} />
@@ -222,34 +489,81 @@ function Invitados() {
                     ["table", "Mesa"],
                     ["family", "Familia"],
                     ["guestType", "Tipo de invitado"],
-                    ["tag", "Etiqueta"],
-                    ["followUp", "Seguimiento"],
-                    ["notes", "Notas"],
                   ] as const
                 ).map(([key, label]) => (
-                  <div key={key} className="flex items-center justify-between gap-6 border-b border-border/60 pb-2">
+                  <div
+                    key={key}
+                    className="flex items-center justify-between gap-6 border-b border-border/60 pb-2"
+                  >
                     <span className="text-muted-foreground">{label}</span>
                     <Input
                       className="h-8 max-w-48 text-right"
-                      type={key === "invited" || key === "confirmed" ? "number" : "text"}
+                      type={
+                        key === "invited" || key === "confirmed"
+                          ? "number"
+                          : "text"
+                      }
                       value={String(selected[key] ?? "")}
-                      disabled={!canEditGuest && !(canConfirm && (key === "confirmed"))}
+                      disabled={
+                        !canEditGuest && !(canConfirm && key === "confirmed")
+                      }
                       onChange={(e) =>
                         updateGuest(selected.id, {
                           [key]:
-                            key === "invited" || key === "confirmed" ? Number(e.target.value) || 0 : e.target.value,
+                            key === "invited" || key === "confirmed"
+                              ? Number(e.target.value) || 0
+                              : e.target.value,
                         })
                       }
                     />
                   </div>
                 ))}
-                {selected.lastReply ? (
+                <div className="flex items-center justify-between gap-6 border-b border-border/60 pb-2">
+                  <span className="text-muted-foreground">Etiqueta</span>
+                  <Select
+                    value={
+                      TAG_OPTIONS.includes(
+                        selected.tag as (typeof TAG_OPTIONS)[number],
+                      )
+                        ? selected.tag
+                        : "Sin etiqueta"
+                    }
+                    disabled={!canEditGuest}
+                    onValueChange={(value) =>
+                      updateGuest(selected.id, { tag: value })
+                    }
+                  >
+                    <SelectTrigger className="h-8 max-w-48">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {TAG_OPTIONS.map((tag) => (
+                        <SelectItem key={tag} value={tag}>
+                          {tag}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2 border-b border-border/60 pb-2">
+                  <span className="text-muted-foreground">Notas</span>
+                  <Textarea
+                    rows={3}
+                    value={selected.notes ?? ""}
+                    disabled={!canEditGuest}
+                    onChange={(e) =>
+                      updateGuest(selected.id, { notes: e.target.value })
+                    }
+                  />
+                </div>                {selected.lastReply ? (
                   <div className="rounded-xl bg-secondary/60 p-3">
-                    <p className="text-xs text-muted-foreground">Última respuesta</p>
+                    <p className="text-xs text-muted-foreground">
+                      Última respuesta
+                    </p>
                     <p className="mt-1">“{selected.lastReply}”</p>
                   </div>
                 ) : null}
-                <div className="flex gap-2 pt-2">
+                <div className="flex flex-wrap gap-2 pt-2">
                   {canConfirm ? (
                     <Button
                       className="flex-1"
@@ -279,6 +593,15 @@ function Invitados() {
                   >
                     <MessageSquare className="size-4" /> Conversación
                   </Button>
+                  {canEditGuest ? (
+                    <Button
+                      variant="outline"
+                      className="w-full text-destructive hover:bg-destructive/10 hover:text-destructive"
+                      onClick={() => setGuestToDelete(selected)}
+                    >
+                      <Trash2 className="size-4" /> Eliminar
+                    </Button>
+                  ) : null}
                 </div>
               </div>
             </>
@@ -286,12 +609,18 @@ function Invitados() {
         </SheetContent>
       </Sheet>
 
-      <AlertDialog open={!!guestToDelete} onOpenChange={(open) => !open && !deleting && setGuestToDelete(null)}>
+      <AlertDialog
+        open={!!guestToDelete}
+        onOpenChange={(open) => !open && !deleting && setGuestToDelete(null)}
+      >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>¿Eliminar a {guestToDelete?.rep}?</AlertDialogTitle>
+            <AlertDialogTitle>
+              ¿Eliminar a {guestToDelete?.rep}?
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              Se quitará de la lista de invitados y se borrará su conversación. Esta acción no se puede deshacer.
+              Se quitará de la lista de invitados y se borrará su conversación.
+              Esta acción no se puede deshacer.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -309,7 +638,11 @@ function Invitados() {
                   toast.success("Invitación eliminada");
                   setGuestToDelete(null);
                 } catch (err) {
-                  toast.error(err instanceof ApiError ? err.message : "No se pudo eliminar al invitado");
+                  toast.error(
+                    err instanceof ApiError
+                      ? err.message
+                      : "No se pudo eliminar al invitado",
+                  );
                 } finally {
                   setDeleting(false);
                 }

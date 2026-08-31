@@ -2,7 +2,11 @@ import { Link } from "@tanstack/react-router";
 import { useState } from "react";
 import { Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import type { PlanUsage, SessionUser, SubscriptionPlan } from "@/lib/mock/types";
+import type {
+  PlanUsage,
+  SessionUser,
+  SubscriptionPlan,
+} from "@/lib/mock/types";
 import { ApiError, api } from "@/lib/api/client";
 import { useStore } from "@/lib/mock/store";
 import { toast } from "sonner";
@@ -16,7 +20,10 @@ export function isUpgradeError(err: unknown) {
 }
 
 async function checkoutPlan(
-  startCheckout: (planId: string, interval?: "month" | "year") => Promise<{ checkoutUrl?: string | null; updated?: boolean }>,
+  startCheckout: (
+    planId: string,
+    interval?: "month" | "year",
+  ) => Promise<{ checkoutUrl?: string | null; updated?: boolean }>,
   planId: string,
   interval: "month" | "year" = "month",
 ) {
@@ -61,9 +68,15 @@ export function PlanLimitBanner({
         toast.error("No hay un plan superior disponible");
         return;
       }
-      await checkoutPlan(startCheckout, next.id, session.billingInterval === "year" ? "year" : "month");
+      await checkoutPlan(
+        startCheckout,
+        next.id,
+        session.billingInterval === "year" ? "year" : "month",
+      );
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "No se pudo abrir el pago");
+      toast.error(
+        err instanceof ApiError ? err.message : "No se pudo abrir el pago",
+      );
     } finally {
       setLoading(false);
     }
@@ -98,15 +111,24 @@ export function PlanLimitBanner({
 
 function periodLabel(value?: string | null) {
   if (!value) return null;
-  return new Date(value).toLocaleDateString("es-MX", { day: "numeric", month: "long", year: "numeric" });
+  return new Date(value).toLocaleDateString("es-MX", {
+    day: "numeric",
+    month: "long",
+    year: "numeric",
+  });
 }
 
-export function PendingPaymentBanner({ session }: { session: SessionUser | null }) {
+export function PendingPaymentBanner({
+  session,
+}: {
+  session: SessionUser | null;
+}) {
   const { startCheckout } = useStore();
   const [loading, setLoading] = useState(false);
   if (!session || session.isAdmin) return null;
 
-  const ending = session.subscriptionStatus === "active" && session.cancelAtPeriodEnd;
+  const ending =
+    session.subscriptionStatus === "active" && session.cancelAtPeriodEnd;
   const expired = session.subscriptionStatus !== "active";
   if (!ending && !expired) return null;
   const until = periodLabel(session.currentPeriodEnd);
@@ -118,9 +140,15 @@ export function PendingPaymentBanner({ session }: { session: SessionUser | null 
     }
     setLoading(true);
     try {
-      await checkoutPlan(startCheckout, session.plan.id, session.billingInterval === "year" ? "year" : "month");
+      await checkoutPlan(
+        startCheckout,
+        session.plan.id,
+        session.billingInterval === "year" ? "year" : "month",
+      );
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "No se pudo abrir el pago");
+      toast.error(
+        err instanceof ApiError ? err.message : "No se pudo abrir el pago",
+      );
     } finally {
       setLoading(false);
     }
@@ -158,8 +186,10 @@ export function PlanUsageHint({ session }: { session: SessionUser | null }) {
   if (!session?.plan || !usage || session.isAdmin) return null;
   return (
     <p className="truncate text-[11px] text-muted-foreground">
-      {usage.eventCount}/{usage.eventLimit} eventos · {usage.guestCount.toLocaleString("es-MX")}/
-      {usage.guestLimit.toLocaleString("es-MX")} invitados · {session.billingInterval === "year" ? "anual" : "mensual"}
+      {usage.eventCount}/{usage.eventLimit} eventos ·{" "}
+      {usage.guestCount.toLocaleString("es-MX")}/
+      {usage.guestLimit.toLocaleString("es-MX")} invitados ·{" "}
+      {session.billingInterval === "year" ? "anual" : "mensual"}
     </p>
   );
 }

@@ -35,7 +35,13 @@ export function HelpBot() {
   useEffect(() => {
     api<{ suggestions: string[] }>("/help/suggestions")
       .then((res) => setChips(res.suggestions ?? []))
-      .catch(() => setChips(["¿Cómo creo un evento?", "¿Cómo importo mi Excel?", "¿Cómo envío las invitaciones?"]));
+      .catch(() =>
+        setChips([
+          "¿Cómo creo un evento?",
+          "¿Cómo importo mi Excel?",
+          "¿Cómo envío las invitaciones?",
+        ]),
+      );
   }, []);
 
   useEffect(() => {
@@ -46,7 +52,10 @@ export function HelpBot() {
     const message = text.trim();
     if (!message || busy) return;
     setInput("");
-    setLines((current) => [...current, { id: `me-${Date.now()}`, from: "me", text: message }]);
+    setLines((current) => [
+      ...current,
+      { id: `me-${Date.now()}`, from: "me", text: message },
+    ]);
     setBusy(true);
     try {
       const res = await api<HelpReply>("/help/chat", {
@@ -55,7 +64,12 @@ export function HelpBot() {
       });
       setLines((current) => [
         ...current,
-        { id: `bot-${Date.now()}`, from: "bot", text: res.reply, href: res.href },
+        {
+          id: `bot-${Date.now()}`,
+          from: "bot",
+          text: res.reply,
+          href: res.href,
+        },
       ]);
       if (res.suggestions?.length) setChips(res.suggestions);
     } catch {
@@ -83,7 +97,9 @@ export function HelpBot() {
             </span>
             <div className="min-w-0 flex-1">
               <p className="text-sm font-medium">Asistente Alanna</p>
-              <p className="text-[11px] text-muted-foreground">Te digo cómo hacer las cosas aquí</p>
+              <p className="text-[11px] text-muted-foreground">
+                Te digo cómo hacer las cosas aquí
+              </p>
             </div>
             <button
               type="button"
@@ -97,16 +113,27 @@ export function HelpBot() {
 
           <div className="min-h-0 flex-1 space-y-3 overflow-y-auto p-4">
             {lines.map((line) => (
-              <div key={line.id} className={cn("flex", line.from === "me" ? "justify-end" : "justify-start")}>
+              <div
+                key={line.id}
+                className={cn(
+                  "flex",
+                  line.from === "me" ? "justify-end" : "justify-start",
+                )}
+              >
                 <div
                   className={cn(
                     "max-w-[90%] whitespace-pre-wrap rounded-2xl px-3 py-2 text-sm",
-                    line.from === "me" ? "bg-gold-soft text-gold-foreground" : "bg-secondary",
+                    line.from === "me"
+                      ? "bg-gold-soft text-gold-foreground"
+                      : "bg-secondary",
                   )}
                 >
                   {line.text}
                   {line.from === "bot" && line.href ? (
-                    <a href={line.href} className="mt-2 block text-xs font-medium text-gold hover:underline">
+                    <a
+                      href={line.href}
+                      className="mt-2 block text-xs font-medium text-gold hover:underline"
+                    >
                       Ir a esa pantalla
                     </a>
                   ) : null}
@@ -115,7 +142,8 @@ export function HelpBot() {
             ))}
             {busy ? (
               <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                <Loader2 className="size-3.5 animate-spin text-gold" /> Escribiendo…
+                <Loader2 className="size-3.5 animate-spin text-gold" />{" "}
+                Escribiendo…
               </div>
             ) : null}
             <div ref={endRef} />

@@ -1,16 +1,30 @@
 import { jest } from "@jest/globals";
-import { callHandler, createMockReq, loadWithMocks, fakeEvent, fakeGuest, PERMS } from "../helpers/controller.js";
+import { callHandler, createMockReq, loadWithMocks, fakeEvent, PERMS } from "../helpers/controller.js";
 import { createInstance } from "../helpers/models.js";
 
 describe("conversations.controller", () => {
   let controller;
   let models;
-  let deliverAiMessage;
-  let assertWhatsappReady;
+  let planCampaign;
+  let getEventCampaignSnapshot;
 
   beforeEach(async () => {
-    deliverAiMessage = jest.fn(async () => undefined);
-    assertWhatsappReady = jest.fn(async () => undefined);
+    planCampaign = jest.fn(async () => ({
+      status: "scheduled",
+      scheduledAt: "2026-08-28",
+      launchedAt: null,
+      total: 0,
+      processed: 0,
+      percent: 0,
+    }));
+    getEventCampaignSnapshot = jest.fn(async () => ({
+      status: "idle",
+      scheduledAt: null,
+      launchedAt: null,
+      total: 0,
+      processed: 0,
+      percent: 0,
+    }));
     ({ mod: controller, models } = await loadWithMocks("src/controllers/conversations.controller.js", {
       extraMocks: {
         "src/services/access.service.js": () => ({
@@ -20,10 +34,8 @@ describe("conversations.controller", () => {
           PERMS,
         }),
         "src/services/outbound.worker.js": () => ({ enqueueJob: jest.fn(async () => undefined) }),
-        "src/services/activity.service.js": () => ({ logActivity: jest.fn(async () => undefined) }),
         "src/services/plans.service.js": () => ({ assertCanSendInvitations: jest.fn() }),
-        "src/services/guest-message.service.js": () => ({ deliverAiMessage }),
-        "src/services/integration-resolver.service.js": () => ({ assertWhatsappReady }),
+        "src/services/campaign.service.js": () => ({ planCampaign, getEventCampaignSnapshot }),
       },
     }));
   });
@@ -55,58 +67,43 @@ describe("conversations.controller", () => {
     expect(res.status).toHaveBeenCalledWith(400);
   });
 
-  test("launchCampaign envía a sin_contactar", async () => {
-    const guest = fakeGuest();
-    models.AiConfig.findOne.mockResolvedValue({ openingMessage: "Hola {{nombre}}", assistantName: "Sofía" });
-    models.Guest.findAll.mockResolvedValueOnce([guest]).mockResolvedValueOnce([guest]);
-    models.Conversation.findOne.mockResolvedValue(null);
-    models.Conversation.create.mockResolvedValue(createInstance({ id: "c1" }));
-    models.Message.create.mockResolvedValue({});
+  test("launchCampaign planifica now", async () => {
     const { res } = await callHandler(controller.launchCampaign, {
-      req: createMockReq({ params: { eventId: "boda-ana" } }),
+      req: createMockReq({ params: { eventId: "boda-ana" }, body: { mode: "now" } }),
     });
-    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ launched: 1 }));
+    expect(planCampaign).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "evt_1" }),
+      { mode: "now" },
+    );
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ status: "scheduled" }));
   });
 
-  test("launchCampaign usa la plantilla Primer contacto", async () => {
-    const guest = fakeGuest({ rep: "María López" });
-    models.Template.findOne.mockResolvedValue({
-      category: "Primer contacto",
-      body: "Hola {{nombre}}, ¿podrán acompañarnos a {{evento}}?",
+  test("launchCampaign 409 si ya está en curso", async () => {
+    const err = Object.assign(new Error("La campaña ya está en curso."), { status: 409 });
+    err.campaign = { status: "running", total: 4, processed: 1, percent: 25, scheduledAt: null, launchedAt: null };
+    planCampaign.mockRejectedValue(err);
+    const { res } = await callHandler(controller.launchCampaign, {
+      req: createMockReq({ params: { eventId: "boda-ana" }, body: { mode: "now" } }),
     });
-    models.AiConfig.findOne.mockResolvedValue({ openingMessage: "fallback {{nombre}}", assistantName: "Sofía" });
-    models.Guest.findAll.mockResolvedValueOnce([guest]).mockResolvedValueOnce([guest]);
-    await callHandler(controller.launchCampaign, {
-      req: createMockReq({ params: { eventId: "boda-ana" } }),
-    });
-    expect(deliverAiMessage).toHaveBeenCalledWith(
-      expect.objectContaining({
-        kind: "campaign",
-        text: "Hola María, ¿podrán acompañarnos a Boda Ana?",
-      }),
+    expect(res.status).toHaveBeenCalledWith(409);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ campaign: expect.objectContaining({ status: "running" }) }),
     );
   });
 
-  test("segundo launchCampaign no reenvía a quienes ya salieron de sin_contactar", async () => {
-    const guest = fakeGuest({ status: "enviado" });
-    models.AiConfig.findOne.mockResolvedValue({ openingMessage: "Hola {{nombre}}", assistantName: "Sofía" });
-    models.Guest.findAll
-      .mockResolvedValueOnce([fakeGuest()])
-      .mockResolvedValueOnce([guest])
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([guest]);
-
-    const first = await callHandler(controller.launchCampaign, {
+  test("getCurrentCampaign devuelve snapshot", async () => {
+    getEventCampaignSnapshot.mockResolvedValue({
+      status: "running",
+      scheduledAt: "2026-08-28",
+      launchedAt: null,
+      total: 10,
+      processed: 4,
+      percent: 40,
+    });
+    const { res } = await callHandler(controller.getCurrentCampaign, {
       req: createMockReq({ params: { eventId: "boda-ana" } }),
     });
-    const second = await callHandler(controller.launchCampaign, {
-      req: createMockReq({ params: { eventId: "boda-ana" } }),
-    });
-
-    expect(first.res.json).toHaveBeenCalledWith(expect.objectContaining({ launched: 1 }));
-    expect(second.res.json).toHaveBeenCalledWith(expect.objectContaining({ launched: 0 }));
-    expect(deliverAiMessage).toHaveBeenCalledTimes(1);
-    expect(assertWhatsappReady).toHaveBeenCalledTimes(1);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ status: "running", percent: 40 }));
   });
 });
 

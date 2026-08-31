@@ -1,5 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { Download, FileSpreadsheet, FileText, Sheet as SheetIcon } from "lucide-react";
+import {
+  Download,
+  FileSpreadsheet,
+  FileText,
+  Sheet as SheetIcon,
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/status-badge";
 import { statsFor, useEvent, useStore } from "@/lib/mock/store";
@@ -10,9 +15,16 @@ export const Route = createFileRoute("/eventos/$eventId/lista-final")({
   head: () => ({
     meta: [
       { title: "Lista final de invitados · Alanna" },
-      { name: "description", content: "Resumen final de confirmaciones y exportación de la lista del evento." },
+      {
+        name: "description",
+        content:
+          "Resumen final de confirmaciones y exportación de la lista del evento.",
+      },
       { property: "og:title", content: "Lista final de invitados · Alanna" },
-      { property: "og:description", content: "Resumen final de confirmaciones del evento." },
+      {
+        property: "og:description",
+        content: "Resumen final de confirmaciones del evento.",
+      },
       { name: "robots", content: "noindex, nofollow" },
     ],
   }),
@@ -37,7 +49,9 @@ function ListaFinal() {
   return (
     <main className="mx-auto w-full max-w-5xl flex-1 px-5 py-8 md:px-8">
       <div className="rounded-2xl border border-border bg-card p-8 text-center shadow-soft">
-        <p className="text-xs font-medium uppercase tracking-[0.14em] text-gold">Lista final de invitados</p>
+        <p className="text-xs font-medium uppercase tracking-[0.14em] text-gold">
+          Lista final de invitados
+        </p>
         <h1 className="mt-2 font-display text-4xl">{event?.name}</h1>
         <p className="mt-1 text-sm text-muted-foreground">
           {event ? `${formatDate(event.date)} · ${event.venue}` : null}
@@ -50,7 +64,10 @@ function ListaFinal() {
             ["No asistirán", s.rejectedPeople, "text-rose-foreground"],
             ["Pendientes", s.pending + s.noReply, "text-warning"],
           ].map(([label, value, tone]) => (
-            <div key={String(label)} className="rounded-xl border border-border p-5">
+            <div
+              key={String(label)}
+              className="rounded-xl border border-border p-5"
+            >
               <p className={`font-display text-3xl ${tone}`}>{value}</p>
               <p className="mt-1 text-xs text-muted-foreground">{label}</p>
             </div>
@@ -76,7 +93,9 @@ function ListaFinal() {
       <section className="mt-8 overflow-hidden rounded-2xl border border-border bg-card shadow-soft">
         <div className="border-b border-border px-6 py-4">
           <h2 className="font-display text-2xl">Invitados que asistirán</h2>
-          <p className="text-xs text-muted-foreground">{confirmed.length} invitaciones con al menos un asistente</p>
+          <p className="text-xs text-muted-foreground">
+            {confirmed.length} invitaciones con al menos un asistente
+          </p>
         </div>
         <ul className="divide-y divide-border">
           {confirmed.map((g) => (
@@ -86,7 +105,9 @@ function ListaFinal() {
               </span>
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium">{g.rep}</p>
-                <p className="text-[11px] text-muted-foreground">{g.table} · {g.guestType}</p>
+                <p className="text-[11px] text-muted-foreground">
+                  {g.table} · {g.guestType}
+                </p>
               </div>
               <StatusBadge status={g.status} />
             </li>

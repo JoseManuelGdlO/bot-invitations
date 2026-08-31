@@ -10,7 +10,28 @@ export type ConfirmationStatus =
   | "sin_respuesta"
   | "seguimiento";
 
-export type WhatsappStatus = "pendiente" | "enviado" | "entregado" | "leido" | "respondido";
+export type WhatsappStatus =
+  "pendiente" | "enviado" | "entregado" | "leido" | "respondido";
+
+export type CampaignStatus = "idle" | "scheduled" | "running" | "done";
+
+export interface CampaignSnapshot {
+  status: CampaignStatus;
+  scheduledAt: string | null;
+  launchedAt: string | null;
+  total: number;
+  processed: number;
+  percent: number;
+}
+
+export const IDLE_CAMPAIGN: CampaignSnapshot = {
+  status: "idle",
+  scheduledAt: null,
+  launchedAt: null,
+  total: 0,
+  processed: 0,
+  percent: 0,
+};
 
 export interface EventItem {
   id: string;
@@ -25,6 +46,7 @@ export interface EventItem {
   estimatedGuests: number;
   cover: string;
   status: "activo" | "borrador" | "finalizado";
+  campaign?: CampaignSnapshot;
 }
 
 export interface Guest {
@@ -63,6 +85,15 @@ export interface Conversation {
   messages: ChatMessage[];
 }
 
+export interface FollowUpRule {
+  id: string;
+  label: string;
+  description?: string;
+  days?: number;
+  when: string;
+  active: boolean;
+}
+
 export interface AIConfig {
   assistantName: string;
   tone: string;
@@ -72,7 +103,7 @@ export interface AIConfig {
   openingMessage: string;
   prompt: string;
   rules: string[];
-  followUps: { id: string; label: string; when: string; active: boolean }[];
+  followUps: FollowUpRule[];
 }
 
 export interface Template {
@@ -140,7 +171,10 @@ export interface SessionUser {
   billingInterval?: BillingInterval;
   cancelAtPeriodEnd?: boolean;
   currentPeriodEnd?: string | null;
-  plan?: Pick<SubscriptionPlan, "id" | "slug" | "name" | "priceMxn" | "eventLimit" | "guestLimit"> | null;
+  plan?: Pick<
+    SubscriptionPlan,
+    "id" | "slug" | "name" | "priceMxn" | "eventLimit" | "guestLimit"
+  > | null;
   usage?: PlanUsage;
   cancellation?: CancellationRequest | null;
 }

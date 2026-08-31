@@ -1,6 +1,22 @@
-import { Link, Outlet, createFileRoute, useNavigate, useRouterState } from "@tanstack/react-router";
+import {
+  Link,
+  Outlet,
+  createFileRoute,
+  useNavigate,
+  useRouterState,
+} from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { CalendarHeart, CreditCard, Headset, LayoutDashboard, LogOut, MessagesSquare, Settings2, Shield, Smartphone } from "lucide-react";
+import {
+  CalendarHeart,
+  CreditCard,
+  Headset,
+  LayoutDashboard,
+  LogOut,
+  MessagesSquare,
+  Settings2,
+  Shield,
+  Smartphone,
+} from "lucide-react";
 import { PlanUsageHint } from "@/components/plan-limit";
 import { api } from "@/lib/api/client";
 import logo from "@/assets/alanna-logo.png";
@@ -20,9 +36,16 @@ function AppShell() {
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const [supportUnread, setSupportUnread] = useState(0);
   const eventSlug = pathname.match(/^\/eventos\/([^/]+)/)?.[1];
-  const reservedShell = new Set(["nuevo", "whatsapp", "suscripcion", "soporte"]);
+  const reservedShell = new Set([
+    "nuevo",
+    "whatsapp",
+    "suscripcion",
+    "soporte",
+  ]);
   const sidebarRole =
-    eventSlug && !reservedShell.has(eventSlug) ? eventAccess[eventSlug]?.role : null;
+    eventSlug && !reservedShell.has(eventSlug)
+      ? eventAccess[eventSlug]?.role
+      : null;
 
   useEffect(() => {
     if (hydrated && !session) navigate({ to: "/iniciar-sesion" });
@@ -73,7 +96,10 @@ function AppShell() {
             className={cn(
               "flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent",
             )}
-            activeProps={{ className: "bg-sidebar-accent font-medium text-sidebar-foreground" }}
+            activeProps={{
+              className:
+                "bg-sidebar-accent font-medium text-sidebar-foreground",
+            }}
           >
             <LayoutDashboard className="size-4" /> Panel general
           </Link>
@@ -81,7 +107,10 @@ function AppShell() {
             <Link
               to="/eventos/nuevo"
               className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent"
-              activeProps={{ className: "bg-sidebar-accent font-medium text-sidebar-foreground" }}
+              activeProps={{
+                className:
+                  "bg-sidebar-accent font-medium text-sidebar-foreground",
+              }}
             >
               <CalendarHeart className="size-4" /> Crear evento
             </Link>
@@ -89,7 +118,10 @@ function AppShell() {
           <Link
             to="/eventos/whatsapp"
             className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent"
-            activeProps={{ className: "bg-sidebar-accent font-medium text-sidebar-foreground" }}
+            activeProps={{
+              className:
+                "bg-sidebar-accent font-medium text-sidebar-foreground",
+            }}
           >
             <Smartphone className="size-4" /> WhatsApp
           </Link>
@@ -97,7 +129,10 @@ function AppShell() {
             <Link
               to="/eventos/suscripcion"
               className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent"
-              activeProps={{ className: "bg-sidebar-accent font-medium text-sidebar-foreground" }}
+              activeProps={{
+                className:
+                  "bg-sidebar-accent font-medium text-sidebar-foreground",
+              }}
             >
               <CreditCard className="size-4" /> Suscripción
               {session.cancellation?.status === "pending" ? (
@@ -110,7 +145,10 @@ function AppShell() {
           <Link
             to="/eventos/soporte"
             className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent"
-            activeProps={{ className: "bg-sidebar-accent font-medium text-sidebar-foreground" }}
+            activeProps={{
+              className:
+                "bg-sidebar-accent font-medium text-sidebar-foreground",
+            }}
           >
             <Headset className="size-4" /> Soporte
             {supportUnread > 0 ? (
@@ -123,7 +161,10 @@ function AppShell() {
             <Link
               to="/admin"
               className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent"
-              activeProps={{ className: "bg-sidebar-accent font-medium text-sidebar-foreground" }}
+              activeProps={{
+                className:
+                  "bg-sidebar-accent font-medium text-sidebar-foreground",
+              }}
             >
               <Shield className="size-4" /> Backoffice
             </Link>
@@ -143,7 +184,9 @@ function AppShell() {
                 params={{ eventId: e.id }}
                 className={cn(
                   "flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition-colors hover:bg-sidebar-accent",
-                  active ? "bg-sidebar-accent font-medium" : "text-sidebar-foreground/75",
+                  active
+                    ? "bg-sidebar-accent font-medium"
+                    : "text-sidebar-foreground/75",
                 )}
               >
                 <span
@@ -166,11 +209,16 @@ function AppShell() {
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium">{session.name}</p>
               <p className="truncate text-[11px] text-muted-foreground">
-                {session.plan ? `Plan ${session.plan.name}` : sidebarRole || session.role}
+                {session.plan
+                  ? `Plan ${session.plan.name}`
+                  : sidebarRole || session.role}
               </p>
               <PlanUsageHint session={session} />
               {!session.isAdmin && session.plan ? (
-                <Link to="/eventos/suscripcion" className="mt-1 flex items-center gap-1 text-[11px] text-gold hover:underline">
+                <Link
+                  to="/eventos/suscripcion"
+                  className="mt-1 flex items-center gap-1 text-[11px] text-gold hover:underline"
+                >
                   <CreditCard className="size-3" /> Gestionar suscripción
                 </Link>
               ) : null}
@@ -200,9 +248,15 @@ function AppShell() {
           />
           <span className="font-display text-lg">Alanna</span>
           <div className="ml-auto flex items-center gap-2 text-muted-foreground">
-            <Link to="/eventos/soporte" className="relative rounded-md p-1 hover:text-foreground" aria-label="Soporte">
+            <Link
+              to="/eventos/soporte"
+              className="relative rounded-md p-1 hover:text-foreground"
+              aria-label="Soporte"
+            >
               <Headset className="size-4" />
-              {supportUnread > 0 ? <span className="absolute -right-0.5 -top-0.5 size-1.5 rounded-full bg-gold" /> : null}
+              {supportUnread > 0 ? (
+                <span className="absolute -right-0.5 -top-0.5 size-1.5 rounded-full bg-gold" />
+              ) : null}
             </Link>
             <MessagesSquare className="size-4" />
             <Settings2 className="size-4" />

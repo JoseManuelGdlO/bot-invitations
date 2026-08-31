@@ -18,9 +18,9 @@ El resto de este documento es el asistente de confirmaciones, salvo donde se ind
 ```
 Planner (web)
   → crea evento, invitados, plantillas, personalidad
-  → “Iniciar confirmaciones”
-  → texto determinista (plantilla Primer contacto)
-  → cola outbound_jobs → WhatsApp Connect
+  → “Iniciar campaña” (ahora o programada a un día)
+  → job `campaign.launch` → texto determinista (plantilla Primer contacto)
+  → cola outbound_jobs `whatsapp.send` → WhatsApp Connect
 
 Invitado (WhatsApp)
   → webhook → resuelve guest por teléfono
@@ -80,7 +80,7 @@ Follow-ups por defecto:
 
 | id | label | when | active |
 |----|-------|------|--------|
-| f1 | Primer contacto | 30 días antes del evento | sí (UI; **no** auto-lanza campaña) |
+| f1 | Primer contacto | 30 días antes del evento | sí (histórico; **no** se edita en Automatización ni auto-lanza) |
 | f2 | Primer recordatorio | 7 días después del primer contacto | sí |
 | f3 | Segundo recordatorio | 14 días después del primer contacto | sí |
 | f4 | Último intento | 7 días antes del evento | no |
@@ -97,7 +97,9 @@ Historial OpenAI por `(eventId, guestId, userId)`. Live: `userId` = dígitos del
 
 ### Jobs (`outbound_jobs`)
 
-Único tipo implementado: `whatsapp.send`. Estados: `queued | processing | done | failed | skipped`.
+Tipos: `whatsapp.send` y `campaign.launch`. Estados: `queued | processing | done | failed | skipped`.
+
+`campaign.launch` no usa el throttle de WhatsApp. Si WhatsApp no está listo, el job se reencola unos minutos y la campaña sigue `queued`.
 
 ---
 
@@ -196,14 +198,16 @@ El PUT de plantillas **borra y recrea** todas las del evento.
 
 ### Lanzar campaña
 
-`POST /api/events/:eventId/campaigns/launch` — UI: Resumen → “Iniciar confirmaciones”.
+`POST /api/events/:eventId/campaigns/launch` `{ mode: "now" | "schedule", date?: "YYYY-MM-DD" }` — UI: Resumen, modal. `GET .../campaigns/current` para el poll de progreso.
 
-- Solo `status = sin_contactar`.
-- Exige WhatsApp activo + `deviceId` **si hay alguien que contactar**.
-- Por cada uno: interpola, marca `enviado`, `contactedAt`, conversación + mensaje `ai`, job `kind: "campaign"`.
-- Job fallido + aún sin `lastReply` → rollback a `sin_contactar`.
+- Una sola campaña `queued` o `running` por evento (lock del evento + claim `queued → running`).
+- `schedule` crea/actualiza un job `campaign.launch` al inicio de ese día (no posterior al evento).
+- Al ejecutar: solo `status = sin_contactar`, claim atómico por invitado, plantilla Primer contacto, job `kind: "campaign"` con `campaignId`.
+- Exige WhatsApp activo **si hay alguien que contactar** (en “ahora”, al planificar; en programada, al ejecutar).
+- Progreso: `processed / total` de jobs de esa oleada en `done | failed | skipped`. El 100% no espera respuesta del invitado. Un fallo sigue revirtiendo el guest a `sin_contactar` para una oleada posterior.
+- Tras `done`, se puede lanzar otra oleada si quedaron o se agregaron `sin_contactar`.
 
-El modelo `Campaign` existe en BD y **no se usa**.
+Modelo `Campaign`: `queued | running | done`, `scheduledAt`, `launchedAt`, `total`, `processed`.
 
 ### Recordatorio 1 a 1
 
@@ -241,10 +245,10 @@ Productores de `whatsapp.send`: campaña, recordatorio, follow-up, reply del bot
 
 | Ruta | Qué hace respecto al bot |
 |------|---------------------------|
-| `/eventos/$eventId/resumen` | Lanza campaña; toast de error si no hay WA |
+| `/eventos/$eventId/resumen` | Lanza o programa la campaña; progreso de envíos; toast si no hay WA |
 | `/eventos/$eventId/invitados` | Lista, PATCH, recordatorio 1 a 1, columna Seguimiento |
 | `/eventos/$eventId/conversaciones` | Chat planner; pausar IA; simular invitado (dev) |
-| `/eventos/$eventId/automatizacion` | Personalidad, prompt, mensaje inicial (fallback), reglas, switches de followUps, playground |
+| `/eventos/$eventId/automatizacion` | Personalidad, prompt, reglas, recordatorios (sin primer contacto), playground |
 | `/eventos/$eventId/mensajes` | Biblioteca + FAQs |
 | `/eventos/whatsapp` | Número conectado |
 
@@ -267,7 +271,7 @@ Auth: JWT en `Authorization` salvo las públicas y los webhooks.
 
 ### Autenticadas — bot / invitaciones
 
-- `POST /events/:eventId/campaigns/launch`
+- `POST /events/:eventId/campaigns/launch` · `GET /events/:eventId/campaigns/current`
 - `GET /events/:eventId/conversations` · `PATCH /conversations/:id` · `POST .../messages`
 - `POST /guests/:guestId/remind`
 - `GET|PATCH /events/:eventId/ai-config` · `POST .../regenerate-prompt`
@@ -305,7 +309,9 @@ Eventos, invitados, import/export, equipo, analytics, billing, support, admin (o
 | `backend/src/controllers/bot.controller.js` | Inbound WhatsApp |
 | `backend/src/controllers/guests.controller.js` | CRUD invitados, recordatorio 1 a 1 |
 | `backend/src/utils/whatsapp-identity.js` | LID vs `guest.phone` |
-| `backend/src/controllers/conversations.controller.js` | Campaña y chat planner |
+| `backend/src/controllers/conversations.controller.js` | Campaña (API) y chat planner |
+| `backend/src/services/campaign.service.js` | Lock, programación y execute de campaña |
+| `backend/src/services/campaign-progress.js` | Contador processed de la oleada |
 | `front/src/lib/api/bot.ts` | Cliente playground |
 
 ---
@@ -339,7 +345,7 @@ seguimiento --actualizar_confirmacion--> RSVP cerrado
 
 - El **primer contacto masivo no usa el modelo**; el chat posterior sí.
 - `openingMessage` es **fallback**, no la fuente principal de la campaña.
-- `followUps[0]` “Primer contacto” es copy de calendario; el botón de Resumen lanza la campaña.
+- `followUps` “Primer contacto” (f1) es residual; la fecha se elige en el modal de Resumen.
 - Playground **confirma invitados de verdad** si el modelo llama tools.
 - El worker **no** pone `entregado`/`leido` desde receipts.
 - `assertCanSendInvitations` está vacío (siempre deja enviar).

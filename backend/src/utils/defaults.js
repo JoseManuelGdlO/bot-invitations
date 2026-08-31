@@ -1,3 +1,5 @@
+import { DEFAULT_FOLLOW_UPS } from "../services/follow-up.service.js";
+
 export const DEFAULT_ROLES = [
   { role: "Administrador", perms: ["Crear eventos", "Editar todo", "Gestionar equipo", "Exportar datos"] },
   { role: "Wedding Planner", perms: ["Editar evento", "Configurar asistente", "Responder conversaciones", "Exportar datos"] },
@@ -5,34 +7,69 @@ export const DEFAULT_ROLES = [
   { role: "Asistente", perms: ["Ver invitados", "Ver conversaciones"] },
 ];
 
+/** Fuente de verdad de reglas de conversación. `technical` no se expone para editar/borrar en la UI. */
+export const DEFAULT_AI_RULE_DEFS = [
+  { text: "Nunca mencionar que eres una IA.", technical: false },
+  { text: "Siempre ser amable y cálida.", technical: false },
+  { text: "Nunca presionar al invitado.", technical: false },
+  { text: "El primer mensaje ya se envió; no reenvíes la invitación.", technical: true },
+  { text: "Clasifica cada mensaje en faq, asistira, no_asistira, seguimiento o desconocido.", technical: true },
+  { text: "Si es FAQ, responde solo con las FAQs o plantillas de información; si no hay dato, no inventes y ofrece pasar al equipo.", technical: true },
+  { text: "Si confirma o decline con claridad, usa las tools y la plantilla; no parafrasees el cierre.", technical: true },
+  { text: "Si está indeciso, marca seguimiento; el sistema recontacta según las reglas de seguimiento.", technical: true },
+  { text: "Si es desconocido, interpreta y responde; no cierres el RSVP.", technical: true },
+  { text: "Si confirma pero no dice con cuántas personas, pregunta el número antes de cerrar.", technical: false },
+  { text: "No superar el número máximo de invitados de la invitación.", technical: false },
+  { text: "Si existe una situación especial, escalar al Wedding Planner.", technical: false },
+];
+
+export const DEFAULT_AI_TONE = {
+  tone: "Elegante",
+  formality: 60,
+  emojis: "algunos",
+  length: "normales",
+};
+
+export function defaultConversationRules() {
+  return DEFAULT_AI_RULE_DEFS.map((rule) => rule.text);
+}
+
+export function technicalConversationRules() {
+  return DEFAULT_AI_RULE_DEFS.filter((rule) => rule.technical).map((rule) => rule.text);
+}
+
+/** Asegura que las reglas técnicas del sistema no se puedan quitar vía PATCH. */
+export function mergeConversationRules(incoming) {
+  const list = Array.isArray(incoming) ? incoming.map((rule) => String(rule || "").trim()).filter(Boolean) : [];
+  const technical = technicalConversationRules();
+  const techSet = new Set(technical);
+  const withoutTech = list.filter((rule) => !techSet.has(rule));
+  // Conserva el orden de las técnicas en su posición canónica relativa al final del bloque soft/custom.
+  const softDefaults = DEFAULT_AI_RULE_DEFS.filter((rule) => !rule.technical).map((rule) => rule.text);
+  const softSet = new Set(softDefaults);
+  const softPresent = softDefaults.filter((rule) => withoutTech.includes(rule));
+  const custom = withoutTech.filter((rule) => !softSet.has(rule));
+  return [...softPresent, ...technical, ...custom];
+}
+
+export function aiConfigDefaultsSnapshot() {
+  return {
+    ...DEFAULT_AI_TONE,
+    prompt: "",
+    rules: DEFAULT_AI_RULE_DEFS.map((rule) => ({
+      text: rule.text,
+      technical: rule.technical,
+    })),
+  };
+}
+
 export function defaultAI(assistant, hosts) {
   return {
     assistantName: assistant,
-    tone: "Elegante",
-    formality: 60,
-    emojis: "algunos",
-    length: "normales",
+    ...DEFAULT_AI_TONE,
     openingMessage: `Hola {{nombre}} 👋\n\nSoy ${assistant}, asistente del equipo de ${hosts}.\n\nEstamos confirmando los invitados para {{evento}} del próximo {{fecha}} en {{lugar}}.\n\nTenemos registrada una invitación para {{numero_invitados}} personas.\n\n¿Nos podrías confirmar si podrán acompañarnos?`,
-    rules: [
-      "Nunca mencionar que eres una IA.",
-      "Siempre ser amable y cálida.",
-      "Nunca presionar al invitado.",
-      "El primer mensaje ya se envió; no reenvíes la invitación.",
-      "Clasifica cada mensaje en faq, asistira, no_asistira, seguimiento o desconocido.",
-      "Si es FAQ, responde solo con las FAQs o plantillas de información; si no hay dato, no inventes y ofrece pasar al equipo.",
-      "Si confirma o decline con claridad, usa las tools y la plantilla; no parafrasees el cierre.",
-      "Si está indeciso, marca seguimiento; el sistema recontacta a los 3 días.",
-      "Si es desconocido, interpreta y responde; no cierres el RSVP.",
-      "Si confirma pero no dice con cuántas personas, pregunta el número antes de cerrar.",
-      "No superar el número máximo de invitados de la invitación.",
-      "Si existe una situación especial, escalar al Wedding Planner.",
-    ],
-    followUps: [
-      { id: "f1", label: "Primer contacto", when: "30 días antes del evento", active: true },
-      { id: "f2", label: "Primer recordatorio", when: "7 días después del primer contacto", active: true },
-      { id: "f3", label: "Segundo recordatorio", when: "14 días después del primer contacto", active: true },
-      { id: "f4", label: "Último intento", when: "7 días antes del evento", active: false },
-    ],
+    rules: defaultConversationRules(),
+    followUps: DEFAULT_FOLLOW_UPS.map((rule) => ({ ...rule })),
   };
 }
 

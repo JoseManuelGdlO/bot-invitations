@@ -49,26 +49,37 @@ function AdminSupportThread() {
     if (!body.trim()) return;
     setSending(true);
     try {
-      const updated = await api<SupportTicket>(`/admin/support/tickets/${ticketId}/messages`, {
-        method: "POST",
-        body: JSON.stringify({ body }),
-      });
+      const updated = await api<SupportTicket>(
+        `/admin/support/tickets/${ticketId}/messages`,
+        {
+          method: "POST",
+          body: JSON.stringify({ body }),
+        },
+      );
       setTicket(updated);
       setBody("");
       toast.success("Respuesta enviada");
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "No se pudo responder");
+      toast.error(
+        err instanceof ApiError ? err.message : "No se pudo responder",
+      );
     } finally {
       setSending(false);
     }
   };
 
-  const patch = async (payload: { status?: TicketStatus; priority?: TicketPriority }) => {
+  const patch = async (payload: {
+    status?: TicketStatus;
+    priority?: TicketPriority;
+  }) => {
     try {
-      const updated = await api<SupportTicket>(`/admin/support/tickets/${ticketId}`, {
-        method: "PATCH",
-        body: JSON.stringify(payload),
-      });
+      const updated = await api<SupportTicket>(
+        `/admin/support/tickets/${ticketId}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify(payload),
+        },
+      );
       setTicket(updated);
       toast.success("Ticket actualizado");
     } catch {
@@ -86,7 +97,10 @@ function AdminSupportThread() {
 
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-1 flex-col px-5 py-8 md:px-8 md:py-10">
-      <Link to="/admin/soporte" className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground">
+      <Link
+        to="/admin/soporte"
+        className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground"
+      >
         <ArrowLeft className="size-4" /> Todos los tickets
       </Link>
       <div className="mt-4 flex flex-wrap items-start justify-between gap-4">
@@ -98,12 +112,19 @@ function AdminSupportThread() {
             {ticket.user?.businessName ? ` · ${ticket.user.businessName}` : ""}
           </p>
         </div>
-        <Badge variant={statusTone(ticket.status)}>{STATUS_LABEL[ticket.status]}</Badge>
+        <Badge variant={statusTone(ticket.status)}>
+          {STATUS_LABEL[ticket.status]}
+        </Badge>
       </div>
 
       <div className="mt-5 flex flex-wrap gap-3">
         <Badge variant="outline">{CATEGORY_LABEL[ticket.category]}</Badge>
-        <Select value={ticket.priority} onValueChange={(priority) => patch({ priority: priority as TicketPriority })}>
+        <Select
+          value={ticket.priority}
+          onValueChange={(priority) =>
+            patch({ priority: priority as TicketPriority })
+          }
+        >
           <SelectTrigger className="w-36">
             <SelectValue />
           </SelectTrigger>
@@ -115,7 +136,10 @@ function AdminSupportThread() {
             ))}
           </SelectContent>
         </Select>
-        <Select value={ticket.status} onValueChange={(status) => patch({ status: status as TicketStatus })}>
+        <Select
+          value={ticket.status}
+          onValueChange={(status) => patch({ status: status as TicketStatus })}
+        >
           <SelectTrigger className="w-52">
             <SelectValue />
           </SelectTrigger>
@@ -156,7 +180,10 @@ function AdminSupportThread() {
         ))}
       </div>
 
-      <form onSubmit={reply} className="mt-8 space-y-3 border-t border-border pt-6">
+      <form
+        onSubmit={reply}
+        className="mt-8 space-y-3 border-t border-border pt-6"
+      >
         <Label htmlFor="reply">Responder al cliente</Label>
         <Textarea
           id="reply"
@@ -171,7 +198,11 @@ function AdminSupportThread() {
             Enviar respuesta
           </Button>
           {ticket.status !== "closed" ? (
-            <Button type="button" variant="outline" onClick={() => patch({ status: "closed" })}>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => patch({ status: "closed" })}
+            >
               Cerrar ticket
             </Button>
           ) : null}

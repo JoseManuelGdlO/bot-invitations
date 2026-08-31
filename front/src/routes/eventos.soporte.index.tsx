@@ -53,13 +53,17 @@ function ClientSupportList() {
         method: "POST",
         body: JSON.stringify({ subject, category, body }),
       });
-      toast.success("Ticket enviado", { description: `${ticket.code} · te respondemos aquí mismo.` });
+      toast.success("Ticket enviado", {
+        description: `${ticket.code} · te respondemos aquí mismo.`,
+      });
       setSubject("");
       setBody("");
       setOpenForm(false);
       await load();
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "No se pudo crear el ticket");
+      toast.error(
+        err instanceof ApiError ? err.message : "No se pudo crear el ticket",
+      );
     } finally {
       setLoading(false);
     }
@@ -69,10 +73,13 @@ function ClientSupportList() {
     <main className="mx-auto w-full max-w-3xl flex-1 px-5 py-8 md:px-8 md:py-10">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-xs font-medium uppercase tracking-[0.14em] text-gold">Ayuda</p>
+          <p className="text-xs font-medium uppercase tracking-[0.14em] text-gold">
+            Ayuda
+          </p>
           <h1 className="mt-1 font-display text-4xl">Soporte</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Levanta un ticket y el equipo de Alanna te responde en esta misma conversación.
+            Levanta un ticket y el equipo de Alanna te responde en esta misma
+            conversación.
           </p>
         </div>
         <Button type="button" onClick={() => setOpenForm((v) => !v)}>
@@ -81,7 +88,10 @@ function ClientSupportList() {
       </div>
 
       {openForm ? (
-        <form onSubmit={create} className="mt-8 space-y-4 rounded-2xl border border-border bg-card p-5 shadow-soft">
+        <form
+          onSubmit={create}
+          className="mt-8 space-y-4 rounded-2xl border border-border bg-card p-5 shadow-soft"
+        >
           <div className="space-y-2">
             <Label htmlFor="subject">Asunto</Label>
             <Input
@@ -93,7 +103,10 @@ function ClientSupportList() {
           </div>
           <div className="space-y-2">
             <Label>Tema</Label>
-            <Select value={category} onValueChange={(value) => setCategory(value as TicketCategory)}>
+            <Select
+              value={category}
+              onValueChange={(value) => setCategory(value as TicketCategory)}
+            >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -126,7 +139,8 @@ function ClientSupportList() {
       <div className="mt-8 space-y-3">
         {rows.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-border px-6 py-12 text-center text-sm text-muted-foreground">
-            Aún no tienes tickets. Si algo no funciona, ábrelo aquí y te respondemos.
+            Aún no tienes tickets. Si algo no funciona, ábrelo aquí y te
+            respondemos.
           </div>
         ) : (
           rows.map((ticket) => (
@@ -139,13 +153,21 @@ function ClientSupportList() {
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div>
                   <p className="text-xs text-muted-foreground">{ticket.code}</p>
-                  <h2 className="mt-0.5 font-display text-xl">{ticket.subject}</h2>
+                  <h2 className="mt-0.5 font-display text-xl">
+                    {ticket.subject}
+                  </h2>
                 </div>
-                <Badge variant={statusTone(ticket.status)}>{STATUS_LABEL[ticket.status as TicketStatus]}</Badge>
+                <Badge variant={statusTone(ticket.status)}>
+                  {STATUS_LABEL[ticket.status as TicketStatus]}
+                </Badge>
               </div>
-              <p className="mt-2 text-xs text-muted-foreground">{CATEGORY_LABEL[ticket.category]}</p>
+              <p className="mt-2 text-xs text-muted-foreground">
+                {CATEGORY_LABEL[ticket.category]}
+              </p>
               {ticket.lastMessagePreview ? (
-                <p className="mt-2 line-clamp-2 text-sm text-muted-foreground">{ticket.lastMessagePreview}</p>
+                <p className="mt-2 line-clamp-2 text-sm text-muted-foreground">
+                  {ticket.lastMessagePreview}
+                </p>
               ) : null}
             </Link>
           ))

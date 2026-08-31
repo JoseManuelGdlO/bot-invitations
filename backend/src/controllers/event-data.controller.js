@@ -4,12 +4,26 @@ import { requireEvent, requirePermission, PERMS } from "../services/access.servi
 import { serializeAi, serializeFaq, serializeTemplate } from "../utils/serialize.js";
 import { defaultPrompt } from "../services/bot/prompt.service.js";
 import { resetPlaygroundSessions } from "../services/bot/session.service.js";
+import { normalizeFollowUps } from "../services/follow-up.service.js";
+import {
+  aiConfigDefaultsSnapshot,
+  DEFAULT_AI_TONE,
+  defaultConversationRules,
+  mergeConversationRules,
+} from "../utils/defaults.js";
 
 export const getAi = asyncHandler(async (req, res) => {
   const event = await requireEvent(req, res);
   if (!event) return;
   const ai = await AiConfig.findOne({ where: { eventId: event.id } });
   res.json(ai ? serializeAi(ai) : null);
+});
+
+export const getAiDefaults = asyncHandler(async (req, res) => {
+  const event = await requireEvent(req, res);
+  if (!event) return;
+  if (!(await requirePermission(req, res, event, PERMS.CONFIG_AI))) return;
+  res.json(aiConfigDefaultsSnapshot());
 });
 
 export const updateAi = asyncHandler(async (req, res) => {
@@ -30,6 +44,17 @@ export const updateAi = asyncHandler(async (req, res) => {
     "followUps",
   ];
   const promptChanged = req.body?.prompt !== undefined && String(req.body.prompt) !== String(ai.prompt || "");
+  if (req.body?.followUps !== undefined) {
+    const followUps = normalizeFollowUps(req.body.followUps);
+    if (!followUps) return res.status(400).json({ error: "Se esperaba un arreglo de reglas de seguimiento." });
+    req.body.followUps = followUps;
+  }
+  if (req.body?.rules !== undefined) {
+    if (!Array.isArray(req.body.rules)) {
+      return res.status(400).json({ error: "Se esperaba un arreglo de reglas de conversación." });
+    }
+    req.body.rules = mergeConversationRules(req.body.rules);
+  }
   const personalityKeys = ["assistantName", "tone", "formality", "emojis", "length", "rules"];
   const personalityChanged = personalityKeys.some((key) => {
     if (req.body?.[key] === undefined) return false;
@@ -43,6 +68,23 @@ export const updateAi = asyncHandler(async (req, res) => {
   if (promptChanged || personalityChanged) {
     await resetPlaygroundSessions(event.id);
   }
+  res.json(serializeAi(ai));
+});
+
+export const resetAi = asyncHandler(async (req, res) => {
+  const event = await requireEvent(req, res);
+  if (!event) return;
+  if (!(await requirePermission(req, res, event, PERMS.CONFIG_AI))) return;
+  const ai = await AiConfig.findOne({ where: { eventId: event.id } });
+  if (!ai) return res.status(404).json({ error: "Configuración de IA no encontrada." });
+  ai.tone = DEFAULT_AI_TONE.tone;
+  ai.formality = DEFAULT_AI_TONE.formality;
+  ai.emojis = DEFAULT_AI_TONE.emojis;
+  ai.length = DEFAULT_AI_TONE.length;
+  ai.rules = defaultConversationRules();
+  ai.prompt = "";
+  await ai.save();
+  await resetPlaygroundSessions(event.id);
   res.json(serializeAi(ai));
 });
 

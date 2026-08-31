@@ -30,6 +30,15 @@ describe("prompt.service", () => {
     expect(text).toContain("MÁS personas que el cupo");
   });
 
+  test("defaultPrompt interpola los días de la regla indeciso", () => {
+    const text = prompt.defaultPrompt({
+      assistantName: "Renata",
+      followUps: [{ id: "indeciso", days: 5, when: "5 días después de marcar seguimiento", active: true }],
+    });
+    expect(text).toMatch(/5 días/);
+    expect(text).not.toMatch(/3 días/);
+  });
+
   test("buildInstructions usa defaultPrompt y añade instrucciones extra", () => {
     const text = prompt.buildInstructions({
       event: fakeEvent(),

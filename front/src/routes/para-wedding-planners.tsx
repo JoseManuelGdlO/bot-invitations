@@ -1,5 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { pageHead, buildFaqJsonLd, buildBreadcrumbJsonLd, jsonLdScripts } from "@/lib/seo";
+import {
+  pageHead,
+  buildFaqJsonLd,
+  buildBreadcrumbJsonLd,
+  jsonLdScripts,
+} from "@/lib/seo";
 import { SeoLanding, SeoSection } from "@/components/seo-landing";
 
 const faqs = [
@@ -44,31 +49,42 @@ function ParaWeddingPlanners() {
       intro="Alanna Confirmaciones es el copiloto de tu estudio: dejas de perseguir RSVP en el celular personal y pasas a un tablero por boda, con el asistente hablando por WhatsApp."
       faqs={faqs}
       related={[
-        { href: "/confirmacion-invitados-whatsapp", label: "Confirmación de invitados por WhatsApp" },
+        {
+          href: "/confirmacion-invitados-whatsapp",
+          label: "Confirmación de invitados por WhatsApp",
+        },
         { href: "/software-rsvp-bodas", label: "Software RSVP para bodas" },
         { href: "/blog", label: "Guías para estudios y listas de invitados" },
       ]}
     >
       <SeoSection title="El trabajo que el timeline no hace">
         <p>
-          Un wedding planner ya coordina proveedores, cronograma y familia. Lo que se come las tardes es otra cosa:
-          tíos que no contestan, novias que reenvían capturas y un Excel con cinco versiones. Eso no se resuelve con
-          otro tablero de tareas. Se resuelve con un proceso de confirmación.
+          Un wedding planner ya coordina proveedores, cronograma y familia. Lo
+          que se come las tardes es otra cosa: tíos que no contestan, novias que
+          reenvían capturas y un Excel con cinco versiones. Eso no se resuelve
+          con otro tablero de tareas. Se resuelve con un proceso de
+          confirmación.
         </p>
         <p>
-          Alanna está pensada para ese hueco. Importas la lista, lanzas las confirmaciones y ves quién ya dijo que sí,
-          quién rechazó y a quién hay que volver a escribir —sin mezclarlo con tu WhatsApp personal.
+          Alanna está pensada para ese hueco. Importas la lista, lanzas las
+          confirmaciones y ves quién ya dijo que sí, quién rechazó y a quién hay
+          que volver a escribir —sin mezclarlo con tu WhatsApp personal.
         </p>
       </SeoSection>
       <SeoSection title="Cómo entra en el flujo de un estudio">
         <p>
-          En el kickoff pides un archivo con responsable, teléfono y lugares. Lo subes, mapeas columnas y el asistente
-          usa el tono de tu estudio. Tú diseñas el día; el copiloto registra la asistencia.
+          En el kickoff pides un archivo con responsable, teléfono y lugares. Lo
+          subes, mapeas columnas y el asistente usa el tono de tu estudio. Tú
+          diseñas el día; el copiloto registra la asistencia.
         </p>
         <p>
-          Cuando banquetes pide el número, exportas la lista final. El seating y el menú salen de un dato, no de una
-          sensación. Si quieres el detalle operativo, lee{" "}
-          <a href="/blog/como-confirmar-invitados-boda-200" className="text-foreground underline-offset-4 hover:underline">
+          Cuando banquetes pide el número, exportas la lista final. El seating y
+          el menú salen de un dato, no de una sensación. Si quieres el detalle
+          operativo, lee{" "}
+          <a
+            href="/blog/como-confirmar-invitados-boda-200"
+            className="text-foreground underline-offset-4 hover:underline"
+          >
             cómo confirmar una boda de 200 invitados
           </a>
           .
@@ -76,9 +92,10 @@ function ParaWeddingPlanners() {
       </SeoSection>
       <SeoSection title="Hecho en México, para cómo se confirma aquí">
         <p>
-          El invitado de una boda en México vive en WhatsApp, no en un formulario inglés. Alanna Confirmaciones asume
-          eso: conversación, interpretación de la respuesta y tablero en español, con planes desde $500 MXN al mes
-          según volumen de eventos e invitados.
+          El invitado de una boda en México vive en WhatsApp, no en un
+          formulario inglés. Alanna Confirmaciones asume eso: conversación,
+          interpretación de la respuesta y tablero en español, con planes desde
+          $500 MXN al mes según volumen de eventos e invitados.
         </p>
       </SeoSection>
     </SeoLanding>

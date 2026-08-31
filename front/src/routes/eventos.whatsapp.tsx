@@ -32,7 +32,8 @@ export const Route = createFileRoute("/eventos/whatsapp")({
       { title: "WhatsApp · Alanna Confirmaciones" },
       {
         name: "description",
-        content: "Conecta tu número de WhatsApp para enviar invitaciones y mensajes.",
+        content:
+          "Conecta tu número de WhatsApp para enviar invitaciones y mensajes.",
       },
       { property: "og:title", content: "WhatsApp · Alanna Confirmaciones" },
       { name: "robots", content: "noindex, nofollow" },
@@ -56,7 +57,8 @@ const DEVICE_LABEL: Record<WhatsAppDeviceStatusDto["status"], string> = {
 
 function webhookPublicUrl() {
   const base = apiBase.replace(/\/$/, "");
-  if (base.startsWith("http")) return `${base}/webhooks/whatsapp-connect/events`;
+  if (base.startsWith("http"))
+    return `${base}/webhooks/whatsapp-connect/events`;
   if (typeof window !== "undefined") {
     return `${window.location.origin}${base}/webhooks/whatsapp-connect/events`;
   }
@@ -72,25 +74,37 @@ function WhatsAppConnectPage() {
   const [webhookSecret, setWebhookSecret] = useState("");
   const [tenantId, setTenantId] = useState("");
   const [testTo, setTestTo] = useState("");
-  const [testText, setTestText] = useState("Prueba de conexión desde Alanna Confirmaciones");
+  const [testText, setTestText] = useState(
+    "Prueba de conexión desde Alanna Confirmaciones",
+  );
   const [qr, setQr] = useState<WhatsAppQrLinkDto | null>(null);
-  const [deviceStatus, setDeviceStatus] = useState<WhatsAppDeviceStatusDto | null>(null);
+  const [deviceStatus, setDeviceStatus] =
+    useState<WhatsAppDeviceStatusDto | null>(null);
 
   const webhookUrl = useMemo(() => webhookPublicUrl(), []);
   const qrExpired = qr ? new Date(qr.expiresAt).getTime() <= Date.now() : false;
-  const canOperate = Boolean(integration?.status === "active" && integration.hasActiveCredential);
+  const canOperate = Boolean(
+    integration?.status === "active" && integration.hasActiveCredential,
+  );
 
   const load = useCallback(async () => {
     const rows = await integrationsApi.list();
     const found =
-      rows.find((row) => row.channel === "whatsapp" && row.provider === "whatsapp-connect") ?? null;
+      rows.find(
+        (row) =>
+          row.channel === "whatsapp" && row.provider === "whatsapp-connect",
+      ) ?? null;
     setIntegration(found);
     return found;
   }, []);
 
   useEffect(() => {
     load()
-      .catch((err) => toast.error(err instanceof ApiError ? err.message : "No se pudo cargar WhatsApp"))
+      .catch((err) =>
+        toast.error(
+          err instanceof ApiError ? err.message : "No se pudo cargar WhatsApp",
+        ),
+      )
       .finally(() => setLoading(false));
   }, [load]);
 
@@ -114,9 +128,15 @@ function WhatsAppConnectPage() {
     try {
       const created = await integrationsApi.create({ displayName: "WhatsApp" });
       setIntegration(created);
-      toast.success("Integración creada", { description: "Ahora guarda el deviceId y el secreto del webhook." });
+      toast.success("Integración creada", {
+        description: "Ahora guarda el deviceId y el secreto del webhook.",
+      });
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "No se pudo crear la integración");
+      toast.error(
+        err instanceof ApiError
+          ? err.message
+          : "No se pudo crear la integración",
+      );
     } finally {
       setBusy(null);
     }
@@ -134,10 +154,16 @@ function WhatsAppConnectPage() {
       });
       const updated = await load();
       setWebhookSecret("");
-      toast.success("Credenciales guardadas", { description: "La integración quedó activa y cifrada en el servidor." });
+      toast.success("Credenciales guardadas", {
+        description: "La integración quedó activa y cifrada en el servidor.",
+      });
       if (updated?.status === "active") await refreshDeviceStatus(updated.id);
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "No se pudieron guardar las credenciales");
+      toast.error(
+        err instanceof ApiError
+          ? err.message
+          : "No se pudieron guardar las credenciales",
+      );
     } finally {
       setSaving(false);
     }
@@ -147,11 +173,17 @@ function WhatsAppConnectPage() {
     if (!integration) return;
     setBusy("status");
     try {
-      const updated = await integrationsApi.patch(integration.id, { status: next ? "active" : "disabled" });
+      const updated = await integrationsApi.patch(integration.id, {
+        status: next ? "active" : "disabled",
+      });
       setIntegration(updated);
       toast.success(next ? "WhatsApp activado" : "WhatsApp desactivado");
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "No se pudo actualizar el estado");
+      toast.error(
+        err instanceof ApiError
+          ? err.message
+          : "No se pudo actualizar el estado",
+      );
     } finally {
       setBusy(null);
     }
@@ -164,9 +196,13 @@ function WhatsAppConnectPage() {
       const result = await integrationsApi.createWhatsAppQrLink(integration.id);
       setQr(result);
       window.open(result.url, "_blank", "noopener,noreferrer");
-      toast.success("QR generado", { description: "Se abrió el enlace público del proveedor." });
+      toast.success("QR generado", {
+        description: "Se abrió el enlace público del proveedor.",
+      });
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "No se pudo generar el QR");
+      toast.error(
+        err instanceof ApiError ? err.message : "No se pudo generar el QR",
+      );
     } finally {
       setBusy(null);
     }
@@ -184,7 +220,9 @@ function WhatsAppConnectPage() {
       });
       toast.success("Mensaje de prueba enviado");
     } catch (err) {
-      toast.error(err instanceof ApiError ? err.message : "No se pudo enviar la prueba");
+      toast.error(
+        err instanceof ApiError ? err.message : "No se pudo enviar la prueba",
+      );
     } finally {
       setBusy(null);
     }
@@ -210,11 +248,14 @@ function WhatsAppConnectPage() {
   return (
     <main className="mx-auto w-full max-w-3xl flex-1 space-y-6 px-5 py-8 md:px-8 md:py-10">
       <div>
-        <p className="text-xs font-medium uppercase tracking-[0.14em] text-gold">Cuenta</p>
+        <p className="text-xs font-medium uppercase tracking-[0.14em] text-gold">
+          Cuenta
+        </p>
         <h1 className="mt-1 font-display text-4xl">WhatsApp</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Un número por cuenta, compartido por todos tus eventos. El QR lo genera el proveedor; aquí
-          vinculamos solo un device que pertenezca a tu tenant.
+          Un número por cuenta, compartido por todos tus eventos. El QR lo
+          genera el proveedor; aquí vinculamos solo un device que pertenezca a
+          tu tenant.
         </p>
       </div>
 
@@ -227,11 +268,20 @@ function WhatsAppConnectPage() {
             <div className="min-w-0 flex-1">
               <h2 className="font-display text-2xl">Conecta tu WhatsApp</h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                El deviceId y el tenantId deben ser tuyos en WhatsApp Connect. Esta app no crea devices, solo
-                los vincula si el proveedor confirma la titularidad.
+                El deviceId y el tenantId deben ser tuyos en WhatsApp Connect.
+                Esta app no crea devices, solo los vincula si el proveedor
+                confirma la titularidad.
               </p>
-              <Button className="mt-5" onClick={createIntegration} disabled={busy === "create"}>
-                {busy === "create" ? <Loader2 className="size-4 animate-spin" /> : <Smartphone className="size-4" />}
+              <Button
+                className="mt-5"
+                onClick={createIntegration}
+                disabled={busy === "create"}
+              >
+                {busy === "create" ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <Smartphone className="size-4" />
+                )}
                 Crear integración
               </Button>
             </div>
@@ -244,7 +294,9 @@ function WhatsAppConnectPage() {
               <div>
                 <h2 className="font-display text-2xl">Conexión</h2>
                 <p className="mt-1 text-sm text-muted-foreground">
-                  {integration.hasActiveCredential ? "Hay credenciales cifradas en el servidor." : "Aún no hay credenciales guardadas."}
+                  {integration.hasActiveCredential
+                    ? "Hay credenciales cifradas en el servidor."
+                    : "Aún no hay credenciales guardadas."}
                 </p>
               </div>
               <div className="flex items-center gap-2">
@@ -305,7 +357,9 @@ function WhatsAppConnectPage() {
                 <label className="flex items-center gap-2 text-sm">
                   <Switch
                     checked={integration.status === "active"}
-                    disabled={busy === "status" || !integration.hasActiveCredential}
+                    disabled={
+                      busy === "status" || !integration.hasActiveCredential
+                    }
                     onCheckedChange={toggleActive}
                   />
                   {integration.status === "active" ? (
@@ -329,11 +383,20 @@ function WhatsAppConnectPage() {
           <section className="rounded-2xl border border-border bg-card p-6 shadow-soft">
             <h2 className="font-display text-2xl">QR y estado</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Genera un enlace público temporal para escanear el QR. Esta pantalla no dibuja el código.
+              Genera un enlace público temporal para escanear el QR. Esta
+              pantalla no dibuja el código.
             </p>
             <div className="mt-4 flex flex-wrap gap-2">
-              <Button type="button" onClick={generateQr} disabled={!canOperate || busy === "qr"}>
-                {busy === "qr" ? <Loader2 className="size-4 animate-spin" /> : <QrCode className="size-4" />}
+              <Button
+                type="button"
+                onClick={generateQr}
+                disabled={!canOperate || busy === "qr"}
+              >
+                {busy === "qr" ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <QrCode className="size-4" />
+                )}
                 Generar QR
               </Button>
               {qr?.url ? (
@@ -358,7 +421,11 @@ function WhatsAppConnectPage() {
                   }
                 }}
               >
-                {busy === "status-refresh" ? <Loader2 className="size-4 animate-spin" /> : <RefreshCw className="size-4" />}
+                {busy === "status-refresh" ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="size-4" />
+                )}
                 Consultar estado
               </Button>
             </div>
@@ -369,7 +436,10 @@ function WhatsAppConnectPage() {
                   {new Date(deviceStatus.updatedAt).toLocaleString("es-MX")}
                 </p>
               ) : (
-                <p>Aún no hay estado del device. Activa la integración y consúltalo.</p>
+                <p>
+                  Aún no hay estado del device. Activa la integración y
+                  consúltalo.
+                </p>
               )}
               {qr?.expiresAt ? (
                 <p>
@@ -384,7 +454,8 @@ function WhatsAppConnectPage() {
           <section className="rounded-2xl border border-border bg-card p-6 shadow-soft">
             <h2 className="font-display text-2xl">Probar envío</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Manda un texto de prueba para confirmar que el device puede salir a WhatsApp.
+              Manda un texto de prueba para confirmar que el device puede salir
+              a WhatsApp.
             </p>
             <form className="mt-5 space-y-4" onSubmit={sendTest}>
               <div className="space-y-2">
@@ -399,10 +470,19 @@ function WhatsAppConnectPage() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="testText">Mensaje</Label>
-                <Input id="testText" value={testText} onChange={(e) => setTestText(e.target.value)} required />
+                <Input
+                  id="testText"
+                  value={testText}
+                  onChange={(e) => setTestText(e.target.value)}
+                  required
+                />
               </div>
               <Button type="submit" disabled={!canOperate || busy === "test"}>
-                {busy === "test" ? <Loader2 className="size-4 animate-spin" /> : <FlaskConical className="size-4" />}
+                {busy === "test" ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : (
+                  <FlaskConical className="size-4" />
+                )}
                 Enviar prueba
               </Button>
             </form>
@@ -410,8 +490,15 @@ function WhatsAppConnectPage() {
 
           <section className="rounded-2xl border border-border bg-card p-6 shadow-soft">
             <h2 className="font-display text-2xl">Webhook</h2>
-            <p className="mt-3 break-all rounded-lg bg-muted/50 px-3 py-2 font-mono text-xs">{webhookUrl}</p>
-            <Button type="button" variant="outline" className="mt-3" onClick={copyWebhook}>
+            <p className="mt-3 break-all rounded-lg bg-muted/50 px-3 py-2 font-mono text-xs">
+              {webhookUrl}
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              className="mt-3"
+              onClick={copyWebhook}
+            >
               <Copy className="size-4" /> Copiar URL
             </Button>
           </section>

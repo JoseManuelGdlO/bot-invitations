@@ -10,7 +10,12 @@ type Props = {
   plannerName?: string;
 };
 
-export function TemplatePreview({ body, guests, event, plannerName = "Planner" }: Props) {
+export function TemplatePreview({
+  body,
+  guests,
+  event,
+  plannerName = "Planner",
+}: Props) {
   const samples = guests.slice(0, 2);
 
   return (
@@ -24,13 +29,19 @@ export function TemplatePreview({ body, guests, event, plannerName = "Planner" }
       </p>
       <div className="mt-4 space-y-3">
         {samples.length === 0 ? (
-          <p className="text-sm text-muted-foreground">Agrega invitados para ver la interpolación.</p>
+          <p className="text-sm text-muted-foreground">
+            Agrega invitados para ver la interpolación.
+          </p>
         ) : (
           samples.map((guest) => (
             <div key={guest.id} className={cn("chat-canvas rounded-xl p-3")}>
-              <p className="mb-1.5 text-[11px] text-muted-foreground">{guest.rep}</p>
+              <p className="mb-1.5 text-[11px] text-muted-foreground">
+                {guest.rep}
+              </p>
               <div className="rounded-2xl rounded-br-sm bg-success-soft p-3 text-xs leading-relaxed shadow-soft">
-                <p className="whitespace-pre-line">{interpolateTemplate(body, guest, event, plannerName)}</p>
+                <p className="whitespace-pre-line">
+                  {interpolateTemplate(body, guest, event, plannerName)}
+                </p>
               </div>
             </div>
           ))

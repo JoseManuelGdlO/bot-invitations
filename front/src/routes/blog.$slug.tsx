@@ -45,13 +45,21 @@ export const Route = createFileRoute("/blog/$slug")({
 
 function BlogArticlePage() {
   const { article } = Route.useLoaderData();
-  const related = blogArticles.filter((item) => item.slug !== article.slug).slice(0, 3);
+  const related = blogArticles
+    .filter((item) => item.slug !== article.slug)
+    .slice(0, 3);
 
   return (
     <main className="mx-auto w-full max-w-3xl px-5 py-12 lg:py-16">
-      <p className="text-xs font-medium uppercase tracking-[0.16em] text-gold">{article.kicker}</p>
-      <h1 className="mt-3 font-display text-4xl leading-[1.1] sm:text-5xl">{article.title}</h1>
-      <p className="mt-5 text-base leading-relaxed text-muted-foreground">{article.intro}</p>
+      <p className="text-xs font-medium uppercase tracking-[0.16em] text-gold">
+        {article.kicker}
+      </p>
+      <h1 className="mt-3 font-display text-4xl leading-[1.1] sm:text-5xl">
+        {article.title}
+      </h1>
+      <p className="mt-5 text-base leading-relaxed text-muted-foreground">
+        {article.intro}
+      </p>
       <div className="mt-10 space-y-10">
         {article.sections.map((section) => (
           <section key={section.heading}>
@@ -65,9 +73,12 @@ function BlogArticlePage() {
         ))}
       </div>
       <div className="mt-12 rounded-2xl border border-border bg-card p-6">
-        <p className="font-display text-2xl">¿Quieres dejar de confirmar a mano?</p>
+        <p className="font-display text-2xl">
+          ¿Quieres dejar de confirmar a mano?
+        </p>
         <p className="mt-2 text-sm text-muted-foreground">
-          Alanna Confirmaciones importa tu lista, conversa por WhatsApp y te entrega la lista final.
+          Alanna Confirmaciones importa tu lista, conversa por WhatsApp y te
+          entrega la lista final.
         </p>
         <Button className="mt-4" asChild>
           <Link to="/registro">Crear cuenta</Link>

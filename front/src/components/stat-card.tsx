@@ -32,15 +32,21 @@ export function StatCard({
       )}
     >
       <div className="flex items-start justify-between gap-3">
-        <p className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">{label}</p>
+        <p className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">
+          {label}
+        </p>
         {Icon ? (
           <span className="rounded-lg bg-secondary p-1.5 text-muted-foreground transition-colors group-hover:bg-gold-soft group-hover:text-gold">
             <Icon className="size-4" />
           </span>
         ) : null}
       </div>
-      <p className={cn("mt-3 font-display text-3xl leading-none", tones[tone])}>{value}</p>
-      {hint ? <p className="mt-2 text-xs text-muted-foreground">{hint}</p> : null}
+      <p className={cn("mt-3 font-display text-3xl leading-none", tones[tone])}>
+        {value}
+      </p>
+      {hint ? (
+        <p className="mt-2 text-xs text-muted-foreground">{hint}</p>
+      ) : null}
     </div>
   );
 }

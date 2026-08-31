@@ -11,7 +11,12 @@ type Props = {
   rows?: number;
 };
 
-export function TemplateBodyEditor({ value, onChange, onSave, rows = 8 }: Props) {
+export function TemplateBodyEditor({
+  value,
+  onChange,
+  onSave,
+  rows = 8,
+}: Props) {
   const [body, setBody] = useState(value);
 
   useEffect(() => {

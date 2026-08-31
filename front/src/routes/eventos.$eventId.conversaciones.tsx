@@ -1,6 +1,14 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Bot, Pause, Play, Search, Send, ShieldAlert, UserRound } from "lucide-react";
+import {
+  Bot,
+  Pause,
+  Play,
+  Search,
+  Send,
+  ShieldAlert,
+  UserRound,
+} from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -18,9 +26,18 @@ export const Route = createFileRoute("/eventos/$eventId/conversaciones")({
   head: () => ({
     meta: [
       { title: "Conversaciones · Alanna Confirmaciones" },
-      { name: "description", content: "Bandeja estilo WhatsApp con las conversaciones del evento." },
-      { property: "og:title", content: "Conversaciones · Alanna Confirmaciones" },
-      { property: "og:description", content: "Bandeja de conversaciones asistidas por IA." },
+      {
+        name: "description",
+        content: "Bandeja estilo WhatsApp con las conversaciones del evento.",
+      },
+      {
+        property: "og:title",
+        content: "Conversaciones · Alanna Confirmaciones",
+      },
+      {
+        property: "og:description",
+        content: "Bandeja de conversaciones asistidas por IA.",
+      },
       { name: "robots", content: "noindex, nofollow" },
     ],
   }),
@@ -34,7 +51,10 @@ function Conversaciones() {
   const { sendMessage, toggleAI, updateGuest, hasPerm, refresh } = useStore();
   const canReply = hasPerm(eventId, PERMS.REPLY);
   const canConfirm = hasPerm(eventId, PERMS.CONFIRM);
-  const initial = conversations.find((c) => c.guestId === guestId)?.id ?? conversations[0]?.id ?? null;
+  const initial =
+    conversations.find((c) => c.guestId === guestId)?.id ??
+    conversations[0]?.id ??
+    null;
   const [activeId, setActiveId] = useState<string | null>(initial);
   const [q, setQ] = useState("");
   const [draft, setDraft] = useState("");
@@ -53,7 +73,9 @@ function Conversaciones() {
   }, []);
 
   useEffect(() => {
-    const found = guestId ? conversations.find((c) => c.guestId === guestId) : null;
+    const found = guestId
+      ? conversations.find((c) => c.guestId === guestId)
+      : null;
     if (found) setActiveId(found.id);
     else if (!activeId && conversations[0]) setActiveId(conversations[0].id);
   }, [guestId, conversations, activeId]);
@@ -61,7 +83,9 @@ function Conversaciones() {
   const list = useMemo(() => {
     return conversations
       .map((c) => ({ conv: c, guest: guests.find((g) => g.id === c.guestId)! }))
-      .filter((x) => x.guest && x.guest.rep.toLowerCase().includes(q.toLowerCase()));
+      .filter(
+        (x) => x.guest && x.guest.rep.toLowerCase().includes(q.toLowerCase()),
+      );
   }, [conversations, guests, q]);
 
   const active = list.find((x) => x.conv.id === activeId) ?? list[0];
@@ -73,7 +97,8 @@ function Conversaciones() {
   if (!active) {
     return (
       <main className="flex flex-1 items-center justify-center p-10 text-sm text-muted-foreground">
-        Aún no hay conversaciones en este evento. Inicia las confirmaciones desde el resumen.
+        Aún no hay conversaciones en este evento. Inicia las confirmaciones
+        desde el resumen.
       </main>
     );
   }
@@ -87,7 +112,11 @@ function Conversaciones() {
         await botApi.simulateGuest(active.conv.id, text);
         await refresh();
       } catch (error) {
-        toast.error(error instanceof Error ? error.message : "No se pudo simular al invitado");
+        toast.error(
+          error instanceof Error
+            ? error.message
+            : "No se pudo simular al invitado",
+        );
       }
       return;
     }
@@ -95,7 +124,10 @@ function Conversaciones() {
       id: `m-${Date.now()}`,
       from: active.conv.aiPaused ? "planner" : "ai",
       text: draft,
-      at: new Date().toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" }),
+      at: new Date().toLocaleTimeString("es-MX", {
+        hour: "2-digit",
+        minute: "2-digit",
+      }),
     });
     setDraft("");
   };
@@ -107,7 +139,12 @@ function Conversaciones() {
         <div className="border-b border-border p-3">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-            <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Buscar" className="pl-9" />
+            <Input
+              value={q}
+              onChange={(e) => setQ(e.target.value)}
+              placeholder="Buscar"
+              className="pl-9"
+            />
           </div>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto">
@@ -121,7 +158,11 @@ function Conversaciones() {
               )}
             >
               <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-gold-soft text-[11px] font-semibold text-gold-foreground">
-                {guest.rep.split(" ").map((p) => p[0]).join("").slice(0, 2)}
+                {guest.rep
+                  .split(" ")
+                  .map((p) => p[0])
+                  .join("")
+                  .slice(0, 2)}
               </span>
               <div className="min-w-0 flex-1">
                 <div className="flex items-center justify-between gap-2">
@@ -130,7 +171,9 @@ function Conversaciones() {
                     {conv.messages[conv.messages.length - 1]?.at}
                   </span>
                 </div>
-                <p className="truncate text-[11px] text-muted-foreground">{guest.phone}</p>
+                <p className="truncate text-[11px] text-muted-foreground">
+                  {guest.phone}
+                </p>
                 <p className="truncate text-xs text-muted-foreground">
                   {conv.messages[conv.messages.length - 1]?.text}
                 </p>
@@ -160,50 +203,52 @@ function Conversaciones() {
           <div className="ml-auto flex flex-wrap gap-2">
             {canReply ? (
               active.conv.aiPaused ? (
-              <Button
-                size="sm"
-                onClick={() => {
-                  toggleAI(active.conv.id, false);
-                  toast.success("Automatización reactivada");
-                }}
-              >
-                <Play className="size-4" /> Reactivar automatización
-              </Button>
-            ) : (
-              <>
                 <Button
                   size="sm"
-                  variant="outline"
                   onClick={() => {
-                    toggleAI(active.conv.id, true);
-                    toast.info("IA pausada en esta conversación");
+                    toggleAI(active.conv.id, false);
+                    toast.success("Automatización reactivada");
                   }}
                 >
-                  <Pause className="size-4" /> Pausar IA
+                  <Play className="size-4" /> Reactivar automatización
                 </Button>
-                <Button
-                  size="sm"
-                  variant="outline"
-                  onClick={() => {
-                    toggleAI(active.conv.id, true);
-                    toast.info("Ahora respondes personalmente");
-                  }}
-                >
-                  <UserRound className="size-4" /> Responder personalmente
-                </Button>
-              </>
-            )
+              ) : (
+                <>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      toggleAI(active.conv.id, true);
+                      toast.info("IA pausada en esta conversación");
+                    }}
+                  >
+                    <Pause className="size-4" /> Pausar IA
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      toggleAI(active.conv.id, true);
+                      toast.info("Ahora respondes personalmente");
+                    }}
+                  >
+                    <UserRound className="size-4" /> Responder personalmente
+                  </Button>
+                </>
+              )
             ) : null}
           </div>
         </div>
 
         {active.conv.aiPaused ? (
           <div className="flex items-center gap-2 border-b border-border bg-warning-soft px-4 py-2 text-xs text-warning">
-            <ShieldAlert className="size-4" /> Conversación tomada por un miembro del equipo.
+            <ShieldAlert className="size-4" /> Conversación tomada por un
+            miembro del equipo.
           </div>
         ) : (
           <div className="flex items-center gap-2 border-b border-border bg-success-soft px-4 py-2 text-xs text-success">
-            <Bot className="size-4" /> El asistente está respondiendo automáticamente.
+            <Bot className="size-4" /> El asistente está respondiendo
+            automáticamente.
           </div>
         )}
 
@@ -228,7 +273,11 @@ function Conversaciones() {
               >
                 <p className="whitespace-pre-line">{m.text}</p>
                 <p className="mt-1 text-right text-[10px] text-muted-foreground">
-                  {m.from === "planner" ? "Equipo · " : m.from === "ai" ? "Asistente · " : ""}
+                  {m.from === "planner"
+                    ? "Equipo · "
+                    : m.from === "ai"
+                      ? "Asistente · "
+                      : ""}
                   {m.at}
                 </p>
               </div>
@@ -238,35 +287,35 @@ function Conversaciones() {
         </div>
 
         {canReply ? (
-        <div className="border-t border-border bg-card p-3">
-          {devBot ? (
-            <label className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
-              <input
-                type="checkbox"
-                checked={simulateGuest}
-                onChange={(e) => setSimulateGuest(e.target.checked)}
+          <div className="border-t border-border bg-card p-3">
+            {devBot ? (
+              <label className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={simulateGuest}
+                  onChange={(e) => setSimulateGuest(e.target.checked)}
+                />
+                Simular respuesta del invitado
+              </label>
+            ) : null}
+            <div className="flex items-center gap-2">
+              <Input
+                value={draft}
+                onChange={(e) => setDraft(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && void send()}
+                placeholder={
+                  simulateGuest && devBot
+                    ? "Escribe como el invitado…"
+                    : active.conv.aiPaused
+                      ? "Escribe como parte del equipo…"
+                      : "Escribe un mensaje…"
+                }
               />
-              Simular respuesta del invitado
-            </label>
-          ) : null}
-          <div className="flex items-center gap-2">
-            <Input
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && void send()}
-              placeholder={
-                simulateGuest && devBot
-                  ? "Escribe como el invitado…"
-                  : active.conv.aiPaused
-                    ? "Escribe como parte del equipo…"
-                    : "Escribe un mensaje…"
-              }
-            />
-            <Button onClick={() => void send()} size="icon">
-              <Send className="size-4" />
-            </Button>
+              <Button onClick={() => void send()} size="icon">
+                <Send className="size-4" />
+              </Button>
+            </div>
           </div>
-        </div>
         ) : (
           <p className="border-t border-border bg-card px-4 py-3 text-xs text-muted-foreground">
             Tienes acceso de solo lectura a estas conversaciones.
@@ -278,11 +327,17 @@ function Conversaciones() {
       <aside className="hidden border-l border-border bg-card p-5 lg:block">
         <div className="flex flex-col items-center text-center">
           <span className="flex size-14 items-center justify-center rounded-full bg-gold-soft font-display text-lg text-gold-foreground">
-            {active.guest.rep.split(" ").map((p) => p[0]).join("").slice(0, 2)}
+            {active.guest.rep
+              .split(" ")
+              .map((p) => p[0])
+              .join("")
+              .slice(0, 2)}
           </span>
           <p className="mt-3 font-medium">{active.guest.rep}</p>
           <p className="text-xs text-muted-foreground">{active.guest.phone}</p>
-          <div className="mt-3"><StatusBadge status={active.guest.status} /></div>
+          <div className="mt-3">
+            <StatusBadge status={active.guest.status} />
+          </div>
         </div>
         <div className="mt-6 space-y-3 text-sm">
           {[
@@ -292,7 +347,10 @@ function Conversaciones() {
             ["Tipo", active.guest.guestType],
             ["Etiqueta", active.guest.tag],
           ].map(([k, v]) => (
-            <div key={k} className="flex justify-between border-b border-border/60 pb-2">
+            <div
+              key={k}
+              className="flex justify-between border-b border-border/60 pb-2"
+            >
               <span className="text-muted-foreground">{k}</span>
               <span className="font-medium">{v}</span>
             </div>
@@ -303,16 +361,19 @@ function Conversaciones() {
           </div>
         </div>
         {canConfirm ? (
-        <Button
-          className="mt-6 w-full"
-          variant="outline"
-          onClick={() => {
-            updateGuest(active.guest.id, { status: "confirmado", confirmed: active.guest.invited });
-            toast.success("Confirmación registrada");
-          }}
-        >
-          Confirmar {active.guest.invited} asistentes
-        </Button>
+          <Button
+            className="mt-6 w-full"
+            variant="outline"
+            onClick={() => {
+              updateGuest(active.guest.id, {
+                status: "confirmado",
+                confirmed: active.guest.invited,
+              });
+              toast.success("Confirmación registrada");
+            }}
+          >
+            Confirmar {active.guest.invited} asistentes
+          </Button>
         ) : null}
       </aside>
     </main>

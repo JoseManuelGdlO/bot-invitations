@@ -80,29 +80,112 @@ export const events: EventItem[] = [
 ];
 
 const firstNames = [
-  "María","Juan","Alejandra","Roberto","Paulina","Emilio","Regina","Santiago","Valeria","Héctor",
-  "Ximena","Gerardo","Daniela","Ricardo","Camila","Andrés","Renata","Mauricio","Lucía","Fernando",
-  "Isabela","Rodrigo","Carolina","Sergio","Mónica","Iván","Adriana","Pablo","Natalia","Óscar",
+  "María",
+  "Juan",
+  "Alejandra",
+  "Roberto",
+  "Paulina",
+  "Emilio",
+  "Regina",
+  "Santiago",
+  "Valeria",
+  "Héctor",
+  "Ximena",
+  "Gerardo",
+  "Daniela",
+  "Ricardo",
+  "Camila",
+  "Andrés",
+  "Renata",
+  "Mauricio",
+  "Lucía",
+  "Fernando",
+  "Isabela",
+  "Rodrigo",
+  "Carolina",
+  "Sergio",
+  "Mónica",
+  "Iván",
+  "Adriana",
+  "Pablo",
+  "Natalia",
+  "Óscar",
 ];
 const lastNames = [
-  "González","Pérez","Ramírez","Herrera","Vázquez","Cantú","Solís","Escobedo","Navarro","Zamora",
-  "Peña","Aguilar","Cervantes","Domínguez","Fuentes","Lozano","Miranda","Ortega","Quintero","Salazar",
+  "González",
+  "Pérez",
+  "Ramírez",
+  "Herrera",
+  "Vázquez",
+  "Cantú",
+  "Solís",
+  "Escobedo",
+  "Navarro",
+  "Zamora",
+  "Peña",
+  "Aguilar",
+  "Cervantes",
+  "Domínguez",
+  "Fuentes",
+  "Lozano",
+  "Miranda",
+  "Ortega",
+  "Quintero",
+  "Salazar",
 ];
-const guestTypes = ["Familia", "Amigos", "Trabajo", "Padrinos", "Familia política"];
+const guestTypes = [
+  "Familia",
+  "Amigos",
+  "Trabajo",
+  "Padrinos",
+  "Familia política",
+];
 const tags = ["VIP", "Hospedaje", "Foráneo", "Mesa principal", "Sin etiqueta"];
 
 const statusPool: ConfirmationStatus[] = [
-  "confirmado","confirmado","confirmado","confirmado","parcial","no_asistira",
-  "sin_respuesta","en_conversacion","enviado","entregado","respondio","seguimiento","sin_contactar",
+  "confirmado",
+  "confirmado",
+  "confirmado",
+  "confirmado",
+  "parcial",
+  "no_asistira",
+  "sin_respuesta",
+  "en_conversacion",
+  "enviado",
+  "entregado",
+  "respondio",
+  "seguimiento",
+  "sin_contactar",
 ];
 
 const replies: Record<string, string[]> = {
-  confirmado: ["Sí, ahí estaremos todos. ¡Gracias!", "Confirmados, contamos los días 🥂", "Claro que sí, asistimos completos."],
-  parcial: ["Sí vamos, solamente seremos tres personas.", "Vamos dos nada más, mi hijo no podrá.", "Asistimos, pero seríamos uno menos."],
-  no_asistira: ["Lamentablemente no podremos asistir.", "Gracias por la invitación, esa fecha estaremos fuera.", "No alcanzamos a llegar, mil disculpas."],
-  respondio: ["Hola, sí recibí la invitación.", "Gracias, en un momento te confirmo."],
-  en_conversacion: ["¿Los niños pueden asistir?", "¿A qué hora es la ceremonia?"],
-  seguimiento: ["Todavía no sabemos, te aviso la próxima semana.", "Déjame confirmar con mi esposo."],
+  confirmado: [
+    "Sí, ahí estaremos todos. ¡Gracias!",
+    "Confirmados, contamos los días 🥂",
+    "Claro que sí, asistimos completos.",
+  ],
+  parcial: [
+    "Sí vamos, solamente seremos tres personas.",
+    "Vamos dos nada más, mi hijo no podrá.",
+    "Asistimos, pero seríamos uno menos.",
+  ],
+  no_asistira: [
+    "Lamentablemente no podremos asistir.",
+    "Gracias por la invitación, esa fecha estaremos fuera.",
+    "No alcanzamos a llegar, mil disculpas.",
+  ],
+  respondio: [
+    "Hola, sí recibí la invitación.",
+    "Gracias, en un momento te confirmo.",
+  ],
+  en_conversacion: [
+    "¿Los niños pueden asistir?",
+    "¿A qué hora es la ceremonia?",
+  ],
+  seguimiento: [
+    "Todavía no sabemos, te aviso la próxima semana.",
+    "Déjame confirmar con mi esposo.",
+  ],
 };
 
 function phone(i: number) {
@@ -112,7 +195,8 @@ function phone(i: number) {
 function makeGuest(eventId: string, i: number): Guest {
   const rep = `${pick(firstNames)} ${pick(lastNames)}`;
   let status = statusPool[i % statusPool.length]!;
-  if (eventId === "fernanda-luis") status = pick(["sin_contactar", "sin_contactar", "enviado", "entregado"]);
+  if (eventId === "fernanda-luis")
+    status = pick(["sin_contactar", "sin_contactar", "enviado", "entregado"]);
   const invited = int(1, 6);
   let confirmed = 0;
   if (status === "confirmado") confirmed = invited;
@@ -141,11 +225,16 @@ function makeGuest(eventId: string, i: number): Guest {
           : status === "entregado" || status === "sin_respuesta"
             ? "entregado"
             : "respondido",
-    lastMessage: status === "sin_contactar" ? "" : `Mensaje inicial · ${day}/07`,
+    lastMessage:
+      status === "sin_contactar" ? "" : `Mensaje inicial · ${day}/07`,
     lastReply: reply,
-    lastReplyAt: reply ? `${day}/07 · ${int(9, 21)}:${String(int(10, 59))}` : "",
+    lastReplyAt: reply
+      ? `${day}/07 · ${int(9, 21)}:${String(int(10, 59))}`
+      : "",
     followUp:
-      status === "seguimiento" || status === "sin_respuesta" ? `${int(1, 28)}/08/2026` : "",
+      status === "seguimiento" || status === "sin_respuesta"
+        ? `${int(1, 28)}/08/2026`
+        : "",
   };
 }
 
@@ -158,7 +247,8 @@ export function buildGuests(): Guest[] {
   };
   const all: Guest[] = [];
   for (const ev of events) {
-    for (let i = 0; i < (counts[ev.id] ?? 0); i++) all.push(makeGuest(ev.id, i));
+    for (let i = 0; i < (counts[ev.id] ?? 0); i++)
+      all.push(makeGuest(ev.id, i));
   }
   // Caso destacado del brief
   const hero = all.find((g) => g.eventId === "andrea-carlos");
@@ -196,34 +286,108 @@ function defaultAI(assistant: string, hosts: string): AIConfig {
       "Clasifica cada mensaje en faq, asistira, no_asistira, seguimiento o desconocido.",
       "Si es FAQ, responde solo con las FAQs o plantillas de información; si no hay dato, no inventes y ofrece pasar al equipo.",
       "Si confirma o decline con claridad, usa las tools y la plantilla; no parafrasees el cierre.",
-      "Si está indeciso, marca seguimiento; el sistema recontacta a los 3 días.",
+      "Si está indeciso, marca seguimiento; el sistema recontacta según las reglas de seguimiento.",
       "Si es desconocido, interpreta y responde; no cierres el RSVP.",
       "Si confirma pero no dice con cuántas personas, pregunta el número antes de cerrar.",
       "No superar el número máximo de invitados de la invitación.",
       "Si existe una situación especial, escalar al Wedding Planner.",
     ],
     followUps: [
-      { id: "f1", label: "Primer contacto", when: "30 días antes del evento", active: true },
-      { id: "f2", label: "Primer recordatorio", when: "7 días después del primer contacto", active: true },
-      { id: "f3", label: "Segundo recordatorio", when: "14 días después del primer contacto", active: true },
-      { id: "f4", label: "Último intento", when: "7 días antes del evento", active: false },
+      {
+        id: "f1",
+        label: "Primer contacto",
+        description:
+          "Es la invitación inicial. No se envía sola: la lanzas desde Resumen.",
+        days: 30,
+        when: "30 días antes del evento",
+        active: true,
+      },
+      {
+        id: "f2",
+        label: "Primer recordatorio",
+        description:
+          "Este solo se manda si el invitado ya recibió el primer contacto y todavía no confirma ni declina.",
+        days: 7,
+        when: "7 días después del primer contacto",
+        active: true,
+      },
+      {
+        id: "f3",
+        label: "Segundo recordatorio",
+        description:
+          "Se manda si, después del primer recordatorio, el invitado sigue sin confirmar ni declinar.",
+        days: 14,
+        when: "14 días después del primer contacto",
+        active: true,
+      },
+      {
+        id: "f4",
+        label: "Último intento",
+        description:
+          "Último recordatorio automático antes del evento, solo a quien aún no tiene RSVP.",
+        days: 7,
+        when: "7 días antes del evento",
+        active: false,
+      },
+      {
+        id: "indeciso",
+        label: "Recontacto a indecisos",
+        description:
+          "Cuando el invitado pospone la confirmación (luego te digo), el bot agenda este recontacto. Usa la plantilla Seguimiento.",
+        days: 3,
+        when: "3 días después de marcar seguimiento",
+        active: true,
+      },
     ],
   };
 }
 
 const baseTemplates = (hosts: string) => [
-  { id: "t1", category: "Primer contacto", title: "Invitación inicial", body: `Hola {{nombre}}, soy el equipo de ${hosts}. Estamos confirmando asistencia para {{evento}} el {{fecha}}. ¿Podrán acompañarnos?` },
-  { id: "t2", category: "Recordatorio", title: "Recordatorio amable", body: "Hola {{nombre}}, ¿pudiste revisar la invitación? Nos encantaría contar contigo el {{fecha}} ✨" },
-  { id: "t3", category: "Confirmación", title: "Cierre de confirmación", body: "Perfecto {{nombre}}, entonces confirmamos {{numero_confirmados}} asistentes. ¡Nos vemos el {{fecha}}!" },
-  { id: "t4", category: "Rechazo", title: "Respuesta a rechazo", body: "Gracias por avisarnos, {{nombre}}. Te vamos a extrañar, mandamos un abrazo grande." },
-  { id: "t9", category: "Seguimiento", title: "Recontacto a indecisos", body: "Hola {{nombre}}, te escribo de nuevo por {{evento}} del {{fecha}}. ¿Ya pudieron confirmar si nos acompañan?" },
+  {
+    id: "t1",
+    category: "Primer contacto",
+    title: "Invitación inicial",
+    body: `Hola {{nombre}}, soy el equipo de ${hosts}. Estamos confirmando asistencia para {{evento}} el {{fecha}}. ¿Podrán acompañarnos?`,
+  },
+  {
+    id: "t2",
+    category: "Recordatorio",
+    title: "Recordatorio amable",
+    body: "Hola {{nombre}}, ¿pudiste revisar la invitación? Nos encantaría contar contigo el {{fecha}} ✨",
+  },
+  {
+    id: "t3",
+    category: "Confirmación",
+    title: "Cierre de confirmación",
+    body: "Perfecto {{nombre}}, entonces confirmamos {{numero_confirmados}} asistentes. ¡Nos vemos el {{fecha}}!",
+  },
+  {
+    id: "t4",
+    category: "Rechazo",
+    title: "Respuesta a rechazo",
+    body: "Gracias por avisarnos, {{nombre}}. Te vamos a extrañar, mandamos un abrazo grande.",
+  },
+  {
+    id: "t9",
+    category: "Seguimiento",
+    title: "Recontacto a indecisos",
+    body: "Hola {{nombre}}, te escribo de nuevo por {{evento}} del {{fecha}}. ¿Ya pudieron confirmar si nos acompañan?",
+  },
 ];
 
 const baseFaqs = (venue: string) => [
   { id: "q1", q: "¿Dónde es la boda?", a: `${venue}.` },
-  { id: "q2", q: "¿Pueden ir niños?", a: "El evento está planeado únicamente para adultos." },
+  {
+    id: "q2",
+    q: "¿Pueden ir niños?",
+    a: "El evento está planeado únicamente para adultos.",
+  },
   { id: "q3", q: "¿Cuál es el código de vestimenta?", a: "Formal." },
-  { id: "q4", q: "¿Hay estacionamiento?", a: "Sí, contamos con valet parking sin costo." },
+  {
+    id: "q4",
+    q: "¿Hay estacionamiento?",
+    a: "Sí, contamos con valet parking sin costo.",
+  },
 ];
 
 export function buildEventData(): Record<string, EventData> {
@@ -240,28 +404,65 @@ export function buildEventData(): Record<string, EventData> {
 }
 
 export function buildConversations(guests: Guest[]): Conversation[] {
-  const talking = guests.filter((g) => g.whatsapp === "respondido").slice(0, 22);
+  const talking = guests
+    .filter((g) => g.whatsapp === "respondido")
+    .slice(0, 22);
   return talking.map((g, i) => {
     const msgs = [
       {
         id: `${g.id}-m1`,
         from: "ai" as const,
-        text: `Hola ${(g.rep.split(" ")[0] ?? g.rep)} 👋 Soy Sofía, del equipo de los anfitriones. Estamos confirmando invitados y tenemos registrada una invitación para ${g.invited} personas. ¿Podrán acompañarnos?`,
+        text: `Hola ${g.rep.split(" ")[0] ?? g.rep} 👋 Soy Sofía, del equipo de los anfitriones. Estamos confirmando invitados y tenemos registrada una invitación para ${g.invited} personas. ¿Podrán acompañarnos?`,
         at: "10:12",
       },
-      { id: `${g.id}-m2`, from: "guest" as const, text: g.lastReply || "Hola, sí recibimos la invitación.", at: "10:31" },
+      {
+        id: `${g.id}-m2`,
+        from: "guest" as const,
+        text: g.lastReply || "Hola, sí recibimos la invitación.",
+        at: "10:31",
+      },
     ];
     if (g.status === "confirmado") {
-      msgs.push({ id: `${g.id}-m3`, from: "ai", text: `¡Perfecto ${(g.rep.split(" ")[0] ?? g.rep)}! Entonces confirmamos ${g.invited} asistentes. Les esperamos con mucho gusto ✨`, at: "10:32" });
+      msgs.push({
+        id: `${g.id}-m3`,
+        from: "ai",
+        text: `¡Perfecto ${g.rep.split(" ")[0] ?? g.rep}! Entonces confirmamos ${g.invited} asistentes. Les esperamos con mucho gusto ✨`,
+        at: "10:32",
+      });
     } else if (g.status === "parcial") {
-      msgs.push({ id: `${g.id}-m3`, from: "ai", text: `Gracias por avisar. Entonces confirmamos ${g.confirmed} asistentes de los ${g.invited} lugares reservados. ¿Es correcto?`, at: "10:33" });
-      msgs.push({ id: `${g.id}-m4`, from: "guest", text: "Sí, así es 🙂", at: "10:40" });
+      msgs.push({
+        id: `${g.id}-m3`,
+        from: "ai",
+        text: `Gracias por avisar. Entonces confirmamos ${g.confirmed} asistentes de los ${g.invited} lugares reservados. ¿Es correcto?`,
+        at: "10:33",
+      });
+      msgs.push({
+        id: `${g.id}-m4`,
+        from: "guest",
+        text: "Sí, así es 🙂",
+        at: "10:40",
+      });
     } else if (g.status === "no_asistira") {
-      msgs.push({ id: `${g.id}-m3`, from: "ai", text: "Gracias por avisarnos, quedamos atentos por si algo cambia. ¡Un abrazo!", at: "11:02" });
+      msgs.push({
+        id: `${g.id}-m3`,
+        from: "ai",
+        text: "Gracias por avisarnos, quedamos atentos por si algo cambia. ¡Un abrazo!",
+        at: "11:02",
+      });
     } else if (g.status === "seguimiento") {
-      msgs.push({ id: `${g.id}-m3`, from: "ai", text: "Claro que sí, sin prisa. Te escribo de nuevo en unos días para confirmar 😊", at: "11:15" });
+      msgs.push({
+        id: `${g.id}-m3`,
+        from: "ai",
+        text: "Claro que sí, sin prisa. Te escribo de nuevo en unos días para confirmar 😊",
+        at: "11:15",
+      });
     } else if (g.status === "en_conversacion") {
-      msgs.push({ id: `${g.id}-m3`, from: "ai", text: "Con gusto te comparto los detalles. ¿Hay algo más en lo que pueda ayudarte?", at: "11:20" });
+      msgs.push({
+        id: `${g.id}-m3`,
+        from: "ai",
+        text: "Con gusto te comparto los detalles. ¿Hay algo más en lo que pueda ayudarte?",
+        at: "11:20",
+      });
     }
     return {
       id: `conv-${g.id}`,
@@ -275,11 +476,53 @@ export function buildConversations(guests: Guest[]): Conversation[] {
 }
 
 export const activity: ActivityItem[] = [
-  { id: "a1", eventId: "andrea-carlos", text: "María González confirmó 3 de 4 lugares", at: "hace 4 min", kind: "confirm" },
-  { id: "a2", eventId: "andrea-carlos", text: "Sofía envió 18 recordatorios automáticos", at: "hace 26 min", kind: "message" },
-  { id: "a3", eventId: "mariana-diego", text: "Familia Herrera no podrá asistir", at: "hace 1 h", kind: "reject" },
-  { id: "a4", eventId: "xv-sofia", text: "Se importaron 18 invitaciones desde Excel", at: "hace 3 h", kind: "system" },
-  { id: "a5", eventId: "mariana-diego", text: "Renata confirmó 2 asistentes", at: "hace 5 h", kind: "confirm" },
-  { id: "a6", eventId: "andrea-carlos", text: "Conversación con Pablo Ortega escalada al equipo", at: "ayer", kind: "system" },
-  { id: "a7", eventId: "xv-sofia", text: "Se programó seguimiento para 6 invitaciones", at: "ayer", kind: "message" },
+  {
+    id: "a1",
+    eventId: "andrea-carlos",
+    text: "María González confirmó 3 de 4 lugares",
+    at: "hace 4 min",
+    kind: "confirm",
+  },
+  {
+    id: "a2",
+    eventId: "andrea-carlos",
+    text: "Sofía envió 18 recordatorios automáticos",
+    at: "hace 26 min",
+    kind: "message",
+  },
+  {
+    id: "a3",
+    eventId: "mariana-diego",
+    text: "Familia Herrera no podrá asistir",
+    at: "hace 1 h",
+    kind: "reject",
+  },
+  {
+    id: "a4",
+    eventId: "xv-sofia",
+    text: "Se importaron 18 invitaciones desde Excel",
+    at: "hace 3 h",
+    kind: "system",
+  },
+  {
+    id: "a5",
+    eventId: "mariana-diego",
+    text: "Renata confirmó 2 asistentes",
+    at: "hace 5 h",
+    kind: "confirm",
+  },
+  {
+    id: "a6",
+    eventId: "andrea-carlos",
+    text: "Conversación con Pablo Ortega escalada al equipo",
+    at: "ayer",
+    kind: "system",
+  },
+  {
+    id: "a7",
+    eventId: "xv-sofia",
+    text: "Se programó seguimiento para 6 invitaciones",
+    at: "ayer",
+    kind: "message",
+  },
 ];

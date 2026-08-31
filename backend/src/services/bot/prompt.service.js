@@ -1,5 +1,6 @@
 import { AiConfig, Faq, Template, User } from "../../models/index.js";
 import { eventGuestVars } from "../../utils/defaults.js";
+import { indecisoFollowUpDays } from "../follow-up.service.js";
 
 const EMOJI_HINT = {
   ninguno: "No uses emojis.",
@@ -27,6 +28,11 @@ function personalityFields(ai = {}) {
   return { name, tone, formality, emojis, length };
 }
 
+function indecisoDaysPhrase(ai) {
+  const days = indecisoFollowUpDays(ai?.followUps);
+  return days === 1 ? "1 día" : `${days} días`;
+}
+
 const SYSTEM_PROMPT_MARKERS = ["Flujo (obligatorio):", "Clasifica CADA mensaje del invitado"];
 
 export function extraInstructions(prompt) {
@@ -39,6 +45,7 @@ export function extraInstructions(prompt) {
 export function defaultPrompt(ai = {}) {
   const { name, tone, formality, emojis, length } = personalityFields(ai);
   const rules = listRules(ai) || "- Sé amable y no presiones al invitado.";
+  const indecisoDays = indecisoDaysPhrase(ai);
 
   return `Eres ${name}, asistente del equipo del evento. Hablas por WhatsApp con un invitado para confirmar asistencia.
 
@@ -68,7 +75,7 @@ Según la intención:
 - asistira: llama actualizar_confirmacion (confirmado si van todos, parcial si van menos) y después usar_plantilla con category "Confirmación". No parafrasees ese cierre.
   * Si piden MÁS personas que el cupo de la invitación: NO dejes el RSVP abierto ni te quedes solo preguntando. Llama igual actualizar_confirmacion con confirmed = el cupo (no el número pedido). El sistema recorta si mandas de más. Luego usar_plantilla Confirmación. En el campo reply (para concatenar después de la plantilla) explica con amabilidad que la invitación es solo para ese cupo, que confirmamos esos lugares (no los extra) y que si no les alcanza avisen al equipo. El invitado debe entender que NO quedan reservadas las personas de más.
 - no_asistira: llama actualizar_confirmacion con status no_asistira y después usar_plantilla con category "Rechazo". No parafrasees ese cierre.
-- seguimiento: llama marcar_seguimiento (deja followUpDate en null; el sistema agenda el recontacto a 3 días). Responde breve que les escribes de nuevo más adelante. No uses ahora la plantilla Seguimiento ni insistas en un sí o un no.
+- seguimiento: llama marcar_seguimiento (deja followUpDate en null; el sistema agenda el recontacto a ${indecisoDays}). Responde breve que les escribes de nuevo más adelante. No uses ahora la plantilla Seguimiento ni insistas en un sí o un no.
 - desconocido: interpreta el mensaje y responde con naturalidad según estas reglas. Puedes repreguntar la asistencia con suavidad. No cierres el RSVP.
 - Si confirma o decline Y además hace una FAQ: primero el RSVP (tool + plantilla). Escribe la respuesta de la FAQ en reply para que el sistema la concatene.
 
@@ -102,6 +109,7 @@ export function buildInstructions({ event, guest, ai, templates = [], faqs = [],
   const varKeys = Object.keys(vars).length
     ? Object.keys(vars).map((key) => `{{${key}}}`).join(", ")
     : "{{nombre}}, {{numero_invitados}}, {{evento}}";
+  const indecisoDays = indecisoDaysPhrase(ai);
 
   return `${brain}
 ${extraBlock}
@@ -142,7 +150,7 @@ Clasifica CADA mensaje en: faq | asistira | no_asistira | seguimiento | desconoc
   * CUPO: Si el invitado confirma y pide más personas que el Cupo de la invitación (${guest.invited}): cierra YA el RSVP. Llama actualizar_confirmacion con status "confirmado" y confirmed=${guest.invited} (o el número que pidieron; el backend lo clampea al cupo). No esperes otro mensaje. No clasifiques esto como desconocido ni seguimiento.
   * Después de la plantilla Confirmación, escribe en reply 1-3 frases amables: la invitación cubre ${guest.invited} persona(s); confirmamos ${guest.invited}, no el número extra; si necesitan más lugares, que avisen al equipo organizador. No digas que confirmaste a más gente de la que cabe.
 - no_asistira: actualizar_confirmacion (no_asistira) y después usar_plantilla con category "Rechazo".
-- seguimiento: marcar_seguimiento (followUpDate null; el sistema agenda a 3 días). Ack breve. No uses ahora la plantilla Seguimiento ni Primer contacto.
+- seguimiento: marcar_seguimiento (followUpDate null; el sistema agenda a ${indecisoDays}). Ack breve. No uses ahora la plantilla Seguimiento ni Primer contacto.
 - desconocido: responde según el cerebro; puedes repreguntar asistencia con suavidad. No cierres el RSVP.
 - RSVP + FAQ en el mismo mensaje: primero el RSVP (tool + plantilla) y escribe la FAQ en reply para concatenarla.
 - No reenvíes Primer contacto. No llames actualizar_confirmacion si el estado ya es confirmado, parcial o no_asistira, salvo corrección explícita del invitado.`;

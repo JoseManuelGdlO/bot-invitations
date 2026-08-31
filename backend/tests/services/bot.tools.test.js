@@ -66,6 +66,24 @@ describe("bot tools", () => {
     expect(guest.save).toHaveBeenCalled();
   });
 
+  test("marcar_seguimiento usa los días de ai.followUps", async () => {
+    const guest = fakeGuest({ status: "en_conversacion" });
+    await tools.executeMarcarSeguimiento(
+      { reason: null, followUpDate: null },
+      {
+        guest,
+        event: fakeEvent(),
+        ai: {
+          followUps: [
+            { id: "indeciso", label: "Recontacto a indecisos", days: 5, when: "5 días después de marcar seguimiento", active: true },
+          ],
+        },
+        dryRun: true,
+      },
+    );
+    expect(guest.followUp).toBe(formatFollowUpDate(defaultIndecisoFollowUpDate(new Date(), 5)));
+  });
+
   test("marcar_seguimiento respeta followUpDate explícita", async () => {
     const guest = fakeGuest({ status: "enviado" });
     await tools.executeMarcarSeguimiento(

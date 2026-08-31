@@ -1,5 +1,4 @@
 import {
-  AiConfig,
   Conversation,
   Event,
   Guest,
@@ -7,17 +6,13 @@ import {
 } from "../models/index.js";
 import { asyncHandler } from "../utils/async.js";
 import { formatClock } from "../utils/time.js";
-import { serializeConversation, serializeGuest, serializeMessage } from "../utils/serialize.js";
+import { serializeConversation, serializeMessage } from "../utils/serialize.js";
 import { requireEvent, userEventIds, requirePermission, PERMS } from "../services/access.service.js";
 import { enqueueJob } from "../services/outbound.worker.js";
-import { logActivity } from "../services/activity.service.js";
 import { assertCanSendInvitations } from "../services/plans.service.js";
 import { appendOutboundToSession } from "../services/bot/bot.service.js";
-import { assertWhatsappReady } from "../services/integration-resolver.service.js";
-import { deliverAiMessage } from "../services/guest-message.service.js";
-import { FALLBACK_OPENING, findTemplate, renderTemplate } from "../services/templates.service.js";
 import { resolveWhatsappTo } from "../utils/whatsapp-identity.js";
-import { resetOwnerThrottle } from "../services/outbound.throttle.js";
+import { getEventCampaignSnapshot, planCampaign } from "../services/campaign.service.js";
 import { Logger } from "../utils/logger.js";
 
 const log = new Logger("WhatsApp");
@@ -88,35 +83,26 @@ export const sendMessage = asyncHandler(async (req, res) => {
   res.status(201).json(serializeMessage(message));
 });
 
+export const getCurrentCampaign = asyncHandler(async (req, res) => {
+  const event = await requireEvent(req, res);
+  if (!event) return;
+  if (!(await requirePermission(req, res, event, PERMS.REPLY))) return;
+  res.json(await getEventCampaignSnapshot(event));
+});
+
 export const launchCampaign = asyncHandler(async (req, res) => {
   const event = await requireEvent(req, res);
   if (!event) return;
   if (!(await requirePermission(req, res, event, PERMS.REPLY))) return;
   assertCanSendInvitations(req.user);
-  log.info("lanzando campaña", { eventId: event.id, method: req.method, path: req.originalUrl });
-  const guests = await Guest.findAll({ where: { eventId: event.id, status: "sin_contactar" } });
-  if (guests.length) await assertWhatsappReady(event);
-  const ai = await AiConfig.findOne({ where: { eventId: event.id } });
-  const opening = await findTemplate(event.id, { category: "Primer contacto" });
-  const body = opening?.body || ai?.openingMessage || FALLBACK_OPENING;
-  const now = new Date();
-  resetOwnerThrottle(event.ownerId);
-  for (const guest of guests) {
-    const text = renderTemplate(body, event, guest, req.user.name);
-    await deliverAiMessage({
-      event,
-      guest,
-      text,
-      kind: "campaign",
-      guestPatch: {
-        status: "enviado",
-        whatsapp: "enviado",
-        contactedAt: now,
-      },
-    });
+  log.info("planificando campaña", { eventId: event.id, mode: req.body?.mode || "now" });
+  try {
+    const campaign = await planCampaign(event, req.body || {});
+    res.json(campaign);
+  } catch (err) {
+    if (err.status === 409) {
+      return res.status(409).json({ error: err.message, campaign: err.campaign });
+    }
+    throw err;
   }
-  await logActivity(event.id, `${ai?.assistantName || "El asistente"} envió ${guests.length} mensajes iniciales`, "message");
-  log.info("campaña lanzada", { eventId: event.id, launched: guests.length });
-  const updated = await Guest.findAll({ where: { eventId: event.id } });
-  res.json({ launched: guests.length, guests: updated.map((g) => serializeGuest(g, event.slug)) });
 });

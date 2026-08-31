@@ -1,6 +1,7 @@
 import {
   Activity,
   AiConfig,
+  Campaign,
   Conversation,
   Event,
   EventMember,
@@ -22,6 +23,7 @@ import {
   serializeRolePermission,
   serializeTemplate,
 } from "../utils/serialize.js";
+import { currentCampaignForEvent } from "./campaign.service.js";
 import { formatDuration, weekdayLabel } from "../utils/time.js";
 
 export function statsFor(guests) {
@@ -115,7 +117,7 @@ export async function loadUserState(userId) {
   const events = await Event.findAll({ where: { id: ids }, order: [["createdAt", "DESC"]] });
   const slugById = Object.fromEntries(events.map((e) => [e.id, e.slug]));
 
-  const [guests, conversations, messages, ais, templates, faqs, activities, members, perms] = await Promise.all([
+  const [guests, conversations, messages, ais, templates, faqs, activities, members, perms, campaigns] = await Promise.all([
     Guest.findAll({ where: { eventId: ids }, order: [["createdAt", "ASC"]] }),
     Conversation.findAll({ where: { eventId: ids }, order: [["updatedAt", "DESC"]] }),
     Message.findAll({ order: [["createdAt", "ASC"]] }),
@@ -125,6 +127,7 @@ export async function loadUserState(userId) {
     Activity.findAll({ where: { eventId: ids }, order: [["createdAt", "DESC"]], limit: 40 }),
     EventMember.findAll({ where: { eventId: ids, removedAt: null }, order: [["createdAt", "ASC"]] }),
     EventRolePermission.findAll({ where: { eventId: ids } }),
+    Campaign.findAll({ where: { eventId: ids }, order: [["createdAt", "DESC"]] }),
   ]);
 
   const convIds = new Set(conversations.map((c) => c.id));
@@ -171,7 +174,9 @@ export async function loadUserState(userId) {
   }
 
   return {
-    events: events.map(serializeEvent),
+    events: events.map((event) =>
+      serializeEvent(event, currentCampaignForEvent(campaigns, event.id)),
+    ),
     guests: guests.map((g) => serializeGuest(g, slugById[g.eventId])),
     conversations: conversations.map((c) =>
       serializeConversation(c, slugById[c.eventId], messagesByConv.get(c.id) || []),

@@ -66,7 +66,9 @@ function AdminClients() {
         method: "PATCH",
         body: JSON.stringify(body),
       });
-      setRows((current) => current.map((row) => (row.id === id ? updated : row)));
+      setRows((current) =>
+        current.map((row) => (row.id === id ? updated : row)),
+      );
       toast.success("Cliente actualizado");
     } catch {
       toast.error("No se pudo actualizar el cliente");
@@ -75,7 +77,9 @@ function AdminClients() {
 
   return (
     <main className="mx-auto w-full max-w-7xl flex-1 px-5 py-8 md:px-8 md:py-10">
-      <p className="text-xs font-medium uppercase tracking-[0.14em] text-gold">Backoffice</p>
+      <p className="text-xs font-medium uppercase tracking-[0.14em] text-gold">
+        Backoffice
+      </p>
       <h1 className="mt-1 font-display text-4xl">Clientes</h1>
       <p className="mt-1 text-sm text-muted-foreground">
         Negocio, contacto, ubicación, uso y plan de cada wedding planner.
@@ -123,10 +127,13 @@ function AdminClients() {
                   <p className="text-xs text-muted-foreground">{row.email}</p>
                 </TableCell>
                 <TableCell>{row.businessName || "—"}</TableCell>
-                <TableCell className="whitespace-nowrap text-muted-foreground">{row.phone || "—"}</TableCell>
+                <TableCell className="whitespace-nowrap text-muted-foreground">
+                  {row.phone || "—"}
+                </TableCell>
                 <TableCell>{row.state || "—"}</TableCell>
                 <TableCell className="whitespace-nowrap text-muted-foreground">
-                  {row.eventCount} ev. · {row.guestCount.toLocaleString("es-MX")} inv.
+                  {row.eventCount} ev. ·{" "}
+                  {row.guestCount.toLocaleString("es-MX")} inv.
                 </TableCell>
                 <TableCell>
                   <Select
@@ -147,12 +154,17 @@ function AdminClients() {
                 </TableCell>
                 <TableCell>
                   <div className="flex items-center gap-2">
-                    <Badge variant="outline" className="rounded-full capitalize">
+                    <Badge
+                      variant="outline"
+                      className="rounded-full capitalize"
+                    >
                       {row.subscriptionStatus}
                     </Badge>
                     <Select
                       value={row.subscriptionStatus}
-                      onValueChange={(subscriptionStatus) => patch(row.id, { subscriptionStatus })}
+                      onValueChange={(subscriptionStatus) =>
+                        patch(row.id, { subscriptionStatus })
+                      }
                     >
                       <SelectTrigger className="w-32">
                         <SelectValue />
@@ -169,7 +181,10 @@ function AdminClients() {
             ))}
             {!rows.length ? (
               <TableRow>
-                <TableCell colSpan={7} className="py-10 text-center text-sm text-muted-foreground">
+                <TableCell
+                  colSpan={7}
+                  className="py-10 text-center text-sm text-muted-foreground"
+                >
                   Aún no hay clientes registrados.
                 </TableCell>
               </TableRow>

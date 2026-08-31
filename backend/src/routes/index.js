@@ -77,9 +77,12 @@ router.get("/events/:eventId/conversations", conversations.listConversations);
 router.patch("/conversations/:conversationId", conversations.toggleConversation);
 router.post("/conversations/:conversationId/messages", conversations.sendMessage);
 router.post("/events/:eventId/campaigns/launch", conversations.launchCampaign);
+router.get("/events/:eventId/campaigns/current", conversations.getCurrentCampaign);
 
 router.get("/events/:eventId/ai-config", eventData.getAi);
+router.get("/events/:eventId/ai-config/defaults", eventData.getAiDefaults);
 router.patch("/events/:eventId/ai-config", eventData.updateAi);
+router.post("/events/:eventId/ai-config/reset", eventData.resetAi);
 router.post("/events/:eventId/ai-config/regenerate-prompt", eventData.regeneratePrompt);
 router.put("/events/:eventId/templates", eventData.setTemplates);
 router.put("/events/:eventId/faqs", eventData.setFaqs);

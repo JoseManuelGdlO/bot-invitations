@@ -29,6 +29,7 @@ describe("events.controller", () => {
         "src/services/plans.service.js": () => ({
           assertCanCreateEvent,
         }),
+        "src/services/campaign.service.js": () => ({ findCurrentCampaign: jest.fn(async () => null) }),
       },
     }));
 

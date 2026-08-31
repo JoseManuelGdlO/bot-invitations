@@ -22,7 +22,9 @@ export function CoverDropzone({
     try {
       onChange(await fileToCoverDataUrl(file));
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "No se pudo subir la imagen");
+      toast.error(
+        err instanceof Error ? err.message : "No se pudo subir la imagen",
+      );
     } finally {
       setBusy(false);
     }
@@ -45,7 +47,8 @@ export function CoverDropzone({
         }}
         onDragLeave={(e) => {
           e.preventDefault();
-          if (!e.currentTarget.contains(e.relatedTarget as Node)) setDragging(false);
+          if (!e.currentTarget.contains(e.relatedTarget as Node))
+            setDragging(false);
         }}
         onDrop={(e) => {
           e.preventDefault();
@@ -60,12 +63,18 @@ export function CoverDropzone({
         style={hasPhoto ? undefined : { background: value }}
       >
         {hasPhoto ? (
-          <img src={value} alt="Portada del evento" className="absolute inset-0 size-full object-cover" />
+          <img
+            src={value}
+            alt="Portada del evento"
+            className="absolute inset-0 size-full object-cover"
+          />
         ) : null}
         <div
           className={cn(
             "relative z-10 text-center text-sm",
-            hasPhoto ? "rounded-lg bg-card/85 px-3 py-2 text-foreground backdrop-blur-sm" : "text-muted-foreground",
+            hasPhoto
+              ? "rounded-lg bg-card/85 px-3 py-2 text-foreground backdrop-blur-sm"
+              : "text-muted-foreground",
           )}
         >
           {busy ? (
@@ -73,7 +82,11 @@ export function CoverDropzone({
           ) : (
             <ImageIcon className="mx-auto mb-2 size-5" />
           )}
-          {busy ? "Procesando imagen…" : hasPhoto ? "Cambiar foto" : "Arrastra una imagen o haz clic para subirla"}
+          {busy
+            ? "Procesando imagen…"
+            : hasPhoto
+              ? "Cambiar foto"
+              : "Arrastra una imagen o haz clic para subirla"}
         </div>
       </button>
       <input
