@@ -10,6 +10,9 @@ import {
   whatsappConnectWebhook,
 } from "./controllers/whatsapp-connect-webhook.controller.js";
 
+/** Rutas públicas de webhook (sin requireAuth). Registradas antes de app.use("/api", router). */
+const META_WEBHOOK_PATH = "/api/webhooks/meta";
+
 export function createApp() {
   const app = express();
   app.use(
@@ -23,7 +26,8 @@ export function createApp() {
   );
   app.use(cookieParser());
   app.post("/api/billing/webhook", express.raw({ type: "application/json" }), stripeWebhook);
-  app.get("/api/webhooks/whatsapp-connect/events", verifyMetaWebhook);
+  app.get(META_WEBHOOK_PATH, verifyMetaWebhook);
+  app.get(`${META_WEBHOOK_PATH}/webhook`, verifyMetaWebhook);
   app.post(
     "/api/webhooks/whatsapp-connect/events",
     express.raw({ type: "application/json", limit: "1mb" }),
