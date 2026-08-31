@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Search } from "lucide-react";
+import { ChevronLeft, ChevronRight, Search } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -41,20 +41,42 @@ interface ClientRow {
   plan: SubscriptionPlan | null;
 }
 
+interface ClientsPage {
+  items: ClientRow[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
+}
+
+const PAGE_SIZE = 20;
+
 function AdminClients() {
   const [rows, setRows] = useState<ClientRow[]>([]);
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [search, setSearch] = useState("");
+  const [page, setPage] = useState(1);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
 
-  const load = (q = search) => {
-    const query = q.trim() ? `?search=${encodeURIComponent(q.trim())}` : "";
-    api<ClientRow[]>(`/admin/clients${query}`)
-      .then(setRows)
+  const load = (q = search, nextPage = page) => {
+    const params = new URLSearchParams();
+    if (q.trim()) params.set("search", q.trim());
+    params.set("page", String(nextPage));
+    params.set("limit", String(PAGE_SIZE));
+    const query = `?${params.toString()}`;
+    api<ClientsPage>(`/admin/clients${query}`)
+      .then((data) => {
+        setRows(data.items);
+        setPage(data.page);
+        setTotal(data.total);
+        setTotalPages(data.totalPages);
+      })
       .catch(() => toast.error("No se pudieron cargar los clientes"));
   };
 
   useEffect(() => {
-    load("");
+    load("", 1);
     api<SubscriptionPlan[]>("/admin/plans")
       .then(setPlans)
       .catch(() => undefined);
@@ -89,7 +111,7 @@ function AdminClients() {
         className="mt-6 flex gap-3"
         onSubmit={(e) => {
           e.preventDefault();
-          load();
+          load(search, 1);
         }}
       >
         <div className="relative max-w-md flex-1">
@@ -192,6 +214,41 @@ function AdminClients() {
           </TableBody>
         </Table>
       </div>
+
+      {total > 0 ? (
+        <div className="mt-4 flex flex-col items-center justify-between gap-3 sm:flex-row">
+          <p className="text-sm text-muted-foreground">
+            Mostrando {(page - 1) * PAGE_SIZE + 1}–
+            {Math.min(page * PAGE_SIZE, total)} de {total.toLocaleString("es-MX")}{" "}
+            clientes
+          </p>
+          <div className="flex items-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={page <= 1}
+              onClick={() => load(search, page - 1)}
+            >
+              <ChevronLeft className="size-4" />
+              Anterior
+            </Button>
+            <span className="min-w-24 text-center text-sm text-muted-foreground">
+              Página {page} de {totalPages}
+            </span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={page >= totalPages}
+              onClick={() => load(search, page + 1)}
+            >
+              Siguiente
+              <ChevronRight className="size-4" />
+            </Button>
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }

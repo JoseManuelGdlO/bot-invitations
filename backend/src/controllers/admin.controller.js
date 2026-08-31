@@ -73,6 +73,9 @@ export const overview = asyncHandler(async (_req, res) => {
 
 export const listClients = asyncHandler(async (req, res) => {
   const q = String(req.query.search || "").trim();
+  const page = Math.max(1, Number(req.query.page) || 1);
+  const limit = Math.min(100, Math.max(1, Number(req.query.limit) || 20));
+  const offset = (page - 1) * limit;
   const where = { isAdmin: false };
   if (q) {
     where[Op.or] = [
@@ -83,10 +86,12 @@ export const listClients = asyncHandler(async (req, res) => {
       { state: { [Op.like]: `%${q}%` } },
     ];
   }
-  const users = await User.findAll({
+  const { count, rows: users } = await User.findAndCountAll({
     where,
     include: [{ model: Plan, as: "plan" }],
     order: [["createdAt", "DESC"]],
+    limit,
+    offset,
   });
   const ids = users.map((user) => user.id);
   const events = ids.length
@@ -107,14 +112,18 @@ export const listClients = asyncHandler(async (req, res) => {
     const ownerId = eventOwner[guest.eventId];
     if (ownerId) guestsByOwner[ownerId] = (guestsByOwner[ownerId] || 0) + Number(guest.invited || 1);
   }
-  res.json(
-    users.map((user) =>
+  res.json({
+    items: users.map((user) =>
       serializeClient(user, {
         eventCount: eventsByOwner[user.id] || 0,
         guestCount: guestsByOwner[user.id] || 0,
       }),
     ),
-  );
+    total: count,
+    page,
+    limit,
+    totalPages: Math.max(1, Math.ceil(count / limit)),
+  });
 });
 
 export const updateClient = asyncHandler(async (req, res) => {
