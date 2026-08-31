@@ -80,7 +80,9 @@ async function pickGuestFromMatches(matches, eventById) {
 }
 
 export async function resolveGuestForInbound({ ownerUserId, chatId, displayPhone }) {
-  const events = await Event.findAll({ where: { ownerId: ownerUserId } });
+  const events = ownerUserId
+    ? await Event.findAll({ where: { ownerId: ownerUserId } })
+    : await Event.findAll();
   if (!events.length) return null;
   const eventById = new Map(events.map((event) => [event.id, event]));
   const guests = await Guest.findAll({ where: { eventId: events.map((event) => event.id) } });
@@ -92,8 +94,9 @@ export async function resolveGuestForInbound({ ownerUserId, chatId, displayPhone
     if (matched) return matched;
   }
 
-  if (displayPhone) {
-    const byPhone = guests.filter((guest) => phonesMatch(guest.phone, displayPhone));
+  const phone = displayPhone || inboundChatId;
+  if (phone) {
+    const byPhone = guests.filter((guest) => phonesMatch(guest.phone, phone));
     return pickGuestFromMatches(byPhone, eventById);
   }
 

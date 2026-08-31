@@ -1,5 +1,7 @@
 import {
+  extractInboundIdentity,
   formatWhatsappTo,
+  normalizeWaIdTo10,
   resolveWhatsappTo,
 } from "../../src/utils/whatsapp-identity.js";
 
@@ -46,5 +48,40 @@ describe("resolveWhatsappTo", () => {
 
   test("formatea el teléfono de lista cuando no hay chatId", () => {
     expect(resolveWhatsappTo({ phone: "6183218624" })).toBe("5216183218624");
+  });
+});
+
+describe("normalizeWaIdTo10", () => {
+  test("toma los últimos 10 dígitos de un wa_id 521", () => {
+    expect(normalizeWaIdTo10("5216183218624")).toBe("6183218624");
+    expect(normalizeWaIdTo10("+52 1 618 321 8624")).toBe("6183218624");
+  });
+
+  test("deja un número que ya tiene 10 dígitos", () => {
+    expect(normalizeWaIdTo10("6183218624")).toBe("6183218624");
+  });
+
+  test("extrae dígitos de un JID", () => {
+    expect(normalizeWaIdTo10("5216183218624@s.whatsapp.net")).toBe("6183218624");
+  });
+
+  test("vacío si no hay dígitos", () => {
+    expect(normalizeWaIdTo10("")).toBe("");
+    expect(normalizeWaIdTo10("abc@lid")).toBe("");
+  });
+});
+
+describe("extractInboundIdentity", () => {
+  test("usa wa_id de 10 dígitos como displayPhone", () => {
+    expect(extractInboundIdentity({ from: "5216181556489", fromPhone: "6181556489" })).toEqual(
+      expect.objectContaining({
+        chatId: "5216181556489",
+        displayPhone: "6181556489",
+      }),
+    );
+  });
+
+  test("si solo viene from numérico, normaliza a 10 dígitos", () => {
+    expect(extractInboundIdentity({ from: "5216181556489" }).displayPhone).toBe("6181556489");
   });
 });

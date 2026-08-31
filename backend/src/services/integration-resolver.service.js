@@ -1,6 +1,7 @@
 import { ChannelCredential, ChannelIntegration } from "../models/index.js";
 import { decryptCredentialsPayload } from "../utils/credentials-crypto.js";
 import { httpError } from "../utils/http-error.js";
+import { env } from "../config/env.js";
 
 export const WHATSAPP_PROVIDER = "whatsapp-connect";
 export const WHATSAPP_CHANNEL = "whatsapp";
@@ -87,10 +88,22 @@ export async function resolveActiveWhatsappConnectByOwner({ ownerUserId }) {
   return { integration, credentials };
 }
 
+export async function assertWhatsappReady(_event) {
+  const token = String(env.meta?.accessToken || "").trim();
+  const phoneNumberId = String(env.meta?.phoneNumberId || "").trim();
+  const templateName = String(env.meta?.templateName || "").trim();
+  if (!token || !phoneNumberId) {
+    throw httpError(400, "WhatsApp (Meta) no está configurado.");
+  }
+  if (!templateName) throw httpError(400, "Falta META_TEMPLATE_NAME.");
+}
+
+/*
 export async function assertWhatsappReady(event) {
   if (!event?.ownerId) throw httpError(400, "No hay una integración de WhatsApp activa.");
   await resolveActiveWhatsappConnectByOwner({ ownerUserId: event.ownerId });
 }
+*/
 
 export async function resolveWhatsappConnectIntegrationByDevice({ deviceId }) {
   const target = String(deviceId || "").trim();

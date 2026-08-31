@@ -15,7 +15,7 @@ import * as support from "../controllers/support.controller.js";
 import * as cancellation from "../controllers/cancellation.controller.js";
 import * as help from "../controllers/help.controller.js";
 import * as integrations from "../controllers/integrations.controller.js";
-import * as whatsappConnect from "../controllers/whatsapp-connect.controller.js";
+// import * as whatsappConnect from "../controllers/whatsapp-connect.controller.js";
 import * as botDev from "../controllers/bot-dev.controller.js";
 import { requireAdmin } from "../middleware/admin.js";
 import { env } from "../config/env.js";
@@ -54,9 +54,10 @@ router.patch("/integrations/:id", integrations.patchIntegration);
 router.delete("/integrations/:id", integrations.deleteIntegration);
 router.post("/integrations/:id/credentials", integrations.postIntegrationCredentials);
 router.post("/integrations/:id/test", integrations.postIntegrationTest);
-router.post("/internal/whatsapp/qr-link", whatsappConnect.postWhatsappConnectQrLink);
-router.get("/internal/whatsapp/device-status", whatsappConnect.getWhatsappConnectDeviceStatus);
-router.post("/internal/whatsapp/send-test", whatsappConnect.postWhatsappConnectSendTest);
+// WhatsApp Connect (QR / status / send-test) — desconectado
+// router.post("/internal/whatsapp/qr-link", whatsappConnect.postWhatsappConnectQrLink);
+// router.get("/internal/whatsapp/device-status", whatsappConnect.getWhatsappConnectDeviceStatus);
+// router.post("/internal/whatsapp/send-test", whatsappConnect.postWhatsappConnectSendTest);
 
 router.get("/events", events.listEvents);
 router.post("/events", events.createEvent);

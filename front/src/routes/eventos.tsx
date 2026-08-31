@@ -15,7 +15,6 @@ import {
   MessagesSquare,
   Settings2,
   Shield,
-  Smartphone,
 } from "lucide-react";
 import { PlanUsageHint } from "@/components/plan-limit";
 import { api } from "@/lib/api/client";
@@ -115,6 +114,7 @@ function AppShell() {
               <CalendarHeart className="size-4" /> Crear evento
             </Link>
           ) : null}
+          {/* WhatsApp Connect (QR) — desconectado
           <Link
             to="/eventos/whatsapp"
             className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent"
@@ -125,6 +125,7 @@ function AppShell() {
           >
             <Smartphone className="size-4" /> WhatsApp
           </Link>
+          */}
           {session.plan ? (
             <Link
               to="/eventos/suscripcion"

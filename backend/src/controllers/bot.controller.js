@@ -56,13 +56,8 @@ export async function handleInboundWhatsapp({ payload, integration, rawBody = ""
     return { processed: false, reason: "missing_from" };
   }
 
-  const ownerUserId = integration?.ownerUserId;
-  if (!ownerUserId) {
-    return { processed: false, reason: "missing_owner" };
-  }
-
   const resolved = await resolveGuestForInbound({
-    ownerUserId,
+    ownerUserId: integration?.ownerUserId || null,
     chatId: inbound.chatId,
     displayPhone: inbound.displayPhone,
   });
@@ -70,12 +65,13 @@ export async function handleInboundWhatsapp({ payload, integration, rawBody = ""
     botWarn("inbound ignorado: invitado no encontrado", {
       chatId: inbound.chatId,
       displayPhone: inbound.displayPhone,
-      ownerUserId,
+      ownerUserId: integration?.ownerUserId || null,
     });
     return { processed: true, reason: "guest_not_found" };
   }
 
   const { guest, event } = resolved;
+  const ownerUserId = event.ownerId || integration?.ownerUserId;
   await rememberWhatsappChatId(guest, inbound.chatId);
   if (inbound.contentType && inbound.contentType !== "text" && !inbound.text) {
     const claimed = await claimInboundEvent({
