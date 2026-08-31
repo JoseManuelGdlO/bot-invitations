@@ -39,6 +39,35 @@ describe("bot tools", () => {
     expect(result.invited).toBe(2);
   });
 
+  test("actualizar_confirmacion redondea decimales y no guarda NaN si confirmed es basura", async () => {
+    const decimalGuest = fakeGuest({ status: "en_conversacion", invited: 5, confirmed: 0 });
+    const decimalResult = await tools.executeActualizarConfirmacion(
+      { status: "confirmado", confirmed: 2.7 },
+      { guest: decimalGuest, event: fakeEvent(), dryRun: false },
+    );
+    expect(decimalResult.success).toBe(true);
+    expect(decimalGuest.confirmed).toBe(3);
+    expect(Number.isFinite(decimalGuest.confirmed)).toBe(true);
+    expect(decimalGuest.confirmed).toBeLessThanOrEqual(5);
+
+    const garbageGuest = fakeGuest({ status: "en_conversacion", invited: 5, confirmed: 0 });
+    const garbageResult = await tools.executeActualizarConfirmacion(
+      { status: "confirmado", confirmed: "tres" },
+      { guest: garbageGuest, event: fakeEvent(), dryRun: false },
+    );
+    expect(garbageResult.success).toBe(true);
+    expect(garbageGuest.confirmed).toBe(5);
+    expect(Number.isNaN(garbageGuest.confirmed)).toBe(false);
+    expect(garbageGuest.confirmed).toBeLessThanOrEqual(5);
+
+    const overRoundGuest = fakeGuest({ status: "en_conversacion", invited: 5, confirmed: 0 });
+    await tools.executeActualizarConfirmacion(
+      { status: "confirmado", confirmed: 5.9 },
+      { guest: overRoundGuest, event: fakeEvent(), dryRun: false },
+    );
+    expect(overRoundGuest.confirmed).toBe(5);
+  });
+
   test("actualizar_confirmacion de rechazo pide plantilla Rechazo", async () => {
     const guest = fakeGuest({ status: "enviado" });
     const result = await tools.executeActualizarConfirmacion(
