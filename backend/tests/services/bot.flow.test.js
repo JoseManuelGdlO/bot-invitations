@@ -5,18 +5,6 @@ import { formatFollowUpDate, defaultIndecisoFollowUpDate } from "../../src/servi
 
 const TEMPLATES = [
   {
-    id: "t3",
-    category: "Confirmación",
-    title: "Cierre",
-    body: "Perfecto {{nombre}}, entonces confirmamos {{numero_confirmados}} asistentes. ¡Nos vemos el {{fecha}}!",
-  },
-  {
-    id: "t4",
-    category: "Rechazo",
-    title: "Rechazo",
-    body: "Gracias por avisarnos, {{nombre}}. Te vamos a extrañar, mandamos un abrazo grande.",
-  },
-  {
     id: "t9",
     category: "Seguimiento",
     title: "Recontacto",
@@ -139,7 +127,7 @@ describe("flujo RSVP processGuestMessage", () => {
     expect(guest.status).toBe("en_conversacion");
   });
 
-  test("confirmación actualiza el invitado y usa la plantilla Confirmación", async () => {
+  test("confirmación actualiza el invitado y responde en conversación", async () => {
     const guest = fakeGuest({ status: "enviado", invited: 2, confirmed: 0 });
     const result = await runTurn({
       text: "Sí, vamos los 2",
@@ -149,25 +137,20 @@ describe("flujo RSVP processGuestMessage", () => {
           name: "actualizar_confirmacion",
           arguments: JSON.stringify({ status: "confirmado", confirmed: 2 }),
         });
-        const plantilla = await executeTool({
-          name: "usar_plantilla",
-          arguments: JSON.stringify({ category: "Confirmación", id: null }),
-        });
         return {
-          reply: plantilla.text,
+          reply: "Perfecto Luis, confirmamos 2 asistentes. ¡Nos vemos el 2027-01-01!",
           items: [],
-          tools: ["actualizar_confirmacion", "usar_plantilla"],
+          tools: ["actualizar_confirmacion"],
         };
       },
     });
     expect(guest.status).toBe("confirmado");
     expect(guest.confirmed).toBe(2);
-    expect(result.reply).toContain("Perfecto Luis");
     expect(result.reply).toContain("confirmamos 2 asistentes");
     expect(result.reply).not.toMatch(/te escribo de nuevo/i);
   });
 
-  test("rechazo actualiza el invitado y usa la plantilla Rechazo", async () => {
+  test("rechazo actualiza el invitado y responde en conversación", async () => {
     const guest = fakeGuest({ status: "enviado" });
     const result = await runTurn({
       text: "No podemos asistir",
@@ -177,11 +160,11 @@ describe("flujo RSVP processGuestMessage", () => {
           name: "actualizar_confirmacion",
           arguments: JSON.stringify({ status: "no_asistira", confirmed: null }),
         });
-        const plantilla = await executeTool({
-          name: "usar_plantilla",
-          arguments: JSON.stringify({ category: "Rechazo", id: null }),
-        });
-        return { reply: plantilla.text, items: [], tools: ["actualizar_confirmacion", "usar_plantilla"] };
+        return {
+          reply: "Gracias por avisarnos, Luis. Te vamos a extrañar.",
+          items: [],
+          tools: ["actualizar_confirmacion"],
+        };
       },
     });
     expect(guest.status).toBe("no_asistira");

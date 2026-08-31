@@ -88,7 +88,7 @@ export const BOT_TOOLS = [
       properties: {
         category: {
           type: ["string", "null"],
-          description: "Categoría (Primer contacto, Recordatorio, Confirmación, Rechazo, Seguimiento, Ubicación, etc.).",
+          description: "Categoría de información (Ubicación, etc.). No uses Confirmación ni Rechazo: el cierre de RSVP es conversacional.",
         },
         id: {
           type: ["string", "null"],
@@ -149,21 +149,23 @@ export async function executeActualizarConfirmacion(args, { guest, event, dryRun
     }
   }
 
-  const category = status === "no_asistira" ? "Rechazo" : "Confirmación";
   botLog("RSVP actualizado", {
     guestId: guest.id,
     status,
     confirmed,
     invited: guest.invited,
     dryRun,
-    nextTemplate: category,
   });
+  const closeHint =
+    status === "no_asistira"
+      ? "Escribe el cierre en reply. Si las reglas de conversación indican cómo redactar un rechazo, síguelas. Si no, cierre breve y natural (tono del cerebro). Agradece el aviso. No llames usar_plantilla ni uses plantillas de Confirmación o Rechazo."
+      : `Escribe el cierre en reply. Si las reglas de conversación indican cómo redactar una confirmación, síguelas. Si no, cierre breve y natural; menciona que confirmamos ${confirmed} persona(s) (cupo ${guest.invited}). Si el sistema recortó al cupo, explica que no hay lugares extra y que avisen al equipo. No llames usar_plantilla para Confirmación ni Rechazo.`;
   return {
     success: true,
     status,
     confirmed,
     invited: guest.invited,
-    instruction: `Llama ahora a usar_plantilla con category "${category}". Ese texto se enviará tal cual.`,
+    instruction: closeHint,
   };
 }
 
@@ -203,10 +205,6 @@ export async function executeMarcarSeguimiento(args, { guest, event, ai, dryRun 
   };
 }
 
-function rsvpAlreadyClosed(guest) {
-  return ["confirmado", "parcial", "no_asistira"].includes(guest?.status);
-}
-
 function foldCategory(value) {
   return String(value || "")
     .toLowerCase()
@@ -214,25 +212,22 @@ function foldCategory(value) {
     .replace(/[\u0300-\u036f]/g, "");
 }
 
-/** Si el modelo manda Confirmación/Rechazo sin actualizar_confirmacion, cierra el RSVP igual. */
-async function ensureRsvpFromTemplate(template, { guest, event, dryRun = false }) {
-  if (rsvpAlreadyClosed(guest)) return;
-  const cat = foldCategory(template?.category);
-  if (cat === "confirmacion") {
-    const confirmed = Number(guest.confirmed) > 0 ? guest.confirmed : guest.invited;
-    await executeActualizarConfirmacion({ status: "confirmado", confirmed }, { guest, event, dryRun });
-    return;
-  }
-  if (cat === "rechazo") {
-    await executeActualizarConfirmacion({ status: "no_asistira", confirmed: null }, { guest, event, dryRun });
-  }
+function isRsvpCloseTemplate(category) {
+  const cat = foldCategory(category);
+  return cat === "confirmacion" || cat === "rechazo";
 }
 
-export async function executeUsarPlantilla(args, { guest, event, plannerName, dryRun = false }) {
+export async function executeUsarPlantilla(args, { guest, event, plannerName }) {
   const category = String(args?.category || "").trim() || null;
   const id = String(args?.id || "").trim() || null;
   if (!category && !id) {
     return { success: false, error: "Indica category o id de la plantilla." };
+  }
+  if (isRsvpCloseTemplate(category)) {
+    return {
+      success: false,
+      error: "El cierre de RSVP es conversacional: escribe reply. No uses plantilla de Confirmación ni Rechazo.",
+    };
   }
   let name = plannerName;
   if (!name) {
@@ -243,11 +238,16 @@ export async function executeUsarPlantilla(args, { guest, event, plannerName, dr
   if (!template) {
     return { success: false, error: "No hay plantilla para esos criterios." };
   }
+  if (isRsvpCloseTemplate(template.category)) {
+    return {
+      success: false,
+      error: "El cierre de RSVP es conversacional: escribe reply. No uses plantilla de Confirmación ni Rechazo.",
+    };
+  }
   const text = renderTemplate(template, event, guest, name);
   if (!text.trim()) {
     return { success: false, error: "La plantilla quedó vacía." };
   }
-  await ensureRsvpFromTemplate(template, { guest, event, dryRun });
   botLog("plantilla resuelta", {
     guestId: guest.id,
     category: template.category,

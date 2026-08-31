@@ -285,7 +285,7 @@ function defaultAI(assistant: string, hosts: string): AIConfig {
       "El primer mensaje ya se envió; no reenvíes la invitación.",
       "Clasifica cada mensaje en faq, asistira, no_asistira, seguimiento o desconocido.",
       "Si es FAQ, responde solo con las FAQs o plantillas de información; si no hay dato, no inventes y ofrece pasar al equipo.",
-      "Si confirma o decline con claridad, usa las tools y la plantilla; no parafrasees el cierre.",
+      "Si confirma o decline con claridad, usa actualizar_confirmacion y escribe el cierre en reply; no uses plantilla de Confirmación ni Rechazo.",
       "Si está indeciso, marca seguimiento; el sistema recontacta según las reglas de seguimiento.",
       "Si es desconocido, interpreta y responde; no cierres el RSVP.",
       "Si confirma pero no dice con cuántas personas, pregunta el número antes de cerrar.",
@@ -354,18 +354,6 @@ const baseTemplates = (hosts: string) => [
     category: "Recordatorio",
     title: "Recordatorio amable",
     body: "Hola {{nombre}}, ¿pudiste revisar la invitación? Nos encantaría contar contigo el {{fecha}} ✨",
-  },
-  {
-    id: "t3",
-    category: "Confirmación",
-    title: "Cierre de confirmación",
-    body: "Perfecto {{nombre}}, entonces confirmamos {{numero_confirmados}} asistentes. ¡Nos vemos el {{fecha}}!",
-  },
-  {
-    id: "t4",
-    category: "Rechazo",
-    title: "Respuesta a rechazo",
-    body: "Gracias por avisarnos, {{nombre}}. Te vamos a extrañar, mandamos un abrazo grande.",
   },
   {
     id: "t9",
