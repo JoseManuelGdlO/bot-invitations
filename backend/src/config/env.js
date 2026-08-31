@@ -106,4 +106,7 @@ export const env = {
     webhookMaxSkewMs: Number(process.env.WC_WEBHOOK_MAX_SKEW_MS || 300000),
     webhookDebug: (process.env.WC_WEBHOOK_DEBUG || "false") === "true",
   },
+  meta: {
+    webhookVerifyToken: process.env.META_WEBHOOK_VERIFY_TOKEN || "",
+  },
 };

@@ -125,4 +125,58 @@ describe("whatsapp-connect-webhook.controller", () => {
     });
     expect(next).toHaveBeenCalledWith();
   });
+
+  test("challenge de Meta responde hub.challenge en texto plano", async () => {
+    const { res, next } = await callHandler(controller.verifyMetaWebhook, {
+      req: createMockReq({
+        query: {
+          "hub.mode": "subscribe",
+          "hub.challenge": "1158201444",
+          "hub.verify_token": "test-meta-verify-token",
+        },
+      }),
+    });
+    expect(next).not.toHaveBeenCalled();
+    expect(res.setHeader).toHaveBeenCalledWith("Content-Type", "text/plain; charset=utf-8");
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith("1158201444");
+  });
+
+  test("challenge de Meta acepta query anidada hub.mode", async () => {
+    const { res } = await callHandler(controller.verifyMetaWebhook, {
+      req: createMockReq({
+        query: {
+          hub: { mode: "subscribe", challenge: "99", verify_token: "test-meta-verify-token" },
+        },
+      }),
+    });
+    expect(res.status).toHaveBeenCalledWith(200);
+    expect(res.send).toHaveBeenCalledWith("99");
+  });
+
+  test("challenge 403 si el verify token no coincide", async () => {
+    const { res } = await callHandler(controller.verifyMetaWebhook, {
+      req: createMockReq({
+        query: {
+          "hub.mode": "subscribe",
+          "hub.challenge": "1158201444",
+          "hub.verify_token": "otro-token",
+        },
+      }),
+    });
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.send).not.toHaveBeenCalled();
+  });
+
+  test("challenge 403 si falta hub.mode=subscribe", async () => {
+    const { res } = await callHandler(controller.verifyMetaWebhook, {
+      req: createMockReq({
+        query: {
+          "hub.challenge": "1158201444",
+          "hub.verify_token": "test-meta-verify-token",
+        },
+      }),
+    });
+    expect(res.status).toHaveBeenCalledWith(403);
+  });
 });

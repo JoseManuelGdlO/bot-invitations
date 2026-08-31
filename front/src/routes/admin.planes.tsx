@@ -11,6 +11,14 @@ export const Route = createFileRoute("/admin/planes")({
   component: AdminPlans,
 });
 
+function validatePlan(plan: SubscriptionPlan): string | null {
+  const price = Number(plan.priceMxn);
+  if (!Number.isFinite(price) || price <= 0) {
+    return "El precio mensual debe ser mayor a 0 MXN";
+  }
+  return null;
+}
+
 function AdminPlans() {
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [saving, setSaving] = useState<string | null>(null);
@@ -34,6 +42,12 @@ function AdminPlans() {
   };
 
   const save = async (plan: SubscriptionPlan) => {
+    const validationError = validatePlan(plan);
+    if (validationError) {
+      toast.error(validationError);
+      return;
+    }
+
     setSaving(plan.id);
     try {
       const updated = await api<SubscriptionPlan>(`/admin/plans/${plan.id}`, {
@@ -92,7 +106,8 @@ function AdminPlans() {
                 <Label>Precio mensual (MXN)</Label>
                 <Input
                   type="number"
-                  min={0}
+                  min={1}
+                  step={1}
                   value={plan.priceMxn}
                   onChange={(e) =>
                     set(plan.id, "priceMxn", Number(e.target.value))
