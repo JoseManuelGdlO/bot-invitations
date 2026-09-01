@@ -713,6 +713,40 @@ describe("outbound.worker", () => {
     expect(new Date(pending.scheduledAt).getTime()).toBe(sentAt.getTime() + 24 * 60 * 60 * 1000);
   });
 
+  test("tickWorker no cuenta un masivo en conversación caliente contra el tope de 24 h", async () => {
+    isColdConversation.mockResolvedValue(false);
+    const sentAt = new Date(Date.now() - 2 * 60 * 1000);
+    const done = Array.from({ length: 1000 }, (_, i) =>
+      campaignJob({
+        id: `job_warm_done_${i}`,
+        eventId: "evt_1",
+        guestId: `gd${i}`,
+        to: "6183218624",
+        scheduledAt: sentAt,
+        status: "done",
+        conversationStarted: true,
+      }),
+    );
+    const warm = campaignJob({
+      id: "job_warm",
+      eventId: "evt_1",
+      guestId: "gw",
+      to: "6181111111",
+      scheduledAt: new Date(),
+      kind: "reminder",
+    });
+    stubOwnerQueue(models, [...done, warm], [{ id: "evt_1", ownerId: "owner_1" }]);
+    models.Guest.findByPk.mockImplementation(async (id) =>
+      createInstance({ id, phone: "6183218624", status: "en_conversacion" }),
+    );
+
+    await service.tickWorker();
+
+    expect(isColdConversation).toHaveBeenCalledWith("gw");
+    expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect(warm.status).toBe("done");
+  });
+
   test("tickWorker deja pasar un reply aunque el tope de 24 h esté lleno", async () => {
     const sentAt = new Date(Date.now() - 2 * 60 * 1000);
     const done = Array.from({ length: 1000 }, (_, i) =>

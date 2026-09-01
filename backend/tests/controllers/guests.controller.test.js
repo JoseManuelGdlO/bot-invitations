@@ -7,11 +7,13 @@ describe("guests.controller", () => {
   let requireEvent;
   let userEventIds;
   let assertCanAddGuests;
+  let deliverAiMessage;
 
   beforeEach(async () => {
     requireEvent = jest.fn(async () => fakeEvent());
     userEventIds = jest.fn(async () => ["evt_1"]);
     assertCanAddGuests = jest.fn(async () => undefined);
+    deliverAiMessage = jest.fn(async () => undefined);
 
     ({ mod: controller, models } = await loadWithMocks("src/controllers/guests.controller.js", {
       extraMocks: {
@@ -31,6 +33,10 @@ describe("guests.controller", () => {
         "src/services/plans.service.js": () => ({
           assertCanAddGuestsForEvent: assertCanAddGuests,
           assertCanSendInvitations: jest.fn(() => undefined),
+        }),
+        "src/services/guest-message.service.js": () => ({ deliverAiMessage }),
+        "src/services/integration-resolver.service.js": () => ({
+          assertWhatsappReady: jest.fn(async () => undefined),
         }),
         "src/services/export.service.js": () => ({
           guestsToRows: jest.fn((guests) => guests || []),
@@ -166,6 +172,26 @@ describe("guests.controller", () => {
     expect(models.Message.destroy).toHaveBeenCalled();
     expect(guest.destroy).toHaveBeenCalled();
     expect(res.json).toHaveBeenCalledWith({ ok: true });
+  });
+
+  test("remindGuest deja whatsapp pendiente para el callback de Meta", async () => {
+    const guest = fakeGuest({ status: "enviado", whatsapp: "entregado" });
+    models.Guest.findOne.mockResolvedValue(guest);
+
+    const { res } = await callHandler(controller.remindGuest, {
+      req: createMockReq({ user: fakeUser(), params: { guestId: "gst_1" } }),
+    });
+
+    expect(deliverAiMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "reminder",
+        guestPatch: expect.objectContaining({
+          status: "enviado",
+          whatsapp: "pendiente",
+        }),
+      }),
+    );
+    expect(res.json).toHaveBeenCalled();
   });
 });
 

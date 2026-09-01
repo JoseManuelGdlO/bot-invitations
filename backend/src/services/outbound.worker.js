@@ -192,7 +192,7 @@ async function wouldStartConversation(job) {
   if (!guestId) return true;
   const guest = await Guest.findByPk(guestId);
   if (guest?.status === "sin_contactar") return true;
-  return isColdConversation(guestId);
+  return await isColdConversation(guestId);
 }
 
 async function loadOwnerEventIds(ownerId) {
