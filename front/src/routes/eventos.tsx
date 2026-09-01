@@ -48,7 +48,8 @@ function AppShell() {
       : null;
 
   useEffect(() => {
-    if (hydrated && !session) navigate({ to: "/iniciar-sesion" });
+    if (hydrated && !session)
+      navigate({ to: "/iniciar-sesion", search: { email: undefined } });
   }, [hydrated, session, navigate]);
 
   useEffect(() => {

@@ -27,42 +27,7 @@ function safeCompareHex(a, b) {
   return crypto.timingSafeEqual(left, right);
 }
 
-function safeCompareUtf8(a, b) {
-  const left = Buffer.from(String(a || ""), "utf8");
-  const right = Buffer.from(String(b || ""), "utf8");
-  if (left.length === 0 || left.length !== right.length) return false;
-  return crypto.timingSafeEqual(left, right);
-}
-
-function readHubParam(query, name) {
-  const dotted = query?.[name];
-  if (dotted != null && dotted !== "") return String(Array.isArray(dotted) ? dotted[0] : dotted);
-  const nestedKey = name.replace(/^hub\./, "");
-  const nested = query?.hub?.[nestedKey];
-  if (nested != null && nested !== "") return String(Array.isArray(nested) ? nested[0] : nested);
-  return "";
-}
-
-/** GET de verificación de Meta (hub.mode / hub.challenge / hub.verify_token). No procesa eventos. */
-export function verifyMetaWebhook(req, res) {
-  const mode = readHubParam(req.query, "hub.mode");
-  const challenge = readHubParam(req.query, "hub.challenge");
-  const token = readHubParam(req.query, "hub.verify_token");
-  const expected = String(env.meta?.webhookVerifyToken || "").trim();
-
-  if (mode === "subscribe" && challenge && expected && safeCompareUtf8(token, expected)) {
-    logWcWebhook("meta challenge ok");
-    res.setHeader("Content-Type", "text/plain; charset=utf-8");
-    return res.status(200).send(challenge);
-  }
-
-  logWcWebhook("meta challenge failed", {
-    mode: mode || null,
-    hasChallenge: Boolean(challenge),
-    hasVerifyToken: Boolean(expected),
-  });
-  return res.status(403).json({ error: "Challenge de webhook inválido." });
-}
+export { verifyMetaWebhook } from "./meta-webhook.controller.js";
 
 function readRawBody(req) {
   if (typeof req.rawBody === "string") return req.rawBody;

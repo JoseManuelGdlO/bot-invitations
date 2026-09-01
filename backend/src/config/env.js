@@ -107,6 +107,12 @@ export const env = {
     webhookDebug: (process.env.WC_WEBHOOK_DEBUG || "false") === "true",
   },
   meta: {
+    accessToken: process.env.META_ACCESS_TOKEN || "",
+    phoneNumberId: process.env.META_PHONE_NUMBER_ID || "",
     webhookVerifyToken: process.env.META_WEBHOOK_VERIFY_TOKEN || "",
+    templateName: process.env.META_TEMPLATE_NAME || "",
+    templateLanguage: process.env.META_TEMPLATE_LANGUAGE || "es_MX",
+    graphVersion: (process.env.META_GRAPH_VERSION || "v21.0").replace(/^\//, ""),
+    timeoutMs: Number(process.env.META_TIMEOUT_MS || 8000),
   },
 };

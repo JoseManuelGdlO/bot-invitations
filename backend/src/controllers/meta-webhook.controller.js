@@ -1,0 +1,122 @@
+import crypto from "crypto";
+import { env } from "../config/env.js";
+import { httpError } from "../utils/http-error.js";
+import { normalizeWaIdTo10 } from "../utils/whatsapp-identity.js";
+
+function logMetaWebhook(event, extra = {}) {
+  console.log("[meta-webhook]", event, extra);
+}
+
+function safeCompareUtf8(a, b) {
+  const left = Buffer.from(String(a || ""), "utf8");
+  const right = Buffer.from(String(b || ""), "utf8");
+  if (left.length === 0 || left.length !== right.length) return false;
+  return crypto.timingSafeEqual(left, right);
+}
+
+function readHubParam(query, name) {
+  const dotted = query?.[name];
+  if (dotted != null && dotted !== "") return String(Array.isArray(dotted) ? dotted[0] : dotted);
+  const nestedKey = name.replace(/^hub\./, "");
+  const nested = query?.hub?.[nestedKey];
+  if (nested != null && nested !== "") return String(Array.isArray(nested) ? nested[0] : nested);
+  return "";
+}
+
+function readRawBody(req) {
+  if (typeof req.rawBody === "string") return req.rawBody;
+  if (Buffer.isBuffer(req.body)) return req.body.toString("utf8");
+  return "";
+}
+
+function safeParseBody(req) {
+  if (req.body && typeof req.body === "object" && !Buffer.isBuffer(req.body)) return req.body;
+  const raw = readRawBody(req).trim();
+  if (!raw) return {};
+  try {
+    return JSON.parse(raw);
+  } catch {
+    throw httpError(400, "JSON de webhook inválido.");
+  }
+}
+
+function extractMetaMessageText(message = {}) {
+  if (message.text?.body) return String(message.text.body).trim();
+  if (message.button?.text) return String(message.button.text).trim();
+  if (message.button?.payload) return String(message.button.payload).trim();
+  const reply = message.interactive?.button_reply || message.interactive?.list_reply;
+  if (reply?.title) return String(reply.title).trim();
+  if (reply?.id) return String(reply.id).trim();
+  return "";
+}
+
+export function extractMetaInboundMessages(body = {}) {
+  const entries = Array.isArray(body.entry) ? body.entry : [];
+  const out = [];
+  for (const entry of entries) {
+    const changes = Array.isArray(entry?.changes) ? entry.changes : [];
+    for (const change of changes) {
+      const value = change?.value && typeof change.value === "object" ? change.value : {};
+      const contacts = Array.isArray(value.contacts) ? value.contacts : [];
+      const messages = Array.isArray(value.messages) ? value.messages : [];
+      for (const message of messages) {
+        const waId = String(message.from || contacts[0]?.wa_id || "").trim();
+        const phone = normalizeWaIdTo10(waId);
+        const type = String(message.type || "text").toLowerCase();
+        out.push({
+          type: "message.inbound",
+          from: phone || waId,
+          fromPhone: phone || waId,
+          text: extractMetaMessageText(message),
+          messageId: String(message.id || "").trim(),
+          messageType: type,
+          waId,
+        });
+      }
+    }
+  }
+  return out;
+}
+
+/** GET de verificación de Meta (hub.mode / hub.challenge / hub.verify_token). */
+export function verifyMetaWebhook(req, res) {
+  const mode = readHubParam(req.query, "hub.mode");
+  const challenge = readHubParam(req.query, "hub.challenge");
+  const token = readHubParam(req.query, "hub.verify_token");
+  const expected = String(env.meta?.webhookVerifyToken || "").trim();
+
+  if (mode === "subscribe" && challenge && expected && safeCompareUtf8(token, expected)) {
+    logMetaWebhook("meta challenge ok");
+    res.setHeader("Content-Type", "text/plain; charset=utf-8");
+    return res.status(200).send(challenge);
+  }
+
+  logMetaWebhook("meta challenge failed", {
+    mode: mode || null,
+    hasChallenge: Boolean(challenge),
+    hasVerifyToken: Boolean(expected),
+  });
+  return res.status(403).json({ error: "Challenge de webhook inválido." });
+}
+
+export async function postMetaEvents(req, res, next) {
+  try {
+    const { handleInboundWhatsapp } = await import("./bot.controller.js");
+    const payload = safeParseBody(req);
+    const messages = extractMetaInboundMessages(payload);
+    const results = [];
+    for (const inbound of messages) {
+      const result = await handleInboundWhatsapp({
+        payload: inbound,
+        integration: null,
+        rawBody: inbound.messageId || readRawBody(req),
+      });
+      results.push(result);
+    }
+    res.status(200).json({ ok: true, processed: results.length, results });
+  } catch (error) {
+    next(error);
+  }
+}
+
+export const metaWebhook = [postMetaEvents];

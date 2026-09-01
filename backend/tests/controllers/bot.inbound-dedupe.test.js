@@ -11,7 +11,7 @@ describe("handleInboundWhatsapp dedupe", () => {
   let enqueueJob;
 
   const guest = createInstance({ id: "gst_1", eventId: "evt_1", phone: "6181556489" });
-  const event = createInstance({ id: "evt_1" });
+  const event = createInstance({ id: "evt_1", ownerId: "usr_1" });
   const integration = { id: "int_1", ownerUserId: "usr_1" };
   const payload = {
     deviceId: "dev_1",
@@ -53,6 +53,18 @@ describe("handleInboundWhatsapp dedupe", () => {
     expect(result.reason).toBe("ai_reply");
     expect(processGuestMessage).toHaveBeenCalledTimes(1);
     expect(claimInboundEvent).toHaveBeenCalled();
+  });
+
+  test("sin integración WC busca invitado y llama al bot", async () => {
+    const result = await handleInboundWhatsapp({ payload, rawBody });
+    expect(resolveGuestForInbound).toHaveBeenCalledWith(
+      expect.objectContaining({
+        ownerUserId: null,
+        displayPhone: "6181556489",
+      }),
+    );
+    expect(result.reason).toBe("ai_reply");
+    expect(processGuestMessage).toHaveBeenCalledTimes(1);
   });
 
   test("replay del mismo evento no llama al bot", async () => {

@@ -2,6 +2,7 @@ import { Link } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import logo from "@/assets/alanna-logo.png";
 import { Button } from "@/components/ui/button";
+import { LEGAL_CONTACT_EMAIL } from "@/lib/legal";
 import { useStore } from "@/lib/mock/store";
 
 const footerLinks = [
@@ -12,6 +13,9 @@ const footerLinks = [
   },
   { to: "/software-rsvp-bodas" as const, label: "Software RSVP" },
   { to: "/blog" as const, label: "Blog" },
+  { to: "/privacidad" as const, label: "Privacidad" },
+  { to: "/terminos" as const, label: "Términos" },
+  { to: "/eliminar-datos" as const, label: "Eliminar datos" },
 ];
 
 export function MarketingShell({ children }: { children: ReactNode }) {
@@ -71,7 +75,7 @@ export function MarketingShell({ children }: { children: ReactNode }) {
             <p className="font-display text-lg">Alanna Confirmaciones</p>
             <p className="mt-1 max-w-sm text-xs text-muted-foreground">
               Software de confirmación de invitados por WhatsApp para wedding
-              planners en México.
+              planners en México. Contacto: {LEGAL_CONTACT_EMAIL}
             </p>
           </div>
           <div className="flex flex-wrap gap-x-4 gap-y-2 text-xs text-muted-foreground">

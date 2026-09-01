@@ -70,13 +70,23 @@ export function readFromPhoneRaw(payload = {}) {
 
 export function extractInboundIdentity(payload = {}) {
   const chatId = readChatId(payload);
-  const displayPhone = resolveDisplayPhone({ fromPhone: readFromPhoneRaw(payload), channelId: chatId });
+  const displayPhone =
+    resolveDisplayPhone({ fromPhone: readFromPhoneRaw(payload), channelId: chatId }) ||
+    normalizeWaIdTo10(chatId) ||
+    null;
   return {
     chatId,
     displayPhone,
     isGroup: isGroupJid(chatId),
     isChannelId: isWhatsappChannelId(chatId),
   };
+}
+
+/** Últimos 10 dígitos del wa_id / teléfono (p. ej. 5216183218624 → 6183218624). */
+export function normalizeWaIdTo10(value) {
+  const digits = String(value || "").replace(/\D/g, "");
+  if (!digits) return "";
+  return digits.length <= 10 ? digits : digits.slice(-10);
 }
 
 function formatMxDigits(digits) {
