@@ -65,6 +65,7 @@ export class MetaCloudProvider {
       providerId: payload?.messages?.[0]?.id || payload?.id || payload?.wamid || null,
       to: phone,
       skipped: false,
+      conversationStarted: cold,
     };
   }
 }

@@ -45,7 +45,16 @@ function stubOwnerQueue(models, jobs, events) {
   );
 }
 
-function campaignJob({ id, eventId, guestId, to, scheduledAt = new Date(), status = "queued", kind = "campaign" }) {
+function campaignJob({
+  id,
+  eventId,
+  guestId,
+  to,
+  scheduledAt = new Date(),
+  status = "queued",
+  kind = "campaign",
+  conversationStarted = false,
+}) {
   return createInstance({
     id,
     type: "whatsapp.send",
@@ -53,7 +62,14 @@ function campaignJob({ id, eventId, guestId, to, scheduledAt = new Date(), statu
     attempts: 0,
     scheduledAt,
     updatedAt: scheduledAt,
-    payload: { to, text: "hola", kind, eventId, guestId },
+    payload: {
+      to,
+      text: "hola",
+      kind,
+      eventId,
+      guestId,
+      ...(conversationStarted ? { result: { conversationStarted: true } } : {}),
+    },
   });
 }
 
@@ -64,15 +80,23 @@ describe("outbound.worker", () => {
   let timer;
   let executeCampaignLaunch;
   let recordCampaignSendResult;
+  let isColdConversation;
 
   beforeEach(async () => {
-    sendMessage = jest.fn(async () => ({ provider: "stub", skipped: true }));
+    sendMessage = jest.fn(async () => ({
+      provider: "stub",
+      skipped: false,
+      conversationStarted: true,
+      providerId: "wamid.test",
+    }));
     executeCampaignLaunch = jest.fn(async () => ({}));
     recordCampaignSendResult = jest.fn(async () => undefined);
+    isColdConversation = jest.fn(async () => true);
     ({ mod: service, models } = await loadWithMocks("src/services/outbound.worker.js", {
       extraMocks: {
         "src/services/whatsapp.adapter.js": () => ({
           createWhatsAppProvider: () => ({ sendMessage }),
+          isColdConversation,
         }),
         "src/services/campaign.service.js": () => ({ executeCampaignLaunch }),
         "src/services/campaign-progress.js": () => ({ recordCampaignSendResult }),
@@ -148,6 +172,7 @@ describe("outbound.worker", () => {
   });
 
   test("processJob marca skipped cuando el stub no envía", async () => {
+    sendMessage.mockResolvedValueOnce({ provider: "stub", skipped: true });
     const job = createInstance({
       type: "whatsapp.send",
       attempts: 0,
@@ -283,54 +308,97 @@ describe("outbound.worker", () => {
     expect(sendMessage).toHaveBeenCalledWith("5216181020927@s.whatsapp.net", "hola", expect.any(Object));
   });
 
-  test("enqueueJob masivo programa scheduledAt en cascada", async () => {
-    jest.spyOn(Math, "random").mockReturnValue(0);
-    models.Event.findByPk.mockResolvedValue({ ownerId: "owner_1" });
-    try {
-      await service.enqueueJob("whatsapp.send", {
-        kind: "campaign",
-        eventId: "evt_1",
+  test("processJob guarda providerId en el último mensaje AI", async () => {
+    const message = createInstance({
+      id: "msg_1",
+      conversationId: "cnv_1",
+      from: "ai",
+      providerId: null,
+    });
+    models.Message.findOne.mockResolvedValue(message);
+    sendMessage.mockResolvedValueOnce({
+      provider: "stub",
+      skipped: false,
+      providerId: "wamid.abc",
+      conversationStarted: true,
+    });
+    const job = createInstance({
+      type: "whatsapp.send",
+      attempts: 0,
+      payload: {
         to: "6183218624",
         text: "hola",
-      });
-      await service.enqueueJob("whatsapp.send", {
         kind: "campaign",
-        eventId: "evt_1",
-        to: "6181111111",
-        text: "hola",
-      });
-      const firstAt = new Date(models.OutboundJob.create.mock.calls[0][0].scheduledAt).getTime();
-      const secondAt = new Date(models.OutboundJob.create.mock.calls[1][0].scheduledAt).getTime();
-      expect(secondAt - firstAt).toBeGreaterThanOrEqual(15000);
-      expect(secondAt - firstAt).toBeLessThan(16000);
-    } finally {
-      Math.random.mockRestore();
-    }
+        guestId: "g1",
+        conversationId: "cnv_1",
+      },
+    });
+    await service.processJob(job);
+    expect(message.providerId).toBe("wamid.abc");
+    expect(message.save).toHaveBeenCalled();
   });
 
-  test("enqueueJob follow_up comparte la cascada de jitter con campaña", async () => {
-    jest.spyOn(Math, "random").mockReturnValue(0);
-    models.Event.findByPk.mockResolvedValue({ ownerId: "owner_1" });
-    try {
-      await service.enqueueJob("whatsapp.send", {
-        kind: "campaign",
-        eventId: "evt_1",
-        to: "6183218624",
-        text: "hola",
-      });
-      await service.enqueueJob("whatsapp.send", {
-        kind: "follow_up",
-        eventId: "evt_1",
-        to: "6181111111",
-        text: "recordatorio",
-      });
-      const firstAt = new Date(models.OutboundJob.create.mock.calls[0][0].scheduledAt).getTime();
-      const secondAt = new Date(models.OutboundJob.create.mock.calls[1][0].scheduledAt).getTime();
-      expect(secondAt - firstAt).toBeGreaterThanOrEqual(15000);
-      expect(secondAt - firstAt).toBeLessThan(16000);
-    } finally {
-      Math.random.mockRestore();
-    }
+  test("processJob de campaña no marca whatsapp enviado al aceptar Graph", async () => {
+    const guest = createInstance({
+      id: "gst_1",
+      phone: "6183218624",
+      whatsapp: "pendiente",
+      status: "enviado",
+    });
+    models.Guest.findByPk.mockResolvedValue(guest);
+    sendMessage.mockResolvedValueOnce({
+      provider: "stub",
+      skipped: false,
+      providerId: "wamid.abc",
+      conversationStarted: true,
+    });
+    const job = createInstance({
+      type: "whatsapp.send",
+      attempts: 0,
+      payload: { to: "6183218624", text: "hola", kind: "campaign", guestId: "gst_1" },
+    });
+    await service.processJob(job);
+    expect(guest.whatsapp).toBe("pendiente");
+    expect(guest.save).not.toHaveBeenCalled();
+  });
+
+  test("enqueueJob masivo programa scheduledAt ahora, sin cascada", async () => {
+    const before = Date.now();
+    await service.enqueueJob("whatsapp.send", {
+      kind: "campaign",
+      eventId: "evt_1",
+      to: "6183218624",
+      text: "hola",
+    });
+    await service.enqueueJob("whatsapp.send", {
+      kind: "campaign",
+      eventId: "evt_1",
+      to: "6181111111",
+      text: "hola",
+    });
+    const firstAt = new Date(models.OutboundJob.create.mock.calls[0][0].scheduledAt).getTime();
+    const secondAt = new Date(models.OutboundJob.create.mock.calls[1][0].scheduledAt).getTime();
+    expect(firstAt).toBeGreaterThanOrEqual(before - 50);
+    expect(secondAt).toBeGreaterThanOrEqual(before - 50);
+    expect(Math.abs(secondAt - firstAt)).toBeLessThan(1000);
+  });
+
+  test("enqueueJob follow_up no hereda delay de campaña", async () => {
+    await service.enqueueJob("whatsapp.send", {
+      kind: "campaign",
+      eventId: "evt_1",
+      to: "6183218624",
+      text: "hola",
+    });
+    await service.enqueueJob("whatsapp.send", {
+      kind: "follow_up",
+      eventId: "evt_1",
+      to: "6181111111",
+      text: "recordatorio",
+    });
+    const firstAt = new Date(models.OutboundJob.create.mock.calls[0][0].scheduledAt).getTime();
+    const secondAt = new Date(models.OutboundJob.create.mock.calls[1][0].scheduledAt).getTime();
+    expect(Math.abs(secondAt - firstAt)).toBeLessThan(1000);
   });
 
   test("enqueueJob con scheduledAt no hereda slot masivo", async () => {
@@ -346,10 +414,7 @@ describe("outbound.worker", () => {
     );
   });
 
-  test("tickWorker envía un masivo y aplaza el resto con jitter", async () => {
-    sendMessage.mockResolvedValue({ provider: "stub", skipped: false });
-    jest.spyOn(Math, "random").mockReturnValue(0);
-    const started = Date.now();
+  test("tickWorker envía todos los masivos due del lote", async () => {
     const now = new Date();
     const job1 = createInstance({
       id: "job_1",
@@ -390,32 +455,24 @@ describe("outbound.worker", () => {
       return [{ id: "evt_1", ownerId: "owner_1" }];
     });
     models.OutboundJob.findAll.mockImplementation(async (opts = {}) => {
-      const status = opts.where?.status;
-      if (status && typeof status === "object") return [];
-      if (status === "queued" && opts.where?.type === "whatsapp.send") return [job2];
-      if (status === "queued") return [job1, job2];
+      if (opts.where?.status === "queued") return [job1, job2];
       return [];
     });
 
-    try {
-      await service.tickWorker();
+    await service.tickWorker();
 
-      expect(sendMessage).toHaveBeenCalledTimes(1);
-      expect(sendMessage).toHaveBeenCalledWith("5216183218624", "hola", expect.any(Object));
-      expect(job1.status).toBe("done");
-      expect(job2.status).toBe("queued");
-      const deferredAt = new Date(job2.scheduledAt).getTime();
-      expect(deferredAt - started).toBeGreaterThanOrEqual(15000 - 100);
-      expect(deferredAt - started).toBeLessThan(16000);
-    } finally {
-      Math.random.mockRestore();
-    }
+    expect(sendMessage).toHaveBeenCalledTimes(2);
+    expect(job1.status).toBe("done");
+    expect(job2.status).toBe("done");
   });
 
-  test("tickWorker aplaza el resto con jitter si el envío falla", async () => {
-    sendMessage.mockRejectedValueOnce(new Error("boom"));
-    jest.spyOn(Math, "random").mockReturnValue(0);
-    const started = Date.now();
+  test("tickWorker sigue con el resto si un envío falla", async () => {
+    sendMessage.mockRejectedValueOnce(new Error("boom")).mockResolvedValue({
+      provider: "stub",
+      skipped: false,
+      conversationStarted: true,
+      providerId: "wamid.test",
+    });
     const now = new Date();
     const job1 = createInstance({
       id: "job_fail_1",
@@ -456,29 +513,18 @@ describe("outbound.worker", () => {
       return [{ id: "evt_1", ownerId: "owner_1" }];
     });
     models.OutboundJob.findAll.mockImplementation(async (opts = {}) => {
-      const status = opts.where?.status;
-      if (status && typeof status === "object") return [];
-      if (status === "queued" && opts.where?.type === "whatsapp.send") return [job2];
-      if (status === "queued") return [job1, job2];
+      if (opts.where?.status === "queued") return [job1, job2];
       return [];
     });
 
-    try {
-      await service.tickWorker();
+    await service.tickWorker();
 
-      expect(sendMessage).toHaveBeenCalledTimes(1);
-      expect(job1.status).toBe("failed");
-      expect(job2.status).toBe("queued");
-      const deferredAt = new Date(job2.scheduledAt).getTime();
-      expect(deferredAt - started).toBeGreaterThanOrEqual(15000 - 100);
-      expect(deferredAt - started).toBeLessThan(16000);
-    } finally {
-      Math.random.mockRestore();
-    }
+    expect(sendMessage).toHaveBeenCalledTimes(2);
+    expect(job1.status).toBe("failed");
+    expect(job2.status).toBe("done");
   });
 
-  test("tickWorker no dispara ráfaga si falta ownerId", async () => {
-    sendMessage.mockResolvedValue({ provider: "stub", skipped: false });
+  test("tickWorker envía el lote aunque falte ownerId", async () => {
     const now = new Date();
     const job1 = createInstance({
       id: "job_u1",
@@ -498,24 +544,18 @@ describe("outbound.worker", () => {
     });
     models.Event.findAll.mockResolvedValue([]);
     models.OutboundJob.findAll.mockImplementation(async (opts = {}) => {
-      const status = opts.where?.status;
-      if (status && typeof status === "object") return [];
-      if (status === "queued") return [job1, job2];
+      if (opts.where?.status === "queued") return [job1, job2];
       return [];
     });
 
     await service.tickWorker();
 
-    expect(sendMessage).toHaveBeenCalledTimes(1);
+    expect(sendMessage).toHaveBeenCalledTimes(2);
     expect(job1.status).toBe("done");
-    expect(job2.status).toBe("queued");
-    const deferredAt = new Date(job2.scheduledAt).getTime();
-    expect(deferredAt).toBeGreaterThan(now.getTime());
+    expect(job2.status).toBe("done");
   });
 
-  test("tickWorker escala los masivos due y no comparte scheduledAt", async () => {
-    sendMessage.mockResolvedValue({ provider: "stub", skipped: false });
-    jest.spyOn(Math, "random").mockReturnValue(0);
+  test("tickWorker envía varios masivos due en el mismo tick", async () => {
     const now = new Date();
     const payload = (to, guestId) => ({
       to,
@@ -554,54 +594,38 @@ describe("outbound.worker", () => {
       return [{ id: "evt_1", ownerId: "owner_1" }];
     });
     models.OutboundJob.findAll.mockImplementation(async (opts = {}) => {
-      const status = opts.where?.status;
-      if (status && typeof status === "object") return [];
-      if (status === "queued" && opts.where?.type === "whatsapp.send") return [job2, job3];
-      if (status === "queued") return [job1, job2, job3];
+      if (opts.where?.status === "queued") return [job1, job2, job3];
       return [];
     });
 
-    try {
-      await service.tickWorker();
-      expect(sendMessage).toHaveBeenCalledTimes(1);
-      expect(job1.status).toBe("done");
-      expect(job2.status).toBe("queued");
-      expect(job3.status).toBe("queued");
-      expect(new Date(job2.scheduledAt).getTime()).not.toBe(new Date(job3.scheduledAt).getTime());
-    } finally {
-      Math.random.mockRestore();
-    }
+    await service.tickWorker();
+    expect(sendMessage).toHaveBeenCalledTimes(3);
+    expect(job1.status).toBe("done");
+    expect(job2.status).toBe("done");
+    expect(job3.status).toBe("done");
   });
 
-  test("enqueueJob de dos campañas del mismo owner comparte la cascada de jitter", async () => {
-    jest.spyOn(Math, "random").mockReturnValue(0);
-    models.Event.findByPk.mockImplementation(async (id) => ({ ownerId: "owner_1" }));
-    try {
-      await service.enqueueJob("whatsapp.send", {
-        kind: "campaign",
-        eventId: "evt_a",
-        to: "6183218624",
-        text: "hola",
-      });
-      await service.enqueueJob("whatsapp.send", {
-        kind: "campaign",
-        eventId: "evt_b",
-        to: "6181111111",
-        text: "hola",
-      });
-      const firstAt = new Date(models.OutboundJob.create.mock.calls[0][0].scheduledAt).getTime();
-      const secondAt = new Date(models.OutboundJob.create.mock.calls[1][0].scheduledAt).getTime();
-      expect(secondAt - firstAt).toBeGreaterThanOrEqual(15000);
-      expect(secondAt - firstAt).toBeLessThan(16000);
-    } finally {
-      Math.random.mockRestore();
-    }
+  test("enqueueJob de dos campañas del mismo owner sale inmediato", async () => {
+    const before = Date.now();
+    await service.enqueueJob("whatsapp.send", {
+      kind: "campaign",
+      eventId: "evt_a",
+      to: "6183218624",
+      text: "hola",
+    });
+    await service.enqueueJob("whatsapp.send", {
+      kind: "campaign",
+      eventId: "evt_b",
+      to: "6181111111",
+      text: "hola",
+    });
+    const firstAt = new Date(models.OutboundJob.create.mock.calls[0][0].scheduledAt).getTime();
+    const secondAt = new Date(models.OutboundJob.create.mock.calls[1][0].scheduledAt).getTime();
+    expect(firstAt).toBeGreaterThanOrEqual(before - 50);
+    expect(Math.abs(secondAt - firstAt)).toBeLessThan(1000);
   });
 
-  test("tickWorker envía un follow_up y aplaza el resto con jitter", async () => {
-    sendMessage.mockResolvedValue({ provider: "stub", skipped: false });
-    jest.spyOn(Math, "random").mockReturnValue(0);
-    const started = Date.now();
+  test("tickWorker envía follow_ups due juntos", async () => {
     const now = new Date();
     const jobA = campaignJob({
       id: "job_fu_a",
@@ -621,24 +645,14 @@ describe("outbound.worker", () => {
     });
     stubOwnerQueue(models, [jobA, jobB], [{ id: "evt_1", ownerId: "owner_1" }]);
 
-    try {
-      await service.tickWorker();
+    await service.tickWorker();
 
-      expect(sendMessage).toHaveBeenCalledTimes(1);
-      expect(jobA.status).toBe("done");
-      expect(jobB.status).toBe("queued");
-      const deferredAt = new Date(jobB.scheduledAt).getTime();
-      expect(deferredAt - started).toBeGreaterThanOrEqual(15000 - 100);
-      expect(deferredAt - started).toBeLessThan(16000);
-    } finally {
-      Math.random.mockRestore();
-    }
+    expect(sendMessage).toHaveBeenCalledTimes(2);
+    expect(jobA.status).toBe("done");
+    expect(jobB.status).toBe("done");
   });
 
-  test("tickWorker con dos campañas del mismo owner envía una y aplaza la otra", async () => {
-    sendMessage.mockResolvedValue({ provider: "stub", skipped: false });
-    jest.spyOn(Math, "random").mockReturnValue(0);
-    const started = Date.now();
+  test("tickWorker con dos campañas del mismo owner las envía juntas", async () => {
     const now = new Date();
     const jobA = campaignJob({
       id: "job_camp_a",
@@ -663,73 +677,30 @@ describe("outbound.worker", () => {
       ],
     );
 
-    try {
-      await service.tickWorker();
+    await service.tickWorker();
 
-      expect(sendMessage).toHaveBeenCalledTimes(1);
-      expect(jobA.status).toBe("done");
-      expect(jobB.status).toBe("queued");
-      const deferredAt = new Date(jobB.scheduledAt).getTime();
-      expect(deferredAt - started).toBeGreaterThanOrEqual(15000 - 100);
-      expect(deferredAt - started).toBeLessThan(16000);
-    } finally {
-      Math.random.mockRestore();
-    }
+    expect(sendMessage).toHaveBeenCalledTimes(2);
+    expect(jobA.status).toBe("done");
+    expect(jobB.status).toBe("done");
   });
 
-  test("tickWorker en dos ticks seguidos no manda el segundo masivo", async () => {
-    sendMessage.mockResolvedValue({ provider: "stub", skipped: false });
-    jest.spyOn(Math, "random").mockReturnValue(0);
-    const now = new Date();
-    const job1 = campaignJob({
-      id: "job_tick_1",
-      eventId: "evt_1",
-      guestId: "g1",
-      to: "6183218624",
-      scheduledAt: now,
-    });
-    const job2 = campaignJob({
-      id: "job_tick_2",
-      eventId: "evt_1",
-      guestId: "g2",
-      to: "6181111111",
-      scheduledAt: now,
-    });
-    stubOwnerQueue(models, [job1, job2], [{ id: "evt_1", ownerId: "owner_1" }]);
-
-    try {
-      await service.tickWorker();
-      expect(sendMessage).toHaveBeenCalledTimes(1);
-      expect(job1.status).toBe("done");
-      expect(job2.status).toBe("queued");
-      expect(new Date(job2.scheduledAt).getTime()).toBeGreaterThan(Date.now());
-
-      await service.tickWorker();
-
-      expect(sendMessage).toHaveBeenCalledTimes(1);
-      expect(job2.status).toBe("queued");
-    } finally {
-      Math.random.mockRestore();
-    }
-  });
-
-  test("tickWorker aplaza el 21º masivo por tope horario", async () => {
-    sendMessage.mockResolvedValue({ provider: "stub", skipped: false });
-    const hourAgo = new Date(Date.now() - 2 * 60 * 1000);
-    const done = Array.from({ length: 20 }, (_, i) =>
+  test("tickWorker aplaza masivos al llenar el tope de 24 h", async () => {
+    const sentAt = new Date(Date.now() - 2 * 60 * 1000);
+    const done = Array.from({ length: 1000 }, (_, i) =>
       campaignJob({
         id: `job_done_${i}`,
         eventId: "evt_1",
         guestId: `gd${i}`,
         to: "6183218624",
-        scheduledAt: hourAgo,
+        scheduledAt: sentAt,
         status: "done",
+        conversationStarted: true,
       }),
     );
     const pending = campaignJob({
-      id: "job_21",
+      id: "job_1001",
       eventId: "evt_1",
-      guestId: "g21",
+      guestId: "g1001",
       to: "6181111111",
       scheduledAt: new Date(),
     });
@@ -739,13 +710,12 @@ describe("outbound.worker", () => {
 
     expect(sendMessage).not.toHaveBeenCalled();
     expect(pending.status).toBe("queued");
-    expect(new Date(pending.scheduledAt).getTime()).toBeGreaterThan(Date.now());
+    expect(new Date(pending.scheduledAt).getTime()).toBe(sentAt.getTime() + 24 * 60 * 60 * 1000);
   });
 
-  test("tickWorker deja pasar un reply aunque el tope horario de masivos esté lleno", async () => {
-    sendMessage.mockResolvedValue({ provider: "stub", skipped: false });
+  test("tickWorker deja pasar un reply aunque el tope de 24 h esté lleno", async () => {
     const sentAt = new Date(Date.now() - 2 * 60 * 1000);
-    const done = Array.from({ length: 20 }, (_, i) =>
+    const done = Array.from({ length: 1000 }, (_, i) =>
       campaignJob({
         id: `job_bulk_${i}`,
         eventId: "evt_1",
@@ -753,6 +723,7 @@ describe("outbound.worker", () => {
         to: "6183218624",
         scheduledAt: sentAt,
         status: "done",
+        conversationStarted: true,
       }),
     );
     const reply = campaignJob({

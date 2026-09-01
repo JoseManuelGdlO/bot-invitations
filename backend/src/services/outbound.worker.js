@@ -1,16 +1,14 @@
 import { Op } from "sequelize";
-import { Event, Guest, OutboundJob } from "../models/index.js";
-import { createWhatsAppProvider } from "./whatsapp.adapter.js";
+import { Event, Guest, Message, OutboundJob } from "../models/index.js";
+import { createWhatsAppProvider, isColdConversation } from "./whatsapp.adapter.js";
 import { env } from "../config/env.js";
 import { Logger } from "../utils/logger.js";
 import { formatWhatsappTo, resolveWhatsappTo } from "../utils/whatsapp-identity.js";
 import {
-  allocateBulkSlot,
+  countInitialConversations,
+  DAY_MS,
   isBulkKind,
-  nextAllowedAt,
-  randomIntervalMs,
-  rememberNextGap,
-  summarizeOwnerSends,
+  nextInitialRetryAt,
 } from "./outbound.throttle.js";
 import { recordCampaignSendResult } from "./campaign-progress.js";
 
@@ -18,7 +16,6 @@ const provider = createWhatsAppProvider();
 const workerLog = new Logger("Worker");
 const waLog = new Logger("WhatsApp");
 const DUE_BATCH = 50;
-const HOUR_MS = 60 * 60 * 1000;
 const UNKNOWN_OWNER = "_unknown";
 
 function sendMeta(job, extra = {}) {
@@ -36,20 +33,7 @@ function sendMeta(job, extra = {}) {
 let running = false;
 
 export async function enqueueJob(type, payload, scheduledAt) {
-  let at = scheduledAt;
-  if (at === undefined && type === "whatsapp.send" && isBulkKind(payload?.kind)) {
-    let ownerId = null;
-    if (payload?.eventId) {
-      const event = await Event.findByPk(payload.eventId, { attributes: ["ownerId"] });
-      ownerId = event?.ownerId || null;
-    }
-    at = allocateBulkSlot(ownerId, {
-      now: new Date(),
-      intervalMinMs: env.waSend.intervalMinMs,
-      intervalMaxMs: env.waSend.intervalMaxMs,
-    });
-  }
-  if (at == null) at = new Date();
+  const at = scheduledAt ?? new Date();
   const job = await OutboundJob.create({ type, payload, scheduledAt: at, status: "queued" });
   workerLog.debug(`encolado ${type}`, {
     jobId: job.id,
@@ -67,22 +51,29 @@ async function maybeRecordCampaignProgress(job) {
   await recordCampaignSendResult(job.payload?.campaignId);
 }
 
-async function syncWhatsappSendJob(job, { ok }) {
+async function persistOutboundProviderId(job, result) {
+  const providerId = String(result?.providerId || "").trim();
+  const conversationId = job.payload?.conversationId;
+  if (!providerId || !conversationId) return;
+  const message = await Message.findOne({
+    where: { conversationId, from: "ai" },
+    order: [["createdAt", "DESC"]],
+  });
+  if (!message || message.providerId) return;
+  message.providerId = providerId;
+  await message.save();
+}
+
+async function syncWhatsappSendJob(job, { ok, result } = {}) {
+  if (ok) await persistOutboundProviderId(job, result);
   const guestId = job.payload?.guestId;
   if (guestId) {
     const guest = await Guest.findByPk(guestId);
-    if (guest) {
-      if (ok) {
-        if (["pendiente", "enviado"].includes(guest.whatsapp)) {
-          guest.whatsapp = "enviado";
-          await guest.save();
-        }
-      } else if (job.payload?.kind === "campaign" && guest.status === "enviado" && !guest.lastReply) {
-        guest.status = "sin_contactar";
-        guest.whatsapp = "pendiente";
-        guest.contactedAt = null;
-        await guest.save();
-      }
+    if (guest && !ok && job.payload?.kind === "campaign" && guest.status === "enviado" && !guest.lastReply) {
+      guest.status = "sin_contactar";
+      guest.whatsapp = "pendiente";
+      guest.contactedAt = null;
+      await guest.save();
     }
   }
   await maybeRecordCampaignProgress(job);
@@ -107,15 +98,6 @@ async function claimQueuedJob(job) {
   }
   await job.update({ status: "processing", attempts: job.attempts + 1 });
   return true;
-}
-
-async function parkJobsStaggered(jobs, fromMs, intervalMinMs, intervalMaxMs) {
-  let at = fromMs;
-  for (const job of jobs) {
-    at += randomIntervalMs(intervalMinMs, intervalMaxMs);
-    await job.update({ scheduledAt: new Date(at) });
-  }
-  return jobs.length;
 }
 
 export async function processJob(job) {
@@ -183,7 +165,7 @@ export async function processJob(job) {
         to,
         ...(result.skipped && { reason: "provider skipped" }),
       }));
-      await syncWhatsappSendJob(job, { ok });
+      await syncWhatsappSendJob(job, { ok, result });
       return;
     }
     await job.update({ status: "skipped", lastError: `Tipo desconocido: ${job.type}` });
@@ -204,114 +186,33 @@ export async function processJob(job) {
   }
 }
 
-function sortOwnerJobs(jobs) {
-  return [...jobs].sort((a, b) => {
-    const bulkA = isBulkKind(a.payload?.kind) ? 1 : 0;
-    const bulkB = isBulkKind(b.payload?.kind) ? 1 : 0;
-    if (bulkA !== bulkB) return bulkA - bulkB;
-    return new Date(a.scheduledAt) - new Date(b.scheduledAt);
-  });
+async function wouldStartConversation(job) {
+  if (!isBulkKind(job.payload?.kind)) return false;
+  const guestId = job.payload?.guestId;
+  if (!guestId) return true;
+  const guest = await Guest.findByPk(guestId);
+  if (guest?.status === "sin_contactar") return true;
+  return isColdConversation(guestId);
 }
 
 async function loadOwnerEventIds(ownerId) {
+  if (!ownerId || ownerId === UNKNOWN_OWNER) return new Set();
   const events = await Event.findAll({ where: { ownerId }, attributes: ["id"] });
   return new Set(events.map((event) => event.id));
 }
 
-async function loadOwnerThrottleState(eventIds) {
-  if (!eventIds.size) {
-    return { lastSendAt: null, bulkCount: 0, oldestBulkAt: null };
-  }
-  const hourAgo = new Date(Date.now() - HOUR_MS);
+async function loadOwnerInitialState(ownerId, eventIds) {
+  if (!eventIds.size) return { count: 0, oldestAt: null };
+  const since = new Date(Date.now() - DAY_MS);
   const jobs = await OutboundJob.findAll({
     where: {
       type: "whatsapp.send",
       status: "done",
-      updatedAt: { [Op.gte]: hourAgo },
+      updatedAt: { [Op.gte]: since },
     },
     order: [["updatedAt", "ASC"]],
   });
-  return summarizeOwnerSends(jobs, eventIds, hourAgo);
-}
-
-async function deferQueuedForOwner(eventIds, nextAt, {
-  exceptId = null,
-  bulkOnly = false,
-  intervalMinMs = 0,
-  intervalMaxMs = 0,
-} = {}) {
-  const where = {
-    type: "whatsapp.send",
-    status: "queued",
-    scheduledAt: { [Op.lt]: nextAt },
-  };
-  if (exceptId) where.id = { [Op.ne]: exceptId };
-  const queued = await OutboundJob.findAll({ where });
-  const mine = queued.filter((job) => {
-    if (!eventIds.has(job.payload?.eventId)) return false;
-    if (bulkOnly && !isBulkKind(job.payload?.kind)) return false;
-    return true;
-  });
-  let at = new Date(nextAt).getTime();
-  for (const job of mine) {
-    await job.update({ scheduledAt: new Date(at) });
-    at += randomIntervalMs(intervalMinMs, intervalMaxMs);
-  }
-  return mine.length;
-}
-
-async function processOwnerTick(ownerId, dueJobs) {
-  const jobs = sortOwnerJobs(dueJobs);
-  const candidate = jobs[0];
-  if (!candidate) return;
-  const eventIds = await loadOwnerEventIds(ownerId);
-  const state = await loadOwnerThrottleState(eventIds);
-  const { intervalMinMs, intervalMaxMs, maxPerHour } = env.waSend;
-  const { at, reason } = nextAllowedAt({
-    now: new Date(),
-    ownerId,
-    lastSendAt: state.lastSendAt,
-    intervalMinMs,
-    intervalMaxMs,
-    isBulk: isBulkKind(candidate.payload?.kind),
-    bulkCount: state.bulkCount,
-    maxPerHour,
-    oldestBulkAt: state.oldestBulkAt,
-  });
-
-  if (at && at.getTime() > Date.now()) {
-    const farGap = reason === "gap" && at.getTime() - Date.now() > intervalMaxMs;
-    if (!farGap) {
-      const deferred = await deferQueuedForOwner(eventIds, at, {
-        bulkOnly: reason === "hourly",
-        intervalMinMs,
-        intervalMaxMs,
-      });
-      workerLog.info(
-        `owner ${ownerId} aplazado: ${reason} hasta ${at.toISOString()} (${deferred} jobs)`,
-      );
-      return;
-    }
-    workerLog.warn(`owner ${ownerId} ignora gap lejano ${at.toISOString()}`);
-  }
-
-  const parked = await parkJobsStaggered(jobs.slice(1), Date.now(), intervalMinMs, intervalMaxMs);
-  if (parked) {
-    workerLog.info(`owner ${ownerId} apartó ${parked} jobs para no enviar en paralelo`);
-  }
-
-  await processJob(candidate);
-
-  const nextAt = new Date(Date.now() + randomIntervalMs(intervalMinMs, intervalMaxMs));
-  rememberNextGap(ownerId, nextAt);
-  const deferred = await deferQueuedForOwner(eventIds, nextAt, {
-    exceptId: candidate.id,
-    intervalMinMs,
-    intervalMaxMs,
-  });
-  workerLog.info(
-    `owner ${ownerId} gap ${candidate.status} hasta ${nextAt.toISOString()} (${deferred} jobs)`,
-  );
+  return countInitialConversations(jobs, eventIds, since);
 }
 
 export async function tickWorker() {
@@ -330,25 +231,52 @@ export async function tickWorker() {
       ? await Event.findAll({ where: { id: eventIds }, attributes: ["id", "ownerId"] })
       : [];
     const ownerByEvent = new Map(events.map((event) => [event.id, event.ownerId]));
+    const ownerState = new Map();
+    const ownerEvents = new Map();
+    const max = Number(env.waSend?.maxInitialPer24h) || 0;
 
-    const byOwner = new Map();
-    const unthrottled = [];
+    async function stateFor(ownerId) {
+      if (ownerState.has(ownerId)) return ownerState.get(ownerId);
+      let ids = ownerEvents.get(ownerId);
+      if (!ids) {
+        ids = await loadOwnerEventIds(ownerId);
+        ownerEvents.set(ownerId, ids);
+      }
+      const state = await loadOwnerInitialState(ownerId, ids);
+      ownerState.set(ownerId, state);
+      return state;
+    }
+
     for (const job of due) {
       if (job.type !== "whatsapp.send") {
-        unthrottled.push(job);
+        await processJob(job);
         continue;
       }
       const ownerId = ownerByEvent.get(job.payload?.eventId) || UNKNOWN_OWNER;
-      const list = byOwner.get(ownerId) || [];
-      list.push(job);
-      byOwner.set(ownerId, list);
-    }
-
-    for (const job of unthrottled) {
+      const starts = await wouldStartConversation(job);
+      if (starts && max > 0) {
+        const state = await stateFor(ownerId);
+        if (state.count >= max) {
+          const retryAt = nextInitialRetryAt(state.oldestAt);
+          await job.update({
+            status: "queued",
+            scheduledAt: retryAt,
+            lastError: "tope 24h conversaciones iniciales",
+          });
+          workerLog.info(`owner ${ownerId} aplazado: tope 24h hasta ${retryAt.toISOString()}`, {
+            jobId: job.id,
+            count: state.count,
+            max,
+          });
+          continue;
+        }
+      }
       await processJob(job);
-    }
-    for (const [ownerId, jobs] of byOwner) {
-      await processOwnerTick(ownerId, jobs);
+      if (starts && max > 0 && job.status === "done" && job.payload?.result?.conversationStarted) {
+        const state = await stateFor(ownerId);
+        state.count += 1;
+        if (!state.oldestAt) state.oldestAt = job.updatedAt || new Date();
+      }
     }
   } finally {
     running = false;
@@ -360,9 +288,9 @@ export function startOutboundWorker() {
     tickWorker().catch((err) => workerLog.error(err.message, { stack: err.stack }));
   }, env.workerIntervalMs);
   timer.unref?.();
-  const { intervalMinMs, intervalMaxMs, maxPerHour } = env.waSend;
+  const max = env.waSend?.maxInitialPer24h;
   workerLog.info(
-    `outbound jobs cada ${env.workerIntervalMs}ms; WA ${intervalMinMs}-${intervalMaxMs}ms, máx ${maxPerHour}/h masivos`,
+    `outbound jobs cada ${env.workerIntervalMs}ms; máx ${max || "∞"} conversaciones iniciales / 24h`,
   );
   return timer;
 }

@@ -160,6 +160,7 @@ export const Message = sequelize.define("messages", {
   from: { type: DataTypes.ENUM("ai", "guest", "planner"), allowNull: false },
   text: { type: DataTypes.TEXT, allowNull: false },
   at: { type: DataTypes.STRING(20), allowNull: false },
+  providerId: { type: DataTypes.STRING(120), allowNull: true, unique: true },
 });
 
 export const AiConfig = sequelize.define("ai_configs", {
@@ -530,6 +531,23 @@ export async function ensureCampaignColumns() {
     });
     console.log("[db] columna campaigns.launchedAt ahora admite null");
   }
+}
+
+export async function ensureMessageProviderId() {
+  const qi = sequelize.getQueryInterface();
+  let table;
+  try {
+    table = await qi.describeTable("messages");
+  } catch {
+    return;
+  }
+  if (table.providerId) return;
+  await qi.addColumn("messages", "providerId", {
+    type: DataTypes.STRING(120),
+    allowNull: true,
+    unique: true,
+  });
+  console.log("[db] columna messages.providerId creada");
 }
 
 export async function ensureTemplateGreetingVar() {

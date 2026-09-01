@@ -37,10 +37,45 @@ function cloudPayload({
   };
 }
 
+function statusPayload({
+  id = "wamid.abc",
+  status = "sent",
+  recipientId = "5216181556489",
+  phoneNumberId = "10987654321",
+} = {}) {
+  return {
+    object: "whatsapp_business_account",
+    entry: [
+      {
+        changes: [
+          {
+            value: {
+              messaging_product: "whatsapp",
+              metadata: {
+                display_phone_number: "15551234567",
+                phone_number_id: phoneNumberId,
+              },
+              statuses: [
+                {
+                  id,
+                  status,
+                  timestamp: "1700000000",
+                  recipient_id: recipientId,
+                },
+              ],
+            },
+          },
+        ],
+      },
+    ],
+  };
+}
+
 describe("meta-webhook.controller", () => {
   let controller;
   let handleInboundWhatsapp;
   let resolveActiveWhatsappMetaByPhoneNumberId;
+  let applyWhatsappDeliveryStatus;
   const integration = { id: "wa_int_1", ownerUserId: "usr_1", phoneNumberId: "10987654321" };
 
   beforeEach(async () => {
@@ -49,12 +84,14 @@ describe("meta-webhook.controller", () => {
       integration,
       credentials: { accessToken: "tok", phoneNumberId: "10987654321" },
     }));
+    applyWhatsappDeliveryStatus = jest.fn(async () => ({ processed: true, reason: "status_sent" }));
     ({ mod: controller } = await loadWithMocks("src/controllers/meta-webhook.controller.js", {
       extraMocks: {
         "src/controllers/bot.controller.js": () => ({ handleInboundWhatsapp }),
         "src/services/whatsapp-meta.service.js": () => ({
           resolveActiveWhatsappMetaByPhoneNumberId,
         }),
+        "src/services/whatsapp-status.service.js": () => ({ applyWhatsappDeliveryStatus }),
       },
     }));
   });
@@ -137,6 +174,38 @@ describe("meta-webhook.controller", () => {
       req: createMockReq({ body: payload, rawBody: JSON.stringify(payload) }),
     });
     expect(handleInboundWhatsapp).not.toHaveBeenCalled();
+    expect(applyWhatsappDeliveryStatus).not.toHaveBeenCalled();
     expect(res.status).toHaveBeenCalledWith(200);
+  });
+
+  test("extractMetaStatuses normaliza sent/delivered/read", () => {
+    const sent = controller.extractMetaStatuses(statusPayload({ status: "sent" }));
+    expect(sent).toEqual([
+      expect.objectContaining({
+        type: "message.status",
+        messageId: "wamid.abc",
+        status: "sent",
+        recipientId: "6181556489",
+        phoneNumberId: "10987654321",
+      }),
+    ]);
+    expect(controller.extractMetaStatuses(statusPayload({ status: "delivered" }))[0].status).toBe("delivered");
+    expect(controller.extractMetaStatuses(statusPayload({ status: "read" }))[0].status).toBe("read");
+    expect(controller.extractMetaStatuses(statusPayload({ status: "failed" }))[0].status).toBe("failed");
+  });
+
+  test("POST rutea statuses sent delivered read y failed", async () => {
+    for (const status of ["sent", "delivered", "read", "failed"]) {
+      applyWhatsappDeliveryStatus.mockClear();
+      const payload = statusPayload({ status });
+      const { res } = await callHandler(controller.postMetaEvents, {
+        req: createMockReq({ body: payload, rawBody: JSON.stringify(payload) }),
+      });
+      expect(handleInboundWhatsapp).not.toHaveBeenCalled();
+      expect(applyWhatsappDeliveryStatus).toHaveBeenCalledWith(
+        expect.objectContaining({ messageId: "wamid.abc", status }),
+      );
+      expect(res.status).toHaveBeenCalledWith(200);
+    }
   });
 });

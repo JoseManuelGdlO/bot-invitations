@@ -1,78 +1,6 @@
-import { jest } from "@jest/globals";
-import {
-  allocateBulkSlot,
-  isBulkKind,
-  nextAllowedAt,
-  randomIntervalMs,
-  rememberNextGap,
-  resetOwnerThrottle,
-  summarizeOwnerSends,
-} from "../../src/services/outbound.throttle.js";
+import { countInitialConversations, isBulkKind, nextInitialRetryAt, DAY_MS } from "../../src/services/outbound.throttle.js";
 
 describe("outbound.throttle", () => {
-  test("randomIntervalMs queda dentro del rango inclusive", () => {
-    jest.spyOn(Math, "random").mockReturnValue(0);
-    try {
-      expect(randomIntervalMs(15000, 30000)).toBe(15000);
-      Math.random.mockReturnValue(0.999999);
-      expect(randomIntervalMs(15000, 30000)).toBe(30000);
-    } finally {
-      Math.random.mockRestore();
-    }
-  });
-
-  test("nextAllowedAt respeta el gap recordado", () => {
-    const ownerId = "owner_gap_1";
-    const now = new Date("2026-01-01T00:00:00.000Z");
-    const nextAt = new Date("2026-01-01T00:00:20.000Z");
-    rememberNextGap(ownerId, nextAt);
-    const result = nextAllowedAt({
-      now,
-      ownerId,
-      lastSendAt: null,
-      intervalMinMs: 15000,
-      intervalMaxMs: 30000,
-      isBulk: true,
-      bulkCount: 0,
-      maxPerHour: 20,
-      oldestBulkAt: null,
-    });
-    expect(result).toEqual({ at: nextAt, reason: "gap" });
-  });
-
-  test("nextAllowedAt no aplica tope horario a replies", () => {
-    const result = nextAllowedAt({
-      now: new Date("2026-01-01T00:30:00.000Z"),
-      ownerId: "owner_hourly_reply",
-      lastSendAt: new Date("2026-01-01T00:00:00.000Z"),
-      intervalMinMs: 15000,
-      intervalMaxMs: 30000,
-      isBulk: false,
-      bulkCount: 20,
-      maxPerHour: 20,
-      oldestBulkAt: new Date("2026-01-01T00:00:00.000Z"),
-    });
-    expect(result).toEqual({ at: null, reason: null });
-  });
-
-  test("nextAllowedAt aplaza masivos por tope horario", () => {
-    const oldestBulkAt = new Date("2026-01-01T00:00:00.000Z");
-    const now = new Date("2026-01-01T00:30:00.000Z");
-    const result = nextAllowedAt({
-      now,
-      ownerId: "owner_hourly_1",
-      lastSendAt: null,
-      intervalMinMs: 15000,
-      intervalMaxMs: 30000,
-      isBulk: true,
-      bulkCount: 20,
-      maxPerHour: 20,
-      oldestBulkAt,
-    });
-    expect(result.reason).toBe("hourly");
-    expect(result.at.toISOString()).toBe("2026-01-01T01:00:00.000Z");
-  });
-
   test("isBulkKind reconoce campaña y follow-up", () => {
     expect(isBulkKind("campaign")).toBe(true);
     expect(isBulkKind("follow_up")).toBe(true);
@@ -81,136 +9,71 @@ describe("outbound.throttle", () => {
     expect(isBulkKind("reply")).toBe(false);
   });
 
-  test("allocateBulkSlot pone el primero ahora y los siguientes con jitter", () => {
-    jest.spyOn(Math, "random").mockReturnValue(0);
-    try {
-      const now = new Date("2026-01-01T00:00:00.000Z");
-      const first = allocateBulkSlot("owner_slot_1", { now, intervalMinMs: 15000, intervalMaxMs: 30000 });
-      const second = allocateBulkSlot("owner_slot_1", { now, intervalMinMs: 15000, intervalMaxMs: 30000 });
-      expect(first.toISOString()).toBe("2026-01-01T00:00:00.000Z");
-      expect(second.getTime() - first.getTime()).toBe(15000);
-    } finally {
-      Math.random.mockRestore();
-    }
-  });
-
-  test("allocateBulkSlot ignora un hueco lejano y arranca ahora", () => {
-    const now = new Date("2026-01-01T00:00:00.000Z");
-    rememberNextGap("owner_slot_far", new Date("2026-01-01T00:44:00.000Z"));
-    const first = allocateBulkSlot("owner_slot_far", { now, intervalMinMs: 15000, intervalMaxMs: 30000 });
-    expect(first.toISOString()).toBe("2026-01-01T00:00:00.000Z");
-  });
-
-  test("allocateBulkSlot no reinicia el 4º slot por el intervalo máximo", () => {
-    jest.spyOn(Math, "random").mockReturnValue(0);
-    try {
-      const now = new Date("2026-01-01T00:00:00.000Z");
-      const slots = [0, 1, 2, 3].map(() =>
-        allocateBulkSlot("owner_slot_cascade", { now, intervalMinMs: 15000, intervalMaxMs: 30000 }),
-      );
-      expect(slots[0].toISOString()).toBe("2026-01-01T00:00:00.000Z");
-      expect(slots[3].getTime() - slots[0].getTime()).toBe(45000);
-    } finally {
-      Math.random.mockRestore();
-    }
-  });
-
-  test("nextAllowedAt ignora un gap lejano", () => {
-    const ownerId = "owner_gap_far";
-    const now = new Date("2026-01-01T00:00:00.000Z");
-    rememberNextGap(ownerId, new Date("2026-01-01T00:44:00.000Z"));
-    const result = nextAllowedAt({
-      now,
-      ownerId,
-      lastSendAt: null,
-      intervalMinMs: 15000,
-      intervalMaxMs: 30000,
-      isBulk: true,
-      bulkCount: 0,
-      maxPerHour: 20,
-      oldestBulkAt: null,
-    });
-    expect(result).toEqual({ at: null, reason: null });
-  });
-
-  test("nextAllowedAt ignora lastSendAt en el futuro", () => {
-    const result = nextAllowedAt({
-      now: new Date("2026-01-01T00:00:00.000Z"),
-      ownerId: "owner_last_future",
-      lastSendAt: new Date("2026-01-01T00:57:00.000Z"),
-      intervalMinMs: 15000,
-      intervalMaxMs: 30000,
-      isBulk: true,
-      bulkCount: 0,
-      maxPerHour: 20,
-      oldestBulkAt: null,
-    });
-    expect(result).toEqual({ at: null, reason: null });
-  });
-
-  test("resetOwnerThrottle reinicia la cascada de slots", () => {
-    jest.spyOn(Math, "random").mockReturnValue(0);
-    try {
-      const now = new Date("2026-01-01T00:00:00.000Z");
-      const opts = { now, intervalMinMs: 15000, intervalMaxMs: 30000 };
-      allocateBulkSlot("owner_reset_1", opts);
-      const second = allocateBulkSlot("owner_reset_1", opts);
-      expect(second.toISOString()).toBe("2026-01-01T00:00:15.000Z");
-      resetOwnerThrottle("owner_reset_1");
-      const again = allocateBulkSlot("owner_reset_1", opts);
-      expect(again.toISOString()).toBe("2026-01-01T00:00:00.000Z");
-    } finally {
-      Math.random.mockRestore();
-    }
-  });
-
-  test("summarizeOwnerSends suma masivos de dos eventos del mismo owner", () => {
-    const hourAgo = new Date("2026-01-01T00:00:00.000Z");
-    const result = summarizeOwnerSends(
+  test("countInitialConversations solo suma envíos en frío done del owner", () => {
+    const since = new Date("2026-01-01T00:00:00.000Z");
+    const result = countInitialConversations(
       [
         {
           status: "done",
           updatedAt: new Date("2026-01-01T00:10:00.000Z"),
-          payload: { eventId: "evt_a", kind: "campaign" },
+          payload: { eventId: "evt_a", kind: "campaign", result: { conversationStarted: true } },
         },
         {
           status: "done",
           updatedAt: new Date("2026-01-01T00:20:00.000Z"),
-          payload: { eventId: "evt_b", kind: "campaign" },
+          payload: { eventId: "evt_b", kind: "follow_up", result: { conversationStarted: true } },
         },
         {
           status: "done",
           updatedAt: new Date("2026-01-01T00:25:00.000Z"),
-          payload: { eventId: "evt_other", kind: "campaign" },
+          payload: { eventId: "evt_other", kind: "campaign", result: { conversationStarted: true } },
+        },
+        {
+          status: "done",
+          updatedAt: new Date("2026-01-01T00:30:00.000Z"),
+          payload: { eventId: "evt_a", kind: "reply", result: { conversationStarted: false } },
         },
       ],
       new Set(["evt_a", "evt_b"]),
-      hourAgo,
+      since,
     );
-    expect(result.bulkCount).toBe(2);
-    expect(result.oldestBulkAt.toISOString()).toBe("2026-01-01T00:10:00.000Z");
-    expect(result.lastSendAt.toISOString()).toBe("2026-01-01T00:20:00.000Z");
+    expect(result.count).toBe(2);
+    expect(new Date(result.oldestAt).toISOString()).toBe("2026-01-01T00:10:00.000Z");
   });
 
-  test("summarizeOwnerSends no cuenta failed hacia el tope horario", () => {
-    const hourAgo = new Date("2026-01-01T00:00:00.000Z");
-    const result = summarizeOwnerSends(
+  test("countInitialConversations no cuenta failed ni jobs sin conversationStarted", () => {
+    const since = new Date("2026-01-01T00:00:00.000Z");
+    const result = countInitialConversations(
       [
         {
           status: "failed",
           updatedAt: new Date("2026-01-01T00:30:00.000Z"),
-          payload: { eventId: "evt_1", kind: "campaign" },
+          payload: { eventId: "evt_1", kind: "campaign", result: { conversationStarted: true } },
         },
         {
           status: "done",
           updatedAt: new Date("2026-01-01T00:31:00.000Z"),
+          payload: { eventId: "evt_1", kind: "campaign", result: { conversationStarted: true } },
+        },
+        {
+          status: "done",
+          updatedAt: new Date("2026-01-01T00:32:00.000Z"),
           payload: { eventId: "evt_1", kind: "campaign" },
         },
       ],
       new Set(["evt_1"]),
-      hourAgo,
+      since,
     );
-    expect(result.bulkCount).toBe(1);
-    expect(result.lastSendAt.toISOString()).toBe("2026-01-01T00:31:00.000Z");
+    expect(result.count).toBe(1);
+  });
+
+  test("nextInitialRetryAt usa oldest + 24 h", () => {
+    const oldestAt = new Date("2026-01-01T00:10:00.000Z");
+    expect(nextInitialRetryAt(oldestAt).toISOString()).toBe("2026-01-02T00:10:00.000Z");
+  });
+
+  test("nextInitialRetryAt sin oldest suma 24 h a now", () => {
+    const now = new Date("2026-01-01T00:00:00.000Z");
+    expect(nextInitialRetryAt(null, now).getTime()).toBe(now.getTime() + DAY_MS);
   });
 });

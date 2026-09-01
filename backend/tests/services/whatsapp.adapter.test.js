@@ -80,6 +80,7 @@ describe("whatsapp.adapter MetaCloudProvider", () => {
         providerId: "wamid.tpl",
         to: "5512345678",
         skipped: false,
+        conversationStarted: true,
       }),
     );
   });
@@ -132,5 +133,6 @@ describe("whatsapp.adapter MetaCloudProvider", () => {
     });
     expect(sendTemplateWithRetry).not.toHaveBeenCalled();
     expect(result.providerId).toBe("wamid.txt");
+    expect(result.conversationStarted).toBe(false);
   });
 });

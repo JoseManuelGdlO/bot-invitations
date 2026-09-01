@@ -18,7 +18,6 @@ describe("campaign.service", () => {
         "src/services/guest-message.service.js": () => ({ deliverAiMessage }),
         "src/services/integration-resolver.service.js": () => ({ assertWhatsappReady }),
         "src/services/activity.service.js": () => ({ logActivity: jest.fn(async () => undefined) }),
-        "src/services/outbound.throttle.js": () => ({ resetOwnerThrottle: jest.fn() }),
         "src/services/campaign-progress.js": () => ({ recordCampaignSendResult }),
       },
     }));
@@ -218,6 +217,10 @@ describe("campaign.service", () => {
     expect(campaign.status).toBe("running");
     expect(event.status).toBe("activo");
     expect(campaign.total).toBe(1);
+    expect(models.Guest.update).toHaveBeenCalledWith(
+      expect.objectContaining({ status: "enviado", whatsapp: "pendiente" }),
+      expect.any(Object),
+    );
     expect(deliverAiMessage).toHaveBeenCalledWith(
       expect.objectContaining({
         kind: "campaign",

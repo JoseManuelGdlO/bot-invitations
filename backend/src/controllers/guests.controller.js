@@ -141,7 +141,6 @@ export const remindGuest = asyncHandler(async (req, res) => {
     kind: "reminder",
     guestPatch: {
       status: guest.status === "sin_contactar" ? "enviado" : guest.status,
-      whatsapp: "enviado",
       contactedAt: guest.contactedAt || new Date(),
     },
   });

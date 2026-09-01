@@ -80,6 +80,31 @@ export function extractMetaInboundMessages(body = {}) {
   return out;
 }
 
+export function extractMetaStatuses(body = {}) {
+  const entries = Array.isArray(body.entry) ? body.entry : [];
+  const out = [];
+  for (const entry of entries) {
+    const changes = Array.isArray(entry?.changes) ? entry.changes : [];
+    for (const change of changes) {
+      const value = change?.value && typeof change.value === "object" ? change.value : {};
+      const statuses = Array.isArray(value.statuses) ? value.statuses : [];
+      const phoneNumberId = String(value.metadata?.phone_number_id || "").trim();
+      for (const status of statuses) {
+        const recipient = String(status.recipient_id || "").trim();
+        out.push({
+          type: "message.status",
+          messageId: String(status.id || "").trim(),
+          status: String(status.status || "").toLowerCase(),
+          recipientId: normalizeWaIdTo10(recipient) || recipient,
+          phoneNumberId: phoneNumberId || null,
+          errors: Array.isArray(status.errors) ? status.errors : [],
+        });
+      }
+    }
+  }
+  return out;
+}
+
 /** GET de verificación de Meta (hub.mode / hub.challenge / hub.verify_token). */
 export function verifyMetaWebhook(req, res) {
   const mode = readHubParam(req.query, "hub.mode");
@@ -105,8 +130,10 @@ export async function postMetaEvents(req, res, next) {
   try {
     const { handleInboundWhatsapp } = await import("./bot.controller.js");
     const { resolveActiveWhatsappMetaByPhoneNumberId } = await import("../services/whatsapp-meta.service.js");
+    const { applyWhatsappDeliveryStatus } = await import("../services/whatsapp-status.service.js");
     const payload = safeParseBody(req);
     const messages = extractMetaInboundMessages(payload);
+    const statuses = extractMetaStatuses(payload);
     const results = [];
     for (const inbound of messages) {
       if (!inbound.phoneNumberId) {
@@ -127,6 +154,10 @@ export async function postMetaEvents(req, res, next) {
         integration: resolved.integration,
         rawBody: inbound.messageId || readRawBody(req),
       });
+      results.push(result);
+    }
+    for (const status of statuses) {
+      const result = await applyWhatsappDeliveryStatus(status);
       results.push(result);
     }
     res.status(200).json({ ok: true, processed: results.length, results });

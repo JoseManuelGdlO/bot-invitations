@@ -16,21 +16,13 @@ function parseOrigins(...values) {
   ];
 }
 
-function parseWaSendThrottle() {
-  const DEFAULT_MIN_MS = 15000;
-  const DEFAULT_MAX_MS = 30000;
-  const DEFAULT_MAX_PER_HOUR = 20;
-  let intervalMinMs = Number(process.env.WA_SEND_INTERVAL_MIN_MS ?? DEFAULT_MIN_MS);
-  let intervalMaxMs = Number(process.env.WA_SEND_INTERVAL_MAX_MS ?? DEFAULT_MAX_MS);
-  let maxPerHour = Number(process.env.WA_SEND_MAX_PER_HOUR ?? DEFAULT_MAX_PER_HOUR);
-  if (!Number.isFinite(intervalMinMs) || intervalMinMs < 0) intervalMinMs = DEFAULT_MIN_MS;
-  if (!Number.isFinite(intervalMaxMs) || intervalMaxMs < 0) intervalMaxMs = DEFAULT_MAX_MS;
-  if (intervalMinMs > intervalMaxMs) {
-    intervalMinMs = DEFAULT_MIN_MS;
-    intervalMaxMs = DEFAULT_MAX_MS;
-  }
-  if (!Number.isFinite(maxPerHour) || maxPerHour < 0) maxPerHour = DEFAULT_MAX_PER_HOUR;
-  return { intervalMinMs, intervalMaxMs, maxPerHour };
+function parseWaMaxInitialConversations() {
+  const DEFAULT_MAX = 1000;
+  const raw = process.env.WA_MAX_INITIAL_CONVERSATIONS_24H;
+  if (raw == null || String(raw).trim() === "") return DEFAULT_MAX;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 0) return DEFAULT_MAX;
+  return Math.floor(n);
 }
 
 const LOG_LEVELS = new Set(["error", "warn", "info", "debug"]);
@@ -75,7 +67,7 @@ export const env = {
     process.env.FRONTEND_RESET_URL ||
     `${(process.env.CLIENT_URL || "http://localhost:8080").replace(/\/$/, "")}/restablecer-contrasena`,
   workerIntervalMs: Number(process.env.WORKER_INTERVAL_MS || 5000),
-  waSend: parseWaSendThrottle(),
+  waSend: { maxInitialPer24h: parseWaMaxInitialConversations() },
   stripe: {
     secret: process.env.STRIPE_SECRET_KEY || "",
     webhookSecret: process.env.STRIPE_WEBHOOK_SECRET || "",

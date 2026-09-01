@@ -16,7 +16,6 @@ import { assertWhatsappReady } from "./integration-resolver.service.js";
 import { deliverAiMessage } from "./guest-message.service.js";
 import { findTemplate, resolveOpeningParts } from "./templates.service.js";
 import { logActivity } from "./activity.service.js";
-import { resetOwnerThrottle } from "./outbound.throttle.js";
 import { recordCampaignSendResult } from "./campaign-progress.js";
 import { activateEvent } from "./event-status.service.js";
 
@@ -208,7 +207,6 @@ export async function executeCampaignLaunch(job) {
   await campaign.reload();
   await activateEvent(event);
 
-  resetOwnerThrottle(event.ownerId);
   const ai = await AiConfig.findOne({ where: { eventId: event.id } });
   const opening = await findTemplate(event.id, { category: "Primer contacto" });
   const owner = await User.findByPk(event.ownerId);
@@ -219,7 +217,7 @@ export async function executeCampaignLaunch(job) {
 
   for (const guest of guests) {
     const [taken] = await Guest.update(
-      { status: "enviado", whatsapp: "enviado", contactedAt: now },
+      { status: "enviado", whatsapp: "pendiente", contactedAt: now },
       { where: { id: guest.id, status: "sin_contactar" } },
     );
     if (!taken) continue;
