@@ -25,7 +25,7 @@ describe("campaign.service", () => {
   });
 
   test("planCampaign now crea campaña queued y job inmediato", async () => {
-    models.Guest.count.mockResolvedValue(0);
+    models.Guest.count.mockResolvedValue(2);
     models.Campaign.findOne.mockResolvedValue(null);
     models.Campaign.create.mockImplementation(async (data) => createInstance({ id: "cmp_1", ...data }));
     models.OutboundJob.findAll.mockResolvedValue([]);
@@ -36,6 +36,7 @@ describe("campaign.service", () => {
 
     expect(event.status).toBe("activo");
     expect(snap.status).toBe("scheduled");
+    expect(assertWhatsappReady).toHaveBeenCalled();
     expect(models.Campaign.create).toHaveBeenCalledWith(
       expect.objectContaining({ eventId: event.id, status: "queued", scheduledAt: "2026-08-28" }),
       expect.any(Object),
@@ -47,6 +48,42 @@ describe("campaign.service", () => {
       }),
       expect.any(Object),
     );
+  });
+
+  test("planCampaign now 400 si no hay invitados sin contactar", async () => {
+    models.Guest.count.mockResolvedValue(0);
+    await expect(service.planCampaign(fakeEvent(), { mode: "now" })).rejects.toMatchObject({
+      status: 400,
+      message: "No hay invitados sin contactar.",
+    });
+    expect(assertWhatsappReady).not.toHaveBeenCalled();
+    expect(models.Campaign.create).not.toHaveBeenCalled();
+  });
+
+  test("planCampaign now 400 si WhatsApp no está listo", async () => {
+    models.Guest.count.mockResolvedValue(2);
+    assertWhatsappReady.mockRejectedValue(Object.assign(new Error("WhatsApp (Meta) no está configurado."), { status: 400 }));
+    await expect(service.planCampaign(fakeEvent(), { mode: "now" })).rejects.toMatchObject({
+      status: 400,
+    });
+    expect(models.Campaign.create).not.toHaveBeenCalled();
+  });
+
+  test("planCampaign 400 si el evento está finalizado", async () => {
+    await expect(
+      service.planCampaign(fakeEvent({ status: "finalizado" }), { mode: "now" }),
+    ).rejects.toMatchObject({
+      status: 400,
+      message: "Este evento ya finalizó. No se puede iniciar una campaña.",
+    });
+    await expect(
+      service.planCampaign(
+        fakeEvent({ status: "finalizado", date: "2027-01-01" }),
+        { mode: "schedule", date: "2026-12-01" },
+        new Date("2026-08-28T15:00:00"),
+      ),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(models.Campaign.create).not.toHaveBeenCalled();
     expect(assertWhatsappReady).not.toHaveBeenCalled();
   });
 
@@ -106,7 +143,7 @@ describe("campaign.service", () => {
   });
 
   test("planCampaign 409 si ya hay una campaña running", async () => {
-    models.Guest.count.mockResolvedValue(0);
+    models.Guest.count.mockResolvedValue(2);
     models.Campaign.findOne.mockResolvedValue(
       createInstance({
         id: "cmp_run",
@@ -237,6 +274,26 @@ describe("campaign.service", () => {
 
     expect(deliverAiMessage).toHaveBeenCalledTimes(1);
     expect(campaign.total).toBe(1);
+  });
+
+  test("executeCampaignLaunch no envía si el evento está finalizado", async () => {
+    const campaign = createInstance({
+      id: "cmp_1",
+      eventId: "evt_1",
+      status: "queued",
+      total: 0,
+      processed: 0,
+    });
+    models.Campaign.findByPk.mockResolvedValue(campaign);
+    models.Event.findByPk.mockResolvedValue(fakeEvent({ status: "finalizado" }));
+    models.Guest.findAll.mockResolvedValue([fakeGuest()]);
+
+    await service.executeCampaignLaunch({ payload: { campaignId: "cmp_1" } });
+
+    expect(campaign.status).toBe("done");
+    expect(deliverAiMessage).not.toHaveBeenCalled();
+    expect(models.Guest.update).not.toHaveBeenCalled();
+    expect(models.Campaign.update).not.toHaveBeenCalled();
   });
 
   test("executeCampaignLaunch sin invitados marca done", async () => {
