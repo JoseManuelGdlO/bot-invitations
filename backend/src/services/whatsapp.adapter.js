@@ -1,7 +1,7 @@
 import { Conversation, Event, Guest, Message } from "../models/index.js";
 import { httpError } from "../utils/http-error.js";
 import { eventGuestVars } from "../utils/defaults.js";
-import { normalizeWaIdTo10 } from "../utils/whatsapp-identity.js";
+import { formatWhatsappGraphTo } from "../utils/whatsapp-identity.js";
 import { metaClient, sanitizeMetaBodyParam } from "./meta.client.js";
 import { resolveActiveWhatsappMetaByOwner } from "./whatsapp-meta.service.js";
 
@@ -26,7 +26,7 @@ export class MetaCloudProvider {
     const event = await Event.findByPk(eventId);
     if (!event) throw httpError(400, "Evento no encontrado para el envío de WhatsApp.");
 
-    const phone = normalizeWaIdTo10(to);
+    const phone = formatWhatsappGraphTo(to);
     if (!phone) throw httpError(400, "Teléfono de WhatsApp inválido.");
 
     const body = String(text || "").trim();

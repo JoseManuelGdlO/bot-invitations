@@ -95,6 +95,13 @@ function formatMxDigits(digits) {
   return digits;
 }
 
+/** Destinatario Graph: siempre 521 + 10 dígitos locales (sin + ni JID). */
+export function formatWhatsappGraphTo(value) {
+  const local = normalizeWaIdTo10(value);
+  if (local.length !== 10) return "";
+  return `521${local}`;
+}
+
 export function formatWhatsappTo(value) {
   const raw = String(value || "").trim();
   if (!raw) return "";

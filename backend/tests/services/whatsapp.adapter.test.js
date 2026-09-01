@@ -58,7 +58,7 @@ describe("whatsapp.adapter MetaCloudProvider", () => {
     });
   });
 
-  test("cold (sin inbound) envía plantilla con {{1}} nombre y {{2}} copy a 10 dígitos", async () => {
+  test("cold (sin inbound) envía plantilla con {{1}} nombre y {{2}} copy a 521 + 10 dígitos", async () => {
     models.Event.findByPk.mockResolvedValue(fakeEvent());
     models.Guest.findByPk.mockResolvedValue(fakeGuest({ rep: "Luis Pérez", status: "sin_contactar" }));
     models.Conversation.findOne.mockResolvedValue(null);
@@ -69,7 +69,7 @@ describe("whatsapp.adapter MetaCloudProvider", () => {
     });
     expect(resolveActiveWhatsappMetaByOwner).toHaveBeenCalledWith("usr_test_1");
     expect(sendTemplateWithRetry).toHaveBeenCalledWith({
-      to: "5512345678",
+      to: "5215512345678",
       bodyParams: ["Luis", "Hola invitación"],
       ...metaAuth,
     });
@@ -78,7 +78,7 @@ describe("whatsapp.adapter MetaCloudProvider", () => {
       expect.objectContaining({
         provider: "meta-cloud",
         providerId: "wamid.tpl",
-        to: "5512345678",
+        to: "5215512345678",
         skipped: false,
         conversationStarted: true,
       }),
@@ -96,7 +96,7 @@ describe("whatsapp.adapter MetaCloudProvider", () => {
       hsmParams: ["Boda Ana", "Ana y Carlos. Los esperamos."],
     });
     expect(sendTemplateWithRetry).toHaveBeenCalledWith({
-      to: "5512345678",
+      to: "5215512345678",
       bodyParams: ["Boda Ana", "Ana y Carlos. Los esperamos."],
       ...metaAuth,
     });
@@ -127,7 +127,7 @@ describe("whatsapp.adapter MetaCloudProvider", () => {
       guestId: "gst_1",
     });
     expect(sendTextWithRetry).toHaveBeenCalledWith({
-      to: "6183218624",
+      to: "5216183218624",
       text: "¿Confirmas?",
       ...metaAuth,
     });

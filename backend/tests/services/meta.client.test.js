@@ -42,9 +42,9 @@ describe("meta.client", () => {
     jest.restoreAllMocks();
   });
 
-  test("sendText usa to de 10 dígitos y Bearer del caller", async () => {
+  test("sendText usa to con lada 521 y Bearer del caller", async () => {
     fetch.mockResolvedValueOnce(jsonResponse(200, { messages: [{ id: "wamid.1" }] }));
-    await metaClient.sendText({ to: "5216183218624", text: "Hola", ...auth });
+    await metaClient.sendText({ to: "6183218624", text: "Hola", ...auth });
     expect(fetch).toHaveBeenCalledTimes(1);
     const [url, init] = fetch.mock.calls[0];
     expect(url).toBe("https://graph.facebook.com/v21.0/10987654321/messages");
@@ -52,10 +52,16 @@ describe("meta.client", () => {
     expect(init.headers.Authorization).toBe("Bearer test-graph-token");
     expect(JSON.parse(init.body)).toEqual({
       messaging_product: "whatsapp",
-      to: "6183218624",
+      to: "5216183218624",
       type: "text",
       text: { body: "Hola" },
     });
+  });
+
+  test("sendText no duplica 521 si ya viene internacional", async () => {
+    fetch.mockResolvedValueOnce(jsonResponse(200, { messages: [{ id: "wamid.1" }] }));
+    await metaClient.sendText({ to: "5216183218624", text: "Hola", ...auth });
+    expect(JSON.parse(fetch.mock.calls[0][1].body).to).toBe("5216183218624");
   });
 
   test("sendTemplate inyecta {{1}} y {{2}} sanitizado", async () => {
@@ -67,7 +73,7 @@ describe("meta.client", () => {
     });
     const body = JSON.parse(fetch.mock.calls[0][1].body);
     expect(body.type).toBe("template");
-    expect(body.to).toBe("6183218624");
+    expect(body.to).toBe("5216183218624");
     expect(body.template).toEqual({
       name: "alanna_cold",
       language: { code: "es_MX" },
@@ -83,8 +89,11 @@ describe("meta.client", () => {
     });
   });
 
-  test("sendText 400 si el teléfono no tiene dígitos", async () => {
+  test("sendText 400 si el teléfono no tiene 10 dígitos locales", async () => {
     await expect(metaClient.sendText({ to: "abc", text: "Hola", ...auth })).rejects.toMatchObject({
+      status: 400,
+    });
+    await expect(metaClient.sendText({ to: "55", text: "Hola", ...auth })).rejects.toMatchObject({
       status: 400,
     });
     expect(fetch).not.toHaveBeenCalled();

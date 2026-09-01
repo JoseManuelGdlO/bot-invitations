@@ -1,7 +1,7 @@
 import { env } from "../config/env.js";
 import { httpError } from "../utils/http-error.js";
 import { Logger } from "../utils/logger.js";
-import { normalizeWaIdTo10 } from "../utils/whatsapp-identity.js";
+import { formatWhatsappGraphTo } from "../utils/whatsapp-identity.js";
 
 const metaLog = new Logger("WhatsApp");
 const BODY_PARAM_MAX = 1024;
@@ -36,7 +36,7 @@ function graphMessagesUrl(phoneNumberId) {
 }
 
 function requirePhone(to) {
-  const phone = normalizeWaIdTo10(to);
+  const phone = formatWhatsappGraphTo(to);
   if (!phone) throw httpError(400, "Teléfono de WhatsApp inválido.");
   return phone;
 }
