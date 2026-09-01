@@ -1,7 +1,11 @@
 import crypto from "crypto";
 import { env } from "../config/env.js";
 import { httpError } from "../utils/http-error.js";
+import { Logger } from "../utils/logger.js";
+import { summarizeMetaErrors } from "../utils/meta-error.js";
 import { normalizeWaIdTo10 } from "../utils/whatsapp-identity.js";
+
+const waLog = new Logger("WhatsApp");
 
 function logMetaWebhook(event, extra = {}) {
   console.log("[meta-webhook]", event, extra);
@@ -97,7 +101,7 @@ export function extractMetaStatuses(body = {}) {
           status: String(status.status || "").toLowerCase(),
           recipientId: normalizeWaIdTo10(recipient) || recipient,
           phoneNumberId: phoneNumberId || null,
-          errors: Array.isArray(status.errors) ? status.errors : [],
+          errors: summarizeMetaErrors(status.errors),
         });
       }
     }
@@ -134,6 +138,13 @@ export async function postMetaEvents(req, res, next) {
     const payload = safeParseBody(req);
     const messages = extractMetaInboundMessages(payload);
     const statuses = extractMetaStatuses(payload);
+    if (messages.length || statuses.length) {
+      waLog.info("webhook received", {
+        messages: messages.length,
+        statuses: statuses.length,
+        failed: statuses.filter((row) => row.status === "failed").length,
+      });
+    }
     const results = [];
     for (const inbound of messages) {
       if (!inbound.phoneNumberId) {

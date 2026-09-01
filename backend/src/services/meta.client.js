@@ -1,15 +1,17 @@
 import { env } from "../config/env.js";
 import { httpError } from "../utils/http-error.js";
 import { Logger } from "../utils/logger.js";
+import { summarizeMetaError } from "../utils/meta-error.js";
 import { formatWhatsappGraphTo } from "../utils/whatsapp-identity.js";
 
 const metaLog = new Logger("WhatsApp");
 const BODY_PARAM_MAX = 1024;
 
 class MetaRequestError extends Error {
-  constructor(status, message) {
+  constructor(status, message, meta = null) {
     super(message);
     this.status = status;
+    this.meta = meta;
   }
 }
 
@@ -63,15 +65,26 @@ async function metaFetch(body, auth) {
       data = {};
     }
     if (!response.ok) {
-      const message = data?.error?.message || data?.message || `Meta error ${response.status}`;
-      throw new MetaRequestError(response.status, message);
+      const meta = summarizeMetaError(data);
+      const message = meta.message || meta.details || `Meta error ${response.status}`;
+      metaLog.error("Graph messages error", {
+        httpStatus: response.status,
+        to: body?.to || null,
+        kind: body?.type || null,
+        template: body?.template?.name || null,
+        ...meta,
+      });
+      throw new MetaRequestError(response.status, message, meta);
     }
     return data;
   } catch (err) {
     if (err?.name === "AbortError") throw httpError(504, "Meta Cloud API timeout");
     if (err instanceof MetaRequestError) {
-      if (err.status >= 500) throw httpError(502, "Meta Cloud API upstream error");
-      throw httpError(err.status, err.message);
+      const wrapped = err.status >= 500
+        ? httpError(502, "Meta Cloud API upstream error")
+        : httpError(err.status, err.message);
+      wrapped.meta = err.meta;
+      throw wrapped;
     }
     throw httpError(502, "Meta Cloud API network error");
   } finally {

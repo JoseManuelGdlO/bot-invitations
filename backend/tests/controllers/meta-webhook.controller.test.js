@@ -42,6 +42,7 @@ function statusPayload({
   status = "sent",
   recipientId = "5216181556489",
   phoneNumberId = "10987654321",
+  errors,
 } = {}) {
   return {
     object: "whatsapp_business_account",
@@ -61,6 +62,7 @@ function statusPayload({
                   status,
                   timestamp: "1700000000",
                   recipient_id: recipientId,
+                  ...(errors ? { errors } : {}),
                 },
               ],
             },
@@ -192,6 +194,36 @@ describe("meta-webhook.controller", () => {
     expect(controller.extractMetaStatuses(statusPayload({ status: "delivered" }))[0].status).toBe("delivered");
     expect(controller.extractMetaStatuses(statusPayload({ status: "read" }))[0].status).toBe("read");
     expect(controller.extractMetaStatuses(statusPayload({ status: "failed" }))[0].status).toBe("failed");
+  });
+
+  test("extractMetaStatuses resume errors de Meta en failed", () => {
+    const statuses = controller.extractMetaStatuses(
+      statusPayload({
+        status: "failed",
+        recipientId: "5216181018285",
+        errors: [
+          {
+            code: 131026,
+            title: "Message undeliverable",
+            message: "Message undeliverable",
+            error_data: { details: "Message Undeliverable." },
+          },
+        ],
+      }),
+    );
+    expect(statuses[0]).toEqual(
+      expect.objectContaining({
+        status: "failed",
+        recipientId: "6181018285",
+        errors: [
+          expect.objectContaining({
+            code: 131026,
+            title: "Message undeliverable",
+            details: "Message Undeliverable.",
+          }),
+        ],
+      }),
+    );
   });
 
   test("POST rutea statuses sent delivered read y failed", async () => {

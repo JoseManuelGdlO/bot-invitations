@@ -78,6 +78,30 @@ describe("whatsapp-status.service", () => {
     expect(guest.contactedAt).toBeNull();
   });
 
+  test("failed loguea código y details de Meta", async () => {
+    await setup(guestRow({ phone: "6181018285", rep: "Ana" }));
+    const spy = jest.spyOn(console, "error").mockImplementation(() => {});
+    await applyWhatsappDeliveryStatus({
+      messageId: "wamid.abc",
+      status: "failed",
+      recipientId: "6181018285",
+      errors: [
+        {
+          code: 131026,
+          title: "Message undeliverable",
+          message: "Message undeliverable",
+          details: "Message Undeliverable.",
+        },
+      ],
+    });
+    const dumped = spy.mock.calls.map((args) => args.join(" ")).join("\n");
+    spy.mockRestore();
+    expect(dumped).toContain("status failed");
+    expect(dumped).toContain("131026");
+    expect(dumped).toContain("Message Undeliverable");
+    expect(dumped).toContain("6181018285");
+  });
+
   test("failed no revierte si ya hubo reply", async () => {
     const guest = await setup(guestRow({ lastReply: "ok", whatsapp: "enviado" }));
     const result = await applyWhatsappDeliveryStatus({ messageId: "wamid.abc", status: "failed" });

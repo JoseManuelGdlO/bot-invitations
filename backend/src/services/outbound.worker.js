@@ -177,6 +177,7 @@ export async function processJob(job) {
         status: "failed",
         to,
         error: err.message,
+        ...(err.meta && { meta: err.meta }),
         stack: err.stack,
       }));
       await syncWhatsappSendJob(job, { ok: false });

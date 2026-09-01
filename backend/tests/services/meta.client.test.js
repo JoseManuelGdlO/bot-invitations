@@ -105,4 +105,23 @@ describe("meta.client", () => {
     });
     expect(fetch).not.toHaveBeenCalled();
   });
+
+  test("sendText adjunta code y details cuando Graph responde error", async () => {
+    fetch.mockResolvedValueOnce(
+      jsonResponse(400, {
+        error: {
+          message: "(#131026) Message undeliverable",
+          type: "OAuthException",
+          code: 131026,
+          error_data: { details: "Message Undeliverable." },
+          fbtrace_id: "ABC123",
+        },
+      }),
+    );
+    await expect(metaClient.sendText({ to: "6183218624", text: "Hola", ...auth })).rejects.toMatchObject({
+      status: 400,
+      message: "(#131026) Message undeliverable",
+      meta: expect.objectContaining({ code: 131026, details: "Message Undeliverable.", fbtraceId: "ABC123" }),
+    });
+  });
 });

@@ -1,5 +1,6 @@
 import { Conversation, Guest, Message } from "../models/index.js";
 import { Logger } from "../utils/logger.js";
+import { summarizeMetaErrors } from "../utils/meta-error.js";
 
 const log = new Logger("WhatsApp");
 
@@ -35,6 +36,21 @@ async function revertFailedCampaignGuest(guest) {
   return true;
 }
 
+function failedMeta(status, extra = {}) {
+  const errors = summarizeMetaErrors(status.errors);
+  return {
+    messageId: String(status.messageId || "").trim() || null,
+    recipientId: status.recipientId || null,
+    phoneNumberId: status.phoneNumberId || null,
+    errors,
+    errorCode: errors[0]?.code ?? null,
+    errorTitle: errors[0]?.title || null,
+    errorMessage: errors[0]?.message || null,
+    errorDetails: errors[0]?.details || null,
+    ...extra,
+  };
+}
+
 export async function applyWhatsappDeliveryStatus(status = {}) {
   const messageId = String(status.messageId || "").trim();
   const delivery = String(status.status || "").toLowerCase();
@@ -43,21 +59,37 @@ export async function applyWhatsappDeliveryStatus(status = {}) {
   }
 
   const message = await Message.findOne({ where: { providerId: messageId } });
-  if (!message) return { processed: true, reason: "unknown_message" };
+  if (!message) {
+    if (delivery === "failed") {
+      log.error("status failed: mensaje desconocido", failedMeta(status));
+    }
+    return { processed: true, reason: "unknown_message" };
+  }
 
   const conversation = await Conversation.findByPk(message.conversationId);
-  if (!conversation) return { processed: true, reason: "unknown_conversation" };
+  if (!conversation) {
+    if (delivery === "failed") {
+      log.error("status failed: conversación desconocida", failedMeta(status));
+    }
+    return { processed: true, reason: "unknown_conversation" };
+  }
 
   const guest = await Guest.findByPk(conversation.guestId);
-  if (!guest) return { processed: true, reason: "unknown_guest" };
+  if (!guest) {
+    if (delivery === "failed") {
+      log.error("status failed: invitado desconocido", failedMeta(status));
+    }
+    return { processed: true, reason: "unknown_guest" };
+  }
 
   if (delivery === "failed") {
     const reverted = await revertFailedCampaignGuest(guest);
-    log.info("status failed", {
-      messageId,
+    log.error("status failed", failedMeta(status, {
       guestId: guest.id,
+      phone: guest.phone || null,
+      name: guest.rep || null,
       reverted,
-    });
+    }));
     return { processed: true, reason: reverted ? "failed_reverted" : "failed" };
   }
 
