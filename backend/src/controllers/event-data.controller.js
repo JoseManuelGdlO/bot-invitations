@@ -4,6 +4,7 @@ import { requireEvent, requirePermission, PERMS } from "../services/access.servi
 import { serializeAi, serializeFaq, serializeTemplate } from "../utils/serialize.js";
 import { defaultPrompt } from "../services/bot/prompt.service.js";
 import { resetPlaygroundSessions } from "../services/bot/session.service.js";
+import { ensureAiConfig } from "../services/event-setup.service.js";
 import { normalizeFollowUps } from "../services/follow-up.service.js";
 import {
   aiConfigDefaultsSnapshot,
@@ -30,8 +31,7 @@ export const updateAi = asyncHandler(async (req, res) => {
   const event = await requireEvent(req, res);
   if (!event) return;
   if (!(await requirePermission(req, res, event, PERMS.CONFIG_AI))) return;
-  const ai = await AiConfig.findOne({ where: { eventId: event.id } });
-  if (!ai) return res.status(404).json({ error: "Configuración de IA no encontrada." });
+  const ai = await ensureAiConfig(event);
   const allowed = [
     "assistantName",
     "tone",
@@ -75,8 +75,7 @@ export const resetAi = asyncHandler(async (req, res) => {
   const event = await requireEvent(req, res);
   if (!event) return;
   if (!(await requirePermission(req, res, event, PERMS.CONFIG_AI))) return;
-  const ai = await AiConfig.findOne({ where: { eventId: event.id } });
-  if (!ai) return res.status(404).json({ error: "Configuración de IA no encontrada." });
+  const ai = await ensureAiConfig(event);
   ai.tone = DEFAULT_AI_TONE.tone;
   ai.formality = DEFAULT_AI_TONE.formality;
   ai.emojis = DEFAULT_AI_TONE.emojis;
@@ -91,8 +90,7 @@ export const resetAi = asyncHandler(async (req, res) => {
 export const regeneratePrompt = asyncHandler(async (req, res) => {
   const event = await requireEvent(req, res);
   if (!event) return;
-  const ai = await AiConfig.findOne({ where: { eventId: event.id } });
-  if (!ai) return res.status(404).json({ error: "Configuración de IA no encontrada." });
+  const ai = await ensureAiConfig(event);
   ai.prompt = defaultPrompt(ai);
   await ai.save();
   await resetPlaygroundSessions(event.id);
