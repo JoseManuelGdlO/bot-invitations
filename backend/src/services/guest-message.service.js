@@ -11,6 +11,7 @@ export async function deliverAiMessage({
   kind = "message",
   followUpId = null,
   campaignId = null,
+  hsmParams = null,
   guestPatch = {},
 }) {
   const body = String(text || "").trim();
@@ -44,6 +45,7 @@ export async function deliverAiMessage({
     kind,
     followUpId,
     ...(campaignId ? { campaignId } : {}),
+    ...(Array.isArray(hsmParams) && hsmParams.length ? { hsmParams } : {}),
   });
   await appendOutboundToSession({ event, guest, text: body });
   return conv;

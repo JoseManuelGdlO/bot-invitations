@@ -1,14 +1,17 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Save } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { TEMPLATE_VARIABLES } from "@/lib/template-vars";
+import { flattenTemplateLine, TEMPLATE_VARIABLES } from "@/lib/template-vars";
 
 type Props = {
   value: string;
   onChange: (body: string) => void;
   onSave: (body: string) => void;
   rows?: number;
+  flattenNewlines?: boolean;
+  prefix?: ReactNode;
+  suffix?: ReactNode;
 };
 
 export function TemplateBodyEditor({
@@ -16,6 +19,9 @@ export function TemplateBodyEditor({
   onChange,
   onSave,
   rows = 8,
+  flattenNewlines = false,
+  prefix,
+  suffix,
 }: Props) {
   const [body, setBody] = useState(value);
 
@@ -24,18 +30,21 @@ export function TemplateBodyEditor({
   }, [value]);
 
   const set = (next: string) => {
-    setBody(next);
-    onChange(next);
+    const normalized = flattenNewlines ? next.replace(/[\r\n\t]+/g, " ") : next;
+    setBody(normalized);
+    onChange(normalized);
   };
 
   return (
     <>
+      {prefix}
       <Textarea
         value={body}
         onChange={(e) => set(e.target.value)}
         rows={rows}
         className="font-sans text-sm leading-relaxed"
       />
+      {suffix}
       <div className="mt-3 flex flex-wrap gap-2">
         {TEMPLATE_VARIABLES.map((v) => (
           <button
@@ -48,7 +57,12 @@ export function TemplateBodyEditor({
           </button>
         ))}
       </div>
-      <Button className="mt-4" onClick={() => onSave(body)}>
+      <Button
+        className="mt-4"
+        onClick={() =>
+          onSave(flattenNewlines ? flattenTemplateLine(body) : body)
+        }
+      >
         <Save className="size-4" /> Guardar
       </Button>
     </>

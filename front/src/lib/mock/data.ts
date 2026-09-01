@@ -347,7 +347,8 @@ const baseTemplates = (hosts: string) => [
     id: "t1",
     category: "Primer contacto",
     title: "Invitación inicial",
-    body: `Hola {{nombre}}, soy el equipo de ${hosts}. Estamos confirmando asistencia para {{evento}} el {{fecha}}. ¿Podrán acompañarnos?`,
+    greetingVar: "nombre",
+    body: `${hosts}. Estamos confirmando asistencia para {{evento}} el {{fecha}}. ¿Podrán acompañarnos?`,
   },
   {
     id: "t2",

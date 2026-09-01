@@ -109,6 +109,32 @@ describe("outbound.worker", () => {
     expect(job.update).toHaveBeenCalledWith(expect.objectContaining({ status: "done" }));
   });
 
+  test("processJob whatsapp.send reenvía hsmParams al provider", async () => {
+    sendMessage.mockResolvedValueOnce({ provider: "stub", skipped: false });
+    const job = createInstance({
+      type: "whatsapp.send",
+      attempts: 0,
+      payload: {
+        to: "6183218624",
+        text: "compuesto",
+        kind: "campaign",
+        eventId: "evt_1",
+        guestId: "gst_1",
+        hsmParams: ["Luis", "copy libre"],
+      },
+    });
+    await service.processJob(job);
+    expect(sendMessage).toHaveBeenCalledWith(
+      "5216183218624",
+      "compuesto",
+      expect.objectContaining({
+        eventId: "evt_1",
+        guestId: "gst_1",
+        hsmParams: ["Luis", "copy libre"],
+      }),
+    );
+  });
+
   test("processJob seguimiento no se salta", async () => {
     sendMessage.mockResolvedValueOnce({ provider: "stub", skipped: false });
     const job = createInstance({

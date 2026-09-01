@@ -6,10 +6,15 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ConstructorOpeningEditor } from "@/components/constructor-opening-editor";
 import { TemplateBodyEditor } from "@/components/template-body-editor";
 import { TemplatePreview } from "@/components/template-preview";
 import { useEvent, useStore } from "@/lib/mock/store";
 import type { EventItem, Guest, Template } from "@/lib/mock/types";
+import {
+  composeConstructorTemplate,
+  normalizeGreetingVar,
+} from "@/lib/template-vars";
 import { toast } from "sonner";
 
 export const Route = createFileRoute("/eventos/$eventId/mensajes")({
@@ -35,7 +40,10 @@ export const Route = createFileRoute("/eventos/$eventId/mensajes")({
 });
 
 const categories = [
-  { id: "Primer contacto", hint: "Campaña inicial de WhatsApp." },
+  {
+    id: "Primer contacto",
+    hint: "Campaña inicial de WhatsApp. El saludo es fijo; tú eliges la variable y el texto de «Nos comunicamos de».",
+  },
   {
     id: "Recordatorio",
     hint: "Recordatorio automático. El envío masivo está desactivado; el texto queda listo por si se reactiva.",
@@ -67,11 +75,23 @@ function TemplateCategory({
   plannerName: string;
   setTemplates: (eventId: string, t: Template[]) => void;
 }) {
+  const isConstructor = category === "Primer contacto";
   const [draft, setDraft] = useState(template?.body ?? "");
+  const [draftGreeting, setDraftGreeting] = useState(
+    normalizeGreetingVar(template?.greetingVar),
+  );
 
   useEffect(() => {
     setDraft(template?.body ?? "");
-  }, [template?.id, template?.body]);
+    setDraftGreeting(normalizeGreetingVar(template?.greetingVar));
+  }, [template?.id, template?.body, template?.greetingVar]);
+
+  const previewBody = isConstructor
+    ? composeConstructorTemplate(draftGreeting, draft)
+    : draft;
+  const copyText = isConstructor
+    ? composeConstructorTemplate(draftGreeting, draft)
+    : draft;
 
   return (
     <section>
@@ -85,7 +105,7 @@ function TemplateCategory({
               <button
                 type="button"
                 onClick={() => {
-                  void navigator.clipboard.writeText(draft);
+                  void navigator.clipboard.writeText(copyText);
                   toast.success("Plantilla copiada");
                 }}
                 className="rounded-md p-1.5 text-muted-foreground hover:bg-secondary"
@@ -93,22 +113,44 @@ function TemplateCategory({
                 <Copy className="size-4" />
               </button>
             </div>
-            <TemplateBodyEditor
-              value={template.body}
-              onChange={setDraft}
-              onSave={(body) => {
-                setTemplates(
-                  eventId,
-                  templates.map((x) =>
-                    x.id === template.id ? { ...x, body } : x,
-                  ),
-                );
-                toast.success("Plantilla guardada");
-              }}
-            />
+            {isConstructor ? (
+              <ConstructorOpeningEditor
+                greetingVar={draftGreeting}
+                body={draft}
+                onGreetingVarChange={setDraftGreeting}
+                onChange={setDraft}
+                onSave={({ body, greetingVar }) => {
+                  setDraft(body);
+                  setDraftGreeting(greetingVar);
+                  setTemplates(
+                    eventId,
+                    templates.map((x) =>
+                      x.id === template.id
+                        ? { ...x, body, greetingVar }
+                        : x,
+                    ),
+                  );
+                  toast.success("Plantilla guardada");
+                }}
+              />
+            ) : (
+              <TemplateBodyEditor
+                value={template.body}
+                onChange={setDraft}
+                onSave={(body) => {
+                  setTemplates(
+                    eventId,
+                    templates.map((x) =>
+                      x.id === template.id ? { ...x, body } : x,
+                    ),
+                  );
+                  toast.success("Plantilla guardada");
+                }}
+              />
+            )}
           </div>
           <TemplatePreview
-            body={draft}
+            body={previewBody}
             guests={guests}
             event={event}
             plannerName={plannerName}

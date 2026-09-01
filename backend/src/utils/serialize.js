@@ -125,7 +125,13 @@ export function serializeAi(ai) {
 }
 
 export function serializeTemplate(t) {
-  return { id: t.id, category: t.category, title: t.title, body: t.body };
+  return {
+    id: t.id,
+    category: t.category,
+    title: t.title,
+    body: t.body,
+    greetingVar: t.greetingVar || "nombre",
+  };
 }
 
 export function serializeFaq(f) {

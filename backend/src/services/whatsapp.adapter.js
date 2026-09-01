@@ -37,12 +37,16 @@ export class MetaCloudProvider {
 
     let payload;
     if (cold) {
+      const fromJob = Array.isArray(meta.hsmParams)
+        ? meta.hsmParams.map((value) => sanitizeMetaBodyParam(value)).filter(Boolean)
+        : [];
       const nombre = sanitizeMetaBodyParam(eventGuestVars(event, guest).nombre) || "invitado";
       const bodyParam = sanitizeMetaBodyParam(body);
-      if (!bodyParam) throw httpError(400, "El mensaje de plantilla no puede estar vacío.");
+      const bodyParams = fromJob.length >= 2 ? fromJob.slice(0, 2) : [nombre, bodyParam];
+      if (!bodyParams[1]) throw httpError(400, "El mensaje de plantilla no puede estar vacío.");
       payload = await metaClient.sendTemplateWithRetry({
         to: phone,
-        bodyParams: [nombre, bodyParam],
+        bodyParams,
         accessToken: credentials.accessToken,
         phoneNumberId: credentials.phoneNumberId,
       });

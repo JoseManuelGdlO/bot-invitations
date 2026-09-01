@@ -84,6 +84,23 @@ describe("whatsapp.adapter MetaCloudProvider", () => {
     );
   });
 
+  test("cold con hsmParams usa {{1}} y {{2}} del job", async () => {
+    models.Event.findByPk.mockResolvedValue(fakeEvent());
+    models.Guest.findByPk.mockResolvedValue(fakeGuest({ rep: "Luis Pérez", status: "sin_contactar" }));
+    models.Conversation.findOne.mockResolvedValue(null);
+    const provider = adapter.createWhatsAppProvider();
+    await provider.sendMessage("5512345678", "mensaje compuesto", {
+      eventId: "evt_1",
+      guestId: "gst_1",
+      hsmParams: ["Boda Ana", "Ana y Carlos. Los esperamos."],
+    });
+    expect(sendTemplateWithRetry).toHaveBeenCalledWith({
+      to: "5512345678",
+      bodyParams: ["Boda Ana", "Ana y Carlos. Los esperamos."],
+      ...metaAuth,
+    });
+  });
+
   test("inbound más viejo de 24 h envía plantilla", async () => {
     models.Event.findByPk.mockResolvedValue(fakeEvent());
     models.Guest.findByPk.mockResolvedValue(fakeGuest({ status: "en_conversacion" }));

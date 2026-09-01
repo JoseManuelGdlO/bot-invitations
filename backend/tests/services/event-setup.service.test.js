@@ -13,7 +13,14 @@ describe("event-setup.service", () => {
       {},
     );
     expect(models.Template.bulkCreate).toHaveBeenCalledWith(
-      expect.arrayContaining([expect.objectContaining({ category: "Seguimiento", title: "Recontacto a indecisos" })]),
+      expect.arrayContaining([
+        expect.objectContaining({ category: "Seguimiento", title: "Recontacto a indecisos" }),
+        expect.objectContaining({
+          category: "Primer contacto",
+          greetingVar: "nombre",
+          body: expect.stringContaining("Estamos confirmando asistencia para {{evento}}"),
+        }),
+      ]),
       {},
     );
     expect(models.Faq.bulkCreate).toHaveBeenCalled();

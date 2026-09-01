@@ -10,7 +10,9 @@ import {
   aiConfigDefaultsSnapshot,
   DEFAULT_AI_TONE,
   defaultConversationRules,
+  flattenTemplateLine,
   mergeConversationRules,
+  normalizeGreetingVar,
 } from "../utils/defaults.js";
 
 export const getAi = asyncHandler(async (req, res) => {
@@ -105,13 +107,18 @@ export const setTemplates = asyncHandler(async (req, res) => {
   if (!Array.isArray(incoming)) return res.status(400).json({ error: "Se esperaba un arreglo de plantillas." });
   await Template.destroy({ where: { eventId: event.id } });
   const created = await Template.bulkCreate(
-    incoming.map((t) => ({
-      id: t.id && String(t.id).length === 36 ? t.id : undefined,
-      eventId: event.id,
-      category: t.category,
-      title: t.title,
-      body: t.body,
-    })),
+    incoming.map((t) => {
+      const category = t.category;
+      const isOpening = category === "Primer contacto";
+      return {
+        id: t.id && String(t.id).length === 36 ? t.id : undefined,
+        eventId: event.id,
+        category,
+        title: t.title,
+        body: isOpening ? flattenTemplateLine(t.body) : t.body,
+        greetingVar: isOpening ? normalizeGreetingVar(t.greetingVar) : "nombre",
+      };
+    }),
   );
   res.json(created.map(serializeTemplate));
 });

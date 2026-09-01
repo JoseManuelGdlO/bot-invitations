@@ -15,6 +15,35 @@ export const TEMPLATE_VARIABLES = [
   "planner",
 ] as const;
 
+export type TemplateVariable = (typeof TEMPLATE_VARIABLES)[number];
+
+export function isTemplateVariable(value: string): value is TemplateVariable {
+  return (TEMPLATE_VARIABLES as readonly string[]).includes(value);
+}
+
+export function normalizeGreetingVar(
+  value: string | null | undefined,
+): TemplateVariable {
+  const key = String(value || "").trim();
+  return isTemplateVariable(key) ? key : "nombre";
+}
+
+export function flattenTemplateLine(value: string) {
+  return String(value || "")
+    .replace(/[\r\n\t]+/g, " ")
+    .replace(/ {2,}/g, " ")
+    .trim();
+}
+
+export function composeConstructorTemplate(
+  greetingVar: string,
+  body: string,
+) {
+  const key = normalizeGreetingVar(greetingVar);
+  const param2 = flattenTemplateLine(body);
+  return `¡Hola, buen día! {{${key}}}\nNos comunicamos de ${param2}\nMuchas gracias.`;
+}
+
 export function interpolateTemplate(
   body: string,
   guest: Guest | undefined,

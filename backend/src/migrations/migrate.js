@@ -1,4 +1,4 @@
-import { Plan, User, sequelize, syncModels, ensureEventMemberRemovedAt, ensureInboundEventDedupTable, ensureWhatsappMetaTables, ensureCampaignColumns } from "../models/index.js";
+import { Plan, User, sequelize, syncModels, ensureEventMemberRemovedAt, ensureInboundEventDedupTable, ensureWhatsappMetaTables, ensureCampaignColumns, ensureTemplateGreetingVar } from "../models/index.js";
 import { ensurePlans } from "../services/plans.service.js";
 import { ensureAdmin } from "../controllers/admin.controller.js";
 import { syncStripePlans } from "../services/stripe.service.js";
@@ -12,6 +12,7 @@ try {
   await ensureInboundEventDedupTable();
   await ensureWhatsappMetaTables();
   await ensureCampaignColumns();
+  await ensureTemplateGreetingVar();
   await ensurePlans();
   await ensureAdmin();
   await syncStripePlans();

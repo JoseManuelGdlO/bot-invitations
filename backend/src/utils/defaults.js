@@ -77,9 +77,21 @@ export function defaultAI(assistant, hosts) {
   };
 }
 
+export function flattenTemplateLine(value) {
+  return String(value || "")
+    .replace(/[\r\n\t]+/g, " ")
+    .replace(/ {2,}/g, " ")
+    .trim();
+}
+
+export function normalizeGreetingVar(value) {
+  const key = String(value || "").trim();
+  return Object.prototype.hasOwnProperty.call(eventGuestVars({}, {}, ""), key) ? key : "nombre";
+}
+
 export function defaultTemplates(hosts) {
   return [
-    { category: "Primer contacto", title: "Invitación inicial", body: `Hola {{nombre}}, soy el equipo de ${hosts}. Estamos confirmando asistencia para {{evento}} el {{fecha}}. ¿Podrán acompañarnos?` },
+    { category: "Primer contacto", title: "Invitación inicial", greetingVar: "nombre", body: `${hosts}. Estamos confirmando asistencia para {{evento}} el {{fecha}}. ¿Podrán acompañarnos?` },
     { category: "Recordatorio", title: "Recordatorio amable", body: "Hola {{nombre}}, ¿pudiste revisar la invitación? Nos encantaría contar contigo el {{fecha}} ✨" },
     { category: "Seguimiento", title: "Recontacto a indecisos", body: "Hola {{nombre}}, te escribo de nuevo por {{evento}} del {{fecha}}. ¿Ya pudieron confirmar si nos acompañan?"},
   ];

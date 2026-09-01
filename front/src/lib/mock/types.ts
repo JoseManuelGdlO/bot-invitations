@@ -111,6 +111,7 @@ export interface Template {
   category: string;
   title: string;
   body: string;
+  greetingVar?: string;
 }
 
 export interface Faq {

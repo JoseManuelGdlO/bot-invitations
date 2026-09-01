@@ -222,7 +222,8 @@ describe("campaign.service", () => {
       expect.objectContaining({
         kind: "campaign",
         campaignId: "cmp_1",
-        text: "Hola Luis",
+        text: "¡Hola, buen día! Luis\nNos comunicamos de Hola Luis\nMuchas gracias.",
+        hsmParams: ["Luis", "Hola Luis"],
       }),
     );
   });
@@ -294,6 +295,38 @@ describe("campaign.service", () => {
     expect(deliverAiMessage).not.toHaveBeenCalled();
     expect(models.Guest.update).not.toHaveBeenCalled();
     expect(models.Campaign.update).not.toHaveBeenCalled();
+  });
+
+  test("executeCampaignLaunch usa greetingVar y body de Primer contacto", async () => {
+    const campaign = createInstance({
+      id: "cmp_1",
+      eventId: "evt_1",
+      status: "queued",
+      total: 0,
+      processed: 0,
+    });
+    const guest = fakeGuest();
+    models.Campaign.findByPk.mockResolvedValue(campaign);
+    models.Campaign.update.mockResolvedValue([1]);
+    models.Event.findByPk.mockResolvedValue(fakeEvent());
+    models.Guest.findAll.mockResolvedValue([guest]);
+    models.Guest.update.mockResolvedValue([1]);
+    models.Template.findOne.mockResolvedValue({
+      category: "Primer contacto",
+      greetingVar: "evento",
+      body: "Ana y Carlos.\nConfirma asistencia para {{evento}}.",
+    });
+    models.AiConfig.findOne.mockResolvedValue({ openingMessage: "fallback", assistantName: "Sofía" });
+    models.User.findByPk.mockResolvedValue({ name: "Ana" });
+
+    await service.executeCampaignLaunch({ payload: { campaignId: "cmp_1", eventId: "evt_1" } });
+
+    expect(deliverAiMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        text: "¡Hola, buen día! Boda Ana\nNos comunicamos de Ana y Carlos. Confirma asistencia para Boda Ana.\nMuchas gracias.",
+        hsmParams: ["Boda Ana", "Ana y Carlos. Confirma asistencia para Boda Ana."],
+      }),
+    );
   });
 
   test("executeCampaignLaunch sin invitados marca done", async () => {

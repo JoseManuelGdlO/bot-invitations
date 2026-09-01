@@ -14,7 +14,7 @@ import { toCampaignSnapshot } from "../utils/serialize.js";
 import { parseDateOnly, startOfDay } from "./follow-up.service.js";
 import { assertWhatsappReady } from "./integration-resolver.service.js";
 import { deliverAiMessage } from "./guest-message.service.js";
-import { FALLBACK_OPENING, findTemplate, renderTemplate } from "./templates.service.js";
+import { findTemplate, resolveOpeningParts } from "./templates.service.js";
 import { logActivity } from "./activity.service.js";
 import { resetOwnerThrottle } from "./outbound.throttle.js";
 import { recordCampaignSendResult } from "./campaign-progress.js";
@@ -211,7 +211,6 @@ export async function executeCampaignLaunch(job) {
   resetOwnerThrottle(event.ownerId);
   const ai = await AiConfig.findOne({ where: { eventId: event.id } });
   const opening = await findTemplate(event.id, { category: "Primer contacto" });
-  const body = opening?.body || ai?.openingMessage || FALLBACK_OPENING;
   const owner = await User.findByPk(event.ownerId);
   const plannerName = owner?.name || "";
   const now = new Date();
@@ -226,12 +225,13 @@ export async function executeCampaignLaunch(job) {
     if (!taken) continue;
     await guest.reload();
     claimedCount += 1;
-    const text = renderTemplate(body, event, guest, plannerName);
+    const { text, param1, param2 } = resolveOpeningParts(opening, event, guest, plannerName, ai?.openingMessage);
     try {
       const conv = await deliverAiMessage({
         event,
         guest,
         text,
+        hsmParams: [param1, param2],
         kind: "campaign",
         campaignId: campaign.id,
       });

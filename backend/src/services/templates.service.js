@@ -1,5 +1,5 @@
 import { Template } from "../models/index.js";
-import { applyTemplate, eventGuestVars } from "../utils/defaults.js";
+import { applyTemplate, eventGuestVars, flattenTemplateLine, normalizeGreetingVar } from "../utils/defaults.js";
 
 export const FALLBACK_OPENING = "Hola {{nombre}}, ¿podrán acompañarnos?";
 export const FALLBACK_REMINDER =
@@ -26,9 +26,28 @@ export function renderTemplate(templateOrBody, event, guest, plannerName = "") {
   return applyTemplate(body, eventGuestVars(event, guest, plannerName));
 }
 
+export function composeConstructorMessage(param1, param2) {
+  const greeting = flattenTemplateLine(param1) || "invitado";
+  const copy = flattenTemplateLine(param2);
+  return `¡Hola, buen día! ${greeting}\nNos comunicamos de ${copy}\nMuchas gracias.`;
+}
+
+export function resolveOpeningParts(tpl, event, guest, plannerName = "", openingMessage) {
+  const vars = eventGuestVars(event, guest, plannerName);
+  const greetingKey = normalizeGreetingVar(tpl?.greetingVar);
+  const param1 = flattenTemplateLine(vars[greetingKey]) || "invitado";
+  const rawBody = tpl?.body || openingMessage || FALLBACK_OPENING;
+  const param2 = flattenTemplateLine(renderTemplate(rawBody, event, guest, plannerName));
+  return {
+    param1,
+    param2,
+    text: composeConstructorMessage(param1, param2),
+  };
+}
+
 export async function resolveOpeningText(event, guest, plannerName, openingMessage) {
   const tpl = await findTemplate(event.id, { category: "Primer contacto" });
-  return renderTemplate(tpl?.body || openingMessage || FALLBACK_OPENING, event, guest, plannerName);
+  return resolveOpeningParts(tpl, event, guest, plannerName, openingMessage).text;
 }
 
 export async function resolveReminderText(event, guest, plannerName) {

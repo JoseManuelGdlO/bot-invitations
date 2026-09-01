@@ -182,6 +182,7 @@ export const Template = sequelize.define("templates", {
   category: { type: DataTypes.STRING(80), allowNull: false },
   title: { type: DataTypes.STRING(160), allowNull: false },
   body: { type: DataTypes.TEXT, allowNull: false },
+  greetingVar: { type: DataTypes.STRING(40), allowNull: false, defaultValue: "nombre" },
 });
 
 export const Faq = sequelize.define("faqs", {
@@ -528,5 +529,23 @@ export async function ensureCampaignColumns() {
       allowNull: true,
     });
     console.log("[db] columna campaigns.launchedAt ahora admite null");
+  }
+}
+
+export async function ensureTemplateGreetingVar() {
+  const qi = sequelize.getQueryInterface();
+  let table;
+  try {
+    table = await qi.describeTable("templates");
+  } catch {
+    return;
+  }
+  if (!table.greetingVar) {
+    await qi.addColumn("templates", "greetingVar", {
+      type: DataTypes.STRING(40),
+      allowNull: false,
+      defaultValue: "nombre",
+    });
+    console.log("[db] columna templates.greetingVar creada");
   }
 }
