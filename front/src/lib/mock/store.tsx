@@ -7,7 +7,8 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { api, download, getToken, setToken } from "@/lib/api/client";
+import { toast } from "sonner";
+import { api, download, getToken, setToken, ApiError } from "@/lib/api/client";
 import type {
   ActivityItem,
   CampaignSnapshot,
@@ -375,10 +376,29 @@ export function StoreProvider({ children }: { children: ReactNode }) {
             },
           },
         }));
-        api(`/events/${eventId}/ai-config`, {
+        api<EventData["ai"]>(`/events/${eventId}/ai-config`, {
           method: "PATCH",
           body: JSON.stringify(patch),
-        }).catch(console.error);
+        })
+          .then((ai) => {
+            setState((s) => ({
+              ...s,
+              data: {
+                ...s.data,
+                [eventId]: {
+                  ...s.data[eventId]!,
+                  ai,
+                },
+              },
+            }));
+          })
+          .catch((err) => {
+            const message =
+              err instanceof ApiError
+                ? err.message
+                : "No se pudo guardar la configuración de IA.";
+            toast.error(message);
+          });
       },
       resetAI: async (eventId) => {
         const ai = await api<EventData["ai"]>(

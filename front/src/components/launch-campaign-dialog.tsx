@@ -23,6 +23,7 @@ export function LaunchCampaignDialog({
   campaign,
   eventDate,
   submitting,
+  error,
   onConfirm,
 }: {
   open: boolean;
@@ -30,6 +31,7 @@ export function LaunchCampaignDialog({
   campaign: CampaignSnapshot;
   eventDate?: string | undefined;
   submitting: boolean;
+  error?: string;
   onConfirm: (payload: { mode: Mode; date?: string }) => Promise<void>;
 }) {
   const today = toInputDate();
@@ -135,6 +137,11 @@ export function LaunchCampaignDialog({
             </div>
           </label>
         </RadioGroup>
+        {error ? (
+          <p className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+            {error}
+          </p>
+        ) : null}
         <DialogFooter>
           <Button
             type="button"

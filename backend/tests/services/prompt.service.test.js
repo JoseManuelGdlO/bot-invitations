@@ -28,6 +28,8 @@ describe("prompt.service", () => {
     expect(text).toMatch(/desconocido/);
     expect(text).toMatch(/3 días/);
     expect(text).toContain("MÁS personas que el cupo");
+    expect(text).toMatch(/Si NO hay una regla así/);
+    expect(text).toContain("CÓMO redactar");
   });
 
   test("defaultPrompt interpola los días de la regla indeciso", () => {
@@ -44,7 +46,11 @@ describe("prompt.service", () => {
       event: fakeEvent(),
       guest: fakeGuest({ status: "enviado" }),
       ai: { prompt: "Menciona el valet parking.", assistantName: "Sofía" },
-      templates: [{ id: "t9", category: "Seguimiento", title: "Recontacto", body: "¿Ya pudieron confirmar?" }],
+      templates: [
+        { id: "t9", category: "Seguimiento", title: "Recontacto", body: "¿Ya pudieron confirmar?" },
+        { id: "t3", category: "Confirmación", title: "Cierre", body: "Perfecto {{nombre}}." },
+        { id: "t4", category: "Rechazo", title: "Adiós", body: "Gracias {{nombre}}." },
+      ],
       faqs: [{ q: "¿Pueden ir niños?", a: "Solo adultos." }],
       vars: { nombre: "Luis", evento: "Boda Ana" },
     });
@@ -58,6 +64,11 @@ describe("prompt.service", () => {
     expect(text).toContain("cierra YA el RSVP");
     expect(text).toContain("marcar_seguimiento");
     expect(text).toContain("{{nombre}}");
+    expect(text).toMatch(/Si NO hay una regla así/);
+    expect(text).toMatch(/cierre breve y natural/);
+    expect(text).not.toMatch(/usar_plantilla con category "Confirmación"/);
+    expect(text).not.toContain("[Confirmación]");
+    expect(text).not.toContain("[Rechazo]");
   });
 
   test("buildInstructions cae a defaultPrompt si no hay extras", () => {

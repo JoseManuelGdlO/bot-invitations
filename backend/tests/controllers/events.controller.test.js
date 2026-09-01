@@ -6,10 +6,14 @@ describe("events.controller", () => {
   let models;
   let requireEvent;
   let assertCanCreateEvent;
+  let seedEventDefaults;
+  let logActivity;
 
   beforeEach(async () => {
     requireEvent = jest.fn(async () => fakeEvent());
     assertCanCreateEvent = jest.fn(async () => undefined);
+    seedEventDefaults = jest.fn(async () => undefined);
+    logActivity = jest.fn(async () => undefined);
 
     ({ mod: controller, models } = await loadWithMocks("src/controllers/events.controller.js", {
       extraMocks: {
@@ -21,10 +25,10 @@ describe("events.controller", () => {
           PERMS,
         }),
         "src/services/event-setup.service.js": () => ({
-          seedEventDefaults: jest.fn(async () => undefined),
+          seedEventDefaults,
         }),
         "src/services/activity.service.js": () => ({
-          logActivity: jest.fn(async () => undefined),
+          logActivity,
         }),
         "src/services/plans.service.js": () => ({
           assertCanCreateEvent,
@@ -54,6 +58,23 @@ describe("events.controller", () => {
     });
 
     expect(assertCanCreateEvent).toHaveBeenCalled();
+    expect(models.sequelize.transaction).toHaveBeenCalled();
+    expect(models.Event.create).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "Boda Ana" }),
+      expect.objectContaining({ transaction: expect.anything() }),
+    );
+    expect(seedEventDefaults).toHaveBeenCalledWith(
+      createdEvent,
+      expect.objectContaining({ id: "usr_test_1" }),
+      "Sofía",
+      expect.objectContaining({ transaction: expect.anything() }),
+    );
+    expect(logActivity).toHaveBeenCalledWith(
+      createdEvent.id,
+      expect.stringContaining("Se creó el evento"),
+      "system",
+      expect.objectContaining({ transaction: expect.anything() }),
+    );
     expect(res.status).toHaveBeenCalledWith(201);
   });
 

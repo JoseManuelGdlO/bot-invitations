@@ -15,7 +15,7 @@ export const DEFAULT_AI_RULE_DEFS = [
   { text: "El primer mensaje ya se envió; no reenvíes la invitación.", technical: true },
   { text: "Clasifica cada mensaje en faq, asistira, no_asistira, seguimiento o desconocido.", technical: true },
   { text: "Si es FAQ, responde solo con las FAQs o plantillas de información; si no hay dato, no inventes y ofrece pasar al equipo.", technical: true },
-  { text: "Si confirma o decline con claridad, usa las tools y la plantilla; no parafrasees el cierre.", technical: true },
+  { text: "Si confirma o decline con claridad, usa actualizar_confirmacion y escribe el cierre en reply; no uses plantilla de Confirmación ni Rechazo.", technical: true },
   { text: "Si está indeciso, marca seguimiento; el sistema recontacta según las reglas de seguimiento.", technical: true },
   { text: "Si es desconocido, interpreta y responde; no cierres el RSVP.", technical: true },
   { text: "Si confirma pero no dice con cuántas personas, pregunta el número antes de cerrar.", technical: false },
@@ -38,12 +38,16 @@ export function technicalConversationRules() {
   return DEFAULT_AI_RULE_DEFS.filter((rule) => rule.technical).map((rule) => rule.text);
 }
 
+const RETIRED_TECHNICAL_RULES = new Set([
+  "Si confirma o decline con claridad, usa las tools y la plantilla; no parafrasees el cierre.",
+]);
+
 /** Asegura que las reglas técnicas del sistema no se puedan quitar vía PATCH. */
 export function mergeConversationRules(incoming) {
   const list = Array.isArray(incoming) ? incoming.map((rule) => String(rule || "").trim()).filter(Boolean) : [];
   const technical = technicalConversationRules();
   const techSet = new Set(technical);
-  const withoutTech = list.filter((rule) => !techSet.has(rule));
+  const withoutTech = list.filter((rule) => !techSet.has(rule) && !RETIRED_TECHNICAL_RULES.has(rule));
   // Conserva el orden de las técnicas en su posición canónica relativa al final del bloque soft/custom.
   const softDefaults = DEFAULT_AI_RULE_DEFS.filter((rule) => !rule.technical).map((rule) => rule.text);
   const softSet = new Set(softDefaults);
@@ -77,8 +81,6 @@ export function defaultTemplates(hosts) {
   return [
     { category: "Primer contacto", title: "Invitación inicial", body: `Hola {{nombre}}, soy el equipo de ${hosts}. Estamos confirmando asistencia para {{evento}} el {{fecha}}. ¿Podrán acompañarnos?` },
     { category: "Recordatorio", title: "Recordatorio amable", body: "Hola {{nombre}}, ¿pudiste revisar la invitación? Nos encantaría contar contigo el {{fecha}} ✨" },
-    { category: "Confirmación", title: "Cierre de confirmación", body: "Perfecto {{nombre}}, entonces confirmamos {{numero_confirmados}} asistentes. ¡Nos vemos el {{fecha}}!" },
-    { category: "Rechazo", title: "Respuesta a rechazo", body: "Gracias por avisarnos, {{nombre}}. Te vamos a extrañar, mandamos un abrazo grande." },
     { category: "Seguimiento", title: "Recontacto a indecisos", body: "Hola {{nombre}}, te escribo de nuevo por {{evento}} del {{fecha}}. ¿Ya pudieron confirmar si nos acompañan?"},
   ];
 }

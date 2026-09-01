@@ -61,23 +61,29 @@ export const createEvent = asyncHandler(async (req, res) => {
   await assertCanCreateEvent(req.user);
   const body = req.body || {};
   const slug = await uniqueSlug(body.id || body.slug || body.name || `evento-${Date.now()}`);
-  const event = await Event.create({
-    ownerId: req.user.id,
-    slug,
-    name: body.name || "Nuevo evento",
-    shortName: body.shortName || String(body.name || "EVT").slice(0, 3).toUpperCase(),
-    type: body.type || "Boda",
-    hosts: body.hosts || "Anfitriones",
-    date: body.date || "2027-01-01",
-    time: body.time || "18:00",
-    venue: body.venue || "Por definir",
-    address: body.address || "",
-    estimatedGuests: Number(body.estimatedGuests) || 0,
-    cover: sanitizeCover(body.cover),
-    status: body.status || "borrador",
+  const event = await sequelize.transaction(async (transaction) => {
+    const created = await Event.create(
+      {
+        ownerId: req.user.id,
+        slug,
+        name: body.name || "Nuevo evento",
+        shortName: body.shortName || String(body.name || "EVT").slice(0, 3).toUpperCase(),
+        type: body.type || "Boda",
+        hosts: body.hosts || "Anfitriones",
+        date: body.date || "2027-01-01",
+        time: body.time || "18:00",
+        venue: body.venue || "Por definir",
+        address: body.address || "",
+        estimatedGuests: Number(body.estimatedGuests) || 0,
+        cover: sanitizeCover(body.cover),
+        status: body.status || "borrador",
+      },
+      { transaction },
+    );
+    await seedEventDefaults(created, req.user, "Sofía", { transaction });
+    await logActivity(created.id, `Se creó el evento ${created.name}`, "system", { transaction });
+    return created;
   });
-  await seedEventDefaults(event, req.user);
-  await logActivity(event.id, `Se creó el evento ${event.name}`, "system");
   const campaign = await findCurrentCampaign(event.id);
   res.status(201).json(serializeEvent(event, campaign));
 });

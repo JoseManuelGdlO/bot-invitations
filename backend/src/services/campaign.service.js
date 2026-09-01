@@ -106,6 +106,10 @@ export async function planCampaign(event, body = {}, now = new Date()) {
   const isNow = mode === "now";
   let scheduledDate = startOfDay(now);
   let runAt = now;
+  if (event?.status === "finalizado") {
+    throw httpError(400, "Este evento ya finalizó. No se puede iniciar una campaña.");
+  }
+
   if (!isNow) {
     scheduledDate = parseScheduleDay(body?.date);
     assertScheduleDate(scheduledDate, event, now);
@@ -114,7 +118,8 @@ export async function planCampaign(event, body = {}, now = new Date()) {
 
   if (isNow) {
     const pending = await Guest.count({ where: { eventId: event.id, status: "sin_contactar" } });
-    if (pending) await assertWhatsappReady(event);
+    if (!pending) throw httpError(400, "No hay invitados sin contactar.");
+    await assertWhatsappReady(event);
   }
 
   return sequelize.transaction(async (transaction) => {
@@ -177,7 +182,7 @@ export async function executeCampaignLaunch(job) {
   if (campaign.status === "done" || campaign.status === "running") return {};
 
   const event = await Event.findByPk(campaign.eventId);
-  if (!event) {
+  if (!event || event.status === "finalizado") {
     campaign.status = "done";
     await campaign.save();
     return {};

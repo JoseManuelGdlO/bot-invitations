@@ -64,6 +64,7 @@ function Resumen() {
   );
   const [modalOpen, setModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
+  const [launchError, setLaunchError] = useState("");
 
   useEffect(() => {
     setCampaign(event?.campaign ?? IDLE_CAMPAIGN);
@@ -97,11 +98,14 @@ function Resumen() {
   const running = campaign.status === "running";
   const complete =
     campaign.status === "done" && pendingUncontacted === 0;
-  const canLaunch = !running && !complete;
+  const eventFinished = event?.status === "finalizado";
+  const canLaunch = !running && !complete && !eventFinished;
   const percent = complete ? 100 : campaign.percent;
 
   let label = "Iniciar campaña";
-  if (campaign.status === "scheduled" && campaign.scheduledAt) {
+  if (eventFinished) {
+    label = "Evento finalizado";
+  } else if (campaign.status === "scheduled" && campaign.scheduledAt) {
     label = `Empieza el ${formatShortDate(campaign.scheduledAt)}`;
   } else if (running) {
     label =
@@ -184,9 +188,12 @@ function Resumen() {
                 <>
                   <Button
                     className="relative h-auto min-h-9 w-full overflow-hidden disabled:opacity-100"
-                    disabled={running || submitting || complete}
+                    disabled={running || submitting || complete || eventFinished}
                     onClick={() => {
-                      if (canLaunch) setModalOpen(true);
+                      if (canLaunch) {
+                        setLaunchError("");
+                        setModalOpen(true);
+                      }
                     }}
                   >
                     <Send className="size-4" /> {label}
@@ -199,12 +206,17 @@ function Resumen() {
                   </Button>
                   <LaunchCampaignDialog
                     open={modalOpen}
-                    onOpenChange={setModalOpen}
+                    onOpenChange={(open) => {
+                      setModalOpen(open);
+                      if (!open) setLaunchError("");
+                    }}
                     campaign={campaign}
                     {...(event?.date ? { eventDate: event.date } : {})}
                     submitting={submitting}
+                    error={launchError}
                     onConfirm={async (payload) => {
                       setSubmitting(true);
+                      setLaunchError("");
                       try {
                         const snap = await launchCampaign(eventId, payload);
                         setCampaign(snap);
@@ -221,11 +233,12 @@ function Resumen() {
                           },
                         );
                       } catch (err) {
-                        toast.error(
+                        const message =
                           err instanceof ApiError
                             ? err.message
-                            : "No se pudo iniciar la campaña",
-                        );
+                            : "No se pudo iniciar la campaña";
+                        setLaunchError(message);
+                        toast.error(message);
                       } finally {
                         setSubmitting(false);
                       }

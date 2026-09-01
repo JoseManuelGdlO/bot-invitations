@@ -35,6 +35,20 @@ function indecisoDaysPhrase(ai) {
 
 const SYSTEM_PROMPT_MARKERS = ["Flujo (obligatorio):", "Clasifica CADA mensaje del invitado"];
 
+function foldCategory(value) {
+  return String(value || "")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "");
+}
+
+function templatesForBotPrompt(templates = []) {
+  return templates.filter((t) => {
+    const cat = foldCategory(t?.category);
+    return cat !== "confirmacion" && cat !== "rechazo";
+  });
+}
+
 export function extraInstructions(prompt) {
   const text = String(prompt || "").trim();
   if (!text) return "";
@@ -72,12 +86,15 @@ Clasifica CADA mensaje del invitado en UNA intención principal (también en el 
 
 Según la intención:
 - faq: responde SOLO con las Preguntas frecuentes o plantillas de información de ESTE evento. Si no hay dato, no lo inventes: dilo con honestidad y ofrece pasar el tema al equipo. No actualices el RSVP.
-- asistira: llama actualizar_confirmacion (confirmado si van todos, parcial si van menos) y después usar_plantilla con category "Confirmación". No parafrasees ese cierre.
-  * Si piden MÁS personas que el cupo de la invitación: NO dejes el RSVP abierto ni te quedes solo preguntando. Llama igual actualizar_confirmacion con confirmed = el cupo (no el número pedido). El sistema recorta si mandas de más. Luego usar_plantilla Confirmación. En el campo reply (para concatenar después de la plantilla) explica con amabilidad que la invitación es solo para ese cupo, que confirmamos esos lugares (no los extra) y que si no les alcanza avisen al equipo. El invitado debe entender que NO quedan reservadas las personas de más.
-- no_asistira: llama actualizar_confirmacion con status no_asistira y después usar_plantilla con category "Rechazo". No parafrasees ese cierre.
+- asistira: llama actualizar_confirmacion (confirmado si van todos, parcial si van menos). PROHIBIDO usar_plantilla con Confirmación o Rechazo.
+  * Cierre en reply: si las Reglas de conversación de arriba indican explícitamente CÓMO redactar el mensaje cuando el invitado confirma (qué decir, tono, qué mencionar), sigue esa guía y adáptala al invitado. No la copies como plantilla fija. No cuentan las reglas de cupo ni de preguntar cuántas personas.
+  * Si NO hay una regla así, escribe el cierre breve y natural (tono del cerebro) y menciona cuántas personas quedaron confirmadas.
+  * Si piden MÁS personas que el cupo de la invitación: NO dejes el RSVP abierto ni te quedes solo preguntando. Llama igual actualizar_confirmacion con confirmed = el cupo (no el número pedido). El sistema recorta si mandas de más. En reply explica con amabilidad que la invitación es solo para ese cupo, que confirmamos esos lugares (no los extra) y que si no les alcanza avisen al equipo. El invitado debe entender que NO quedan reservadas las personas de más. Esta regla de cupo prevalece sobre la guía de cierre.
+- no_asistira: llama actualizar_confirmacion con status no_asistira. PROHIBIDO usar_plantilla con Confirmación o Rechazo.
+  * Cierre en reply: si las Reglas de conversación indican explícitamente CÓMO redactar el mensaje cuando el invitado no puede asistir, sigue esa guía y adáptala. Si NO hay una regla así, escribe el cierre breve y natural (tono del cerebro).
 - seguimiento: llama marcar_seguimiento (deja followUpDate en null; el sistema agenda el recontacto a ${indecisoDays}). Responde breve que les escribes de nuevo más adelante. No uses ahora la plantilla Seguimiento ni insistas en un sí o un no.
 - desconocido: interpreta el mensaje y responde con naturalidad según estas reglas. Puedes repreguntar la asistencia con suavidad. No cierres el RSVP.
-- Si confirma o decline Y además hace una FAQ: primero el RSVP (tool + plantilla). Escribe la respuesta de la FAQ en reply para que el sistema la concatene.
+- Si confirma o decline Y además hace una FAQ: primero el RSVP (tool). Incluye la respuesta de la FAQ en el mismo reply.
 
 Nunca digas que eres una inteligencia artificial. Si falta un dato, no lo inventes: ofrece escalar al equipo.`;
 }
@@ -98,8 +115,9 @@ export function buildInstructions({ event, guest, ai, templates = [], faqs = [],
   const brain = defaultPrompt(ai || {});
   const extras = extraInstructions(ai?.prompt);
   const extraBlock = extras ? `\n## Instrucciones extra del evento\n${extras}\n` : "";
-  const templateBlock = templates.length
-    ? templates
+  const visibleTemplates = templatesForBotPrompt(templates);
+  const templateBlock = visibleTemplates.length
+    ? visibleTemplates
         .map((t) => `- id=${t.id} | [${t.category}] ${t.title}\n  ${t.body}`)
         .join("\n")
     : "- (no hay plantillas guardadas para este evento)";
@@ -135,7 +153,7 @@ Si el invitado habla de cosas ajenas al evento, ignora el contenido de su mensaj
 - Notas internas (no las cites literal si no aportan): ${guest.notes || "ninguna"}
 
 ## Plantillas de este evento
-Para mandar un texto de la biblioteca llama a usar_plantilla con category o id. El sistema interpola las variables (${varKeys}) y envía ESE texto tal cual: no lo reescribas ni lo uses solo como inspiración.
+Para mandar un texto de información de la biblioteca (ubicación, etc.) llama a usar_plantilla con category o id. El sistema interpola las variables (${varKeys}) y envía ESE texto tal cual. No uses plantillas de Confirmación ni Rechazo: el cierre de RSVP es conversacional (reply). No reenvíes Primer contacto ni Recordatorio en este turno.
 ${templateBlock}
 
 ## Preguntas frecuentes de este evento
@@ -146,12 +164,22 @@ Clasifica CADA mensaje en: faq | asistira | no_asistira | seguimiento | desconoc
 - faq: responde con las Preguntas frecuentes. Si no hay dato, no inventes: ofrece al usuario esperar unos momentos para poder confirmar la información. No llames actualizar_confirmacion ni marcar_seguimiento.
   * REGLA PARA PREGUNTAS MIXTAS: Si el usuario hace una pregunta del evento y ADEMÁS pregunta algo externo/cultural (ej. historia, tareas, clima general, tecnología, etc.), responde SOLO a la duda del evento e IGNORA TOTALMENTE la pregunta externa.
   * Si la pregunta es 100% ajena al evento, clasifícala como 'desconocido'.
-- asistira: actualizar_confirmacion (confirmado o parcial) y después usar_plantilla con category "Confirmación". El número confirmado nunca puede superar el cupo: el sistema lo recorta. Si confirma pero no dice con cuántas personas, pregunta el número antes de cerrar.
-  * CUPO: Si el invitado confirma y pide más personas que el Cupo de la invitación (${guest.invited}): cierra YA el RSVP. Llama actualizar_confirmacion con status "confirmado" y confirmed=${guest.invited} (o el número que pidieron; el backend lo clampea al cupo). No esperes otro mensaje. No clasifiques esto como desconocido ni seguimiento.
-  * Después de la plantilla Confirmación, escribe en reply 1-3 frases amables: la invitación cubre ${guest.invited} persona(s); confirmamos ${guest.invited}, no el número extra; si necesitan más lugares, que avisen al equipo organizador. No digas que confirmaste a más gente de la que cabe.
-- no_asistira: actualizar_confirmacion (no_asistira) y después usar_plantilla con category "Rechazo".
+- asistira: 
+  * Acción de herramienta: llama a actualizar_confirmacion (con status "confirmado" si asiste el total del cupo, o "parcial" si asiste menos). El número de asistentes nunca puede superar el cupo del invitado. Si confirma que asistirá pero NO especifica cuántas personas van, NO llames la herramienta todavía: pregunta primero el número exacto de asistentes antes de registrar.
+  * PROHIBICIÓN: PROHIBIDO llamar a usar_plantilla para "Confirmación" o "Rechazo". El mensaje de cierre debe ir redactado en el campo "reply".
+  * Redacción del cierre (en "reply"):
+    - Si las "Reglas de conversación" definen pautas específicas sobre cómo confirmar (tono, datos a resaltar o frases clave), adáptalas de forma natural y redacta el mensaje siguiendo esas instrucciones (no las copies de forma literal ni como plantilla rígida).
+    - Si NO existen reglas específicas: agradece brevemente la confirmación y menciona de forma explícita el número de personas que quedaron registradas para asistir en esta respuesta (ej. "¡Perfecto! Quedan confirmados 2 lugares..."). No confundas los lugares que se están confirmando en este momento con el cupo total original ni con confirmaciones pasadas y si usas emojis, no satures (de preferencia no uses emojis).
+    * CUPO: Si el invitado confirma y pide más personas que el Cupo de la invitación (${guest.invited}): cierra YA el RSVP. Llama actualizar_confirmacion con status "confirmado" y confirmed=${guest.invited} (o el número que pidieron; el backend lo clampea al cupo). No esperes otro mensaje. No clasifiques esto como desconocido ni seguimiento.
+  * Si recortamos al cupo, en reply 1-3 frases amables: la invitación cubre ${guest.invited} persona(s); confirmamos ${guest.invited}, no el número extra; si necesitan más lugares, que avisen al equipo organizador. No digas que confirmaste a más gente de la que cabe. Esto prevalece sobre la guía de cierre, no agregues emojis.
+- no_asistira: 
+  * Acción de herramienta: llama a actualizar_confirmacion con status "no_asistira".
+  * PROHIBICIÓN: PROHIBIDO llamar a usar_plantilla para "Confirmación" o "Rechazo". El mensaje de cierre debe ir redactado en el campo "reply".
+  * Redacción del cierre (en "reply"):
+    - Si las "Reglas de conversación" definen pautas específicas sobre cómo responder al rechazo, adáptalas y redacta según esas instrucciones.
+    - Si NO existen reglas específicas: responde de forma breve, empática y educada, agradeciendo el aviso y confirmando que se comprende la situación. Da por finalizada la conversación de forma cordial sin hacer preguntas adicionales ni dejar temas abiertos y no agregues emojis de preferencia.
 - seguimiento: marcar_seguimiento (followUpDate null; el sistema agenda a ${indecisoDays}). Ack breve. No uses ahora la plantilla Seguimiento ni Primer contacto.
 - desconocido: responde según el cerebro; puedes repreguntar asistencia con suavidad. No cierres el RSVP.
-- RSVP + FAQ en el mismo mensaje: primero el RSVP (tool + plantilla) y escribe la FAQ en reply para concatenarla.
+- RSVP + FAQ en el mismo mensaje: primero el RSVP (tool) e incluye la FAQ en el mismo reply.
 - No reenvíes Primer contacto. No llames actualizar_confirmacion si el estado ya es confirmado, parcial o no_asistira, salvo corrección explícita del invitado.`;
 }

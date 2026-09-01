@@ -13,16 +13,16 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as BlogRouteImport } from './routes/blog'
 import { Route as ConfirmacionInvitadosWhatsappRouteImport } from './routes/confirmacion-invitados-whatsapp'
+import { Route as EliminarDatosRouteImport } from './routes/eliminar-datos'
 import { Route as EventosRouteImport } from './routes/eventos'
 import { Route as IniciarSesionRouteImport } from './routes/iniciar-sesion'
 import { Route as ParaWeddingPlannersRouteImport } from './routes/para-wedding-planners'
+import { Route as PrivacidadRouteImport } from './routes/privacidad'
 import { Route as RecuperarContrasenaRouteImport } from './routes/recuperar-contrasena'
 import { Route as RegistroRouteImport } from './routes/registro'
 import { Route as RestablecerContrasenaRouteImport } from './routes/restablecer-contrasena'
 import { Route as SoftwareRsvpBodasRouteImport } from './routes/software-rsvp-bodas'
-import { Route as PrivacidadRouteImport } from './routes/privacidad'
 import { Route as TerminosRouteImport } from './routes/terminos'
-import { Route as EliminarDatosRouteImport } from './routes/eliminar-datos'
 import { Route as AdminIndexRouteImport } from './routes/admin.index'
 import { Route as AdminCancelacionesRouteImport } from './routes/admin.cancelaciones'
 import { Route as AdminClientesRouteImport } from './routes/admin.clientes'
@@ -75,6 +75,11 @@ const ConfirmacionInvitadosWhatsappRoute =
     path: '/confirmacion-invitados-whatsapp',
     getParentRoute: () => rootRouteImport,
   } as any)
+const EliminarDatosRoute = EliminarDatosRouteImport.update({
+  id: '/eliminar-datos',
+  path: '/eliminar-datos',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const EventosRoute = EventosRouteImport.update({
   id: '/eventos',
   path: '/eventos',
@@ -88,6 +93,11 @@ const IniciarSesionRoute = IniciarSesionRouteImport.update({
 const ParaWeddingPlannersRoute = ParaWeddingPlannersRouteImport.update({
   id: '/para-wedding-planners',
   path: '/para-wedding-planners',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const PrivacidadRoute = PrivacidadRouteImport.update({
+  id: '/privacidad',
+  path: '/privacidad',
   getParentRoute: () => rootRouteImport,
 } as any)
 const RecuperarContrasenaRoute = RecuperarContrasenaRouteImport.update({
@@ -110,19 +120,9 @@ const SoftwareRsvpBodasRoute = SoftwareRsvpBodasRouteImport.update({
   path: '/software-rsvp-bodas',
   getParentRoute: () => rootRouteImport,
 } as any)
-const PrivacidadRoute = PrivacidadRouteImport.update({
-  id: '/privacidad',
-  path: '/privacidad',
-  getParentRoute: () => rootRouteImport,
-} as any)
 const TerminosRoute = TerminosRouteImport.update({
   id: '/terminos',
   path: '/terminos',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const EliminarDatosRoute = EliminarDatosRouteImport.update({
-  id: '/eliminar-datos',
-  path: '/eliminar-datos',
   getParentRoute: () => rootRouteImport,
 } as any)
 const AdminIndexRoute = AdminIndexRouteImport.update({
@@ -286,16 +286,16 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AdminRouteWithChildren
   '/blog': typeof BlogRouteWithChildren
   '/confirmacion-invitados-whatsapp': typeof ConfirmacionInvitadosWhatsappRoute
+  '/eliminar-datos': typeof EliminarDatosRoute
   '/eventos': typeof EventosRouteWithChildren
   '/iniciar-sesion': typeof IniciarSesionRoute
   '/para-wedding-planners': typeof ParaWeddingPlannersRoute
+  '/privacidad': typeof PrivacidadRoute
   '/recuperar-contrasena': typeof RecuperarContrasenaRoute
   '/registro': typeof RegistroRouteWithChildren
   '/restablecer-contrasena': typeof RestablecerContrasenaRoute
   '/software-rsvp-bodas': typeof SoftwareRsvpBodasRoute
-  '/privacidad': typeof PrivacidadRoute
   '/terminos': typeof TerminosRoute
-  '/eliminar-datos': typeof EliminarDatosRoute
   '/admin/cancelaciones': typeof AdminCancelacionesRoute
   '/admin/clientes': typeof AdminClientesRoute
   '/admin/finanzas': typeof AdminFinanzasRoute
@@ -330,15 +330,15 @@ export interface FileRoutesByFullPath {
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/confirmacion-invitados-whatsapp': typeof ConfirmacionInvitadosWhatsappRoute
+  '/eliminar-datos': typeof EliminarDatosRoute
   '/iniciar-sesion': typeof IniciarSesionRoute
   '/para-wedding-planners': typeof ParaWeddingPlannersRoute
+  '/privacidad': typeof PrivacidadRoute
   '/recuperar-contrasena': typeof RecuperarContrasenaRoute
   '/registro': typeof RegistroRouteWithChildren
   '/restablecer-contrasena': typeof RestablecerContrasenaRoute
   '/software-rsvp-bodas': typeof SoftwareRsvpBodasRoute
-  '/privacidad': typeof PrivacidadRoute
   '/terminos': typeof TerminosRoute
-  '/eliminar-datos': typeof EliminarDatosRoute
   '/admin/cancelaciones': typeof AdminCancelacionesRoute
   '/admin/clientes': typeof AdminClientesRoute
   '/admin/finanzas': typeof AdminFinanzasRoute
@@ -373,16 +373,16 @@ export interface FileRoutesById {
   '/admin': typeof AdminRouteWithChildren
   '/blog': typeof BlogRouteWithChildren
   '/confirmacion-invitados-whatsapp': typeof ConfirmacionInvitadosWhatsappRoute
+  '/eliminar-datos': typeof EliminarDatosRoute
   '/eventos': typeof EventosRouteWithChildren
   '/iniciar-sesion': typeof IniciarSesionRoute
   '/para-wedding-planners': typeof ParaWeddingPlannersRoute
+  '/privacidad': typeof PrivacidadRoute
   '/recuperar-contrasena': typeof RecuperarContrasenaRoute
   '/registro': typeof RegistroRouteWithChildren
   '/restablecer-contrasena': typeof RestablecerContrasenaRoute
   '/software-rsvp-bodas': typeof SoftwareRsvpBodasRoute
-  '/privacidad': typeof PrivacidadRoute
   '/terminos': typeof TerminosRoute
-  '/eliminar-datos': typeof EliminarDatosRoute
   '/admin/cancelaciones': typeof AdminCancelacionesRoute
   '/admin/clientes': typeof AdminClientesRoute
   '/admin/finanzas': typeof AdminFinanzasRoute
@@ -421,16 +421,16 @@ export interface FileRouteTypes {
     | '/admin'
     | '/blog'
     | '/confirmacion-invitados-whatsapp'
+    | '/eliminar-datos'
     | '/eventos'
     | '/iniciar-sesion'
     | '/para-wedding-planners'
+    | '/privacidad'
     | '/recuperar-contrasena'
     | '/registro'
     | '/restablecer-contrasena'
     | '/software-rsvp-bodas'
-    | '/privacidad'
     | '/terminos'
-    | '/eliminar-datos'
     | '/admin/cancelaciones'
     | '/admin/clientes'
     | '/admin/finanzas'
@@ -465,15 +465,15 @@ export interface FileRouteTypes {
   to:
     | '/'
     | '/confirmacion-invitados-whatsapp'
+    | '/eliminar-datos'
     | '/iniciar-sesion'
     | '/para-wedding-planners'
+    | '/privacidad'
     | '/recuperar-contrasena'
     | '/registro'
     | '/restablecer-contrasena'
     | '/software-rsvp-bodas'
-    | '/privacidad'
     | '/terminos'
-    | '/eliminar-datos'
     | '/admin/cancelaciones'
     | '/admin/clientes'
     | '/admin/finanzas'
@@ -507,16 +507,16 @@ export interface FileRouteTypes {
     | '/admin'
     | '/blog'
     | '/confirmacion-invitados-whatsapp'
+    | '/eliminar-datos'
     | '/eventos'
     | '/iniciar-sesion'
     | '/para-wedding-planners'
+    | '/privacidad'
     | '/recuperar-contrasena'
     | '/registro'
     | '/restablecer-contrasena'
     | '/software-rsvp-bodas'
-    | '/privacidad'
     | '/terminos'
-    | '/eliminar-datos'
     | '/admin/cancelaciones'
     | '/admin/clientes'
     | '/admin/finanzas'
@@ -554,16 +554,16 @@ export interface RootRouteChildren {
   AdminRoute: typeof AdminRouteWithChildren
   BlogRoute: typeof BlogRouteWithChildren
   ConfirmacionInvitadosWhatsappRoute: typeof ConfirmacionInvitadosWhatsappRoute
+  EliminarDatosRoute: typeof EliminarDatosRoute
   EventosRoute: typeof EventosRouteWithChildren
   IniciarSesionRoute: typeof IniciarSesionRoute
   ParaWeddingPlannersRoute: typeof ParaWeddingPlannersRoute
+  PrivacidadRoute: typeof PrivacidadRoute
   RecuperarContrasenaRoute: typeof RecuperarContrasenaRoute
   RegistroRoute: typeof RegistroRouteWithChildren
   RestablecerContrasenaRoute: typeof RestablecerContrasenaRoute
   SoftwareRsvpBodasRoute: typeof SoftwareRsvpBodasRoute
-  PrivacidadRoute: typeof PrivacidadRoute
   TerminosRoute: typeof TerminosRoute
-  EliminarDatosRoute: typeof EliminarDatosRoute
   PagoExitoRoute: typeof PagoExitoRoute
 }
 
@@ -597,6 +597,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof ConfirmacionInvitadosWhatsappRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/eliminar-datos': {
+      id: '/eliminar-datos'
+      path: '/eliminar-datos'
+      fullPath: '/eliminar-datos'
+      preLoaderRoute: typeof EliminarDatosRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/eventos': {
       id: '/eventos'
       path: '/eventos'
@@ -616,6 +623,13 @@ declare module '@tanstack/react-router' {
       path: '/para-wedding-planners'
       fullPath: '/para-wedding-planners'
       preLoaderRoute: typeof ParaWeddingPlannersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/privacidad': {
+      id: '/privacidad'
+      path: '/privacidad'
+      fullPath: '/privacidad'
+      preLoaderRoute: typeof PrivacidadRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/recuperar-contrasena': {
@@ -646,25 +660,11 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SoftwareRsvpBodasRouteImport
       parentRoute: typeof rootRouteImport
     }
-    '/privacidad': {
-      id: '/privacidad'
-      path: '/privacidad'
-      fullPath: '/privacidad'
-      preLoaderRoute: typeof PrivacidadRouteImport
-      parentRoute: typeof rootRouteImport
-    }
     '/terminos': {
       id: '/terminos'
       path: '/terminos'
       fullPath: '/terminos'
       preLoaderRoute: typeof TerminosRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/eliminar-datos': {
-      id: '/eliminar-datos'
-      path: '/eliminar-datos'
-      fullPath: '/eliminar-datos'
-      preLoaderRoute: typeof EliminarDatosRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/admin/': {
@@ -1008,16 +1008,16 @@ const rootRouteChildren: RootRouteChildren = {
   AdminRoute: AdminRouteWithChildren,
   BlogRoute: BlogRouteWithChildren,
   ConfirmacionInvitadosWhatsappRoute: ConfirmacionInvitadosWhatsappRoute,
+  EliminarDatosRoute: EliminarDatosRoute,
   EventosRoute: EventosRouteWithChildren,
   IniciarSesionRoute: IniciarSesionRoute,
   ParaWeddingPlannersRoute: ParaWeddingPlannersRoute,
+  PrivacidadRoute: PrivacidadRoute,
   RecuperarContrasenaRoute: RecuperarContrasenaRoute,
   RegistroRoute: RegistroRouteWithChildren,
   RestablecerContrasenaRoute: RestablecerContrasenaRoute,
   SoftwareRsvpBodasRoute: SoftwareRsvpBodasRoute,
-  PrivacidadRoute: PrivacidadRoute,
   TerminosRoute: TerminosRoute,
-  EliminarDatosRoute: EliminarDatosRoute,
   PagoExitoRoute: PagoExitoRoute,
 }
 export const routeTree = rootRouteImport

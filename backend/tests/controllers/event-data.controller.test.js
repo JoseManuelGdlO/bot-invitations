@@ -2,6 +2,21 @@ import { jest } from "@jest/globals";
 import { callHandler, createMockReq, loadWithMocks, fakeEvent, PERMS } from "../helpers/controller.js";
 import { createInstance } from "../helpers/models.js";
 
+function sampleAi(overrides = {}) {
+  return createInstance({
+    assistantName: "Sofía",
+    tone: "Elegante",
+    formality: 60,
+    emojis: "algunos",
+    length: "normales",
+    openingMessage: "hola",
+    prompt: "cerebro",
+    rules: [],
+    followUps: [],
+    ...overrides,
+  });
+}
+
 describe("event-data.controller", () => {
   let controller;
   let models;
@@ -23,6 +38,10 @@ describe("event-data.controller", () => {
     }));
   });
 
+  function stubAi(ai, created = false) {
+    models.AiConfig.findOrCreate.mockResolvedValue([ai, created]);
+  }
+
   test("getAi null si no hay config", async () => {
     models.AiConfig.findOne.mockResolvedValue(null);
     const { res } = await callHandler(controller.getAi, {
@@ -31,27 +50,20 @@ describe("event-data.controller", () => {
     expect(res.json).toHaveBeenCalledWith(null);
   });
 
-  test("updateAi 404", async () => {
-    models.AiConfig.findOne.mockResolvedValue(null);
+  test("updateAi crea config si no existe", async () => {
     const { res } = await callHandler(controller.updateAi, {
       req: createMockReq({ params: { eventId: "boda-ana" }, body: { tone: "Cálido" } }),
     });
-    expect(res.status).toHaveBeenCalledWith(404);
+    expect(models.AiConfig.findOrCreate).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { eventId: "evt_1" } }),
+    );
+    expect(res.status).not.toHaveBeenCalledWith(404);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ tone: "Cálido" }));
   });
 
   test("updateAi resetea playground si cambia la personalidad", async () => {
-    const ai = createInstance({
-      assistantName: "Sofía",
-      tone: "Elegante",
-      formality: 60,
-      emojis: "algunos",
-      length: "normales",
-      openingMessage: "hola",
-      prompt: "cerebro",
-      rules: [],
-      followUps: [],
-    });
-    models.AiConfig.findOne.mockResolvedValue(ai);
+    const ai = sampleAi();
+    stubAi(ai);
     await callHandler(controller.updateAi, {
       req: createMockReq({ params: { eventId: "boda-ana" }, body: { tone: "Casual" } }),
     });
@@ -60,18 +72,8 @@ describe("event-data.controller", () => {
   });
 
   test("updateAi no resetea playground si solo cambia openingMessage", async () => {
-    const ai = createInstance({
-      assistantName: "Sofía",
-      tone: "Elegante",
-      formality: 60,
-      emojis: "algunos",
-      length: "normales",
-      openingMessage: "hola",
-      prompt: "cerebro",
-      rules: [],
-      followUps: [],
-    });
-    models.AiConfig.findOne.mockResolvedValue(ai);
+    const ai = sampleAi();
+    stubAi(ai);
     await callHandler(controller.updateAi, {
       req: createMockReq({ body: { openingMessage: "otro" } }),
     });
@@ -80,18 +82,7 @@ describe("event-data.controller", () => {
   });
 
   test("updateAi 400 si followUps no es arreglo", async () => {
-    const ai = createInstance({
-      assistantName: "Sofía",
-      tone: "Elegante",
-      formality: 60,
-      emojis: "algunos",
-      length: "normales",
-      openingMessage: "hola",
-      prompt: "cerebro",
-      rules: [],
-      followUps: [],
-    });
-    models.AiConfig.findOne.mockResolvedValue(ai);
+    stubAi(sampleAi());
     const { res } = await callHandler(controller.updateAi, {
       req: createMockReq({ body: { followUps: "nope" } }),
     });
@@ -99,18 +90,8 @@ describe("event-data.controller", () => {
   });
 
   test("updateAi normaliza días de followUps", async () => {
-    const ai = createInstance({
-      assistantName: "Sofía",
-      tone: "Elegante",
-      formality: 60,
-      emojis: "algunos",
-      length: "normales",
-      openingMessage: "hola",
-      prompt: "cerebro",
-      rules: [],
-      followUps: [],
-    });
-    models.AiConfig.findOne.mockResolvedValue(ai);
+    const ai = sampleAi();
+    stubAi(ai);
     await callHandler(controller.updateAi, {
       req: createMockReq({
         body: {
@@ -151,18 +132,16 @@ describe("event-data.controller", () => {
   });
 
   test("resetAi restaura tono, reglas y prompt", async () => {
-    const ai = createInstance({
-      assistantName: "Sofía",
+    const ai = sampleAi({
       tone: "Casual",
       formality: 20,
       emojis: "frecuentes",
       length: "cortos",
-      openingMessage: "hola",
       prompt: "instrucciones custom",
       rules: ["regla custom"],
       followUps: [{ id: "f1", label: "Primer contacto", days: 30, when: "30 días antes del evento", active: true }],
     });
-    models.AiConfig.findOne.mockResolvedValue(ai);
+    stubAi(ai);
     await callHandler(controller.resetAi, {
       req: createMockReq({ params: { eventId: "boda-ana" } }),
     });
@@ -181,19 +160,27 @@ describe("event-data.controller", () => {
     expect(resetPlaygroundSessions).toHaveBeenCalledWith("evt_1");
   });
 
-  test("updateAi reinyecta reglas técnicas si el cliente las omite", async () => {
-    const ai = createInstance({
-      assistantName: "Sofía",
-      tone: "Elegante",
-      formality: 60,
-      emojis: "algunos",
-      length: "normales",
-      openingMessage: "hola",
-      prompt: "",
-      rules: [],
-      followUps: [],
+  test("resetAi crea config si no existe", async () => {
+    const { res } = await callHandler(controller.resetAi, {
+      req: createMockReq({ params: { eventId: "boda-ana" } }),
     });
-    models.AiConfig.findOne.mockResolvedValue(ai);
+    expect(models.AiConfig.findOrCreate).toHaveBeenCalled();
+    expect(res.status).not.toHaveBeenCalledWith(404);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ tone: "Elegante" }));
+  });
+
+  test("regeneratePrompt crea config si no existe", async () => {
+    const { res } = await callHandler(controller.regeneratePrompt, {
+      req: createMockReq({ params: { eventId: "boda-ana" } }),
+    });
+    expect(models.AiConfig.findOrCreate).toHaveBeenCalled();
+    expect(res.status).not.toHaveBeenCalledWith(404);
+    expect(res.json).toHaveBeenCalled();
+  });
+
+  test("updateAi reinyecta reglas técnicas si el cliente las omite", async () => {
+    const ai = sampleAi({ prompt: "", rules: [] });
+    stubAi(ai);
     await callHandler(controller.updateAi, {
       req: createMockReq({
         body: { rules: ["Nunca mencionar que eres una IA.", "Hablar de valet"] },

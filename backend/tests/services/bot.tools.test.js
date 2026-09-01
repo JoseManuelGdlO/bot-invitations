@@ -14,7 +14,7 @@ describe("bot tools", () => {
     }));
   });
 
-  test("actualizar_confirmacion cierra RSVP y pide plantilla Confirmación", async () => {
+  test("actualizar_confirmacion cierra RSVP y pide cierre conversacional", async () => {
     const guest = fakeGuest({ status: "enviado", invited: 2, confirmed: 0 });
     const result = await tools.executeActualizarConfirmacion(
       { status: "confirmado", confirmed: 2 },
@@ -22,7 +22,8 @@ describe("bot tools", () => {
     );
     expect(guest.status).toBe("confirmado");
     expect(guest.confirmed).toBe(2);
-    expect(result.instruction).toMatch(/Confirmación/);
+    expect(result.instruction).toMatch(/cierre breve y natural/);
+    expect(result.instruction).not.toMatch(/usar_plantilla con category/);
     expect(guest.save).toHaveBeenCalled();
   });
 
@@ -39,7 +40,36 @@ describe("bot tools", () => {
     expect(result.invited).toBe(2);
   });
 
-  test("actualizar_confirmacion de rechazo pide plantilla Rechazo", async () => {
+  test("actualizar_confirmacion redondea decimales y no guarda NaN si confirmed es basura", async () => {
+    const decimalGuest = fakeGuest({ status: "en_conversacion", invited: 5, confirmed: 0 });
+    const decimalResult = await tools.executeActualizarConfirmacion(
+      { status: "confirmado", confirmed: 2.7 },
+      { guest: decimalGuest, event: fakeEvent(), dryRun: false },
+    );
+    expect(decimalResult.success).toBe(true);
+    expect(decimalGuest.confirmed).toBe(3);
+    expect(Number.isFinite(decimalGuest.confirmed)).toBe(true);
+    expect(decimalGuest.confirmed).toBeLessThanOrEqual(5);
+
+    const garbageGuest = fakeGuest({ status: "en_conversacion", invited: 5, confirmed: 0 });
+    const garbageResult = await tools.executeActualizarConfirmacion(
+      { status: "confirmado", confirmed: "tres" },
+      { guest: garbageGuest, event: fakeEvent(), dryRun: false },
+    );
+    expect(garbageResult.success).toBe(true);
+    expect(garbageGuest.confirmed).toBe(5);
+    expect(Number.isNaN(garbageGuest.confirmed)).toBe(false);
+    expect(garbageGuest.confirmed).toBeLessThanOrEqual(5);
+
+    const overRoundGuest = fakeGuest({ status: "en_conversacion", invited: 5, confirmed: 0 });
+    await tools.executeActualizarConfirmacion(
+      { status: "confirmado", confirmed: 5.9 },
+      { guest: overRoundGuest, event: fakeEvent(), dryRun: false },
+    );
+    expect(overRoundGuest.confirmed).toBe(5);
+  });
+
+  test("actualizar_confirmacion de rechazo pide cierre conversacional", async () => {
     const guest = fakeGuest({ status: "enviado" });
     const result = await tools.executeActualizarConfirmacion(
       { status: "no_asistira", confirmed: null },
@@ -47,7 +77,8 @@ describe("bot tools", () => {
     );
     expect(guest.status).toBe("no_asistira");
     expect(guest.confirmed).toBe(0);
-    expect(result.instruction).toMatch(/Rechazo/);
+    expect(result.instruction).toMatch(/cierre breve y natural/);
+    expect(result.instruction).not.toMatch(/usar_plantilla con category/);
   });
 
   test("marcar_seguimiento agenda a 3 días y limpia el nudge previo", async () => {
@@ -116,57 +147,54 @@ describe("bot tools", () => {
     expect(models.Template.findOne).not.toHaveBeenCalled();
   });
 
-  test("usar_plantilla Confirmación cierra RSVP si el modelo no llamó actualizar_confirmacion", async () => {
-    models.Template.findOne.mockResolvedValue({
-      id: "t3",
-      category: "Confirmación",
-      title: "Cierre",
-      body: "Perfecto {{nombre}}, confirmamos {{numero_invitados}}.",
-    });
+  test("usar_plantilla Confirmación no fuerza reply ni cierra RSVP", async () => {
     const guest = fakeGuest({ status: "en_conversacion", invited: 4, confirmed: 0 });
-    await tools.executeUsarPlantilla(
-      { category: "Confirmación", id: null },
-      { guest, event: fakeEvent(), plannerName: "Ana" },
-    );
-    expect(guest.status).toBe("confirmado");
-    expect(guest.confirmed).toBe(4);
-    expect(guest.whatsapp).toBe("respondido");
-    expect(guest.save).toHaveBeenCalled();
-  });
-
-  test("usar_plantilla interpola y marca useAsReply", async () => {
-    models.Template.findOne.mockResolvedValue({
-      id: "t3",
-      category: "Confirmación",
-      title: "Cierre",
-      body: "Perfecto {{nombre}}, entonces confirmamos {{numero_confirmados}} asistentes.",
-    });
-    const guest = fakeGuest({ confirmed: 2 });
     const result = await tools.executeUsarPlantilla(
       { category: "Confirmación", id: null },
       { guest, event: fakeEvent(), plannerName: "Ana" },
     );
-    expect(result.useAsReply).toBe(true);
-    expect(result.text).toBe("Perfecto Luis, entonces confirmamos 2 asistentes.");
-    expect(guest.status).toBe("confirmado");
-    expect(guest.confirmed).toBe(2);
-    expect(guest.whatsapp).toBe("respondido");
-    expect(guest.confirmedAt).toBeTruthy();
+    expect(result).toEqual({
+      success: false,
+      error: "El cierre de RSVP es conversacional: escribe reply. No uses plantilla de Confirmación ni Rechazo.",
+    });
+    expect(result.useAsReply).toBeUndefined();
+    expect(guest.status).toBe("en_conversacion");
+    expect(guest.save).not.toHaveBeenCalled();
+    expect(models.Template.findOne).not.toHaveBeenCalled();
   });
 
-  test("usar_plantilla Confirmación no pisa un RSVP ya cerrado", async () => {
+  test("usar_plantilla interpola y marca useAsReply", async () => {
+    models.Template.findOne.mockResolvedValue({
+      id: "t2",
+      category: "Ubicación",
+      title: "Dónde",
+      body: "Hola {{nombre}}, el evento es en {{lugar}}.",
+    });
+    const guest = fakeGuest({ confirmed: 2 });
+    const result = await tools.executeUsarPlantilla(
+      { category: "Ubicación", id: null },
+      { guest, event: fakeEvent(), plannerName: "Ana" },
+    );
+    expect(result.useAsReply).toBe(true);
+    expect(result.text).toBe("Hola Luis, el evento es en Hacienda.");
+    expect(guest.status).toBe("sin_contactar");
+  });
+
+  test("usar_plantilla por id de Confirmación no cierra RSVP", async () => {
     models.Template.findOne.mockResolvedValue({
       id: "t3",
       category: "Confirmación",
       title: "Cierre",
       body: "Perfecto {{nombre}}.",
     });
-    const guest = fakeGuest({ status: "parcial", confirmed: 1, invited: 4, confirmedAt: new Date("2026-01-01") });
-    await tools.executeUsarPlantilla(
-      { category: "Confirmación", id: null },
+    const guest = fakeGuest({ status: "en_conversacion", confirmed: 0, invited: 4 });
+    const result = await tools.executeUsarPlantilla(
+      { category: null, id: "t3" },
       { guest, event: fakeEvent(), plannerName: "Ana" },
     );
-    expect(guest.status).toBe("parcial");
-    expect(guest.confirmed).toBe(1);
+    expect(result.success).toBe(false);
+    expect(result.useAsReply).toBeUndefined();
+    expect(guest.status).toBe("en_conversacion");
+    expect(guest.save).not.toHaveBeenCalled();
   });
 });

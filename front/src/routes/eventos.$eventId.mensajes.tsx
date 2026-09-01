@@ -41,11 +41,6 @@ const categories = [
     hint: "Recordatorio automático. El envío masivo está desactivado; el texto queda listo por si se reactiva.",
   },
   {
-    id: "Confirmación",
-    hint: "Cierre cuando el invitado confirma asistencia.",
-  },
-  { id: "Rechazo", hint: "Cierre cuando el invitado no podrá asistir." },
-  {
     id: "Seguimiento",
     hint: "Recontacto a indecisos, según las reglas de seguimiento.",
   },
