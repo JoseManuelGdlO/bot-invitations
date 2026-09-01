@@ -14,15 +14,16 @@ export type IntegrationDto = {
   hasActiveCredential: boolean;
 };
 
-export type WhatsAppQrLinkDto = {
-  url: string;
-  expiresAt: string;
+export type WhatsAppMetaStatusDto = {
+  provider: "meta-cloud";
+  configured: boolean;
+  hasTemplate: boolean;
+  templateName: string | null;
+  templateLanguage: string;
+  webhookUrl: string | null;
 };
 
-export type WhatsAppDeviceStatusDto = {
-  status: "ONLINE" | "OFFLINE" | "UNKNOWN";
-  updatedAt: string;
-};
+export type WhatsAppSendTestType = "text" | "template";
 
 export const integrationsApi = {
   list: () => api<IntegrationDto[]>("/integrations"),
@@ -67,22 +68,19 @@ export const integrationsApi = {
       method: "POST",
       body: JSON.stringify({}),
     }),
-  createWhatsAppQrLink: (integrationId: string) =>
-    api<WhatsAppQrLinkDto>("/internal/whatsapp/qr-link", {
-      method: "POST",
-      body: JSON.stringify({ integrationId }),
-    }),
-  getWhatsAppDeviceStatus: (integrationId: string) =>
-    api<WhatsAppDeviceStatusDto>(
-      `/internal/whatsapp/device-status?integrationId=${encodeURIComponent(integrationId)}`,
-    ),
+  getWhatsAppStatus: () =>
+    api<WhatsAppMetaStatusDto>("/internal/whatsapp/status"),
   sendWhatsAppTest: (body: {
-    integrationId: string;
     to: string;
+    type: WhatsAppSendTestType;
     text: string;
+    name?: string;
   }) =>
-    api<{ ok: boolean }>("/internal/whatsapp/send-test", {
-      method: "POST",
-      body: JSON.stringify(body),
-    }),
+    api<{ ok: boolean; type: WhatsAppSendTestType; id: string | null }>(
+      "/internal/whatsapp/send-test",
+      {
+        method: "POST",
+        body: JSON.stringify(body),
+      },
+    ),
 };
