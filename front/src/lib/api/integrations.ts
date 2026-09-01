@@ -17,10 +17,20 @@ export type IntegrationDto = {
 export type WhatsAppMetaStatusDto = {
   provider: "meta-cloud";
   configured: boolean;
+  wabaId: string | null;
+  phoneNumberId: string | null;
+  displayPhoneNumber: string | null;
   hasTemplate: boolean;
   templateName: string | null;
   templateLanguage: string;
   webhookUrl: string | null;
+};
+
+export type WhatsAppMetaCredentialsInput = {
+  accessToken: string;
+  wabaId: string;
+  phoneNumberId: string;
+  displayPhoneNumber?: string | null;
 };
 
 export type WhatsAppSendTestType = "text" | "template";
@@ -70,6 +80,11 @@ export const integrationsApi = {
     }),
   getWhatsAppStatus: () =>
     api<WhatsAppMetaStatusDto>("/internal/whatsapp/status"),
+  saveWhatsAppCredentials: (body: WhatsAppMetaCredentialsInput) =>
+    api<WhatsAppMetaStatusDto & { ok: boolean }>("/internal/whatsapp/credentials", {
+      method: "POST",
+      body: JSON.stringify(body),
+    }),
   sendWhatsAppTest: (body: {
     to: string;
     type: WhatsAppSendTestType;

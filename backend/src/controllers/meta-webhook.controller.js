@@ -63,6 +63,7 @@ export function extractMetaInboundMessages(body = {}) {
         const waId = String(message.from || contacts[0]?.wa_id || "").trim();
         const phone = normalizeWaIdTo10(waId);
         const type = String(message.type || "text").toLowerCase();
+        const phoneNumberId = String(value.metadata?.phone_number_id || "").trim();
         out.push({
           type: "message.inbound",
           from: phone || waId,
@@ -71,6 +72,7 @@ export function extractMetaInboundMessages(body = {}) {
           messageId: String(message.id || "").trim(),
           messageType: type,
           waId,
+          phoneNumberId: phoneNumberId || null,
         });
       }
     }
@@ -102,13 +104,27 @@ export function verifyMetaWebhook(req, res) {
 export async function postMetaEvents(req, res, next) {
   try {
     const { handleInboundWhatsapp } = await import("./bot.controller.js");
+    const { resolveActiveWhatsappMetaByPhoneNumberId } = await import("../services/whatsapp-meta.service.js");
     const payload = safeParseBody(req);
     const messages = extractMetaInboundMessages(payload);
     const results = [];
     for (const inbound of messages) {
+      if (!inbound.phoneNumberId) {
+        logMetaWebhook("inbound skipped: missing phone_number_id");
+        results.push({ processed: true, reason: "missing_phone_number_id" });
+        continue;
+      }
+      const resolved = await resolveActiveWhatsappMetaByPhoneNumberId(inbound.phoneNumberId);
+      if (!resolved?.integration) {
+        logMetaWebhook("inbound skipped: integration not found", {
+          phoneNumberId: inbound.phoneNumberId,
+        });
+        results.push({ processed: true, reason: "integration_not_found" });
+        continue;
+      }
       const result = await handleInboundWhatsapp({
         payload: inbound,
-        integration: null,
+        integration: resolved.integration,
         rawBody: inbound.messageId || readRawBody(req),
       });
       results.push(result);

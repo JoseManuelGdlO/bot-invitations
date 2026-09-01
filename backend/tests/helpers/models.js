@@ -71,6 +71,8 @@ const MODEL_NAMES = [
   "BotSession",
   "ChannelIntegration",
   "ChannelCredential",
+  "WhatsappIntegration",
+  "WhatsappCredential",
   "Payment",
   "SupportTicket",
   "SupportMessage",

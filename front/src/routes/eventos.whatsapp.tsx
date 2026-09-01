@@ -4,6 +4,7 @@ import {
   CheckCircle2,
   Copy,
   FlaskConical,
+  KeyRound,
   Loader2,
   Smartphone,
   Webhook,
@@ -14,6 +15,7 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
@@ -55,11 +57,21 @@ function metaWebhookPublicUrl() {
   return `${base}/webhooks/meta`;
 }
 
+const emptyCredentialsForm = {
+  accessToken: "",
+  wabaId: "",
+  phoneNumberId: "",
+  displayPhoneNumber: "",
+};
+
 function WhatsAppMetaPage() {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
+  const [savingCreds, setSavingCreds] = useState(false);
   const [status, setStatus] = useState<WhatsAppMetaStatusDto | null>(null);
   const [webhookOpen, setWebhookOpen] = useState(false);
+  const [credsOpen, setCredsOpen] = useState(false);
+  const [credsForm, setCredsForm] = useState(emptyCredentialsForm);
   const [testType, setTestType] = useState<WhatsAppSendTestType>("template");
   const [testTo, setTestTo] = useState("");
   const [testName, setTestName] = useState("Invitado");
@@ -88,6 +100,52 @@ function WhatsAppMetaPage() {
   const webhookUrl = import.meta.env.DEV
     ? status?.webhookUrl || metaWebhookPublicUrl()
     : null;
+
+  const openCredentials = () => {
+    setCredsForm({
+      accessToken: "",
+      wabaId: status?.wabaId || "",
+      phoneNumberId: status?.phoneNumberId || "",
+      displayPhoneNumber: status?.displayPhoneNumber || "",
+    });
+    setCredsOpen(true);
+  };
+
+  const saveCredentials = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSavingCreds(true);
+    try {
+      const next = await integrationsApi.saveWhatsAppCredentials({
+        accessToken: credsForm.accessToken.trim(),
+        wabaId: credsForm.wabaId.trim(),
+        phoneNumberId: credsForm.phoneNumberId.trim(),
+        displayPhoneNumber: credsForm.displayPhoneNumber.trim() || null,
+      });
+      setStatus((prev) => ({
+        provider: "meta-cloud",
+        configured: true,
+        wabaId: next.wabaId,
+        phoneNumberId: next.phoneNumberId,
+        displayPhoneNumber: next.displayPhoneNumber,
+        hasTemplate: next.hasTemplate ?? prev?.hasTemplate ?? false,
+        templateName: next.templateName ?? prev?.templateName ?? null,
+        templateLanguage: next.templateLanguage ?? prev?.templateLanguage ?? "es_MX",
+        webhookUrl: prev?.webhookUrl ?? next.webhookUrl ?? null,
+      }));
+      setCredsOpen(false);
+      setCredsForm(emptyCredentialsForm);
+      toast.success("Credenciales de WhatsApp guardadas");
+      await load();
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError
+          ? err.message
+          : "No se pudieron guardar las credenciales",
+      );
+    } finally {
+      setSavingCreds(false);
+    }
+  };
 
   const sendTest = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -143,8 +201,8 @@ function WhatsAppMetaPage() {
         </p>
         <h1 className="mt-1 font-display text-4xl">WhatsApp</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Un número de la plataforma vía Cloud API de Meta, compartido por todos
-          los eventos. Las credenciales viven en el servidor, no por planner.
+          Conecta el número de WhatsApp Business de esta cuenta. Las invitaciones
+          de tus eventos salen con ese WABA.
         </p>
       </div>
 
@@ -157,8 +215,7 @@ function WhatsAppMetaPage() {
             <div>
               <h2 className="font-display text-2xl">Meta Cloud API</h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                Token, phone number id y plantilla se configuran en el entorno
-                del backend.
+                Un WABA por planner. El token se guarda cifrado en el servidor.
               </p>
             </div>
           </div>
@@ -172,6 +229,10 @@ function WhatsAppMetaPage() {
                 Falta configurar
               </Badge>
             )}
+            <Button type="button" variant="outline" size="sm" onClick={openCredentials}>
+              <KeyRound className="size-3.5" />
+              {configured ? "Actualizar credenciales" : "Conectar WhatsApp"}
+            </Button>
             {webhookUrl ? (
               <Button
                 type="button"
@@ -187,8 +248,32 @@ function WhatsAppMetaPage() {
 
         <dl className="mt-5 grid gap-3 text-sm sm:grid-cols-2">
           <div className="rounded-lg border border-border px-3 py-2">
-            <dt className="text-xs text-muted-foreground">Proveedor</dt>
-            <dd className="mt-0.5 font-medium">Meta Cloud API</dd>
+            <dt className="text-xs text-muted-foreground">WABA ID</dt>
+            <dd className="mt-0.5 font-medium font-mono text-xs">
+              {status?.wabaId || (
+                <span className="font-sans text-sm font-normal text-muted-foreground">
+                  Sin conectar
+                </span>
+              )}
+            </dd>
+          </div>
+          <div className="rounded-lg border border-border px-3 py-2">
+            <dt className="text-xs text-muted-foreground">Phone number ID</dt>
+            <dd className="mt-0.5 font-medium font-mono text-xs">
+              {status?.phoneNumberId || (
+                <span className="font-sans text-sm font-normal text-muted-foreground">
+                  Sin conectar
+                </span>
+              )}
+            </dd>
+          </div>
+          <div className="rounded-lg border border-border px-3 py-2">
+            <dt className="text-xs text-muted-foreground">Número</dt>
+            <dd className="mt-0.5 font-medium">
+              {status?.displayPhoneNumber || (
+                <span className="font-normal text-muted-foreground">—</span>
+              )}
+            </dd>
           </div>
           <div className="rounded-lg border border-border px-3 py-2">
             <dt className="text-xs text-muted-foreground">Plantilla HSM</dt>
@@ -208,20 +293,26 @@ function WhatsAppMetaPage() {
         </dl>
         {!configured ? (
           <p className="mt-3 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-            Falta META_ACCESS_TOKEN o META_PHONE_NUMBER_ID en el servidor.
+            Esta cuenta aún no tiene credenciales de Meta. Conéctalas para
+            enviar invitaciones.
           </p>
         ) : !status?.hasTemplate ? (
           <p className="mt-3 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
             Falta META_TEMPLATE_NAME. Sin plantilla no se puede enviar en frío.
           </p>
         ) : null}
+        <p className="mt-3 text-xs text-muted-foreground">
+          El formulario de credenciales es temporal. Cuando Meta apruebe
+          Embedded Signup, la conexión se hará desde Facebook sin pegar el
+          token.
+        </p>
       </section>
 
       <section className="rounded-2xl border border-border bg-card p-6 shadow-soft">
         <h2 className="font-display text-2xl">Probar envío</h2>
         <p className="mt-1 text-sm text-muted-foreground">
           Manda un texto libre (ventana de 24 h) o la plantilla HSM a un número
-          de 10 dígitos.
+          de 10 dígitos, usando el WABA de esta cuenta.
         </p>
         <form className="mt-5 space-y-4" onSubmit={sendTest}>
           <RadioGroup
@@ -312,6 +403,94 @@ function WhatsAppMetaPage() {
           </Button>
         </form>
       </section>
+
+      <Dialog open={credsOpen} onOpenChange={setCredsOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {configured ? "Actualizar credenciales" : "Conectar WhatsApp"}
+            </DialogTitle>
+            <DialogDescription>
+              Pega el token de usuario del sistema, el WABA ID y el phone
+              number ID que te da Meta. Este formulario se sustituirá por
+              Embedded Signup.
+            </DialogDescription>
+          </DialogHeader>
+          <form className="space-y-4" onSubmit={saveCredentials}>
+            <div className="space-y-2">
+              <Label htmlFor="metaAccessToken">Access token</Label>
+              <Input
+                id="metaAccessToken"
+                type="password"
+                autoComplete="off"
+                value={credsForm.accessToken}
+                onChange={(e) =>
+                  setCredsForm((prev) => ({ ...prev, accessToken: e.target.value }))
+                }
+                placeholder="EAAG…"
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="metaWabaId">WABA ID</Label>
+              <Input
+                id="metaWabaId"
+                value={credsForm.wabaId}
+                onChange={(e) =>
+                  setCredsForm((prev) => ({ ...prev, wabaId: e.target.value }))
+                }
+                placeholder="123456789012345"
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="metaPhoneNumberId">Phone number ID</Label>
+              <Input
+                id="metaPhoneNumberId"
+                value={credsForm.phoneNumberId}
+                onChange={(e) =>
+                  setCredsForm((prev) => ({
+                    ...prev,
+                    phoneNumberId: e.target.value,
+                  }))
+                }
+                placeholder="10987654321"
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="metaDisplayPhone">Número visible (opcional)</Label>
+              <Input
+                id="metaDisplayPhone"
+                value={credsForm.displayPhoneNumber}
+                onChange={(e) =>
+                  setCredsForm((prev) => ({
+                    ...prev,
+                    displayPhoneNumber: e.target.value,
+                  }))
+                }
+                placeholder="5215512345678"
+              />
+            </div>
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => setCredsOpen(false)}
+                disabled={savingCreds}
+              >
+                Cancelar
+              </Button>
+              <Button type="submit" disabled={savingCreds}>
+                {savingCreds ? (
+                  <Loader2 className="size-4 animate-spin" />
+                ) : null}
+                Guardar
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
 
       {webhookUrl ? (
         <Dialog open={webhookOpen} onOpenChange={setWebhookOpen}>

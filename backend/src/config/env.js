@@ -107,8 +107,6 @@ export const env = {
     webhookDebug: (process.env.WC_WEBHOOK_DEBUG || "false") === "true",
   },
   meta: {
-    accessToken: process.env.META_ACCESS_TOKEN || "",
-    phoneNumberId: process.env.META_PHONE_NUMBER_ID || "",
     webhookVerifyToken: process.env.META_WEBHOOK_VERIFY_TOKEN || "",
     templateName: process.env.META_TEMPLATE_NAME || "",
     templateLanguage: process.env.META_TEMPLATE_LANGUAGE || "es_MX",

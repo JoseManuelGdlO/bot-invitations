@@ -56,6 +56,7 @@ router.delete("/integrations/:id", integrations.deleteIntegration);
 router.post("/integrations/:id/credentials", integrations.postIntegrationCredentials);
 router.post("/integrations/:id/test", integrations.postIntegrationTest);
 router.get("/internal/whatsapp/status", whatsappMeta.getWhatsappMetaStatus);
+router.post("/internal/whatsapp/credentials", whatsappMeta.postWhatsappMetaCredentials);
 router.post("/internal/whatsapp/send-test", whatsappMeta.postWhatsappMetaSendTest);
 // WhatsApp Connect (QR / status / send-test) — desconectado
 // router.post("/internal/whatsapp/qr-link", whatsappConnect.postWhatsappConnectQrLink);

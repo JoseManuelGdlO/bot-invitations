@@ -21,19 +21,18 @@ export function sanitizeMetaBodyParam(value) {
     .slice(0, BODY_PARAM_MAX);
 }
 
-function ensureConfigured() {
-  if (!String(env.meta?.accessToken || "").trim()) {
-    throw httpError(500, "META_ACCESS_TOKEN is required");
+function requireMetaAuth({ accessToken, phoneNumberId } = {}) {
+  const token = String(accessToken || "").trim();
+  const phoneId = String(phoneNumberId || "").trim();
+  if (!token || !phoneId) {
+    throw httpError(400, "Faltan credenciales de WhatsApp (Meta).");
   }
-  if (!String(env.meta?.phoneNumberId || "").trim()) {
-    throw httpError(500, "META_PHONE_NUMBER_ID is required");
-  }
+  return { token, phoneId };
 }
 
-function graphMessagesUrl() {
+function graphMessagesUrl(phoneNumberId) {
   const version = String(env.meta.graphVersion || "v21.0").replace(/^\//, "");
-  const phoneNumberId = encodeURIComponent(String(env.meta.phoneNumberId || "").trim());
-  return `https://graph.facebook.com/${version}/${phoneNumberId}/messages`;
+  return `https://graph.facebook.com/${version}/${encodeURIComponent(phoneNumberId)}/messages`;
 }
 
 function requirePhone(to) {
@@ -42,16 +41,16 @@ function requirePhone(to) {
   return phone;
 }
 
-async function metaFetch(body) {
-  ensureConfigured();
+async function metaFetch(body, auth) {
+  const { token, phoneId } = requireMetaAuth(auth);
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), Number(env.meta.timeoutMs || 8000));
   try {
-    const response = await fetch(graphMessagesUrl(), {
+    const response = await fetch(graphMessagesUrl(phoneId), {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${env.meta.accessToken}`,
+        Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify(body),
       signal: controller.signal,
@@ -97,20 +96,23 @@ async function withRetry(run, { maxAttempts = 3, baseDelayMs = 250 } = {}) {
 }
 
 export const metaClient = {
-  async sendText({ to, text }) {
+  async sendText({ to, text, accessToken, phoneNumberId }) {
     const phone = requirePhone(to);
     const body = String(text || "").trim();
     if (!body) throw httpError(400, "text is required when type=text");
     metaLog.info("POST graph messages text", { to: phone, chars: body.length });
-    return metaFetch({
-      messaging_product: "whatsapp",
-      to: phone,
-      type: "text",
-      text: { body },
-    });
+    return metaFetch(
+      {
+        messaging_product: "whatsapp",
+        to: phone,
+        type: "text",
+        text: { body },
+      },
+      { accessToken, phoneNumberId },
+    );
   },
 
-  async sendTemplate({ to, bodyParams = [] }) {
+  async sendTemplate({ to, bodyParams = [], accessToken, phoneNumberId }) {
     const name = String(env.meta?.templateName || "").trim();
     if (!name) throw httpError(400, "Falta META_TEMPLATE_NAME.");
     const phone = requirePhone(to);
@@ -120,16 +122,19 @@ export const metaClient = {
       text: sanitizeMetaBodyParam(value),
     }));
     metaLog.info("POST graph messages template", { to: phone, name, language });
-    return metaFetch({
-      messaging_product: "whatsapp",
-      to: phone,
-      type: "template",
-      template: {
-        name,
-        language: { code: language },
-        components: [{ type: "body", parameters }],
+    return metaFetch(
+      {
+        messaging_product: "whatsapp",
+        to: phone,
+        type: "template",
+        template: {
+          name,
+          language: { code: language },
+          components: [{ type: "body", parameters }],
+        },
       },
-    });
+      { accessToken, phoneNumberId },
+    );
   },
 
   async sendTextWithRetry(params, opts) {

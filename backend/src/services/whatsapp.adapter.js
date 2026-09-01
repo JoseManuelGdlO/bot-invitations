@@ -3,6 +3,7 @@ import { httpError } from "../utils/http-error.js";
 import { eventGuestVars } from "../utils/defaults.js";
 import { normalizeWaIdTo10 } from "../utils/whatsapp-identity.js";
 import { metaClient, sanitizeMetaBodyParam } from "./meta.client.js";
+import { resolveActiveWhatsappMetaByOwner } from "./whatsapp-meta.service.js";
 
 const CUSTOMER_CARE_WINDOW_MS = 24 * 60 * 60 * 1000;
 
@@ -32,6 +33,8 @@ export class MetaCloudProvider {
     const guest = meta.guestId ? await Guest.findByPk(meta.guestId) : null;
     const cold = guest?.status === "sin_contactar" || (await isColdConversation(meta.guestId));
 
+    const { credentials } = await resolveActiveWhatsappMetaByOwner(event.ownerId);
+
     let payload;
     if (cold) {
       const nombre = sanitizeMetaBodyParam(eventGuestVars(event, guest).nombre) || "invitado";
@@ -40,10 +43,17 @@ export class MetaCloudProvider {
       payload = await metaClient.sendTemplateWithRetry({
         to: phone,
         bodyParams: [nombre, bodyParam],
+        accessToken: credentials.accessToken,
+        phoneNumberId: credentials.phoneNumberId,
       });
     } else {
       if (!body) throw httpError(400, "text is required when type=text");
-      payload = await metaClient.sendTextWithRetry({ to: phone, text: body });
+      payload = await metaClient.sendTextWithRetry({
+        to: phone,
+        text: body,
+        accessToken: credentials.accessToken,
+        phoneNumberId: credentials.phoneNumberId,
+      });
     }
 
     return {

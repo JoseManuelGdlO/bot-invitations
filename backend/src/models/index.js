@@ -309,6 +309,41 @@ export const ChannelCredential = sequelize.define(
   },
 );
 
+export const WhatsappIntegration = sequelize.define(
+  "whatsapp_integrations",
+  {
+    id: uuid,
+    ownerUserId: { type: DataTypes.CHAR(36), allowNull: false, unique: true },
+    wabaId: { type: DataTypes.STRING(40), allowNull: false },
+    phoneNumberId: { type: DataTypes.STRING(40), allowNull: false, unique: true },
+    displayPhoneNumber: { type: DataTypes.STRING(40), allowNull: true },
+    status: {
+      type: DataTypes.ENUM("draft", "active", "error", "disabled"),
+      allowNull: false,
+      defaultValue: "draft",
+    },
+    lastError: { type: DataTypes.TEXT, allowNull: true },
+  },
+  {
+    indexes: [{ fields: ["ownerUserId"] }, { unique: true, fields: ["phoneNumberId"] }],
+  },
+);
+
+export const WhatsappCredential = sequelize.define(
+  "whatsapp_credentials",
+  {
+    id: uuid,
+    ownerUserId: { type: DataTypes.CHAR(36), allowNull: false },
+    whatsappIntegrationId: { type: DataTypes.CHAR(36), allowNull: false },
+    credentialType: { type: DataTypes.STRING(40), allowNull: false, defaultValue: "meta_system_user_token" },
+    cipherText: { type: DataTypes.TEXT("long"), allowNull: false },
+    isActive: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
+  },
+  {
+    indexes: [{ fields: ["ownerUserId"] }, { fields: ["whatsappIntegrationId"] }],
+  },
+);
+
 export const BotSession = sequelize.define(
   "bot_sessions",
   {
@@ -416,6 +451,12 @@ ChannelIntegration.hasMany(ChannelCredential, { foreignKey: "channelIntegrationI
 ChannelCredential.belongsTo(ChannelIntegration, { foreignKey: "channelIntegrationId" });
 User.hasMany(ChannelCredential, { foreignKey: "ownerUserId" });
 ChannelCredential.belongsTo(User, { foreignKey: "ownerUserId" });
+User.hasMany(WhatsappIntegration, { foreignKey: "ownerUserId" });
+WhatsappIntegration.belongsTo(User, { foreignKey: "ownerUserId" });
+WhatsappIntegration.hasMany(WhatsappCredential, { foreignKey: "whatsappIntegrationId", as: "credentials" });
+WhatsappCredential.belongsTo(WhatsappIntegration, { foreignKey: "whatsappIntegrationId" });
+User.hasMany(WhatsappCredential, { foreignKey: "ownerUserId" });
+WhatsappCredential.belongsTo(User, { foreignKey: "ownerUserId" });
 User.hasMany(InboundEventDedup, { foreignKey: "ownerUserId" });
 InboundEventDedup.belongsTo(User, { foreignKey: "ownerUserId" });
 
@@ -443,6 +484,11 @@ export async function ensureEventMemberRemovedAt() {
 
 export async function ensureInboundEventDedupTable() {
   await InboundEventDedup.sync();
+}
+
+export async function ensureWhatsappMetaTables() {
+  await WhatsappIntegration.sync();
+  await WhatsappCredential.sync();
 }
 
 export async function ensureCampaignColumns() {

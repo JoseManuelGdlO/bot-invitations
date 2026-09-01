@@ -6,6 +6,8 @@ describe("whatsapp.adapter MetaCloudProvider", () => {
   let models;
   let sendTemplateWithRetry;
   let sendTextWithRetry;
+  let resolveActiveWhatsappMetaByOwner;
+  const metaAuth = { accessToken: "owner-token", phoneNumberId: "10987654321" };
 
   function sanitizeMetaBodyParam(value) {
     return String(value || "")
@@ -18,11 +20,17 @@ describe("whatsapp.adapter MetaCloudProvider", () => {
   beforeEach(async () => {
     sendTemplateWithRetry = jest.fn(async () => ({ messages: [{ id: "wamid.tpl" }] }));
     sendTextWithRetry = jest.fn(async () => ({ messages: [{ id: "wamid.txt" }] }));
+    resolveActiveWhatsappMetaByOwner = jest.fn(async () => ({
+      credentials: metaAuth,
+    }));
     ({ mod: adapter, models } = await loadWithMocks("src/services/whatsapp.adapter.js", {
       extraMocks: {
         "src/services/meta.client.js": () => ({
           metaClient: { sendTemplateWithRetry, sendTextWithRetry },
           sanitizeMetaBodyParam,
+        }),
+        "src/services/whatsapp-meta.service.js": () => ({
+          resolveActiveWhatsappMetaByOwner,
         }),
       },
     }));
@@ -59,9 +67,11 @@ describe("whatsapp.adapter MetaCloudProvider", () => {
       eventId: "evt_1",
       guestId: "gst_1",
     });
+    expect(resolveActiveWhatsappMetaByOwner).toHaveBeenCalledWith("usr_test_1");
     expect(sendTemplateWithRetry).toHaveBeenCalledWith({
       to: "5512345678",
       bodyParams: ["Luis", "Hola invitación"],
+      ...metaAuth,
     });
     expect(sendTextWithRetry).not.toHaveBeenCalled();
     expect(result).toEqual(
@@ -98,7 +108,11 @@ describe("whatsapp.adapter MetaCloudProvider", () => {
       eventId: "evt_1",
       guestId: "gst_1",
     });
-    expect(sendTextWithRetry).toHaveBeenCalledWith({ to: "6183218624", text: "¿Confirmas?" });
+    expect(sendTextWithRetry).toHaveBeenCalledWith({
+      to: "6183218624",
+      text: "¿Confirmas?",
+      ...metaAuth,
+    });
     expect(sendTemplateWithRetry).not.toHaveBeenCalled();
     expect(result.providerId).toBe("wamid.txt");
   });

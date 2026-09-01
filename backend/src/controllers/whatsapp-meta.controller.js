@@ -3,6 +3,12 @@ import { asyncHandler } from "../utils/async.js";
 import { httpError } from "../utils/http-error.js";
 import { Logger } from "../utils/logger.js";
 import { metaClient, sanitizeMetaBodyParam } from "../services/meta.client.js";
+import {
+  findWhatsappMetaStatusByOwner,
+  parseWhatsappMetaCredentials,
+  resolveActiveWhatsappMetaByOwner,
+  upsertWhatsappMetaCredentials,
+} from "../services/whatsapp-meta.service.js";
 
 const log = new Logger("WhatsApp");
 
@@ -29,19 +35,46 @@ function metaWebhookUrl(req) {
   return `${proto}://${host}/api/webhooks/meta`;
 }
 
-export const getWhatsappMetaStatus = asyncHandler(async (req, res) => {
-  const token = String(env.meta?.accessToken || "").trim();
-  const phoneNumberId = String(env.meta?.phoneNumberId || "").trim();
+function templateStatus() {
   const templateName = String(env.meta?.templateName || "").trim();
   const templateLanguage = String(env.meta?.templateLanguage || "es_MX").trim();
-
-  res.json({
-    provider: "meta-cloud",
-    configured: Boolean(token && phoneNumberId),
+  return {
     hasTemplate: Boolean(templateName),
     templateName: templateName || null,
     templateLanguage: templateLanguage || "es_MX",
+  };
+}
+
+export const getWhatsappMetaStatus = asyncHandler(async (req, res) => {
+  const owner = await findWhatsappMetaStatusByOwner(req.user.id);
+  const template = templateStatus();
+  res.json({
+    provider: "meta-cloud",
+    configured: owner.configured,
+    wabaId: owner.wabaId,
+    phoneNumberId: owner.phoneNumberId,
+    displayPhoneNumber: owner.displayPhoneNumber,
+    ...template,
     webhookUrl: metaWebhookUrl(req),
+  });
+});
+
+export const postWhatsappMetaCredentials = asyncHandler(async (req, res) => {
+  const parsed = parseWhatsappMetaCredentials(req.body || {});
+  const { integration } = await upsertWhatsappMetaCredentials({
+    ownerUserId: req.user.id,
+    ...parsed,
+  });
+  const template = templateStatus();
+  log.info("credentials upsert", { ownerUserId: req.user.id, phoneNumberId: integration.phoneNumberId });
+  res.status(201).json({
+    ok: true,
+    provider: "meta-cloud",
+    configured: true,
+    wabaId: integration.wabaId,
+    phoneNumberId: integration.phoneNumberId,
+    displayPhoneNumber: integration.displayPhoneNumber || null,
+    ...template,
   });
 });
 
@@ -55,6 +88,8 @@ export const postWhatsappMetaSendTest = asyncHandler(async (req, res) => {
     throw httpError(400, "type debe ser text o template.");
   }
 
+  const { credentials } = await resolveActiveWhatsappMetaByOwner(req.user.id);
+
   let payload;
   if (type === "template") {
     const bodyParam = sanitizeMetaBodyParam(text);
@@ -62,13 +97,20 @@ export const postWhatsappMetaSendTest = asyncHandler(async (req, res) => {
     payload = await metaClient.sendTemplateWithRetry({
       to,
       bodyParams: [name, bodyParam],
+      accessToken: credentials.accessToken,
+      phoneNumberId: credentials.phoneNumberId,
     });
   } else {
     if (!text || text.length > 4096) throw httpError(400, "El texto de prueba es obligatorio.");
-    payload = await metaClient.sendTextWithRetry({ to, text });
+    payload = await metaClient.sendTextWithRetry({
+      to,
+      text,
+      accessToken: credentials.accessToken,
+      phoneNumberId: credentials.phoneNumberId,
+    });
   }
 
-  log.info("send-test", { type });
+  log.info("send-test", { type, ownerUserId: req.user.id });
   res.status(202).json({
     ok: true,
     type,
