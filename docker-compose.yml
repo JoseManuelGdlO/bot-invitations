@@ -37,8 +37,10 @@ services:
       CREDENTIALS_ENCRYPTION_KEY: ${CREDENTIALS_ENCRYPTION_KEY:-}
       META_WEBHOOK_VERIFY_TOKEN: ${META_WEBHOOK_VERIFY_TOKEN:-}
       META_TEMPLATE_NAME: ${META_TEMPLATE_NAME:-}
+      META_TEMPLATE_NAME_DOCUMENT: ${META_TEMPLATE_NAME_DOCUMENT:-rg_eventos}
       META_TEMPLATE_LANGUAGE: ${META_TEMPLATE_LANGUAGE:-es_MX}
       META_GRAPH_VERSION: ${META_GRAPH_VERSION:-v21.0}
+      UPLOADS_DIR: ${UPLOADS_DIR:-/app/uploads}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
       SMTP_HOST: ${SMTP_HOST:-smtp.hostinger.com}
@@ -48,6 +50,8 @@ services:
       SMTP_PASS: ${SMTP_PASS:-}
       SMTP_FROM: ${SMTP_FROM:-}
       BOT_DEV_PLAYGROUND: ${BOT_DEV_PLAYGROUND:-false}
+    volumes:
+      - opening_docs:/app/uploads
 
   front:
     build:
@@ -66,3 +70,6 @@ services:
       NODE_ENV: production
       HOST: 0.0.0.0
       PORT: 80
+
+volumes:
+  opening_docs:

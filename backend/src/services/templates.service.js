@@ -1,5 +1,5 @@
 import { Template } from "../models/index.js";
-import { applyTemplate, eventGuestVars, flattenTemplateLine, normalizeGreetingVar } from "../utils/defaults.js";
+import { applyTemplate, eventGuestVars, flattenTemplateLine, normalizeGreetingVar, normalizeTemplateMultiline } from "../utils/defaults.js";
 
 export const FALLBACK_OPENING = "Hola {{nombre}}, ¿podrán acompañarnos?";
 export const FALLBACK_REMINDER =
@@ -28,7 +28,7 @@ export function renderTemplate(templateOrBody, event, guest, plannerName = "") {
 
 export function composeConstructorMessage(param1, param2) {
   const greeting = flattenTemplateLine(param1) || "invitado";
-  const copy = flattenTemplateLine(param2);
+  const copy = normalizeTemplateMultiline(param2);
   return `¡Hola, buen día! ${greeting}\nNos comunicamos de ${copy}\nMuchas gracias.`;
 }
 
@@ -37,7 +37,7 @@ export function resolveOpeningParts(tpl, event, guest, plannerName = "", opening
   const greetingKey = normalizeGreetingVar(tpl?.greetingVar);
   const param1 = flattenTemplateLine(vars[greetingKey]) || "invitado";
   const rawBody = tpl?.body || openingMessage || FALLBACK_OPENING;
-  const param2 = flattenTemplateLine(renderTemplate(rawBody, event, guest, plannerName));
+  const param2 = normalizeTemplateMultiline(renderTemplate(rawBody, event, guest, plannerName));
   return {
     param1,
     param2,

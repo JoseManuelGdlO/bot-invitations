@@ -8,12 +8,24 @@ describe("guests.controller", () => {
   let userEventIds;
   let assertCanAddGuests;
   let deliverAiMessage;
+  let resolveReminderText;
+  let findTemplate;
+  let resolveOpeningParts;
+  let assertOpeningDocumentReady;
 
   beforeEach(async () => {
     requireEvent = jest.fn(async () => fakeEvent());
     userEventIds = jest.fn(async () => ["evt_1"]);
     assertCanAddGuests = jest.fn(async () => undefined);
     deliverAiMessage = jest.fn(async () => undefined);
+    resolveReminderText = jest.fn(async () => "Recordatorio de prueba");
+    findTemplate = jest.fn(async () => ({ id: "tpl_1", category: "Primer contacto", body: "Hola" }));
+    resolveOpeningParts = jest.fn(() => ({
+      text: "¡Hola! Invitación",
+      param1: "Luis",
+      param2: "evento",
+    }));
+    assertOpeningDocumentReady = jest.fn(async () => ({ attachDocument: false }));
 
     ({ mod: controller, models } = await loadWithMocks("src/controllers/guests.controller.js", {
       extraMocks: {
@@ -35,6 +47,19 @@ describe("guests.controller", () => {
           assertCanSendInvitations: jest.fn(() => undefined),
         }),
         "src/services/guest-message.service.js": () => ({ deliverAiMessage }),
+        "src/services/templates.service.js": () => ({
+          findTemplate,
+          resolveOpeningParts,
+          resolveReminderText,
+          renderTemplate: jest.fn((body) => body),
+          resolveOpeningText: jest.fn(async () => "opening"),
+          resolveSeguimientoText: jest.fn(async () => "seguimiento"),
+          composeConstructorMessage: jest.fn(() => ""),
+        }),
+        "src/services/opening-document.service.js": () => ({
+          assertOpeningDocumentReady,
+          resolveOpeningDocumentFilePath: (doc) => doc?.filePath || doc?.relativePath || null,
+        }),
         "src/services/integration-resolver.service.js": () => ({
           assertWhatsappReady: jest.fn(async () => undefined),
         }),
@@ -50,6 +75,7 @@ describe("guests.controller", () => {
     models.Event.findByPk.mockResolvedValue(fakeEvent());
     models.Guest.findOne.mockResolvedValue(fakeGuest());
     models.Guest.create.mockImplementation(async (data) => fakeGuest(data));
+    models.AiConfig.findOne.mockResolvedValue(null);
   });
 
   test("createGuest 400 si invited es negativo", async () => {
@@ -182,9 +208,48 @@ describe("guests.controller", () => {
       req: createMockReq({ user: fakeUser(), params: { guestId: "gst_1" } }),
     });
 
+    expect(resolveReminderText).toHaveBeenCalled();
     expect(deliverAiMessage).toHaveBeenCalledWith(
       expect.objectContaining({
         kind: "reminder",
+        guestPatch: expect.objectContaining({
+          status: "enviado",
+          whatsapp: "pendiente",
+        }),
+      }),
+    );
+    expect(res.json).toHaveBeenCalled();
+  });
+
+  test("remindGuest envía invitación inicial si el invitado no ha sido contactado", async () => {
+    const guest = fakeGuest({ status: "sin_contactar", whatsapp: "pendiente" });
+    models.Guest.findOne.mockResolvedValue(guest);
+    assertOpeningDocumentReady.mockResolvedValue({
+      attachDocument: true,
+      templateName: "constructor2",
+      relativePath: "opening-docs/evt_1/abc.pdf",
+      absolutePath: "/tmp/inv.pdf",
+      fileName: "invitacion.pdf",
+      mime: "application/pdf",
+    });
+
+    const { res } = await callHandler(controller.remindGuest, {
+      req: createMockReq({ user: fakeUser(), params: { guestId: "gst_1" } }),
+    });
+
+    expect(resolveReminderText).not.toHaveBeenCalled();
+    expect(findTemplate).toHaveBeenCalledWith("evt_1", { category: "Primer contacto" });
+    expect(deliverAiMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        kind: "campaign",
+        text: "¡Hola! Invitación",
+        hsmParams: ["Luis", "evento"],
+        hsmTemplateName: "constructor2",
+        hsmHeaderDocument: {
+          relativePath: "opening-docs/evt_1/abc.pdf",
+          filename: "invitacion.pdf",
+          mime: "application/pdf",
+        },
         guestPatch: expect.objectContaining({
           status: "enviado",
           whatsapp: "pendiente",

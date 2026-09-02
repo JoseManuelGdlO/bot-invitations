@@ -57,7 +57,9 @@ describe("whatsapp-meta.controller", () => {
           metaClient: { sendTextWithRetry, sendTemplateWithRetry },
           sanitizeMetaBodyParam: (value) =>
             String(value || "")
-              .replace(/[\r\n\t]+/g, " ")
+              .replace(/\r\n/g, "\n")
+              .replace(/\r/g, "\n")
+              .replace(/\t/g, " ")
               .replace(/ {2,}/g, " ")
               .trim()
               .slice(0, 1024),

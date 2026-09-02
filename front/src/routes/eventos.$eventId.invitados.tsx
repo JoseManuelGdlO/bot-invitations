@@ -126,7 +126,9 @@ function Invitados() {
   const [pageSize, setPageSize] = useState<(typeof PAGE_SIZES)[number]>(20);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [guestToDelete, setGuestToDelete] = useState<Guest | null>(null);
+  const [guestToMessage, setGuestToMessage] = useState<Guest | null>(null);
   const [deleting, setDeleting] = useState(false);
+  const [sendingMessage, setSendingMessage] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState(EMPTY_GUEST_FORM);
@@ -486,11 +488,14 @@ function Invitados() {
                       <Button
                         size="sm"
                         variant="ghost"
-                        aria-label={`Enviar recordatorio a ${g.rep}`}
+                        aria-label={
+                          g.status === "sin_contactar"
+                            ? `Enviar invitación a ${g.rep}`
+                            : `Enviar recordatorio a ${g.rep}`
+                        }
                         onClick={(e) => {
                           e.stopPropagation();
-                          toast.success(`Mensaje enviado a ${g.rep}`);
-                          remindGuest(g.id);
+                          setGuestToMessage(g);
                         }}
                       >
                         <Send className="size-4" />
@@ -691,6 +696,61 @@ function Invitados() {
           ) : null}
         </SheetContent>
       </Sheet>
+
+      <AlertDialog
+        open={!!guestToMessage}
+        onOpenChange={(open) =>
+          !open && !sendingMessage && setGuestToMessage(null)
+        }
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {guestToMessage?.status === "sin_contactar"
+                ? `¿Enviar invitación a ${guestToMessage?.rep}?`
+                : `¿Enviar recordatorio a ${guestToMessage?.rep}?`}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {guestToMessage?.status === "sin_contactar"
+                ? "Se enviará la invitación inicial (primer contacto) por WhatsApp."
+                : "Se enviará un recordatorio por WhatsApp. Solo confirma si quieres reenviar el mensaje."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={sendingMessage}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={sendingMessage}
+              onClick={async (e) => {
+                e.preventDefault();
+                if (!guestToMessage) return;
+                const isOpening = guestToMessage.status === "sin_contactar";
+                setSendingMessage(true);
+                try {
+                  await remindGuest(guestToMessage.id);
+                  toast.success(
+                    isOpening
+                      ? `Invitación enviada a ${guestToMessage.rep}`
+                      : `Recordatorio enviado a ${guestToMessage.rep}`,
+                  );
+                  setGuestToMessage(null);
+                } catch (err) {
+                  toast.error(
+                    err instanceof ApiError
+                      ? err.message
+                      : "No se pudo enviar el mensaje",
+                  );
+                } finally {
+                  setSendingMessage(false);
+                }
+              }}
+            >
+              {sendingMessage ? "Enviando…" : "Enviar"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <AlertDialog
         open={!!guestToDelete}

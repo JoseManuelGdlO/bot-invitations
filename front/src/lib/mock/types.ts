@@ -113,6 +113,12 @@ export interface Template {
   title: string;
   body: string;
   greetingVar?: string;
+  attachDocument?: boolean;
+  document?: {
+    fileName: string;
+    mime: string | null;
+    size: number;
+  } | null;
 }
 
 export interface Faq {

@@ -1,9 +1,10 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
-import { Copy, Plus } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Copy, FileUp, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ConstructorOpeningEditor } from "@/components/constructor-opening-editor";
@@ -17,6 +18,7 @@ import {
   normalizeGreetingVar,
 } from "@/lib/template-vars";
 import { toast } from "sonner";
+import { ApiError } from "@/lib/api/client";
 
 export const Route = createFileRoute("/eventos/$eventId/mensajes")({
   head: () => ({
@@ -54,6 +56,148 @@ const categories = [
     hint: "Recontacto a indecisos, según las reglas de seguimiento.",
   },
 ] as const;
+
+const OPENING_DOC_MAX_BYTES = 10 * 1024 * 1024;
+const OPENING_DOC_ACCEPT =
+  ".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+
+function formatFileSize(bytes: number) {
+  if (!bytes) return "";
+  if (bytes < 1024) return `${bytes} B`;
+  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function isOpeningDocumentFile(file: File) {
+  const byExt = /\.(pdf|docx?)$/i.test(file.name);
+  const byMime =
+    !file.type ||
+    file.type === "application/pdf" ||
+    file.type === "application/msword" ||
+    file.type ===
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+  return byExt && byMime;
+}
+
+function OpeningDocumentAttach({
+  eventId,
+  template,
+  templates,
+  setTemplates,
+}: {
+  eventId: string;
+  template: Template;
+  templates: Template[];
+  setTemplates: (eventId: string, t: Template[]) => void;
+}) {
+  const { uploadOpeningDocument } = useStore();
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const attached = Boolean(template.attachDocument);
+  const current = template.document;
+
+  const persistAttach = (checked: boolean) => {
+    setTemplates(
+      eventId,
+      templates.map((x) =>
+        x.id === template.id ? { ...x, attachDocument: checked } : x,
+      ),
+    );
+  };
+
+  const onPick = async (file: File | undefined) => {
+    if (!file) return;
+    if (!isOpeningDocumentFile(file)) {
+      toast.error("El documento debe ser PDF o Word (doc, docx).");
+      return;
+    }
+    if (file.size > OPENING_DOC_MAX_BYTES) {
+      toast.error("El archivo no puede superar 10 MB.");
+      return;
+    }
+    setUploading(true);
+    try {
+      await uploadOpeningDocument(eventId, file);
+      toast.success(current ? "Documento reemplazado" : "Documento adjunto");
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError ? err.message : "No se pudo subir el documento",
+      );
+    } finally {
+      setUploading(false);
+      if (inputRef.current) inputRef.current.value = "";
+    }
+  };
+
+  return (
+    <div className="mt-4 space-y-3 rounded-xl border border-border bg-secondary/40 p-4">
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <Label htmlFor="attach-document" className="font-medium">
+            Adjuntar documento
+          </Label>
+          <p className="mt-0.5 text-xs text-muted-foreground">
+            Si está activo, la invitación inicial usa la plantilla de Meta con
+            PDF o Word.
+          </p>
+        </div>
+        <Switch
+          id="attach-document"
+          checked={attached}
+          onCheckedChange={persistAttach}
+        />
+      </div>
+      {attached ? (
+        <div className="space-y-2">
+          <input
+            ref={inputRef}
+            type="file"
+            accept={OPENING_DOC_ACCEPT}
+            className="sr-only"
+            onChange={(e) => void onPick(e.target.files?.[0])}
+          />
+          {current ? (
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm">
+              <p className="min-w-0 truncate">
+                {current.fileName}
+                {current.size ? (
+                  <span className="ml-2 text-muted-foreground">
+                    {formatFileSize(current.size)}
+                  </span>
+                ) : null}
+              </p>
+              <Button
+                type="button"
+                size="sm"
+                variant="outline"
+                disabled={uploading}
+                onClick={() => inputRef.current?.click()}
+              >
+                {uploading ? "Subiendo…" : "Reemplazar"}
+              </Button>
+            </div>
+          ) : (
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              disabled={uploading}
+              onClick={() => inputRef.current?.click()}
+            >
+              <FileUp className="size-4" />
+              {uploading ? "Subiendo…" : "Adjuntar documento"}
+            </Button>
+          )}
+          {!current ? (
+            <p className="text-xs text-destructive">
+              Sin documento la plantilla con adjunto fallará al enviar.
+            </p>
+          ) : null}
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 function TemplateCategory({
   eventId,
@@ -116,26 +260,34 @@ function TemplateCategory({
               </button>
             </div>
             {isConstructor ? (
-              <ConstructorOpeningEditor
-                greetingVar={draftGreeting}
-                body={draft}
-                extraVariables={extraVariables}
-                onGreetingVarChange={setDraftGreeting}
-                onChange={setDraft}
-                onSave={({ body, greetingVar }) => {
-                  setDraft(body);
-                  setDraftGreeting(greetingVar);
-                  setTemplates(
-                    eventId,
-                    templates.map((x) =>
-                      x.id === template.id
-                        ? { ...x, body, greetingVar }
-                        : x,
-                    ),
-                  );
-                  toast.success("Plantilla guardada");
-                }}
-              />
+              <>
+                <ConstructorOpeningEditor
+                  greetingVar={draftGreeting}
+                  body={draft}
+                  extraVariables={extraVariables}
+                  onGreetingVarChange={setDraftGreeting}
+                  onChange={setDraft}
+                  onSave={({ body, greetingVar }) => {
+                    setDraft(body);
+                    setDraftGreeting(greetingVar);
+                    setTemplates(
+                      eventId,
+                      templates.map((x) =>
+                        x.id === template.id
+                          ? { ...x, body, greetingVar }
+                          : x,
+                      ),
+                    );
+                    toast.success("Plantilla guardada");
+                  }}
+                />
+                <OpeningDocumentAttach
+                  eventId={eventId}
+                  template={template}
+                  templates={templates}
+                  setTemplates={setTemplates}
+                />
+              </>
             ) : (
               <TemplateBodyEditor
                 value={template.body}

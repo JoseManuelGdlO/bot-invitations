@@ -129,12 +129,22 @@ export function serializeAi(ai) {
 }
 
 export function serializeTemplate(t) {
+  const fileName = t.documentFileName || null;
+  const hasFile = Boolean(t.documentPath && fileName);
   return {
     id: t.id,
     category: t.category,
     title: t.title,
     body: t.body,
     greetingVar: t.greetingVar || "nombre",
+    attachDocument: Boolean(t.attachDocument),
+    document: hasFile
+      ? {
+          fileName,
+          mime: t.documentMime || null,
+          size: Number(t.documentSize) || 0,
+        }
+      : null,
   };
 }
 

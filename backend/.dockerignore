@@ -5,5 +5,4 @@ node_modules
 .gitignore
 *.md
 *.log
-uploads
 .DS_Store

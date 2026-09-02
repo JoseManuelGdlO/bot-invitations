@@ -124,7 +124,7 @@ interface Ctx extends State {
     },
   ) => Promise<Guest>;
   deleteGuest: (id: string) => Promise<void>;
-  remindGuest: (id: string) => void;
+  remindGuest: (id: string) => Promise<Guest>;
   importGuests: (eventId: string, rows: Guest[]) => void;
   previewImport: (eventId: string, file: File) => Promise<ImportPreview>;
   confirmImport: (
@@ -143,6 +143,7 @@ interface Ctx extends State {
   updateAI: (eventId: string, patch: Partial<EventData["ai"]>) => void;
   resetAI: (eventId: string) => Promise<void>;
   setTemplates: (eventId: string, t: EventData["templates"]) => void;
+  uploadOpeningDocument: (eventId: string, file: File) => Promise<EventData["templates"][number]>;
   setFaqs: (eventId: string, f: EventData["faqs"]) => void;
   sendMessage: (convId: string, msg: ChatMessage) => void;
   toggleAI: (convId: string, paused: boolean) => void;
@@ -387,15 +388,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           conversations: s.conversations.filter((c) => c.guestId !== id),
         }));
       },
-      remindGuest: (id) => {
-        api<Guest>(`/guests/${id}/remind`, { method: "POST" })
-          .then((guest) =>
-            setState((s) => ({
-              ...s,
-              guests: s.guests.map((g) => (g.id === guest.id ? guest : g)),
-            })),
-          )
-          .catch(console.error);
+      remindGuest: async (id) => {
+        const guest = await api<Guest>(`/guests/${id}/remind`, {
+          method: "POST",
+        });
+        setState((s) => ({
+          ...s,
+          guests: s.guests.map((g) => (g.id === guest.id ? guest : g)),
+        }));
+        return guest;
       },
       importGuests: (eventId, rows) => {
         setState((s) => ({ ...s, guests: [...s.guests, ...rows] }));
@@ -491,6 +492,33 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           method: "PUT",
           body: JSON.stringify(t),
         }).catch(console.error);
+      },
+      uploadOpeningDocument: async (eventId, file) => {
+        const body = new FormData();
+        body.append("file", file);
+        const next = await api<EventData["templates"][number]>(
+          `/events/${eventId}/opening-document`,
+          { method: "POST", body },
+        );
+        setState((s) => {
+          const current = s.data[eventId];
+          if (!current) return s;
+          return {
+            ...s,
+            data: {
+              ...s.data,
+              [eventId]: {
+                ...current,
+                templates: current.templates.map((t) =>
+                  t.category === "Primer contacto" || t.id === next.id
+                    ? { ...t, ...next }
+                    : t,
+                ),
+              },
+            },
+          };
+        });
+        return next;
       },
       setFaqs: (eventId, f) => {
         setState((s) => ({

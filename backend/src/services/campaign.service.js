@@ -18,6 +18,8 @@ import { findTemplate, resolveOpeningParts } from "./templates.service.js";
 import { logActivity } from "./activity.service.js";
 import { recordCampaignSendResult } from "./campaign-progress.js";
 import { activateEvent } from "./event-status.service.js";
+import { assertOpeningDocumentReady } from "./opening-document.service.js";
+import { openingHeaderDocumentFrom } from "./whatsapp.adapter.js";
 
 const log = new Logger("Campaign");
 const ACTIVE_STATUSES = ["queued", "running"];
@@ -109,6 +111,9 @@ export async function planCampaign(event, body = {}, now = new Date()) {
     throw httpError(400, "Este evento ya finalizó. No se puede iniciar una campaña.");
   }
 
+  const opening = await findTemplate(event.id, { category: "Primer contacto" });
+  await assertOpeningDocumentReady(opening);
+
   if (!isNow) {
     scheduledDate = parseScheduleDay(body?.date);
     assertScheduleDate(scheduledDate, event, now);
@@ -197,6 +202,23 @@ export async function executeCampaignLaunch(job) {
     }
   }
 
+  const opening = await findTemplate(event.id, { category: "Primer contacto" });
+  let hsmTemplateName = null;
+  let hsmHeaderDocument = null;
+  try {
+    const document = await assertOpeningDocumentReady(opening);
+    hsmHeaderDocument = openingHeaderDocumentFrom(document);
+    if (hsmHeaderDocument) hsmTemplateName = document.templateName;
+  } catch (err) {
+    if (Number(err?.status) === 400) throw err;
+    log.info("campaña aplazada: no se pudo preparar el documento", {
+      eventId: event.id,
+      campaignId: campaign.id,
+      reason: err.message,
+    });
+    return { retryAt: new Date(Date.now() + WA_RETRY_MS), reason: err.message };
+  }
+
   const [claimed] = await Campaign.update(
     { status: "running", launchedAt: new Date() },
     { where: { id: campaign.id, status: "queued" } },
@@ -208,7 +230,6 @@ export async function executeCampaignLaunch(job) {
   await activateEvent(event);
 
   const ai = await AiConfig.findOne({ where: { eventId: event.id } });
-  const opening = await findTemplate(event.id, { category: "Primer contacto" });
   const owner = await User.findByPk(event.ownerId);
   const plannerName = owner?.name || "";
   const now = new Date();
@@ -230,6 +251,8 @@ export async function executeCampaignLaunch(job) {
         guest,
         text,
         hsmParams: [param1, param2],
+        ...(hsmTemplateName ? { hsmTemplateName } : {}),
+        ...(hsmHeaderDocument ? { hsmHeaderDocument } : {}),
         kind: "campaign",
         campaignId: campaign.id,
       });

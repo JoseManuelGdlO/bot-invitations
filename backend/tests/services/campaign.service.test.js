@@ -8,17 +8,34 @@ describe("campaign.service", () => {
   let deliverAiMessage;
   let assertWhatsappReady;
   let recordCampaignSendResult;
+  let assertOpeningDocumentReady;
 
   beforeEach(async () => {
     deliverAiMessage = jest.fn(async () => ({ id: "c1" }));
     assertWhatsappReady = jest.fn(async () => undefined);
     recordCampaignSendResult = jest.fn(async () => undefined);
+    assertOpeningDocumentReady = jest.fn(async (tpl) => {
+      if (!tpl?.attachDocument) return { attachDocument: false };
+      return {
+        attachDocument: true,
+        templateName: "constructor2",
+        relativePath: "opening-docs/evt_1/abc.pdf",
+        absolutePath: "/tmp/inv.pdf",
+        fileName: "invitacion.pdf",
+        mime: "application/pdf",
+        size: 12,
+      };
+    });
     ({ mod: service, models } = await loadWithMocks("src/services/campaign.service.js", {
       extraMocks: {
         "src/services/guest-message.service.js": () => ({ deliverAiMessage }),
         "src/services/integration-resolver.service.js": () => ({ assertWhatsappReady }),
         "src/services/activity.service.js": () => ({ logActivity: jest.fn(async () => undefined) }),
         "src/services/campaign-progress.js": () => ({ recordCampaignSendResult }),
+        "src/services/opening-document.service.js": () => ({
+          assertOpeningDocumentReady,
+          resolveOpeningDocumentFilePath: (doc) => doc?.filePath || doc?.relativePath || null,
+        }),
       },
     }));
   });
@@ -56,6 +73,18 @@ describe("campaign.service", () => {
       message: "No hay invitados sin contactar.",
     });
     expect(assertWhatsappReady).not.toHaveBeenCalled();
+    expect(models.Campaign.create).not.toHaveBeenCalled();
+  });
+
+  test("planCampaign 400 si el adjunto está activo y falta el documento", async () => {
+    models.Guest.count.mockResolvedValue(2);
+    assertOpeningDocumentReady.mockRejectedValue(
+      Object.assign(new Error("Activa el adjunto pero falta el documento."), { status: 400 }),
+    );
+    await expect(service.planCampaign(fakeEvent(), { mode: "now" })).rejects.toMatchObject({
+      status: 400,
+      message: "Activa el adjunto pero falta el documento.",
+    });
     expect(models.Campaign.create).not.toHaveBeenCalled();
   });
 
@@ -326,10 +355,75 @@ describe("campaign.service", () => {
 
     expect(deliverAiMessage).toHaveBeenCalledWith(
       expect.objectContaining({
-        text: "¡Hola, buen día! Boda Ana\nNos comunicamos de Ana y Carlos. Confirma asistencia para Boda Ana.\nMuchas gracias.",
-        hsmParams: ["Boda Ana", "Ana y Carlos. Confirma asistencia para Boda Ana."],
+        text: "¡Hola, buen día! Boda Ana\nNos comunicamos de Ana y Carlos.\nConfirma asistencia para Boda Ana.\nMuchas gracias.",
+        hsmParams: ["Boda Ana", "Ana y Carlos.\nConfirma asistencia para Boda Ana."],
       }),
     );
+  });
+
+  test("executeCampaignLaunch con documento encola constructor2 y ruta del PDF", async () => {
+    const campaign = createInstance({
+      id: "cmp_1",
+      eventId: "evt_1",
+      status: "queued",
+      total: 0,
+      processed: 0,
+    });
+    const guest = fakeGuest();
+    models.Campaign.findByPk.mockResolvedValue(campaign);
+    models.Campaign.update.mockResolvedValue([1]);
+    models.Event.findByPk.mockResolvedValue(fakeEvent());
+    models.Guest.findAll.mockResolvedValue([guest]);
+    models.Guest.update.mockResolvedValue([1]);
+    models.Template.findOne.mockResolvedValue({
+      category: "Primer contacto",
+      attachDocument: true,
+      greetingVar: "nombre",
+      body: "Ana y Carlos. Los esperamos.",
+    });
+    models.AiConfig.findOne.mockResolvedValue({ openingMessage: "fallback", assistantName: "Sofía" });
+    models.User.findByPk.mockResolvedValue({ name: "Ana" });
+
+    await service.executeCampaignLaunch({ payload: { campaignId: "cmp_1", eventId: "evt_1" } });
+
+    expect(deliverAiMessage).toHaveBeenCalledWith(
+      expect.objectContaining({
+        hsmTemplateName: "constructor2",
+        hsmHeaderDocument: {
+          relativePath: "opening-docs/evt_1/abc.pdf",
+          filename: "invitacion.pdf",
+          mime: "application/pdf",
+        },
+        hsmParams: ["Luis", "Ana y Carlos. Los esperamos."],
+      }),
+    );
+  });
+
+  test("executeCampaignLaunch con adjunto sin archivo no marca invitados enviados", async () => {
+    const campaign = createInstance({
+      id: "cmp_1",
+      eventId: "evt_1",
+      status: "queued",
+      total: 0,
+      processed: 0,
+    });
+    models.Campaign.findByPk.mockResolvedValue(campaign);
+    models.Event.findByPk.mockResolvedValue(fakeEvent());
+    models.Guest.findAll.mockResolvedValue([fakeGuest()]);
+    models.Template.findOne.mockResolvedValue({ attachDocument: true });
+    assertOpeningDocumentReady.mockRejectedValue(
+      Object.assign(new Error("Activa el adjunto pero falta el documento."), { status: 400 }),
+    );
+
+    await expect(
+      service.executeCampaignLaunch({ payload: { campaignId: "cmp_1" } }),
+    ).rejects.toMatchObject({
+      status: 400,
+      message: "Activa el adjunto pero falta el documento.",
+    });
+    expect(models.Campaign.update).not.toHaveBeenCalled();
+    expect(models.Guest.update).not.toHaveBeenCalled();
+    expect(deliverAiMessage).not.toHaveBeenCalled();
   });
 
   test("executeCampaignLaunch sin invitados marca done", async () => {

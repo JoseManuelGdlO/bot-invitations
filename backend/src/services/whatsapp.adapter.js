@@ -1,11 +1,13 @@
 import { Conversation, Event, Guest, Message } from "../models/index.js";
 import { httpError } from "../utils/http-error.js";
 import { eventGuestVars } from "../utils/defaults.js";
-import { normalizeWaIdTo10 } from "../utils/whatsapp-identity.js";
+import { formatWhatsappGraphTo } from "../utils/whatsapp-identity.js";
 import { metaClient, sanitizeMetaBodyParam } from "./meta.client.js";
+import { resolveOpeningDocumentFilePath } from "./opening-document.service.js";
 import { resolveActiveWhatsappMetaByOwner } from "./whatsapp-meta.service.js";
 
 const CUSTOMER_CARE_WINDOW_MS = 24 * 60 * 60 * 1000;
+const mediaIdByFile = new Map();
 
 export async function isColdConversation(guestId, now = Date.now()) {
   if (!guestId) return true;
@@ -19,6 +21,51 @@ export async function isColdConversation(guestId, now = Date.now()) {
   return now - new Date(last.createdAt).getTime() > CUSTOMER_CARE_WINDOW_MS;
 }
 
+export function openingHeaderDocumentFrom(document) {
+  if (!document?.attachDocument) return null;
+  const filename = String(document.fileName || "").trim();
+  const mime = document.mime || "application/pdf";
+  const eventId = document.eventId || null;
+  const relativePath = String(document.relativePath || "").trim();
+  if (relativePath) {
+    return { relativePath, filename, mime, ...(eventId ? { eventId } : {}) };
+  }
+  const filePath = String(document.absolutePath || "").trim();
+  if (!filePath) return null;
+  return { filePath, filename, mime, ...(eventId ? { eventId } : {}) };
+}
+
+async function resolveHeaderDocument(headerDocument, credentials) {
+  if (!headerDocument) return null;
+  const filename = String(headerDocument.filename || headerDocument.fileName || "").trim();
+  const existingId = String(headerDocument.id || "").trim();
+  if (existingId) {
+    return { id: existingId, ...(filename ? { filename } : {}) };
+  }
+
+  const filePath = resolveOpeningDocumentFilePath({
+    ...headerDocument,
+    eventId: headerDocument.eventId,
+  });
+  if (!filePath) {
+    throw httpError(400, "La plantilla con documento requiere un archivo adjunto.");
+  }
+
+  const cacheKey = `${credentials.phoneNumberId}:${filePath}`;
+  let mediaId = mediaIdByFile.get(cacheKey);
+  if (!mediaId) {
+    mediaId = await metaClient.uploadDocument({
+      filePath,
+      filename,
+      mime: headerDocument.mime,
+      accessToken: credentials.accessToken,
+      phoneNumberId: credentials.phoneNumberId,
+    });
+    mediaIdByFile.set(cacheKey, mediaId);
+  }
+  return { id: mediaId, ...(filename ? { filename } : {}) };
+}
+
 export class MetaCloudProvider {
   async sendMessage(to, text, meta = {}) {
     const eventId = meta.eventId;
@@ -26,17 +73,19 @@ export class MetaCloudProvider {
     const event = await Event.findByPk(eventId);
     if (!event) throw httpError(400, "Evento no encontrado para el envío de WhatsApp.");
 
-    const phone = normalizeWaIdTo10(to);
+    const phone = formatWhatsappGraphTo(to);
     if (!phone) throw httpError(400, "Teléfono de WhatsApp inválido.");
 
     const body = String(text || "").trim();
     const guest = meta.guestId ? await Guest.findByPk(meta.guestId) : null;
     const cold = guest?.status === "sin_contactar" || (await isColdConversation(meta.guestId));
+    const forceTemplate = Boolean(meta.hsmHeaderDocument) || Boolean(meta.hsmTemplateName);
+    const useTemplate = forceTemplate || cold;
 
     const { credentials } = await resolveActiveWhatsappMetaByOwner(event.ownerId);
 
     let payload;
-    if (cold) {
+    if (useTemplate) {
       const fromJob = Array.isArray(meta.hsmParams)
         ? meta.hsmParams.map((value) => sanitizeMetaBodyParam(value)).filter(Boolean)
         : [];
@@ -44,11 +93,19 @@ export class MetaCloudProvider {
       const bodyParam = sanitizeMetaBodyParam(body);
       const bodyParams = fromJob.length >= 2 ? fromJob.slice(0, 2) : [nombre, bodyParam];
       if (!bodyParams[1]) throw httpError(400, "El mensaje de plantilla no puede estar vacío.");
+      const headerDocument = await resolveHeaderDocument(
+        meta.hsmHeaderDocument
+          ? { ...meta.hsmHeaderDocument, eventId: meta.hsmHeaderDocument.eventId || meta.eventId }
+          : null,
+        credentials,
+      );
       payload = await metaClient.sendTemplateWithRetry({
         to: phone,
         bodyParams,
         accessToken: credentials.accessToken,
         phoneNumberId: credentials.phoneNumberId,
+        ...(meta.hsmTemplateName ? { templateName: meta.hsmTemplateName } : {}),
+        ...(headerDocument ? { headerDocument } : {}),
       });
     } else {
       if (!body) throw httpError(400, "text is required when type=text");

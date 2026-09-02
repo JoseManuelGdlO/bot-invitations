@@ -1,6 +1,8 @@
 import { Op } from "sequelize";
 import { Event, Guest, Message, OutboundJob } from "../models/index.js";
-import { createWhatsAppProvider, isColdConversation } from "./whatsapp.adapter.js";
+import { createWhatsAppProvider, isColdConversation, openingHeaderDocumentFrom } from "./whatsapp.adapter.js";
+import { findTemplate } from "./templates.service.js";
+import { assertOpeningDocumentReady } from "./opening-document.service.js";
 import { env } from "../config/env.js";
 import { Logger } from "../utils/logger.js";
 import { formatWhatsappTo, resolveWhatsappTo } from "../utils/whatsapp-identity.js";
@@ -26,6 +28,8 @@ function sendMeta(job, extra = {}) {
     eventId: payload.eventId || null,
     guestId: payload.guestId || null,
     chars: String(payload.text || "").length,
+    hsmTemplateName: payload.hsmTemplateName || null,
+    hasDocument: Boolean(payload.hsmHeaderDocument),
     ...extra,
   };
 }
@@ -83,6 +87,24 @@ function skipWhatsappSendReason(payload) {
   if (!String(payload?.text || "").trim()) return "texto vacío";
   if (!String(payload?.to || "").trim()) return "sin destinatario";
   return null;
+}
+
+async function resolveCampaignHeader(payload = {}) {
+  const existing = payload.hsmHeaderDocument || null;
+  const templateName = payload.hsmTemplateName || null;
+  if (payload.kind !== "campaign" || !payload.eventId) {
+    return { hsmHeaderDocument: existing, hsmTemplateName: templateName };
+  }
+  const opening = await findTemplate(payload.eventId, { category: "Primer contacto" });
+  if (!opening?.attachDocument) {
+    return { hsmHeaderDocument: existing, hsmTemplateName: templateName };
+  }
+  const document = await assertOpeningDocumentReady(opening);
+  const hsmHeaderDocument = existing || openingHeaderDocumentFrom(document);
+  return {
+    hsmHeaderDocument,
+    hsmTemplateName: document.templateName || templateName || null,
+  };
 }
 
 async function claimQueuedJob(job) {
@@ -147,18 +169,31 @@ export async function processJob(job) {
         const guest = await Guest.findByPk(job.payload.guestId);
         if (guest) to = resolveWhatsappTo(guest) || to;
       }
-      waLog.info("enviando whatsapp.send", sendMeta(job, { to }));
+      const { hsmHeaderDocument, hsmTemplateName } = await resolveCampaignHeader(job.payload);
+      waLog.info("enviando whatsapp.send", sendMeta(job, {
+        to,
+        hsmTemplateName,
+        hasDocument: Boolean(hsmHeaderDocument),
+      }));
       const result = await provider.sendMessage(to, job.payload.text, {
         eventId: job.payload.eventId,
         guestId: job.payload.guestId,
         conversationId: job.payload.conversationId,
+        kind: job.payload.kind,
         hsmParams: job.payload.hsmParams,
+        hsmTemplateName,
+        hsmHeaderDocument,
       });
       const ok = !result.skipped;
       const status = result.skipped ? "skipped" : "done";
       await job.update({
         status,
-        payload: { ...job.payload, result },
+        payload: {
+          ...job.payload,
+          ...(hsmTemplateName ? { hsmTemplateName } : {}),
+          ...(hsmHeaderDocument ? { hsmHeaderDocument } : {}),
+          result,
+        },
       });
       waLog.info(ok ? "whatsapp.send done" : "whatsapp.send skipped", sendMeta(job, {
         status,
@@ -177,6 +212,7 @@ export async function processJob(job) {
         status: "failed",
         to,
         error: err.message,
+        ...(err.meta && { meta: err.meta }),
         stack: err.stack,
       }));
       await syncWhatsappSendJob(job, { ok: false });

@@ -6,12 +6,15 @@ describe("whatsapp.adapter MetaCloudProvider", () => {
   let models;
   let sendTemplateWithRetry;
   let sendTextWithRetry;
+  let uploadDocument;
   let resolveActiveWhatsappMetaByOwner;
   const metaAuth = { accessToken: "owner-token", phoneNumberId: "10987654321" };
 
   function sanitizeMetaBodyParam(value) {
     return String(value || "")
-      .replace(/[\r\n\t]+/g, " ")
+      .replace(/\r\n/g, "\n")
+      .replace(/\r/g, "\n")
+      .replace(/\t/g, " ")
       .replace(/ {2,}/g, " ")
       .trim()
       .slice(0, 1024);
@@ -20,13 +23,14 @@ describe("whatsapp.adapter MetaCloudProvider", () => {
   beforeEach(async () => {
     sendTemplateWithRetry = jest.fn(async () => ({ messages: [{ id: "wamid.tpl" }] }));
     sendTextWithRetry = jest.fn(async () => ({ messages: [{ id: "wamid.txt" }] }));
+    uploadDocument = jest.fn(async () => "media_from_path");
     resolveActiveWhatsappMetaByOwner = jest.fn(async () => ({
       credentials: metaAuth,
     }));
     ({ mod: adapter, models } = await loadWithMocks("src/services/whatsapp.adapter.js", {
       extraMocks: {
         "src/services/meta.client.js": () => ({
-          metaClient: { sendTemplateWithRetry, sendTextWithRetry },
+          metaClient: { sendTemplateWithRetry, sendTextWithRetry, uploadDocument },
           sanitizeMetaBodyParam,
         }),
         "src/services/whatsapp-meta.service.js": () => ({
@@ -58,7 +62,7 @@ describe("whatsapp.adapter MetaCloudProvider", () => {
     });
   });
 
-  test("cold (sin inbound) envía plantilla con {{1}} nombre y {{2}} copy a 10 dígitos", async () => {
+  test("cold (sin inbound) envía plantilla con {{1}} nombre y {{2}} copy a 521 + 10 dígitos", async () => {
     models.Event.findByPk.mockResolvedValue(fakeEvent());
     models.Guest.findByPk.mockResolvedValue(fakeGuest({ rep: "Luis Pérez", status: "sin_contactar" }));
     models.Conversation.findOne.mockResolvedValue(null);
@@ -69,8 +73,8 @@ describe("whatsapp.adapter MetaCloudProvider", () => {
     });
     expect(resolveActiveWhatsappMetaByOwner).toHaveBeenCalledWith("usr_test_1");
     expect(sendTemplateWithRetry).toHaveBeenCalledWith({
-      to: "5512345678",
-      bodyParams: ["Luis", "Hola invitación"],
+      to: "5215512345678",
+      bodyParams: ["Luis", "Hola\ninvitación"],
       ...metaAuth,
     });
     expect(sendTextWithRetry).not.toHaveBeenCalled();
@@ -78,7 +82,7 @@ describe("whatsapp.adapter MetaCloudProvider", () => {
       expect.objectContaining({
         provider: "meta-cloud",
         providerId: "wamid.tpl",
-        to: "5512345678",
+        to: "5215512345678",
         skipped: false,
         conversationStarted: true,
       }),
@@ -96,8 +100,109 @@ describe("whatsapp.adapter MetaCloudProvider", () => {
       hsmParams: ["Boda Ana", "Ana y Carlos. Los esperamos."],
     });
     expect(sendTemplateWithRetry).toHaveBeenCalledWith({
-      to: "5512345678",
+      to: "5215512345678",
       bodyParams: ["Boda Ana", "Ana y Carlos. Los esperamos."],
+      ...metaAuth,
+    });
+  });
+
+  test("cold con hsmParams de documento usa constructor2 y header", async () => {
+    models.Event.findByPk.mockResolvedValue(fakeEvent());
+    models.Guest.findByPk.mockResolvedValue(fakeGuest({ rep: "Luis Pérez", status: "sin_contactar" }));
+    models.Conversation.findOne.mockResolvedValue(null);
+    const provider = adapter.createWhatsAppProvider();
+    await provider.sendMessage("5512345678", "mensaje compuesto", {
+      eventId: "evt_1",
+      guestId: "gst_1",
+      hsmParams: ["Boda Ana", "Ana y Carlos. Los esperamos."],
+      hsmTemplateName: "constructor2",
+      hsmHeaderDocument: { id: "media_abc", filename: "invitacion.pdf" },
+    });
+    expect(sendTemplateWithRetry).toHaveBeenCalledWith({
+      to: "5215512345678",
+      bodyParams: ["Boda Ana", "Ana y Carlos. Los esperamos."],
+      templateName: "constructor2",
+      headerDocument: { id: "media_abc", filename: "invitacion.pdf" },
+      ...metaAuth,
+    });
+  });
+
+  test("reescribe filePath de Docker /app/uploads al enviar", async () => {
+    models.Event.findByPk.mockResolvedValue(fakeEvent());
+    models.Guest.findByPk.mockResolvedValue(fakeGuest({ rep: "Luis Pérez", status: "enviado" }));
+    models.Conversation.findOne.mockResolvedValue(null);
+    const provider = adapter.createWhatsAppProvider();
+    await provider.sendMessage("5512345678", "mensaje compuesto", {
+      eventId: "evt_1",
+      guestId: "gst_1",
+      hsmParams: ["Boda Ana", "Ana y Carlos. Los esperamos."],
+      hsmTemplateName: "constructor2",
+      hsmHeaderDocument: {
+        filePath: "/app/uploads/opening-docs/evt_1/abc.pdf",
+        filename: "invitacion.pdf",
+        mime: "application/pdf",
+      },
+    });
+    const uploadedPath = uploadDocument.mock.calls[0][0].filePath;
+    expect(uploadedPath).toMatch(/opening-docs[/\\]evt_1[/\\]abc\.pdf$/);
+    expect(uploadedPath).not.toMatch(/^[/\\]app[/\\]uploads/);
+  });
+
+  test("sube el PDF al enviar si el job trae relativePath", async () => {
+    models.Event.findByPk.mockResolvedValue(fakeEvent());
+    models.Guest.findByPk.mockResolvedValue(fakeGuest({ rep: "Luis Pérez", status: "enviado" }));
+    models.Conversation.findOne.mockResolvedValue(null);
+    const provider = adapter.createWhatsAppProvider();
+    await provider.sendMessage("5512345678", "mensaje compuesto", {
+      eventId: "evt_1",
+      guestId: "gst_1",
+      hsmParams: ["Boda Ana", "Ana y Carlos. Los esperamos."],
+      hsmTemplateName: "constructor2",
+      hsmHeaderDocument: {
+        relativePath: "opening-docs/evt_1/abc.pdf",
+        filename: "invitacion.pdf",
+        mime: "application/pdf",
+      },
+    });
+    expect(uploadDocument).toHaveBeenCalledWith(
+      expect.objectContaining({
+        filePath: expect.stringMatching(/opening-docs[/\\]evt_1[/\\]abc\.pdf$/),
+        filename: "invitacion.pdf",
+        mime: "application/pdf",
+        ...metaAuth,
+      }),
+    );
+  });
+
+  test("sube el PDF al enviar si el job trae filePath", async () => {
+    models.Event.findByPk.mockResolvedValue(fakeEvent());
+    models.Guest.findByPk.mockResolvedValue(fakeGuest({ rep: "Luis Pérez", status: "enviado" }));
+    models.Conversation.findOne.mockResolvedValue(null);
+    const provider = adapter.createWhatsAppProvider();
+    await provider.sendMessage("5512345678", "mensaje compuesto", {
+      eventId: "evt_1",
+      guestId: "gst_1",
+      hsmParams: ["Boda Ana", "Ana y Carlos. Los esperamos."],
+      hsmTemplateName: "constructor2",
+      hsmHeaderDocument: {
+        filePath: "/tmp/inv.pdf",
+        filename: "invitacion.pdf",
+        mime: "application/pdf",
+      },
+    });
+    expect(uploadDocument).toHaveBeenCalledWith(
+      expect.objectContaining({
+        filePath: "/tmp/inv.pdf",
+        filename: "invitacion.pdf",
+        mime: "application/pdf",
+        ...metaAuth,
+      }),
+    );
+    expect(sendTemplateWithRetry).toHaveBeenCalledWith({
+      to: "5215512345678",
+      bodyParams: ["Boda Ana", "Ana y Carlos. Los esperamos."],
+      templateName: "constructor2",
+      headerDocument: { id: "media_from_path", filename: "invitacion.pdf" },
       ...metaAuth,
     });
   });
@@ -127,7 +232,7 @@ describe("whatsapp.adapter MetaCloudProvider", () => {
       guestId: "gst_1",
     });
     expect(sendTextWithRetry).toHaveBeenCalledWith({
-      to: "6183218624",
+      to: "5216183218624",
       text: "¿Confirmas?",
       ...metaAuth,
     });

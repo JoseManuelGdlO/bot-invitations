@@ -1,4 +1,4 @@
-import { BotSession, Conversation, Event, Guest, Message, sequelize } from "../models/index.js";
+import { AiConfig, BotSession, Conversation, Event, Guest, Message, sequelize } from "../models/index.js";
 import { asyncHandler } from "../utils/async.js";
 import { serializeGuest } from "../utils/serialize.js";
 import { requireEvent, userEventIds, requirePermission, hasEventPermission, PERMS } from "../services/access.service.js";
@@ -8,7 +8,9 @@ import { guestsToRows, toCsv, toPdf, toXlsx } from "../services/export.service.j
 import { assertCanAddGuestsForEvent, assertCanSendInvitations } from "../services/plans.service.js";
 import { assertWhatsappReady } from "../services/integration-resolver.service.js";
 import { deliverAiMessage } from "../services/guest-message.service.js";
-import { resolveReminderText } from "../services/templates.service.js";
+import { findTemplate, resolveOpeningParts, resolveReminderText } from "../services/templates.service.js";
+import { assertOpeningDocumentReady } from "../services/opening-document.service.js";
+import { openingHeaderDocumentFrom } from "../services/whatsapp.adapter.js";
 import { phonesMatch } from "../services/bot/session.service.js";
 
 async function findGuestForUser(userId, guestId) {
@@ -126,6 +128,35 @@ export const deleteGuest = asyncHandler(async (req, res) => {
   res.json({ ok: true });
 });
 
+async function deliverOpeningInvitation({ event, guest, plannerName }) {
+  const opening = await findTemplate(event.id, { category: "Primer contacto" });
+  const document = await assertOpeningDocumentReady(opening);
+  const hsmHeaderDocument = openingHeaderDocumentFrom(document);
+  const hsmTemplateName = hsmHeaderDocument ? document.templateName : null;
+  const ai = await AiConfig.findOne({ where: { eventId: event.id } });
+  const { text, param1, param2 } = resolveOpeningParts(
+    opening,
+    event,
+    guest,
+    plannerName,
+    ai?.openingMessage,
+  );
+  return deliverAiMessage({
+    event,
+    guest,
+    text,
+    hsmParams: [param1, param2],
+    ...(hsmTemplateName ? { hsmTemplateName } : {}),
+    ...(hsmHeaderDocument ? { hsmHeaderDocument } : {}),
+    kind: "campaign",
+    guestPatch: {
+      status: "enviado",
+      whatsapp: "pendiente",
+      contactedAt: new Date(),
+    },
+  });
+}
+
 export const remindGuest = asyncHandler(async (req, res) => {
   const { guest, event } = await findGuestForUser(req.user.id, req.params.guestId);
   if (!guest) return res.status(404).json({ error: "Invitado no encontrado." });
@@ -133,19 +164,26 @@ export const remindGuest = asyncHandler(async (req, res) => {
   if (!(await requirePermission(req, res, event, PERMS.REPLY))) return;
   assertCanSendInvitations(req.user);
   await assertWhatsappReady(event);
-  const text = await resolveReminderText(event, guest, req.user.name);
-  await deliverAiMessage({
-    event,
-    guest,
-    text,
-    kind: "reminder",
-    guestPatch: {
-      status: guest.status === "sin_contactar" ? "enviado" : guest.status,
-      whatsapp: "pendiente",
-      contactedAt: guest.contactedAt || new Date(),
-    },
-  });
-  await logActivity(event.id, `Se envió un recordatorio a ${guest.rep}`, "message");
+
+  const sendOpening = guest.status === "sin_contactar";
+  if (sendOpening) {
+    await deliverOpeningInvitation({ event, guest, plannerName: req.user.name });
+    await logActivity(event.id, `Se envió la invitación inicial a ${guest.rep}`, "message");
+  } else {
+    const text = await resolveReminderText(event, guest, req.user.name);
+    await deliverAiMessage({
+      event,
+      guest,
+      text,
+      kind: "reminder",
+      guestPatch: {
+        status: guest.status,
+        whatsapp: "pendiente",
+        contactedAt: guest.contactedAt || new Date(),
+      },
+    });
+    await logActivity(event.id, `Se envió un recordatorio a ${guest.rep}`, "message");
+  }
   res.json(serializeGuest(guest, event.slug));
 });
 
