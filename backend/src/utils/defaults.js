@@ -84,6 +84,13 @@ export function flattenTemplateLine(value) {
     .trim();
 }
 
+export function normalizeTemplateMultiline(value) {
+  return String(value || "")
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .replace(/\t/g, " ");
+}
+
 export function normalizeGreetingVar(value) {
   const key = String(value || "").trim();
   return Object.prototype.hasOwnProperty.call(eventGuestVars({}, {}, ""), key) ? key : "nombre";

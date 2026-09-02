@@ -26,12 +26,20 @@ function jsonResponse(status, body) {
 }
 
 describe("sanitizeMetaBodyParam", () => {
-  test("aplana saltos de línea y tabs", () => {
-    expect(sanitizeMetaBodyParam("Hola\n\nmundo\t!")).toBe("Hola mundo !");
+  test("conserva saltos de línea y convierte tabs en espacio", () => {
+    expect(sanitizeMetaBodyParam("Hola\n\nmundo\t!")).toBe("Hola\n\nmundo !");
+  });
+
+  test("normaliza CRLF y colapsa espacios horizontales", () => {
+    expect(sanitizeMetaBodyParam("Hola\r\n\r\nmundo  extra")).toBe("Hola\n\nmundo extra");
   });
 
   test("colapsa espacios y recorta", () => {
     expect(sanitizeMetaBodyParam("  hola   mundo  ")).toBe("hola mundo");
+  });
+
+  test("conserva markup WhatsApp", () => {
+    expect(sanitizeMetaBodyParam("*Brenda & Denis*\n_cursiva_")).toBe("*Brenda & Denis*\n_cursiva_");
   });
 });
 
@@ -84,7 +92,7 @@ describe("meta.client", () => {
           type: "body",
           parameters: [
             { type: "text", text: "Luis" },
-            { type: "text", text: "Hola invitación" },
+            { type: "text", text: "Hola\ninvitación" },
           ],
         },
       ],
@@ -118,7 +126,7 @@ describe("meta.client", () => {
           type: "body",
           parameters: [
             { type: "text", text: "Luis" },
-            { type: "text", text: "Hola invitación" },
+            { type: "text", text: "Hola\ninvitación" },
           ],
         },
       ],

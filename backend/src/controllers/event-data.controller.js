@@ -11,7 +11,6 @@ import {
   aiConfigDefaultsSnapshot,
   DEFAULT_AI_TONE,
   defaultConversationRules,
-  flattenTemplateLine,
   mergeConversationRules,
   normalizeGreetingVar,
 } from "../utils/defaults.js";
@@ -119,7 +118,7 @@ export const setTemplates = asyncHandler(async (req, res) => {
         eventId: event.id,
         category,
         title: t.title,
-        body: isOpening ? flattenTemplateLine(t.body) : t.body,
+        body: t.body,
         greetingVar: isOpening ? normalizeGreetingVar(t.greetingVar) : "nombre",
         attachDocument: isOpening ? Boolean(t.attachDocument) : false,
         documentPath: isOpening ? prev?.documentPath || null : null,

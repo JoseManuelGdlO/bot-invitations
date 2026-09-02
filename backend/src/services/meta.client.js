@@ -17,7 +17,9 @@ class MetaRequestError extends Error {
 
 export function sanitizeMetaBodyParam(value) {
   return String(value || "")
-    .replace(/[\r\n\t]+/g, " ")
+    .replace(/\r\n/g, "\n")
+    .replace(/\r/g, "\n")
+    .replace(/\t/g, " ")
     .replace(/ {2,}/g, " ")
     .trim()
     .slice(0, BODY_PARAM_MAX);

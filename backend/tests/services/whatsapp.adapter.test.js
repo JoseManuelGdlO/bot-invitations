@@ -12,7 +12,9 @@ describe("whatsapp.adapter MetaCloudProvider", () => {
 
   function sanitizeMetaBodyParam(value) {
     return String(value || "")
-      .replace(/[\r\n\t]+/g, " ")
+      .replace(/\r\n/g, "\n")
+      .replace(/\r/g, "\n")
+      .replace(/\t/g, " ")
       .replace(/ {2,}/g, " ")
       .trim()
       .slice(0, 1024);
@@ -72,7 +74,7 @@ describe("whatsapp.adapter MetaCloudProvider", () => {
     expect(resolveActiveWhatsappMetaByOwner).toHaveBeenCalledWith("usr_test_1");
     expect(sendTemplateWithRetry).toHaveBeenCalledWith({
       to: "5215512345678",
-      bodyParams: ["Luis", "Hola invitación"],
+      bodyParams: ["Luis", "Hola\ninvitación"],
       ...metaAuth,
     });
     expect(sendTextWithRetry).not.toHaveBeenCalled();

@@ -7,7 +7,6 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import {
-  flattenTemplateLine,
   normalizeGreetingVar,
   TEMPLATE_VARIABLES,
   type TemplateVariable,
@@ -34,8 +33,7 @@ export function ConstructorOpeningEditor({
     <TemplateBodyEditor
       value={body}
       onChange={onChange}
-      flattenNewlines
-      rows={5}
+      rows={12}
       prefix={
         <div className="mb-2 space-y-2 font-sans text-sm leading-relaxed">
           <p>
@@ -73,7 +71,7 @@ export function ConstructorOpeningEditor({
       }
       onSave={(nextBody) =>
         onSave({
-          body: flattenTemplateLine(nextBody),
+          body: nextBody,
           greetingVar: selected,
         })
       }

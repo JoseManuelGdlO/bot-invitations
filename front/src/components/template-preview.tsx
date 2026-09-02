@@ -1,5 +1,6 @@
 import { Sparkles } from "lucide-react";
 import { interpolateTemplate } from "@/lib/template-vars";
+import { parseWhatsAppMarkup } from "@/lib/whatsapp-markup";
 import type { EventItem, Guest } from "@/lib/mock/types";
 import { cn } from "@/lib/utils";
 
@@ -9,6 +10,32 @@ type Props = {
   event: EventItem | undefined;
   plannerName?: string;
 };
+
+function WhatsAppFormattedText({ text }: { text: string }) {
+  const segments = parseWhatsAppMarkup(text);
+  return (
+    <p className="whitespace-pre-line">
+      {segments.map((segment, index) => {
+        switch (segment.type) {
+          case "strong":
+            return <strong key={index}>{segment.value}</strong>;
+          case "em":
+            return <em key={index}>{segment.value}</em>;
+          case "s":
+            return <s key={index}>{segment.value}</s>;
+          case "code":
+            return (
+              <code key={index} className="font-mono text-[0.95em]">
+                {segment.value}
+              </code>
+            );
+          default:
+            return <span key={index}>{segment.value}</span>;
+        }
+      })}
+    </p>
+  );
+}
 
 export function TemplatePreview({
   body,
@@ -39,9 +66,9 @@ export function TemplatePreview({
                 {guest.rep}
               </p>
               <div className="rounded-2xl rounded-br-sm bg-success-soft p-3 text-xs leading-relaxed shadow-soft">
-                <p className="whitespace-pre-line">
-                  {interpolateTemplate(body, guest, event, plannerName)}
-                </p>
+                <WhatsAppFormattedText
+                  text={interpolateTemplate(body, guest, event, plannerName)}
+                />
               </div>
             </div>
           ))

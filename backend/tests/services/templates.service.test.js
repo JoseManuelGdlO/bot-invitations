@@ -14,7 +14,7 @@ describe("templates.service opening constructor", () => {
     );
   });
 
-  test("resolveOpeningParts interpola greetingVar y aplana {{2}}", () => {
+  test("resolveOpeningParts interpola greetingVar y conserva saltos en {{2}}", () => {
     const parts = service.resolveOpeningParts(
       {
         greetingVar: "evento",
@@ -25,10 +25,24 @@ describe("templates.service opening constructor", () => {
       "Ana López",
     );
     expect(parts.param1).toBe("Boda Ana");
-    expect(parts.param2).toBe("el equipo de Ana López. Confirma Boda Ana el 2027-01-01.");
+    expect(parts.param2).toBe("el equipo de Ana López.\nConfirma Boda Ana el 2027-01-01.");
     expect(parts.text).toBe(
-      "¡Hola, buen día! Boda Ana\nNos comunicamos de el equipo de Ana López. Confirma Boda Ana el 2027-01-01.\nMuchas gracias.",
+      "¡Hola, buen día! Boda Ana\nNos comunicamos de el equipo de Ana López.\nConfirma Boda Ana el 2027-01-01.\nMuchas gracias.",
     );
+  });
+
+  test("resolveOpeningParts conserva markup WhatsApp en {{2}}", () => {
+    const parts = service.resolveOpeningParts(
+      {
+        greetingVar: "nombre",
+        body: "RG Eventos de parte de:\n\n*Brenda & Denis*\n\npara {{evento}}.",
+      },
+      fakeEvent(),
+      fakeGuest(),
+      "Ana",
+    );
+    expect(parts.param2).toBe("RG Eventos de parte de:\n\n*Brenda & Denis*\n\npara Boda Ana.");
+    expect(parts.text).toContain("*Brenda & Denis*");
   });
 
   test("resolveOpeningParts greetingVar inválido cae a nombre", () => {
