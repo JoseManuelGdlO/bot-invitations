@@ -117,8 +117,8 @@ function Resumen() {
   }
 
   return (
-    <main className="mx-auto w-full max-w-7xl flex-1 px-5 py-8 md:px-8">
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <main className="mx-auto flex h-full min-h-0 w-full max-w-7xl flex-1 flex-col overflow-hidden px-5 py-8 md:px-8">
+      <div className="grid shrink-0 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           label="Invitaciones registradas"
           value={s.invitations}
@@ -157,37 +157,48 @@ function Resumen() {
         />
       </div>
 
-      <div className="mt-8 grid gap-6 lg:grid-cols-[1fr_1.4fr]">
-        <section className="rounded-2xl border border-border bg-card p-6 shadow-soft">
-          <h2 className="font-display text-2xl">Progreso general</h2>
-          <div className="mt-6 flex flex-col items-center gap-4">
+      <div className="mt-8 grid min-h-0 flex-1 gap-6 lg:grid-cols-[1fr_1.4fr] lg:grid-rows-1">
+        <section className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-border bg-card p-4 shadow-soft">
+          <h2 className="shrink-0 font-display text-2xl">Progreso general</h2>
+          <div className="mt-3 flex min-h-0 flex-1 flex-col items-center justify-center gap-3 overflow-hidden">
             <ProgressRing
               value={s.progress}
+              size={96}
+              stroke={8}
               caption={`${s.progress}% de invitados ya confirmaron`}
             />
-            <div className="grid w-full grid-cols-3 gap-3 text-center">
-              <div className="rounded-xl bg-success-soft p-3">
-                <p className="font-display text-xl text-success">
+            <div className="grid w-full grid-cols-3 gap-2 text-center">
+              <div className="rounded-lg bg-success-soft p-2">
+                <p className="font-display text-lg leading-none text-success">
                   {s.confirmedPeople}
                 </p>
-                <p className="text-[11px] text-muted-foreground">Confirmados</p>
+                <p className="mt-1 text-[10px] text-muted-foreground">
+                  Confirmados
+                </p>
               </div>
-              <div className="rounded-xl bg-warning-soft p-3">
-                <p className="font-display text-xl text-warning">{s.pending}</p>
-                <p className="text-[11px] text-muted-foreground">Pendientes</p>
+              <div className="rounded-lg bg-warning-soft p-2">
+                <p className="font-display text-lg leading-none text-warning">
+                  {s.pending}
+                </p>
+                <p className="mt-1 text-[10px] text-muted-foreground">
+                  Pendientes
+                </p>
               </div>
-              <div className="rounded-xl bg-rose p-3">
-                <p className="font-display text-xl text-rose-foreground">
+              <div className="rounded-lg bg-rose p-2">
+                <p className="font-display text-lg leading-none text-rose-foreground">
                   {s.rejectedPeople}
                 </p>
-                <p className="text-[11px] text-muted-foreground">No asisten</p>
+                <p className="mt-1 text-[10px] text-muted-foreground">
+                  No asisten
+                </p>
               </div>
             </div>
-            <div className="flex w-full flex-col gap-2 pt-2">
+            <div className="flex w-full shrink-0 flex-col gap-1.5">
               {hasPerm(eventId, PERMS.REPLY) ? (
                 <>
                   <Button
-                    className="relative h-auto min-h-9 w-full overflow-hidden disabled:opacity-100"
+                    size="sm"
+                    className="relative h-auto min-h-8 w-full overflow-hidden disabled:opacity-100"
                     disabled={running || submitting || complete || eventFinished}
                     onClick={() => {
                       if (canLaunch) {
@@ -247,7 +258,7 @@ function Resumen() {
                 </>
               ) : null}
               {hasPerm(eventId, PERMS.EXPORT) ? (
-                <Button variant="outline" asChild>
+                <Button variant="outline" size="sm" asChild>
                   <Link to="/eventos/$eventId/lista-final" params={{ eventId }}>
                     Ver lista final
                   </Link>
@@ -257,9 +268,9 @@ function Resumen() {
           </div>
         </section>
 
-        <section className="rounded-2xl border border-border bg-card p-6 shadow-soft">
-          <h2 className="font-display text-2xl">Actividad del evento</h2>
-          <div className="mt-4">
+        <section className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-border bg-card p-6 shadow-soft">
+          <h2 className="shrink-0 font-display text-2xl">Actividad del evento</h2>
+          <div className="mt-4 min-h-0 flex-1 overflow-y-auto">
             {eventActivity.length === 0 ? (
               <p className="text-sm text-muted-foreground">
                 Todavía no hay actividad registrada.
@@ -283,24 +294,24 @@ function Resumen() {
                 </div>
               ))
             )}
-          </div>
 
-          <h3 className="mt-8 font-display text-xl">Últimas respuestas</h3>
-          <div className="mt-3 space-y-3">
-            {guests
-              .filter((g) => g.lastReply)
-              .slice(0, 4)
-              .map((g) => (
-                <div
-                  key={g.id}
-                  className="rounded-xl border border-border bg-secondary/40 p-3"
-                >
-                  <p className="text-sm">“{g.lastReply}”</p>
-                  <p className="mt-1 text-[11px] text-muted-foreground">
-                    {g.rep} · {g.lastReplyAt}
-                  </p>
-                </div>
-              ))}
+            <h3 className="mt-6 font-display text-xl">Últimas respuestas</h3>
+            <div className="mt-3 space-y-3 pb-1">
+              {guests
+                .filter((g) => g.lastReply)
+                .slice(0, 4)
+                .map((g) => (
+                  <div
+                    key={g.id}
+                    className="rounded-xl border border-border bg-secondary/40 p-3"
+                  >
+                    <p className="text-sm">“{g.lastReply}”</p>
+                    <p className="mt-1 text-[11px] text-muted-foreground">
+                      {g.rep} · {g.lastReplyAt}
+                    </p>
+                  </div>
+                ))}
+            </div>
           </div>
         </section>
       </div>

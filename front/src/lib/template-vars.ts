@@ -7,6 +7,10 @@ export const TEMPLATE_VARIABLES = [
   "numero_invitados",
   "numero_confirmados",
   "mesa",
+  "familia",
+  "tipo",
+  "notas",
+  "etiqueta",
   "evento",
   "fecha",
   "lugar",
@@ -19,6 +23,18 @@ export type TemplateVariable = (typeof TEMPLATE_VARIABLES)[number];
 
 export function isTemplateVariable(value: string): value is TemplateVariable {
   return (TEMPLATE_VARIABLES as readonly string[]).includes(value);
+}
+
+export function extraTemplateKeys(guests: Guest[]) {
+  const keys = new Set<string>();
+  for (const guest of guests) {
+    const data = guest.customData;
+    if (!data || typeof data !== "object") continue;
+    for (const key of Object.keys(data)) {
+      if (/^\w+$/.test(key) && !isTemplateVariable(key)) keys.add(key);
+    }
+  }
+  return [...keys].sort();
 }
 
 export function normalizeGreetingVar(
@@ -44,27 +60,52 @@ export function composeConstructorTemplate(
   return `¡Hola, buen día! {{${key}}}\nNos comunicamos de ${param2}\nMuchas gracias.`;
 }
 
+export function guestTemplateVars(
+  guest: Guest | undefined,
+  event: EventItem | undefined,
+  plannerName = "Planner",
+) {
+  if (!guest || !event) return {} as Record<string, string>;
+  const nombreCompleto = guest.rep;
+  const nombre = nombreCompleto.split(" ")[0] ?? nombreCompleto;
+  const planner = plannerName.split(" ")[0] || plannerName;
+  const extras: Record<string, string> = {};
+  if (guest.customData && typeof guest.customData === "object") {
+    for (const [key, value] of Object.entries(guest.customData)) {
+      if (!/^\w+$/.test(key) || isTemplateVariable(key)) continue;
+      extras[key] = String(value ?? "");
+    }
+  }
+  return {
+    nombre,
+    nombre_completo: nombreCompleto,
+    numero_invitados: String(guest.invited),
+    numero_confirmados: String(guest.confirmed),
+    confirmados: String(guest.confirmed),
+    mesa: guest.table || "",
+    familia: guest.family || "",
+    tipo: guest.guestType || "",
+    notas: guest.notes || "",
+    etiqueta: guest.tag || "",
+    evento: event.name,
+    fecha: formatDate(event.date),
+    lugar: event.venue,
+    direccion: event.address || "",
+    hora: event.time,
+    planner,
+    ...extras,
+  };
+}
+
 export function interpolateTemplate(
   body: string,
   guest: Guest | undefined,
   event: EventItem | undefined,
   plannerName = "Planner",
 ) {
-  if (!guest || !event) return "";
-  const nombreCompleto = guest.rep;
-  const nombre = nombreCompleto.split(" ")[0] ?? nombreCompleto;
-  const planner = plannerName.split(" ")[0] || plannerName;
-  return body
-    .replace(/{{nombre_completo}}/g, nombreCompleto)
-    .replace(/{{nombre}}/g, nombre)
-    .replace(/{{numero_invitados}}/g, String(guest.invited))
-    .replace(/{{numero_confirmados}}/g, String(guest.confirmed))
-    .replace(/{{confirmados}}/g, String(guest.confirmed))
-    .replace(/{{mesa}}/g, guest.table || "")
-    .replace(/{{evento}}/g, event.name)
-    .replace(/{{fecha}}/g, formatDate(event.date))
-    .replace(/{{lugar}}/g, event.venue)
-    .replace(/{{direccion}}/g, event.address || "")
-    .replace(/{{hora}}/g, event.time)
-    .replace(/{{planner}}/g, planner);
+  const vars = guestTemplateVars(guest, event, plannerName);
+  return String(body || "").replace(
+    /\{\{(\w+)\}\}/g,
+    (_, key: string) => vars[key] ?? `{{${key}}}`,
+  );
 }

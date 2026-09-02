@@ -51,6 +51,26 @@ const emptyState = (): State => ({
   eventAccess: {},
 });
 
+function conversationsFingerprint(items: Conversation[]) {
+  return items
+    .map((c) => {
+      const last = c.messages[c.messages.length - 1];
+      return `${c.id}:${c.unread}:${c.aiPaused}:${c.messages.length}:${last?.id ?? ""}`;
+    })
+    .sort()
+    .join("|");
+}
+
+function guestsFingerprint(items: Guest[]) {
+  return items
+    .map(
+      (g) =>
+        `${g.id}:${g.status}:${g.confirmed}:${g.whatsapp}:${g.lastMessage}:${g.lastReply}:${g.lastReplyAt}`,
+    )
+    .sort()
+    .join("|");
+}
+
 interface DashboardPayload extends State {
   session: SessionUser;
 }
@@ -86,6 +106,7 @@ interface Ctx extends State {
   resetPassword: (token: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
   refresh: () => Promise<void>;
+  syncEventLive: (eventId: string) => Promise<void>;
   addEvent: (e: EventItem) => Promise<EventItem>;
   updateEvent: (id: string, patch: Partial<EventItem>) => void;
   updateGuest: (id: string, patch: Partial<Guest>) => void;
@@ -175,6 +196,50 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     applyDashboard(payload);
   }, [applyDashboard]);
 
+  const syncEventLive = useCallback(async (eventId: string) => {
+    if (!eventId) return;
+    try {
+      const [nextGuests, nextConversations] = await Promise.all([
+        api<Guest[]>(`/events/${eventId}/guests`).catch(() => null),
+        api<Conversation[]>(`/events/${eventId}/conversations`).catch(
+          () => null,
+        ),
+      ]);
+      if (!nextGuests && !nextConversations) return;
+      setState((s) => {
+        const prevGuests = s.guests.filter((g) => g.eventId === eventId);
+        const prevConvs = s.conversations.filter((c) => c.eventId === eventId);
+        const guestsChanged =
+          nextGuests != null &&
+          guestsFingerprint(prevGuests) !== guestsFingerprint(nextGuests);
+        const convsChanged =
+          nextConversations != null &&
+          conversationsFingerprint(prevConvs) !==
+            conversationsFingerprint(nextConversations);
+        if (!guestsChanged && !convsChanged) return s;
+        return {
+          ...s,
+          guests:
+            nextGuests != null
+              ? [
+                  ...s.guests.filter((g) => g.eventId !== eventId),
+                  ...nextGuests,
+                ]
+              : s.guests,
+          conversations:
+            nextConversations != null
+              ? [
+                  ...s.conversations.filter((c) => c.eventId !== eventId),
+                  ...nextConversations,
+                ]
+              : s.conversations,
+        };
+      });
+    } catch {
+      /* poll silencioso */
+    }
+  }, []);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -206,6 +271,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       ...state,
       hydrated,
       refresh,
+      syncEventLive,
       login: async (email, password, rememberMe) => {
         const res = await api<{ accessToken: string; user: SessionUser }>(
           "/auth/login",
@@ -568,7 +634,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       hasPerm: (eventId, permission) =>
         hasEventPerm(state.eventAccess[eventId], permission),
     }),
-    [state, hydrated, refresh],
+    [state, hydrated, refresh, syncEventLive],
   );
 
   return (

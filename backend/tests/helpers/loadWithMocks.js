@@ -157,6 +157,7 @@ export function fakeGuest(overrides = {}) {
     guestType: "",
     notes: "",
     tag: "Sin etiqueta",
+    customData: {},
     status: "sin_contactar",
     whatsapp: "pendiente",
     lastMessage: "",

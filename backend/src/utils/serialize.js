@@ -81,6 +81,10 @@ export function serializeGuest(guest, eventSlug) {
     guestType: guest.guestType || "",
     notes: guest.notes || "",
     tag: guest.tag || "Sin etiqueta",
+    customData:
+      guest.customData && typeof guest.customData === "object" && !Array.isArray(guest.customData)
+        ? guest.customData
+        : {},
     status: guest.status,
     whatsapp: guest.whatsapp,
     lastMessage: guest.lastMessage || "",

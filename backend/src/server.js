@@ -1,5 +1,5 @@
 import { env } from "./config/env.js";
-import { sequelize, ensureEventMemberRemovedAt, ensureInboundEventDedupTable, ensureCampaignColumns, ensureTemplateGreetingVar, ensureWhatsappMetaTables, ensureMessageProviderId } from "./models/index.js";
+import { sequelize, ensureEventMemberRemovedAt, ensureInboundEventDedupTable, ensureCampaignColumns, ensureTemplateGreetingVar, ensureWhatsappMetaTables, ensureMessageProviderId, ensureGuestCustomData } from "./models/index.js";
 import { createApp } from "./app.js";
 import { startOutboundWorker } from "./services/outbound.worker.js";
 import { startFollowUpScheduler } from "./services/follow-up.scheduler.js";
@@ -15,6 +15,7 @@ try {
   await ensureCampaignColumns();
   await ensureTemplateGreetingVar();
   await ensureMessageProviderId();
+  await ensureGuestCustomData();
   console.log("[db] conectado a MySQL");
 } catch (err) {
   console.error("[db] no se pudo conectar", err.message);

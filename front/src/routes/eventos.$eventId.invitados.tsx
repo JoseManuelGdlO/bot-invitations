@@ -1,6 +1,8 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
+  ChevronLeft,
+  ChevronRight,
   Download,
   MessageSquare,
   Plus,
@@ -79,6 +81,8 @@ const EMPTY_GUEST_FORM = {
   notes: "",
 };
 
+const PAGE_SIZES = [20, 30, 40, 50] as const;
+
 export const Route = createFileRoute("/eventos/$eventId/invitados")({
   head: () => ({
     meta: [
@@ -118,6 +122,8 @@ function Invitados() {
   const navigate = useNavigate();
   const [q, setQ] = useState("");
   const [status, setStatus] = useState("todos");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState<(typeof PAGE_SIZES)[number]>(20);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [guestToDelete, setGuestToDelete] = useState<Guest | null>(null);
   const [deleting, setDeleting] = useState(false);
@@ -137,9 +143,24 @@ function Invitados() {
     [guests, q, status],
   );
 
+  const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
+  const safePage = Math.min(page, totalPages);
+  const pageRows = useMemo(() => {
+    const start = (safePage - 1) * pageSize;
+    return rows.slice(start, start + pageSize);
+  }, [rows, safePage, pageSize]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [q, status, pageSize]);
+
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+  }, [page, totalPages]);
+
   return (
-    <main className="mx-auto w-full min-w-0 max-w-[1400px] flex-1 px-5 py-8 md:px-8">
-      <div className="flex flex-wrap items-center gap-3">
+    <main className="mx-auto flex h-full min-h-0 w-full min-w-0 max-w-[1400px] flex-1 flex-col overflow-hidden px-5 py-8 md:px-8">
+      <div className="flex shrink-0 flex-wrap items-center gap-3">
         <div className="relative min-w-56 flex-1">
           <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
@@ -159,6 +180,23 @@ function Invitados() {
             {Object.entries(STATUS_META).map(([k, v]) => (
               <SelectItem key={k} value={k}>
                 {v.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select
+          value={String(pageSize)}
+          onValueChange={(value) =>
+            setPageSize(Number(value) as (typeof PAGE_SIZES)[number])
+          }
+        >
+          <SelectTrigger className="w-40">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {PAGE_SIZES.map((size) => (
+              <SelectItem key={size} value={String(size)}>
+                {size} por página
               </SelectItem>
             ))}
           </SelectContent>
@@ -348,17 +386,17 @@ function Invitados() {
         ) : null}
       </div>
 
-      <p className="mt-3 text-xs text-muted-foreground">
+      <p className="mt-3 shrink-0 text-xs text-muted-foreground">
         {rows.length} invitaciones · {rows.reduce((a, g) => a + g.invited, 0)}{" "}
         personas totales
       </p>
-      <div className="mt-4">
+      <div className="mt-4 shrink-0">
         <PlanLimitBanner session={session} kind="guest" />
       </div>
 
-      <div className="mt-4 min-w-0 max-w-full overflow-x-auto rounded-2xl border border-border bg-card shadow-soft">
+      <div className="mt-4 min-h-0 min-w-0 max-w-full flex-1 overflow-auto rounded-2xl border border-border bg-card shadow-soft [&_.relative]:overflow-visible">
         <Table className="min-w-[1200px]">
-          <TableHeader>
+          <TableHeader className="sticky top-0 z-10 bg-card">
             <TableRow className="hover:bg-transparent">
               <TableHead className="whitespace-nowrap">Representante</TableHead>
               <TableHead className="whitespace-nowrap">Teléfono</TableHead>
@@ -385,7 +423,17 @@ function Invitados() {
             </TableRow>
           </TableHeader>
           <TableBody>
-            {rows.map((g) => (
+            {pageRows.length === 0 ? (
+              <TableRow className="hover:bg-transparent">
+                <TableCell
+                  colSpan={10}
+                  className="py-10 text-center text-sm text-muted-foreground"
+                >
+                  No hay invitados que coincidan con el filtro.
+                </TableCell>
+              </TableRow>
+            ) : null}
+            {pageRows.map((g) => (
               <TableRow
                 key={g.id}
                 className="cursor-pointer transition-colors"
@@ -469,6 +517,41 @@ function Invitados() {
           </TableBody>
         </Table>
       </div>
+
+      {rows.length > 0 ? (
+        <div className="mt-4 flex shrink-0 flex-col gap-3">
+          <p className="text-sm text-muted-foreground items-start justify-start">
+            Mostrando {(safePage - 1) * pageSize + 1}–
+            {Math.min(safePage * pageSize, rows.length)} de {rows.length}{" "}
+            invitaciones
+          </p>
+          <div className="flex items-center justify-center gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={safePage <= 1}
+              onClick={() => setPage(safePage - 1)}
+            >
+              <ChevronLeft className="size-4" />
+              Anterior
+            </Button>
+            <span className="min-w-24 text-center text-sm text-muted-foreground">
+              Página {safePage} de {totalPages}
+            </span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={safePage >= totalPages}
+              onClick={() => setPage(safePage + 1)}
+            >
+              Siguiente
+              <ChevronRight className="size-4" />
+            </Button>
+          </div>
+        </div>
+      ) : null}
 
       <Sheet open={!!selected} onOpenChange={(o) => !o && setSelectedId(null)}>
         <SheetContent className="w-full sm:max-w-md">

@@ -40,7 +40,7 @@ export function ProgressRing({
           />
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="font-display text-3xl">{value}%</span>
+          <span className="font-display text-2xl">{value}%</span>
         </div>
       </div>
       {caption ? (
