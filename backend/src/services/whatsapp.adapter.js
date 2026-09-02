@@ -3,6 +3,7 @@ import { httpError } from "../utils/http-error.js";
 import { eventGuestVars } from "../utils/defaults.js";
 import { formatWhatsappGraphTo } from "../utils/whatsapp-identity.js";
 import { metaClient, sanitizeMetaBodyParam } from "./meta.client.js";
+import { resolveOpeningDocumentFilePath } from "./opening-document.service.js";
 import { resolveActiveWhatsappMetaByOwner } from "./whatsapp-meta.service.js";
 
 const CUSTOMER_CARE_WINDOW_MS = 24 * 60 * 60 * 1000;
@@ -22,14 +23,15 @@ export async function isColdConversation(guestId, now = Date.now()) {
 
 export function openingHeaderDocumentFrom(document) {
   if (!document?.attachDocument) return null;
-  const filePath = String(document.absolutePath || "").trim();
   const filename = String(document.fileName || "").trim();
+  const mime = document.mime || "application/pdf";
+  const relativePath = String(document.relativePath || "").trim();
+  if (relativePath) {
+    return { relativePath, filename, mime };
+  }
+  const filePath = String(document.absolutePath || "").trim();
   if (!filePath) return null;
-  return {
-    filePath,
-    filename,
-    mime: document.mime || "application/pdf",
-  };
+  return { filePath, filename, mime };
 }
 
 async function resolveHeaderDocument(headerDocument, credentials) {
@@ -40,7 +42,7 @@ async function resolveHeaderDocument(headerDocument, credentials) {
     return { id: existingId, ...(filename ? { filename } : {}) };
   }
 
-  const filePath = String(headerDocument.filePath || headerDocument.absolutePath || "").trim();
+  const filePath = resolveOpeningDocumentFilePath(headerDocument);
   if (!filePath) {
     throw httpError(400, "La plantilla con documento requiere un archivo adjunto.");
   }

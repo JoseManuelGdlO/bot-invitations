@@ -175,6 +175,21 @@ describe("meta.client", () => {
     expect(init.body.get("messaging_product")).toBe("whatsapp");
   });
 
+  test("uploadDocument 400 si el archivo no existe", async () => {
+    await expect(
+      metaClient.uploadDocument({
+        filePath: "/no/existe/inv.pdf",
+        filename: "inv.pdf",
+        mime: "application/pdf",
+        ...auth,
+      }),
+    ).rejects.toMatchObject({
+      status: 400,
+      message: "Activa el adjunto pero falta el documento.",
+    });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
   test("sendText 400 si el teléfono no tiene 10 dígitos locales", async () => {
     await expect(metaClient.sendText({ to: "abc", text: "Hola", ...auth })).rejects.toMatchObject({
       status: 400,

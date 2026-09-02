@@ -53,13 +53,40 @@ export function relativeDocumentPath(eventId, fileId, ext) {
   return path.posix.join("opening-docs", String(eventId), `${fileId}${ext}`);
 }
 
+/** Extrae `opening-docs/...` aunque el valor sea una ruta absoluta de otro host (`/app/uploads/...`). */
+export function extractOpeningDocsRelative(stored) {
+  const raw = String(stored || "").trim().replace(/\\/g, "/");
+  if (!raw) return null;
+  const marker = "opening-docs/";
+  const idx = raw.indexOf(marker);
+  if (idx < 0) return null;
+  return raw.slice(idx);
+}
+
 export function absoluteDocumentPath(storedRelative) {
   if (!storedRelative) return null;
+  const relative = extractOpeningDocsRelative(storedRelative) || storedRelative;
+  if (path.isAbsolute(relative)) return null;
   const root = uploadsRoot();
-  const resolved = path.resolve(root, storedRelative);
+  const resolved = path.resolve(root, relative);
   const prefix = root.endsWith(path.sep) ? root : `${root}${path.sep}`;
   if (resolved !== root && !resolved.startsWith(prefix)) return null;
   return resolved;
+}
+
+export function resolveOpeningDocumentFilePath(headerDocument = {}) {
+  const stored = String(
+    headerDocument.relativePath
+    || headerDocument.documentPath
+    || headerDocument.filePath
+    || headerDocument.absolutePath
+    || "",
+  ).trim();
+  if (!stored) return null;
+  const extracted = extractOpeningDocsRelative(stored);
+  if (extracted) return absoluteDocumentPath(extracted);
+  if (!path.isAbsolute(stored)) return absoluteDocumentPath(stored);
+  return stored;
 }
 
 export async function resolveStoredDocument(template) {
@@ -72,6 +99,7 @@ export async function resolveStoredDocument(template) {
   }
   return {
     absolutePath: abs,
+    relativePath: extractOpeningDocsRelative(template.documentPath) || template.documentPath,
     fileName: template.documentFileName || path.basename(abs),
     mime: template.documentMime || "application/pdf",
     size: Number(template.documentSize) || 0,

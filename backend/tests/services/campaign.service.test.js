@@ -19,6 +19,7 @@ describe("campaign.service", () => {
       return {
         attachDocument: true,
         templateName: "constructor2",
+        relativePath: "opening-docs/evt_1/abc.pdf",
         absolutePath: "/tmp/inv.pdf",
         fileName: "invitacion.pdf",
         mime: "application/pdf",
@@ -31,7 +32,10 @@ describe("campaign.service", () => {
         "src/services/integration-resolver.service.js": () => ({ assertWhatsappReady }),
         "src/services/activity.service.js": () => ({ logActivity: jest.fn(async () => undefined) }),
         "src/services/campaign-progress.js": () => ({ recordCampaignSendResult }),
-        "src/services/opening-document.service.js": () => ({ assertOpeningDocumentReady }),
+        "src/services/opening-document.service.js": () => ({
+          assertOpeningDocumentReady,
+          resolveOpeningDocumentFilePath: (doc) => doc?.filePath || doc?.relativePath || null,
+        }),
       },
     }));
   });
@@ -386,7 +390,7 @@ describe("campaign.service", () => {
       expect.objectContaining({
         hsmTemplateName: "constructor2",
         hsmHeaderDocument: {
-          filePath: "/tmp/inv.pdf",
+          relativePath: "opening-docs/evt_1/abc.pdf",
           filename: "invitacion.pdf",
           mime: "application/pdf",
         },

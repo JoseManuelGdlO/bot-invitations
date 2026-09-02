@@ -204,7 +204,14 @@ export const metaClient = {
     let fileBuffer = buffer;
     if (!fileBuffer && filePath) {
       const fs = await import("node:fs/promises");
-      fileBuffer = await fs.readFile(filePath);
+      try {
+        fileBuffer = await fs.readFile(filePath);
+      } catch (err) {
+        if (err?.code === "ENOENT") {
+          throw httpError(400, "Activa el adjunto pero falta el documento.");
+        }
+        throw err;
+      }
     }
     if (!fileBuffer?.length) throw httpError(400, "La plantilla con documento requiere un archivo adjunto.");
     const fileName = String(filename || "documento.pdf").trim() || "documento.pdf";

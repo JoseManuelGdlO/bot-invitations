@@ -28,6 +28,31 @@ describe("opening-document.service", () => {
     await fs.rm(tmpDir, { recursive: true, force: true });
   });
 
+  test("extractOpeningDocsRelative acepta ruta relativa y absoluta de Docker", () => {
+    expect(service.extractOpeningDocsRelative("opening-docs/evt/a.pdf")).toBe("opening-docs/evt/a.pdf");
+    expect(service.extractOpeningDocsRelative("/app/uploads/opening-docs/evt/a.pdf")).toBe(
+      "opening-docs/evt/a.pdf",
+    );
+    expect(service.extractOpeningDocsRelative("/tmp/inv.pdf")).toBeNull();
+  });
+
+  test("absoluteDocumentPath reescribe /app/uploads al UPLOADS_DIR actual", () => {
+    const abs = service.absoluteDocumentPath("/app/uploads/opening-docs/evt/a.pdf");
+    expect(abs).toBe(path.join(tmpDir, "opening-docs/evt/a.pdf"));
+  });
+
+  test("resolveOpeningDocumentFilePath usa relativePath o remapea filePath de Docker", () => {
+    expect(
+      service.resolveOpeningDocumentFilePath({ relativePath: "opening-docs/evt/a.pdf" }),
+    ).toBe(path.join(tmpDir, "opening-docs/evt/a.pdf"));
+    expect(
+      service.resolveOpeningDocumentFilePath({
+        filePath: "/app/uploads/opening-docs/evt/a.pdf",
+      }),
+    ).toBe(path.join(tmpDir, "opening-docs/evt/a.pdf"));
+    expect(service.resolveOpeningDocumentFilePath({ filePath: "/tmp/inv.pdf" })).toBe("/tmp/inv.pdf");
+  });
+
   test("detectOpeningDocumentType acepta pdf y word", () => {
     expect(service.detectOpeningDocumentType({ originalname: "a.pdf", mimetype: "application/pdf" })).toEqual(
       expect.objectContaining({ mime: "application/pdf", ext: ".pdf" }),

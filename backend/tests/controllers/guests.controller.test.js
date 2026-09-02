@@ -58,6 +58,7 @@ describe("guests.controller", () => {
         }),
         "src/services/opening-document.service.js": () => ({
           assertOpeningDocumentReady,
+          resolveOpeningDocumentFilePath: (doc) => doc?.filePath || doc?.relativePath || null,
         }),
         "src/services/integration-resolver.service.js": () => ({
           assertWhatsappReady: jest.fn(async () => undefined),
@@ -226,6 +227,7 @@ describe("guests.controller", () => {
     assertOpeningDocumentReady.mockResolvedValue({
       attachDocument: true,
       templateName: "constructor2",
+      relativePath: "opening-docs/evt_1/abc.pdf",
       absolutePath: "/tmp/inv.pdf",
       fileName: "invitacion.pdf",
       mime: "application/pdf",
@@ -244,7 +246,7 @@ describe("guests.controller", () => {
         hsmParams: ["Luis", "evento"],
         hsmTemplateName: "constructor2",
         hsmHeaderDocument: {
-          filePath: "/tmp/inv.pdf",
+          relativePath: "opening-docs/evt_1/abc.pdf",
           filename: "invitacion.pdf",
           mime: "application/pdf",
         },

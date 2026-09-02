@@ -127,6 +127,53 @@ describe("whatsapp.adapter MetaCloudProvider", () => {
     });
   });
 
+  test("reescribe filePath de Docker /app/uploads al enviar", async () => {
+    models.Event.findByPk.mockResolvedValue(fakeEvent());
+    models.Guest.findByPk.mockResolvedValue(fakeGuest({ rep: "Luis Pérez", status: "enviado" }));
+    models.Conversation.findOne.mockResolvedValue(null);
+    const provider = adapter.createWhatsAppProvider();
+    await provider.sendMessage("5512345678", "mensaje compuesto", {
+      eventId: "evt_1",
+      guestId: "gst_1",
+      hsmParams: ["Boda Ana", "Ana y Carlos. Los esperamos."],
+      hsmTemplateName: "constructor2",
+      hsmHeaderDocument: {
+        filePath: "/app/uploads/opening-docs/evt_1/abc.pdf",
+        filename: "invitacion.pdf",
+        mime: "application/pdf",
+      },
+    });
+    const uploadedPath = uploadDocument.mock.calls[0][0].filePath;
+    expect(uploadedPath).toMatch(/opening-docs[/\\]evt_1[/\\]abc\.pdf$/);
+    expect(uploadedPath).not.toMatch(/^[/\\]app[/\\]uploads/);
+  });
+
+  test("sube el PDF al enviar si el job trae relativePath", async () => {
+    models.Event.findByPk.mockResolvedValue(fakeEvent());
+    models.Guest.findByPk.mockResolvedValue(fakeGuest({ rep: "Luis Pérez", status: "enviado" }));
+    models.Conversation.findOne.mockResolvedValue(null);
+    const provider = adapter.createWhatsAppProvider();
+    await provider.sendMessage("5512345678", "mensaje compuesto", {
+      eventId: "evt_1",
+      guestId: "gst_1",
+      hsmParams: ["Boda Ana", "Ana y Carlos. Los esperamos."],
+      hsmTemplateName: "constructor2",
+      hsmHeaderDocument: {
+        relativePath: "opening-docs/evt_1/abc.pdf",
+        filename: "invitacion.pdf",
+        mime: "application/pdf",
+      },
+    });
+    expect(uploadDocument).toHaveBeenCalledWith(
+      expect.objectContaining({
+        filePath: expect.stringMatching(/opening-docs[/\\]evt_1[/\\]abc\.pdf$/),
+        filename: "invitacion.pdf",
+        mime: "application/pdf",
+        ...metaAuth,
+      }),
+    );
+  });
+
   test("sube el PDF al enviar si el job trae filePath", async () => {
     models.Event.findByPk.mockResolvedValue(fakeEvent());
     models.Guest.findByPk.mockResolvedValue(fakeGuest({ rep: "Luis Pérez", status: "enviado" }));
