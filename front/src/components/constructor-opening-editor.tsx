@@ -18,6 +18,7 @@ type Props = {
   onGreetingVarChange: (key: TemplateVariable) => void;
   onChange: (body: string) => void;
   onSave: (next: { body: string; greetingVar: TemplateVariable }) => void;
+  extraVariables?: string[];
 };
 
 export function ConstructorOpeningEditor({
@@ -26,6 +27,7 @@ export function ConstructorOpeningEditor({
   onGreetingVarChange,
   onChange,
   onSave,
+  extraVariables = [],
 }: Props) {
   const selected = normalizeGreetingVar(greetingVar);
 
@@ -34,6 +36,7 @@ export function ConstructorOpeningEditor({
       value={body}
       onChange={onChange}
       rows={12}
+      extraVariables={extraVariables}
       prefix={
         <div className="mb-2 space-y-2 font-sans text-sm leading-relaxed">
           <p>

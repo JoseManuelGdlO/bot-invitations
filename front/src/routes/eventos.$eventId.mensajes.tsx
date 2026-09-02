@@ -14,6 +14,7 @@ import { useEvent, useStore } from "@/lib/mock/store";
 import type { EventItem, Guest, Template } from "@/lib/mock/types";
 import {
   composeConstructorTemplate,
+  extraTemplateKeys,
   normalizeGreetingVar,
 } from "@/lib/template-vars";
 import { toast } from "sonner";
@@ -236,6 +237,7 @@ function TemplateCategory({
   const copyText = isConstructor
     ? composeConstructorTemplate(draftGreeting, draft)
     : draft;
+  const extraVariables = extraTemplateKeys(guests);
 
   return (
     <section>
@@ -262,6 +264,7 @@ function TemplateCategory({
                 <ConstructorOpeningEditor
                   greetingVar={draftGreeting}
                   body={draft}
+                  extraVariables={extraVariables}
                   onGreetingVarChange={setDraftGreeting}
                   onChange={setDraft}
                   onSave={({ body, greetingVar }) => {
@@ -289,6 +292,7 @@ function TemplateCategory({
               <TemplateBodyEditor
                 value={template.body}
                 onChange={setDraft}
+                extraVariables={extraVariables}
                 onSave={(body) => {
                   setTemplates(
                     eventId,

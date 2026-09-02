@@ -121,6 +121,36 @@ export function eventGuestVars(event, guest, plannerName = "") {
   const nombreCompleto = String(guest?.rep || "").trim();
   const nombre = nombreCompleto.split(" ")[0] || nombreCompleto;
   const confirmados = String(guest?.confirmed ?? "");
+  const extras = {};
+  const raw = guest?.customData;
+  if (raw && typeof raw === "object" && !Array.isArray(raw)) {
+    for (const [key, value] of Object.entries(raw)) {
+      if (!/^\w+$/.test(key)) continue;
+      if (
+        [
+          "nombre",
+          "nombre_completo",
+          "numero_invitados",
+          "numero_confirmados",
+          "confirmados",
+          "mesa",
+          "evento",
+          "fecha",
+          "lugar",
+          "direccion",
+          "hora",
+          "planner",
+          "familia",
+          "tipo",
+          "notas",
+          "etiqueta",
+        ].includes(key)
+      ) {
+        continue;
+      }
+      extras[key] = String(value ?? "");
+    }
+  }
   return {
     nombre,
     nombre_completo: nombreCompleto,
@@ -128,11 +158,16 @@ export function eventGuestVars(event, guest, plannerName = "") {
     numero_confirmados: confirmados,
     confirmados,
     mesa: String(guest?.table || ""),
+    familia: String(guest?.family || ""),
+    tipo: String(guest?.guestType || ""),
+    notas: String(guest?.notes || ""),
+    etiqueta: String(guest?.tag || ""),
     evento: event?.name || "",
     fecha: event?.date || "",
     lugar: event?.venue || "",
     direccion: event?.address || "",
     hora: event?.time || "",
     planner: plannerName || "",
+    ...extras,
   };
 }

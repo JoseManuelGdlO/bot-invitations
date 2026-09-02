@@ -29,6 +29,7 @@ import type { ImportPreview } from "@/lib/mock/types";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api/client";
 import { PlanLimitBanner, isUpgradeError } from "@/components/plan-limit";
+import { columnVarKeys } from "@/lib/import-vars";
 
 export const Route = createFileRoute("/eventos/$eventId/importar")({
   head: () => ({
@@ -73,6 +74,8 @@ const fields = [
   { id: "tag", label: "Etiqueta" },
   { id: "ignore", label: "No importar" },
 ];
+
+const FIELD_IDS = new Set(fields.map((f) => f.id));
 
 const defaultMap: Record<string, string> = {
   NOMBRE: "rep",
@@ -347,10 +350,15 @@ function Importar() {
           <div className="rounded-2xl border border-border bg-card p-6 shadow-soft">
             <h2 className="font-display text-2xl">Mapeo de columnas</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              Indica qué representa cada columna de tu archivo.
+              Indica qué representa cada columna. Las no asignadas a un campo se
+              pueden usar como {`{{variable}}`} en Mensajes.
             </p>
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
-              {(preview?.columns ?? excelColumns).map((c, i) => (
+              {(preview?.columns ?? excelColumns).map((c, i) => {
+                const selected = mapping[c] ?? "custom";
+                const assigned = FIELD_IDS.has(selected);
+                const varKey = columnVarKeys(preview?.columns ?? excelColumns)[c];
+                return (
                 <div
                   key={`${c}-${i}`}
                   className="flex items-center gap-3 rounded-xl border border-border p-3"
@@ -360,14 +368,23 @@ function Importar() {
                       Columna Excel
                     </p>
                     <p className="text-sm font-medium">{c}</p>
+                    {!assigned && varKey ? (
+                      <p className="mt-0.5 font-mono text-[10px] text-gold">
+                        {`{{${varKey}}}`}
+                      </p>
+                    ) : null}
                   </div>
                   <Select
-                    value={mapping[c] ?? "ignore"}
+                    value={assigned ? selected : undefined}
                     onValueChange={(v) => setMapping((m) => ({ ...m, [c]: v }))}
                     disabled={importing}
                   >
                     <SelectTrigger className="flex-1">
-                      <SelectValue />
+                      <SelectValue
+                        placeholder={
+                          varKey ? `{{${varKey}}}` : "Variable de plantilla"
+                        }
+                      />
                     </SelectTrigger>
                     <SelectContent>
                       {fields.map((f) => (
@@ -378,7 +395,8 @@ function Importar() {
                     </SelectContent>
                   </Select>
                 </div>
-              ))}
+                );
+              })}
             </div>
             <div className="mt-6 flex gap-3">
               <Button onClick={() => void doImport()} disabled={importing}>

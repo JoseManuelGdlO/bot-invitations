@@ -16,7 +16,7 @@ import {
   Sparkles,
   Users,
 } from "lucide-react";
-import { useEvent } from "@/lib/mock/store";
+import { useEvent, useStore } from "@/lib/mock/store";
 import { coverStyle } from "@/lib/cover";
 import { formatDate } from "@/lib/mock/format";
 import { cn } from "@/lib/utils";
@@ -81,6 +81,7 @@ const tabs = [
 function EventLayout() {
   const { eventId } = Route.useParams();
   const { event, access } = useEvent(eventId);
+  const { syncEventLive } = useStore();
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const visibleTabs = tabs.filter((t) => eventTabAllowed(access, t.key));
@@ -98,6 +99,24 @@ function EventLayout() {
       });
     }
   }, [access, currentKey, event, eventId, navigate]);
+
+  useEffect(() => {
+    if (!event) return;
+    const tick = () => {
+      if (document.visibilityState !== "visible") return;
+      void syncEventLive(eventId);
+    };
+    tick();
+    const id = window.setInterval(tick, 8000);
+    const onVisibility = () => {
+      if (document.visibilityState === "visible") tick();
+    };
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => {
+      window.clearInterval(id);
+      document.removeEventListener("visibilitychange", onVisibility);
+    };
+  }, [event, eventId, syncEventLive]);
 
   if (!event) {
     return (
@@ -149,7 +168,7 @@ function EventLayout() {
           })}
         </nav>
       </header>
-      <div className="min-h-0 min-w-0 flex-1">
+      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
         <Outlet />
       </div>
     </div>

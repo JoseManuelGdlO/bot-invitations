@@ -21,7 +21,7 @@ import { botApi } from "@/lib/api/bot";
 
 export const Route = createFileRoute("/eventos/$eventId/conversaciones")({
   validateSearch: (s: Record<string, unknown>) => ({
-    guestId: typeof s.guestId === "string" ? s.guestId : undefined,
+    guestId: typeof s["guestId"] === "string" ? s["guestId"] : undefined,
   }),
   head: () => ({
     meta: [
@@ -60,7 +60,9 @@ function Conversaciones() {
   const [draft, setDraft] = useState("");
   const [simulateGuest, setSimulateGuest] = useState(false);
   const [devBot, setDevBot] = useState(false);
-  const endRef = useRef<HTMLDivElement>(null);
+  const messagesRef = useRef<HTMLDivElement>(null);
+  const prevActiveIdRef = useRef<string | null>(null);
+  const nearBottomRef = useRef(true);
 
   useEffect(() => {
     let cancelled = false;
@@ -90,13 +92,33 @@ function Conversaciones() {
 
   const active = list.find((x) => x.conv.id === activeId) ?? list[0];
 
+  const lastMessageId =
+    active?.conv.messages[active.conv.messages.length - 1]?.id;
+
   useEffect(() => {
-    endRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [active?.conv.messages.length, activeId]);
+    const switched = prevActiveIdRef.current !== activeId;
+    prevActiveIdRef.current = activeId ?? null;
+    if (!switched && !nearBottomRef.current) return;
+    const behavior: ScrollBehavior = switched ? "auto" : "smooth";
+    let cancelled = false;
+    const frame = requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        if (cancelled) return;
+        const el = messagesRef.current;
+        if (!el) return;
+        el.scrollTo({ top: el.scrollHeight, behavior });
+        nearBottomRef.current = true;
+      });
+    });
+    return () => {
+      cancelled = true;
+      cancelAnimationFrame(frame);
+    };
+  }, [active?.conv.messages.length, lastMessageId, activeId]);
 
   if (!active) {
     return (
-      <main className="flex flex-1 items-center justify-center p-10 text-sm text-muted-foreground">
+      <main className="flex h-full flex-1 items-center justify-center p-10 text-sm text-muted-foreground">
         Aún no hay conversaciones en este evento. Inicia las confirmaciones
         desde el resumen.
       </main>
@@ -133,9 +155,9 @@ function Conversaciones() {
   };
 
   return (
-    <main className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[300px_1fr_290px]">
+    <main className="grid h-full min-h-0 flex-1 grid-cols-1 grid-rows-1 overflow-hidden lg:grid-cols-[300px_minmax(0,1fr)_290px]">
       {/* Lista */}
-      <aside className="hidden min-h-0 flex-col border-r border-border bg-card lg:flex">
+      <aside className="hidden min-h-0 flex-col overflow-hidden border-r border-border bg-card lg:flex">
         <div className="border-b border-border p-3">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -192,7 +214,7 @@ function Conversaciones() {
       </aside>
 
       {/* Hilo */}
-      <section className="flex min-h-0 flex-col">
+      <section className="flex min-h-0 flex-col overflow-hidden">
         <div className="flex flex-wrap items-center gap-2 border-b border-border bg-card px-4 py-3">
           <div>
             <p className="font-medium">{active.guest.rep}</p>
@@ -252,7 +274,16 @@ function Conversaciones() {
           </div>
         )}
 
-        <div className="chat-canvas min-h-0 flex-1 space-y-3 overflow-y-auto p-5">
+        <div
+          ref={messagesRef}
+          onScroll={() => {
+            const el = messagesRef.current;
+            if (!el) return;
+            nearBottomRef.current =
+              el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+          }}
+          className="chat-canvas min-h-0 flex-1 space-y-3 overflow-y-auto p-5"
+        >
           {active.conv.messages.map((m) => (
             <div
               key={m.id}
@@ -283,7 +314,6 @@ function Conversaciones() {
               </div>
             </div>
           ))}
-          <div ref={endRef} />
         </div>
 
         {canReply ? (
@@ -324,7 +354,7 @@ function Conversaciones() {
       </section>
 
       {/* Perfil */}
-      <aside className="hidden border-l border-border bg-card p-5 lg:block">
+      <aside className="hidden min-h-0 overflow-y-auto border-l border-border bg-card p-5 lg:flex lg:flex-col">
         <div className="flex flex-col items-center text-center">
           <span className="flex size-14 items-center justify-center rounded-full bg-gold-soft font-display text-lg text-gold-foreground">
             {active.guest.rep

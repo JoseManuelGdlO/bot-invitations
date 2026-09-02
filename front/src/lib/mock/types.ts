@@ -61,6 +61,7 @@ export interface Guest {
   guestType: string;
   notes: string;
   tag: string;
+  customData?: Record<string, string>;
   status: ConfirmationStatus;
   whatsapp: WhatsappStatus;
   lastMessage: string;

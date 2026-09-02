@@ -122,6 +122,7 @@ export const Guest = sequelize.define("guests", {
   guestType: { type: DataTypes.STRING(80), allowNull: true, defaultValue: "" },
   notes: { type: DataTypes.TEXT, allowNull: true },
   tag: { type: DataTypes.STRING(80), allowNull: true, defaultValue: "Sin etiqueta" },
+  customData: { type: DataTypes.JSON, allowNull: true },
   status: {
     type: DataTypes.ENUM(
       "sin_contactar",
@@ -562,6 +563,27 @@ export async function ensureMessageProviderId() {
     unique: true,
   });
   console.log("[db] columna messages.providerId creada");
+}
+
+export async function ensureGuestCustomData() {
+  const qi = sequelize.getQueryInterface();
+  let table;
+  try {
+    table = await qi.describeTable("guests");
+  } catch (err) {
+    console.error("[db] no se pudo describir guests para customData", err?.message || err);
+    return;
+  }
+  if (table.customData) return;
+  try {
+    await qi.addColumn("guests", "customData", {
+      type: DataTypes.JSON,
+      allowNull: true,
+    });
+    console.log("[db] columna guests.customData creada");
+  } catch (err) {
+    console.error("[db] no se pudo crear guests.customData", err?.message || err);
+  }
 }
 
 export async function ensureTemplateGreetingVar() {

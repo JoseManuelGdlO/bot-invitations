@@ -12,6 +12,7 @@ type Props = {
   rows?: number;
   prefix?: ReactNode;
   suffix?: ReactNode;
+  extraVariables?: string[];
 };
 
 export function TemplateBodyEditor({
@@ -21,6 +22,7 @@ export function TemplateBodyEditor({
   rows = 8,
   prefix,
   suffix,
+  extraVariables = [],
 }: Props) {
   const [body, setBody] = useState(value);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -130,7 +132,12 @@ export function TemplateBodyEditor({
       />
       {suffix}
       <div className="mt-3 flex flex-wrap gap-2">
-        {TEMPLATE_VARIABLES.map((v) => (
+        {[
+          ...TEMPLATE_VARIABLES,
+          ...extraVariables.filter(
+            (key) => !(TEMPLATE_VARIABLES as readonly string[]).includes(key),
+          ),
+        ].map((v) => (
           <button
             key={v}
             type="button"
