@@ -25,13 +25,14 @@ export function openingHeaderDocumentFrom(document) {
   if (!document?.attachDocument) return null;
   const filename = String(document.fileName || "").trim();
   const mime = document.mime || "application/pdf";
+  const eventId = document.eventId || null;
   const relativePath = String(document.relativePath || "").trim();
   if (relativePath) {
-    return { relativePath, filename, mime };
+    return { relativePath, filename, mime, ...(eventId ? { eventId } : {}) };
   }
   const filePath = String(document.absolutePath || "").trim();
   if (!filePath) return null;
-  return { filePath, filename, mime };
+  return { filePath, filename, mime, ...(eventId ? { eventId } : {}) };
 }
 
 async function resolveHeaderDocument(headerDocument, credentials) {
@@ -42,7 +43,10 @@ async function resolveHeaderDocument(headerDocument, credentials) {
     return { id: existingId, ...(filename ? { filename } : {}) };
   }
 
-  const filePath = resolveOpeningDocumentFilePath(headerDocument);
+  const filePath = resolveOpeningDocumentFilePath({
+    ...headerDocument,
+    eventId: headerDocument.eventId,
+  });
   if (!filePath) {
     throw httpError(400, "La plantilla con documento requiere un archivo adjunto.");
   }
@@ -89,7 +93,12 @@ export class MetaCloudProvider {
       const bodyParam = sanitizeMetaBodyParam(body);
       const bodyParams = fromJob.length >= 2 ? fromJob.slice(0, 2) : [nombre, bodyParam];
       if (!bodyParams[1]) throw httpError(400, "El mensaje de plantilla no puede estar vacío.");
-      const headerDocument = await resolveHeaderDocument(meta.hsmHeaderDocument, credentials);
+      const headerDocument = await resolveHeaderDocument(
+        meta.hsmHeaderDocument
+          ? { ...meta.hsmHeaderDocument, eventId: meta.hsmHeaderDocument.eventId || meta.eventId }
+          : null,
+        credentials,
+      );
       payload = await metaClient.sendTemplateWithRetry({
         to: phone,
         bodyParams,

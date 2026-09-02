@@ -9,17 +9,18 @@ describe("opening-document.service", () => {
   let service;
   let models;
   let tmpDir;
+  let envState;
 
   beforeEach(async () => {
     tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), "alanna-opening-"));
+    envState = {
+      uploadsDir: tmpDir,
+      bundledOpeningDocsDir: "",
+      meta: { templateNameDocument: "rg_eventos" },
+    };
     ({ mod: service, models } = await loadWithMocks("src/services/opening-document.service.js", {
       extraMocks: {
-        "src/config/env.js": () => ({
-          env: {
-            uploadsDir: tmpDir,
-            meta: { templateNameDocument: "constructor2" },
-          },
-        }),
+        "src/config/env.js": () => ({ env: envState }),
       },
     }));
   });
@@ -82,6 +83,49 @@ describe("opening-document.service", () => {
     });
   });
 
+  test("assertOpeningDocumentReady usa el PDF del evento si el UUID de la BD no existe", async () => {
+    const eventId = "c0509ed4-f3a2-4667-8eca-d6459bbea6a9";
+    const dir = path.join(tmpDir, "opening-docs", eventId);
+    await fs.mkdir(dir, { recursive: true });
+    const realName = "5b39ec5f-897e-405e-9ccf-c01f06954a14.pdf";
+    await fs.writeFile(path.join(dir, realName), Buffer.from("%PDF-git"));
+    const tpl = createInstance({
+      attachDocument: true,
+      eventId,
+      documentPath: `opening-docs/${eventId}/65a2c9de-5143-41af-8bf2-30bc1ec2763e.pdf`,
+      documentFileName: "Invitacion_Brenda_Denis.pdf",
+      documentMime: "application/pdf",
+    });
+    await expect(service.assertOpeningDocumentReady(tpl)).resolves.toMatchObject({
+      attachDocument: true,
+      templateName: "rg_eventos",
+      eventId,
+      relativePath: `opening-docs/${eventId}/${realName}`,
+      fileName: "Invitacion_Brenda_Denis.pdf",
+    });
+    expect(tpl.documentPath).toBe(`opening-docs/${eventId}/${realName}`);
+    expect(tpl.save).toHaveBeenCalled();
+  });
+
+  test("assertOpeningDocumentReady usa el PDF versionado en bundled-opening-docs", async () => {
+    const eventId = "evt_bundled";
+    const bundled = path.join(tmpDir, "bundled");
+    await fs.mkdir(path.join(bundled, eventId), { recursive: true });
+    await fs.writeFile(path.join(bundled, eventId, "from-git.pdf"), Buffer.from("%PDF-bundled"));
+    envState.bundledOpeningDocsDir = bundled;
+    await expect(
+      service.assertOpeningDocumentReady({
+        attachDocument: true,
+        eventId,
+        documentPath: `opening-docs/${eventId}/missing.pdf`,
+        documentFileName: "inv.pdf",
+      }),
+    ).resolves.toMatchObject({
+      templateName: "rg_eventos",
+      relativePath: `opening-docs/${eventId}/from-git.pdf`,
+    });
+  });
+
   test("saveOpeningDocument 400 si el MIME no es pdf ni word", async () => {
     await expect(
       service.saveOpeningDocument(fakeEvent(), {
@@ -108,7 +152,7 @@ describe("opening-document.service", () => {
       category: "Primer contacto",
       body: "copy",
       greetingVar: "nombre",
-      attachDocument: true,
+      attachDocument: false,
       documentPath: null,
     });
     models.Template.findOne.mockResolvedValue(tpl);
@@ -118,6 +162,7 @@ describe("opening-document.service", () => {
       buffer: Buffer.from("%PDF-1"),
     });
     expect(first.document.fileName).toBe("inv.pdf");
+    expect(tpl.attachDocument).toBe(true);
     const firstAbs = path.join(tmpDir, tpl.documentPath);
     await expect(fs.access(firstAbs)).resolves.toBeUndefined();
 

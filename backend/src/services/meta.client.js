@@ -59,9 +59,9 @@ function headerDocumentFrom(headerDocument) {
 function resolveTemplateName(templateName, headerDocument) {
   const documentName = String(env.meta?.templateNameDocument || "").trim();
   if (headerDocument) {
-    const name = String(templateName || documentName || "").trim();
-    if (!name) throw httpError(400, "Falta META_TEMPLATE_NAME_DOCUMENT.");
-    return name;
+    // Siempre la plantilla de documento del env (prod: rg_eventos), no un nombre viejo del job.
+    if (!documentName) throw httpError(400, "Falta META_TEMPLATE_NAME_DOCUMENT.");
+    return documentName;
   }
   const name = String(templateName || env.meta?.templateName || "").trim();
   if (!name) throw httpError(400, "Falta META_TEMPLATE_NAME.");

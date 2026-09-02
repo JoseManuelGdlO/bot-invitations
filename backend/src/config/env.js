@@ -99,10 +99,12 @@ export const env = {
     webhookDebug: (process.env.WC_WEBHOOK_DEBUG || "false") === "true",
   },
   uploadsDir: process.env.UPLOADS_DIR || path.join(root, "uploads"),
+  bundledOpeningDocsDir:
+    process.env.BUNDLED_OPENING_DOCS_DIR || path.join(root, "bundled-opening-docs"),
   meta: {
     webhookVerifyToken: process.env.META_WEBHOOK_VERIFY_TOKEN || "",
     templateName: process.env.META_TEMPLATE_NAME || "",
-    templateNameDocument: process.env.META_TEMPLATE_NAME_DOCUMENT || "constructor2",
+    templateNameDocument: process.env.META_TEMPLATE_NAME_DOCUMENT || "rg_eventos",
     templateLanguage: process.env.META_TEMPLATE_LANGUAGE || "es_MX",
     graphVersion: (process.env.META_GRAPH_VERSION || "v21.0").replace(/^\//, ""),
     timeoutMs: Number(process.env.META_TIMEOUT_MS || 8000),

@@ -92,18 +92,18 @@ function skipWhatsappSendReason(payload) {
 async function resolveCampaignHeader(payload = {}) {
   const existing = payload.hsmHeaderDocument || null;
   const templateName = payload.hsmTemplateName || null;
-  if (payload.kind !== "campaign" || existing || !payload.eventId) {
+  if (payload.kind !== "campaign" || !payload.eventId) {
     return { hsmHeaderDocument: existing, hsmTemplateName: templateName };
   }
   const opening = await findTemplate(payload.eventId, { category: "Primer contacto" });
   if (!opening?.attachDocument) {
-    return { hsmHeaderDocument: null, hsmTemplateName: templateName };
+    return { hsmHeaderDocument: existing, hsmTemplateName: templateName };
   }
   const document = await assertOpeningDocumentReady(opening);
-  const hsmHeaderDocument = openingHeaderDocumentFrom(document);
+  const hsmHeaderDocument = existing || openingHeaderDocumentFrom(document);
   return {
     hsmHeaderDocument,
-    hsmTemplateName: templateName || document.templateName || null,
+    hsmTemplateName: document.templateName || templateName || null,
   };
 }
 
@@ -188,7 +188,12 @@ export async function processJob(job) {
       const status = result.skipped ? "skipped" : "done";
       await job.update({
         status,
-        payload: { ...job.payload, result },
+        payload: {
+          ...job.payload,
+          ...(hsmTemplateName ? { hsmTemplateName } : {}),
+          ...(hsmHeaderDocument ? { hsmHeaderDocument } : {}),
+          result,
+        },
       });
       waLog.info(ok ? "whatsapp.send done" : "whatsapp.send skipped", sendMeta(job, {
         status,

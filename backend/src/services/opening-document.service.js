@@ -1,4 +1,5 @@
 import crypto from "node:crypto";
+import fsSync from "node:fs";
 import fs from "node:fs/promises";
 import path from "node:path";
 import { env } from "../config/env.js";
@@ -23,6 +24,59 @@ const EXT_BY_MIME = {
 
 function uploadsRoot() {
   return path.resolve(env.uploadsDir || path.join(process.cwd(), "uploads"));
+}
+
+function bundledRoot() {
+  const raw = String(env.bundledOpeningDocsDir || "").trim();
+  if (!raw) return null;
+  return path.resolve(raw);
+}
+
+function eventIdFromOpeningPath(stored) {
+  const rel = extractOpeningDocsRelative(stored) || String(stored || "").replace(/\\/g, "/");
+  const parts = rel.split("/").filter(Boolean);
+  if (parts[0] === "opening-docs" && parts[1]) return parts[1];
+  return null;
+}
+
+function eventOpeningDirs(eventId) {
+  const id = String(eventId || "").trim();
+  if (!id) return [];
+  const dirs = [path.join(uploadsRoot(), "opening-docs", id)];
+  const bundled = bundledRoot();
+  if (bundled) dirs.push(path.join(bundled, id));
+  return dirs;
+}
+
+function existsSync(abs) {
+  if (!abs) return false;
+  try {
+    fsSync.accessSync(abs);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function firstDocumentInEventDir(eventId) {
+  const id = String(eventId || "").trim();
+  if (!id) return null;
+  for (const dir of eventOpeningDirs(id)) {
+    let names;
+    try {
+      names = fsSync.readdirSync(dir);
+    } catch {
+      continue;
+    }
+    const name = names.find((entry) => MIME_BY_EXT[path.extname(entry).toLowerCase()]);
+    if (!name) continue;
+    return {
+      absolutePath: path.join(dir, name),
+      relativePath: path.posix.join("opening-docs", id, name),
+      fileName: name,
+    };
+  }
+  return null;
 }
 
 function sanitizeFileName(original, ext) {
@@ -82,28 +136,78 @@ export function resolveOpeningDocumentFilePath(headerDocument = {}) {
     || headerDocument.absolutePath
     || "",
   ).trim();
-  if (!stored) return null;
-  const extracted = extractOpeningDocsRelative(stored);
-  if (extracted) return absoluteDocumentPath(extracted);
-  if (!path.isAbsolute(stored)) return absoluteDocumentPath(stored);
-  return stored;
+  const eventId = headerDocument.eventId || eventIdFromOpeningPath(stored);
+
+  if (stored) {
+    const extracted = extractOpeningDocsRelative(stored);
+    if (extracted) {
+      const mapped = absoluteDocumentPath(extracted);
+      if (mapped && existsSync(mapped)) return mapped;
+      const eid = eventIdFromOpeningPath(extracted) || eventId;
+      const bundled = bundledRoot();
+      if (bundled && eid) {
+        const inBundled = path.join(bundled, eid, path.posix.basename(extracted));
+        if (existsSync(inBundled)) return inBundled;
+      }
+      const fallback = firstDocumentInEventDir(eid);
+      if (fallback) return fallback.absolutePath;
+      return mapped;
+    }
+    if (!path.isAbsolute(stored)) {
+      const mapped = absoluteDocumentPath(stored);
+      if (mapped && existsSync(mapped)) return mapped;
+      const fallback = firstDocumentInEventDir(eventId);
+      if (fallback) return fallback.absolutePath;
+      return mapped;
+    }
+    if (existsSync(stored)) return stored;
+    const fallback = firstDocumentInEventDir(eventId);
+    if (fallback) return fallback.absolutePath;
+    return stored;
+  }
+
+  return firstDocumentInEventDir(eventId)?.absolutePath || null;
+}
+
+function storedFromAbs(abs, template, relativePath) {
+  const ext = path.extname(abs).toLowerCase();
+  return {
+    absolutePath: abs,
+    relativePath: relativePath || extractOpeningDocsRelative(template?.documentPath) || template?.documentPath,
+    fileName: template?.documentFileName || path.basename(abs),
+    mime: template?.documentMime || MIME_BY_EXT[ext] || "application/pdf",
+    size: Number(template?.documentSize) || 0,
+  };
 }
 
 export async function resolveStoredDocument(template) {
+  const eventId = template?.eventId || eventIdFromOpeningPath(template?.documentPath);
   const abs = absoluteDocumentPath(template?.documentPath);
-  if (!abs) return null;
-  try {
-    await fs.access(abs);
-  } catch {
-    return null;
+  if (abs && existsSync(abs)) {
+    return storedFromAbs(
+      abs,
+      template,
+      extractOpeningDocsRelative(template.documentPath) || template.documentPath,
+    );
   }
-  return {
-    absolutePath: abs,
-    relativePath: extractOpeningDocsRelative(template.documentPath) || template.documentPath,
-    fileName: template.documentFileName || path.basename(abs),
-    mime: template.documentMime || "application/pdf",
-    size: Number(template.documentSize) || 0,
-  };
+
+  const extracted = extractOpeningDocsRelative(template?.documentPath);
+  const bundled = bundledRoot();
+  if (bundled && extracted) {
+    const eid = eventIdFromOpeningPath(extracted) || eventId;
+    if (eid) {
+      const inBundled = path.join(bundled, eid, path.posix.basename(extracted));
+      if (existsSync(inBundled)) return storedFromAbs(inBundled, template, extracted);
+    }
+  }
+
+  const fallback = firstDocumentInEventDir(eventId);
+  if (!fallback) return null;
+  if (template && template.documentPath !== fallback.relativePath && typeof template.save === "function") {
+    template.documentPath = fallback.relativePath;
+    await template.save().catch(() => {});
+  }
+  return storedFromAbs(fallback.absolutePath, template, fallback.relativePath);
 }
 
 export async function assertOpeningDocumentReady(template) {
@@ -112,7 +216,8 @@ export async function assertOpeningDocumentReady(template) {
   if (!templateName) throw httpError(400, "Falta META_TEMPLATE_NAME_DOCUMENT.");
   const stored = await resolveStoredDocument(template);
   if (!stored) throw httpError(400, MISSING_OPENING_DOCUMENT_MESSAGE);
-  return { attachDocument: true, templateName, ...stored };
+  const eventId = template?.eventId || eventIdFromOpeningPath(stored.relativePath);
+  return { attachDocument: true, templateName, eventId, ...stored };
 }
 
 async function removeFile(storedRelative) {
@@ -140,6 +245,7 @@ export async function saveOpeningDocument(event, file) {
   await fs.writeFile(abs, file.buffer);
 
   const previousPath = tpl.documentPath;
+  tpl.attachDocument = true;
   tpl.documentPath = relative;
   tpl.documentFileName = type.fileName;
   tpl.documentMime = type.mime;

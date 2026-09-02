@@ -1,16 +1,16 @@
 import { jest } from "@jest/globals";
 
+const metaEnv = {
+  templateName: "alanna_cold",
+  templateNameDocument: "constructor2",
+  templateLanguage: "es_MX",
+  graphVersion: "v21.0",
+  timeoutMs: 8000,
+  mediaTimeoutMs: 60000,
+};
+
 await jest.unstable_mockModule("../../src/config/env.js", () => ({
-    env: {
-      meta: {
-        templateName: "alanna_cold",
-        templateNameDocument: "constructor2",
-        templateLanguage: "es_MX",
-        graphVersion: "v21.0",
-        timeoutMs: 8000,
-        mediaTimeoutMs: 60000,
-      },
-    },
+    env: { meta: metaEnv },
 }));
 
 const { metaClient, sanitizeMetaBodyParam } = await import("../../src/services/meta.client.js");
@@ -50,6 +50,7 @@ describe("sanitizeMetaBodyParam", () => {
 describe("meta.client", () => {
   beforeEach(() => {
     global.fetch = jest.fn();
+    metaEnv.templateNameDocument = "constructor2";
   });
 
   afterEach(() => {
@@ -135,6 +136,19 @@ describe("meta.client", () => {
         },
       ],
     });
+  });
+
+  test("sendTemplate con documento ignora constructor2 del job y usa META_TEMPLATE_NAME_DOCUMENT", async () => {
+    metaEnv.templateNameDocument = "rg_eventos";
+    fetch.mockResolvedValueOnce(jsonResponse(200, { messages: [{ id: "wamid.doc" }] }));
+    await metaClient.sendTemplate({
+      to: "6183218624",
+      bodyParams: ["Luis", "Hola invitación"],
+      templateName: "constructor2",
+      headerDocument: { id: "media_abc", filename: "invitacion.pdf" },
+      ...auth,
+    });
+    expect(JSON.parse(fetch.mock.calls[0][1].body).template.name).toBe("rg_eventos");
   });
 
   test("sendTemplate 400 si la plantilla con documento no trae archivo", async () => {

@@ -5,6 +5,7 @@ COPY package.json package-lock.json ./
 RUN npm ci --omit=dev
 
 COPY src ./src
+COPY uploads/opening-docs ./bundled-opening-docs
 COPY docker-entrypoint.sh ./
 RUN chmod +x docker-entrypoint.sh
 
