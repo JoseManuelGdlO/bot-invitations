@@ -113,6 +113,7 @@ export interface Template {
   title: string;
   body: string;
   greetingVar?: string;
+  bodyVars?: string[] | null;
   attachDocument?: boolean;
   document?: {
     fileName: string;

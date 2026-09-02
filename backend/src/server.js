@@ -1,5 +1,5 @@
 import { env } from "./config/env.js";
-import { sequelize, ensureEventMemberRemovedAt, ensureInboundEventDedupTable, ensureCampaignColumns, ensureTemplateGreetingVar, ensureTemplateDocumentColumns, ensureWhatsappMetaTables, ensureMessageProviderId, ensureGuestCustomData } from "./models/index.js";
+import { sequelize, ensureEventMemberRemovedAt, ensureInboundEventDedupTable, ensureCampaignColumns, ensureTemplateGreetingVar, ensureTemplateBodyVars, ensureTemplateDocumentColumns, ensureWhatsappMetaTables, ensureMessageProviderId, ensureGuestCustomData } from "./models/index.js";
 import { createApp } from "./app.js";
 import { startOutboundWorker } from "./services/outbound.worker.js";
 import { startFollowUpScheduler } from "./services/follow-up.scheduler.js";
@@ -14,6 +14,7 @@ try {
   await ensureWhatsappMetaTables();
   await ensureCampaignColumns();
   await ensureTemplateGreetingVar();
+  await ensureTemplateBodyVars();
   await ensureTemplateDocumentColumns();
   await ensureMessageProviderId();
   await ensureGuestCustomData();

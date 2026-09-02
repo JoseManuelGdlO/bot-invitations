@@ -131,12 +131,14 @@ export function serializeAi(ai) {
 export function serializeTemplate(t) {
   const fileName = t.documentFileName || null;
   const hasFile = Boolean(t.documentPath && fileName);
+  const bodyVars = Array.isArray(t.bodyVars) ? t.bodyVars : null;
   return {
     id: t.id,
     category: t.category,
     title: t.title,
     body: t.body,
     greetingVar: t.greetingVar || "nombre",
+    bodyVars,
     attachDocument: Boolean(t.attachDocument),
     document: hasFile
       ? {

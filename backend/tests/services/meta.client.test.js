@@ -13,7 +13,7 @@ await jest.unstable_mockModule("../../src/config/env.js", () => ({
     env: { meta: metaEnv },
 }));
 
-const { metaClient, sanitizeMetaBodyParam } = await import("../../src/services/meta.client.js");
+const { metaClient, sanitizeMetaBodyParam, parseMessageTemplate, extractTemplateParameters, fillMetaTemplate, clearMessageTemplateCache } = await import("../../src/services/meta.client.js");
 
 const auth = { accessToken: "test-graph-token", phoneNumberId: "10987654321" };
 
@@ -51,6 +51,7 @@ describe("meta.client", () => {
   beforeEach(() => {
     global.fetch = jest.fn();
     metaEnv.templateNameDocument = "constructor2";
+    clearMessageTemplateCache();
   });
 
   afterEach(() => {
@@ -242,5 +243,154 @@ describe("meta.client", () => {
       message: "(#131026) Message undeliverable",
       meta: expect.objectContaining({ code: 131026, details: "Message Undeliverable.", fbtraceId: "ABC123" }),
     });
+  });
+});
+
+describe("parseMessageTemplate", () => {
+  test("extrae BODY, FOOTER y placeholders posicionales", () => {
+    const parsed = parseMessageTemplate({
+      name: "alanna_cold",
+      language: "es_MX",
+      status: "APPROVED",
+      parameter_format: "POSITIONAL",
+      components: [
+        { type: "BODY", text: "¡Hola, buen día! {{1}}\nNos comunicamos de {{2}}" },
+        { type: "FOOTER", text: "Muchas gracias." },
+      ],
+    });
+    expect(parsed).toEqual({
+      id: null,
+      name: "alanna_cold",
+      language: "es_MX",
+      status: "APPROVED",
+      parameterFormat: "positional",
+      header: null,
+      body: {
+        text: "¡Hola, buen día! {{1}}\nNos comunicamos de {{2}}",
+        parameters: [{ key: "1" }, { key: "2" }],
+      },
+      footer: { text: "Muchas gracias." },
+    });
+  });
+
+  test("detecta HEADER DOCUMENT y variables named", () => {
+    const parsed = parseMessageTemplate({
+      name: "rg_eventos",
+      language: "es_MX",
+      status: "APPROVED",
+      components: [
+        { type: "HEADER", format: "DOCUMENT" },
+        { type: "BODY", text: "Hola {{first_name}}, te invitamos a {{evento}}" },
+      ],
+    });
+    expect(parsed.header).toEqual({ format: "DOCUMENT", text: null });
+    expect(extractTemplateParameters(parsed.body.text)).toEqual([
+      { key: "first_name" },
+      { key: "evento" },
+    ]);
+  });
+
+  test("fillMetaTemplate sustituye por índice", () => {
+    expect(fillMetaTemplate("Hola {{1}}, de {{2}}", ["Luis", "RG Eventos"])).toBe(
+      "Hola Luis, de RG Eventos",
+    );
+  });
+});
+
+describe("meta.client getMessageTemplate", () => {
+  const wabaAuth = { accessToken: "test-graph-token", wabaId: "waba_1" };
+
+  beforeEach(() => {
+    global.fetch = jest.fn();
+    metaEnv.templateNameDocument = "constructor2";
+    clearMessageTemplateCache();
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
+  });
+
+  test("GET message_templates y parsea BODY/FOOTER", async () => {
+    fetch.mockResolvedValueOnce(
+      jsonResponse(200, {
+        data: [
+          {
+            name: "alanna_cold",
+            language: "es_MX",
+            status: "APPROVED",
+            components: [
+              { type: "BODY", text: "¡Hola {{1}}! {{2}}" },
+              { type: "FOOTER", text: "Gracias" },
+            ],
+          },
+        ],
+      }),
+    );
+    const parsed = await metaClient.getMessageTemplate(wabaAuth);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    const [url, init] = fetch.mock.calls[0];
+    expect(url).toContain("https://graph.facebook.com/v21.0/waba_1/message_templates?");
+    expect(url).toContain("name=alanna_cold");
+    expect(init.method).toBe("GET");
+    expect(init.headers.Authorization).toBe("Bearer test-graph-token");
+    expect(parsed.body.parameters).toEqual([{ key: "1" }, { key: "2" }]);
+    expect(parsed.footer).toEqual({ text: "Gracias" });
+  });
+
+  test("usa cache en el segundo GET", async () => {
+    fetch.mockResolvedValueOnce(
+      jsonResponse(200, {
+        data: [
+          {
+            name: "alanna_cold",
+            language: "es_MX",
+            status: "APPROVED",
+            components: [{ type: "BODY", text: "Hola {{1}}" }],
+          },
+        ],
+      }),
+    );
+    await metaClient.getMessageTemplate(wabaAuth);
+    await metaClient.getMessageTemplate(wabaAuth);
+    expect(fetch).toHaveBeenCalledTimes(1);
+  });
+
+  test("document=true usa META_TEMPLATE_NAME_DOCUMENT", async () => {
+    fetch.mockResolvedValueOnce(
+      jsonResponse(200, {
+        data: [
+          {
+            name: "constructor2",
+            language: "es_MX",
+            status: "APPROVED",
+            components: [{ type: "HEADER", format: "DOCUMENT" }, { type: "BODY", text: "Doc {{1}}" }],
+          },
+        ],
+      }),
+    );
+    const parsed = await metaClient.getMessageTemplate({ ...wabaAuth, document: true });
+    expect(fetch.mock.calls[0][0]).toContain("name=constructor2");
+    expect(parsed.header.format).toBe("DOCUMENT");
+  });
+
+  test("403 pide permiso whatsapp_business_management", async () => {
+    fetch.mockResolvedValueOnce(jsonResponse(403, { error: { message: "forbidden", code: 200 } }));
+    await expect(metaClient.getMessageTemplate(wabaAuth)).rejects.toMatchObject({
+      status: 403,
+      message: "No hay permiso para leer plantillas de Meta (whatsapp_business_management).",
+    });
+  });
+
+  test("404 si Graph no trae la plantilla", async () => {
+    fetch.mockResolvedValueOnce(jsonResponse(200, { data: [] }));
+    await expect(metaClient.getMessageTemplate(wabaAuth)).rejects.toMatchObject({
+      status: 404,
+      message: "No se encontró la plantilla de Meta.",
+    });
+  });
+
+  test("400 si faltan credenciales", async () => {
+    await expect(metaClient.getMessageTemplate({})).rejects.toMatchObject({ status: 400 });
+    expect(fetch).not.toHaveBeenCalled();
   });
 });

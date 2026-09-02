@@ -191,6 +191,7 @@ export const Template = sequelize.define("templates", {
   title: { type: DataTypes.STRING(160), allowNull: false },
   body: { type: DataTypes.TEXT, allowNull: false },
   greetingVar: { type: DataTypes.STRING(40), allowNull: false, defaultValue: "nombre" },
+  bodyVars: { type: DataTypes.JSON, allowNull: true },
   attachDocument: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
   documentPath: { type: DataTypes.STRING(500), allowNull: true },
   documentFileName: { type: DataTypes.STRING(255), allowNull: true },
@@ -601,6 +602,23 @@ export async function ensureTemplateGreetingVar() {
       defaultValue: "nombre",
     });
     console.log("[db] columna templates.greetingVar creada");
+  }
+}
+
+export async function ensureTemplateBodyVars() {
+  const qi = sequelize.getQueryInterface();
+  let table;
+  try {
+    table = await qi.describeTable("templates");
+  } catch {
+    return;
+  }
+  if (!table.bodyVars) {
+    await qi.addColumn("templates", "bodyVars", {
+      type: DataTypes.JSON,
+      allowNull: true,
+    });
+    console.log("[db] columna templates.bodyVars creada");
   }
 }
 

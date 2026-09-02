@@ -134,7 +134,7 @@ async function deliverOpeningInvitation({ event, guest, plannerName }) {
   const hsmHeaderDocument = openingHeaderDocumentFrom(document);
   const hsmTemplateName = hsmHeaderDocument ? document.templateName : null;
   const ai = await AiConfig.findOne({ where: { eventId: event.id } });
-  const { text, param1, param2 } = resolveOpeningParts(
+  const { text, params, param1, param2 } = await resolveOpeningParts(
     opening,
     event,
     guest,
@@ -145,7 +145,7 @@ async function deliverOpeningInvitation({ event, guest, plannerName }) {
     event,
     guest,
     text,
-    hsmParams: [param1, param2],
+    hsmParams: params?.length ? params : [param1, param2],
     ...(hsmTemplateName ? { hsmTemplateName } : {}),
     ...(hsmHeaderDocument ? { hsmHeaderDocument } : {}),
     kind: "campaign",

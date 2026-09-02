@@ -78,6 +78,22 @@ export const postWhatsappMetaCredentials = asyncHandler(async (req, res) => {
   });
 });
 
+function queryFlag(value) {
+  const v = String(value ?? "").trim().toLowerCase();
+  return v === "1" || v === "true" || v === "yes";
+}
+
+export const getWhatsappMetaTemplate = asyncHandler(async (req, res) => {
+  const document = queryFlag(req.query?.document);
+  const { credentials } = await resolveActiveWhatsappMetaByOwner(req.user.id);
+  const template = await metaClient.getMessageTemplate({
+    accessToken: credentials.accessToken,
+    wabaId: credentials.wabaId,
+    document,
+  });
+  res.json(template);
+});
+
 export const postWhatsappMetaSendTest = asyncHandler(async (req, res) => {
   const to = String(req.body?.to || "").trim();
   const type = String(req.body?.type || "text").trim().toLowerCase();

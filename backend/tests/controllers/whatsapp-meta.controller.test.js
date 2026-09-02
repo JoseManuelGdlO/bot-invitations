@@ -5,6 +5,7 @@ describe("whatsapp-meta.controller", () => {
   let controller;
   let sendTextWithRetry;
   let sendTemplateWithRetry;
+  let getMessageTemplate;
   let findWhatsappMetaStatusByOwner;
   let parseWhatsappMetaCredentials;
   let resolveActiveWhatsappMetaByOwner;
@@ -27,6 +28,18 @@ describe("whatsapp-meta.controller", () => {
     envState.meta.templateName = "constructor";
     sendTextWithRetry = jest.fn(async () => ({ messages: [{ id: "wamid.text" }] }));
     sendTemplateWithRetry = jest.fn(async () => ({ messages: [{ id: "wamid.tpl" }] }));
+    getMessageTemplate = jest.fn(async () => ({
+      name: "constructor",
+      language: "es_MX",
+      status: "APPROVED",
+      parameterFormat: "positional",
+      header: null,
+      body: {
+        text: "¡Hola {{1}}! {{2}}",
+        parameters: [{ key: "1" }, { key: "2" }],
+      },
+      footer: { text: "Gracias" },
+    }));
     findWhatsappMetaStatusByOwner = jest.fn(async () => ({
       configured: true,
       wabaId: "waba_1",
@@ -54,7 +67,7 @@ describe("whatsapp-meta.controller", () => {
       extraMocks: {
         "src/config/env.js": () => ({ env: envState }),
         "src/services/meta.client.js": () => ({
-          metaClient: { sendTextWithRetry, sendTemplateWithRetry },
+          metaClient: { sendTextWithRetry, sendTemplateWithRetry, getMessageTemplate },
           sanitizeMetaBodyParam: (value) =>
             String(value || "")
               .replace(/\r\n/g, "\n")
@@ -201,5 +214,45 @@ describe("whatsapp-meta.controller", () => {
     });
     expect(next).toHaveBeenCalledWith(expect.objectContaining({ status: 400 }));
     expect(sendTemplateWithRetry).not.toHaveBeenCalled();
+  });
+
+  test("GET template usa credenciales del owner", async () => {
+    const { res } = await callHandler(controller.getWhatsappMetaTemplate, {
+      req: createMockReq({ query: {} }),
+    });
+    expect(resolveActiveWhatsappMetaByOwner).toHaveBeenCalledWith("usr_test_1");
+    expect(getMessageTemplate).toHaveBeenCalledWith({
+      accessToken: "user-token",
+      wabaId: "waba_1",
+      document: false,
+    });
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: "constructor",
+        footer: { text: "Gracias" },
+      }),
+    );
+  });
+
+  test("GET template document=true pide la plantilla con adjunto", async () => {
+    await callHandler(controller.getWhatsappMetaTemplate, {
+      req: createMockReq({ query: { document: "true" } }),
+    });
+    expect(getMessageTemplate).toHaveBeenCalledWith({
+      accessToken: "user-token",
+      wabaId: "waba_1",
+      document: true,
+    });
+  });
+
+  test("GET template 400 si WhatsApp no está configurado", async () => {
+    resolveActiveWhatsappMetaByOwner.mockRejectedValue(
+      Object.assign(new Error("WhatsApp (Meta) no está configurado."), { status: 400 }),
+    );
+    const { next } = await callHandler(controller.getWhatsappMetaTemplate, {
+      req: createMockReq({ query: {} }),
+    });
+    expect(next).toHaveBeenCalledWith(expect.objectContaining({ status: 400 }));
+    expect(getMessageTemplate).not.toHaveBeenCalled();
   });
 });
