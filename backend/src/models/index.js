@@ -1,5 +1,6 @@
 import { DataTypes } from "sequelize";
 import { sequelize } from "../config/database.js";
+import { pruneDuplicateIndexes } from "../utils/prune-duplicate-indexes.js";
 
 const uuid = {
   type: DataTypes.CHAR(36),
@@ -48,14 +49,19 @@ export const RefreshToken = sequelize.define(
   {
     id: uuid,
     userId: { type: DataTypes.CHAR(36), allowNull: false },
-    tokenHash: { type: DataTypes.STRING(64), allowNull: false, unique: true },
+    tokenHash: { type: DataTypes.STRING(64), allowNull: false },
     familyId: { type: DataTypes.CHAR(36), allowNull: true },
-    jti: { type: DataTypes.STRING(64), allowNull: true, unique: true },
+    jti: { type: DataTypes.STRING(64), allowNull: true },
     expiresAt: { type: DataTypes.DATE, allowNull: false },
     revokedAt: { type: DataTypes.DATE, allowNull: true },
   },
   {
-    indexes: [{ fields: ["userId"] }, { fields: ["familyId"] }],
+    indexes: [
+      { unique: true, name: "tokenHash", fields: ["tokenHash"] },
+      { unique: true, name: "jti", fields: ["jti"] },
+      { name: "userId", fields: ["userId"] },
+      { name: "familyId", fields: ["familyId"] },
+    ],
   },
 );
 
@@ -184,6 +190,11 @@ export const Template = sequelize.define("templates", {
   title: { type: DataTypes.STRING(160), allowNull: false },
   body: { type: DataTypes.TEXT, allowNull: false },
   greetingVar: { type: DataTypes.STRING(40), allowNull: false, defaultValue: "nombre" },
+  attachDocument: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+  documentPath: { type: DataTypes.STRING(500), allowNull: true },
+  documentFileName: { type: DataTypes.STRING(255), allowNull: true },
+  documentMime: { type: DataTypes.STRING(120), allowNull: true },
+  documentSize: { type: DataTypes.INTEGER, allowNull: true },
 });
 
 export const Faq = sequelize.define("faqs", {
@@ -465,6 +476,9 @@ InboundEventDedup.belongsTo(User, { foreignKey: "ownerUserId" });
 export { sequelize };
 
 export async function syncModels({ force = false, alter = false } = {}) {
+  // sequelize.sync({ alter }) en MySQL vuelve a emitir CHANGE ... UNIQUE y acumula
+  // índices hasta ER_TOO_MANY_KEYS (máx. 64). Se limpian duplicados antes del alter.
+  if (alter) await pruneDuplicateIndexes(sequelize);
   await sequelize.sync({ force, alter });
 }
 
@@ -565,5 +579,51 @@ export async function ensureTemplateGreetingVar() {
       defaultValue: "nombre",
     });
     console.log("[db] columna templates.greetingVar creada");
+  }
+}
+
+export async function ensureTemplateDocumentColumns() {
+  const qi = sequelize.getQueryInterface();
+  let table;
+  try {
+    table = await qi.describeTable("templates");
+  } catch {
+    return;
+  }
+  if (!table.attachDocument) {
+    await qi.addColumn("templates", "attachDocument", {
+      type: DataTypes.BOOLEAN,
+      allowNull: false,
+      defaultValue: false,
+    });
+    console.log("[db] columna templates.attachDocument creada");
+  }
+  if (!table.documentPath) {
+    await qi.addColumn("templates", "documentPath", {
+      type: DataTypes.STRING(500),
+      allowNull: true,
+    });
+    console.log("[db] columna templates.documentPath creada");
+  }
+  if (!table.documentFileName) {
+    await qi.addColumn("templates", "documentFileName", {
+      type: DataTypes.STRING(255),
+      allowNull: true,
+    });
+    console.log("[db] columna templates.documentFileName creada");
+  }
+  if (!table.documentMime) {
+    await qi.addColumn("templates", "documentMime", {
+      type: DataTypes.STRING(120),
+      allowNull: true,
+    });
+    console.log("[db] columna templates.documentMime creada");
+  }
+  if (!table.documentSize) {
+    await qi.addColumn("templates", "documentSize", {
+      type: DataTypes.INTEGER,
+      allowNull: true,
+    });
+    console.log("[db] columna templates.documentSize creada");
   }
 }

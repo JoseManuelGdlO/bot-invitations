@@ -18,6 +18,7 @@ process.env.WC_API_URL = "https://wc.example.test";
 process.env.WC_SERVICE_JWT = "test-wc-service-jwt";
 process.env.META_WEBHOOK_VERIFY_TOKEN = "test-meta-verify-token";
 process.env.META_TEMPLATE_NAME = "alanna_cold";
+process.env.META_TEMPLATE_NAME_DOCUMENT = "constructor2";
 process.env.META_TEMPLATE_LANGUAGE = "es_MX";
 process.env.META_GRAPH_VERSION = "v21.0";
 process.env.ADMIN_EMAIL = "admin@alannaconfirmaciones.com.mx";

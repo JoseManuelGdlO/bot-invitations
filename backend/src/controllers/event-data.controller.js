@@ -1,4 +1,5 @@
 import { AiConfig, Faq, Template } from "../models/index.js";
+import { saveOpeningDocument, getOpeningDocumentFile } from "../services/opening-document.service.js";
 import { asyncHandler } from "../utils/async.js";
 import { requireEvent, requirePermission, PERMS } from "../services/access.service.js";
 import { serializeAi, serializeFaq, serializeTemplate } from "../utils/serialize.js";
@@ -105,11 +106,14 @@ export const setTemplates = asyncHandler(async (req, res) => {
   if (!(await requirePermission(req, res, event, PERMS.CONFIG_AI))) return;
   const incoming = Array.isArray(req.body) ? req.body : req.body?.templates;
   if (!Array.isArray(incoming)) return res.status(400).json({ error: "Se esperaba un arreglo de plantillas." });
+  const existing = await Template.findAll({ where: { eventId: event.id } });
+  const existingByCategory = new Map(existing.map((row) => [row.category, row]));
   await Template.destroy({ where: { eventId: event.id } });
   const created = await Template.bulkCreate(
     incoming.map((t) => {
       const category = t.category;
       const isOpening = category === "Primer contacto";
+      const prev = existingByCategory.get(category);
       return {
         id: t.id && String(t.id).length === 36 ? t.id : undefined,
         eventId: event.id,
@@ -117,10 +121,35 @@ export const setTemplates = asyncHandler(async (req, res) => {
         title: t.title,
         body: isOpening ? flattenTemplateLine(t.body) : t.body,
         greetingVar: isOpening ? normalizeGreetingVar(t.greetingVar) : "nombre",
+        attachDocument: isOpening ? Boolean(t.attachDocument) : false,
+        documentPath: isOpening ? prev?.documentPath || null : null,
+        documentFileName: isOpening ? prev?.documentFileName || null : null,
+        documentMime: isOpening ? prev?.documentMime || null : null,
+        documentSize: isOpening ? prev?.documentSize ?? null : null,
       };
     }),
   );
   res.json(created.map(serializeTemplate));
+});
+
+export const uploadOpeningDocument = asyncHandler(async (req, res) => {
+  const event = await requireEvent(req, res);
+  if (!event) return;
+  if (!(await requirePermission(req, res, event, PERMS.CONFIG_AI))) return;
+  res.json(await saveOpeningDocument(event, req.file));
+});
+
+export const downloadOpeningDocument = asyncHandler(async (req, res) => {
+  const event = await requireEvent(req, res);
+  if (!event) return;
+  if (!(await requirePermission(req, res, event, PERMS.CONFIG_AI))) return;
+  const stored = await getOpeningDocumentFile(event);
+  res.setHeader("Content-Type", stored.mime);
+  res.setHeader(
+    "Content-Disposition",
+    `attachment; filename*=UTF-8''${encodeURIComponent(stored.fileName)}`,
+  );
+  res.sendFile(stored.absolutePath);
 });
 
 export const setFaqs = asyncHandler(async (req, res) => {

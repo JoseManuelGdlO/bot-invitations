@@ -153,6 +153,8 @@ export async function processJob(job) {
         guestId: job.payload.guestId,
         conversationId: job.payload.conversationId,
         hsmParams: job.payload.hsmParams,
+        hsmTemplateName: job.payload.hsmTemplateName,
+        hsmHeaderDocument: job.payload.hsmHeaderDocument,
       });
       const ok = !result.skipped;
       const status = result.skipped ? "skipped" : "done";

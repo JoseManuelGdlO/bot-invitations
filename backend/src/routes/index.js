@@ -22,6 +22,24 @@ import { requireAdmin } from "../middleware/admin.js";
 import { env } from "../config/env.js";
 
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } });
+const openingDocUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+});
+
+function handleOpeningDocumentUpload(req, res, next) {
+  openingDocUpload.single("file")(req, res, (err) => {
+    if (!err) return next();
+    if (err.code === "LIMIT_FILE_SIZE") {
+      err.status = 400;
+      err.message = "El archivo no puede superar 10 MB.";
+    } else if (!err.status) {
+      err.status = 400;
+    }
+    next(err);
+  });
+}
+
 export const router = Router();
 
 router.get("/plans", auth.listPlans);
@@ -91,6 +109,8 @@ router.patch("/events/:eventId/ai-config", eventData.updateAi);
 router.post("/events/:eventId/ai-config/reset", eventData.resetAi);
 router.post("/events/:eventId/ai-config/regenerate-prompt", eventData.regeneratePrompt);
 router.put("/events/:eventId/templates", eventData.setTemplates);
+router.post("/events/:eventId/opening-document", handleOpeningDocumentUpload, eventData.uploadOpeningDocument);
+router.get("/events/:eventId/opening-document", eventData.downloadOpeningDocument);
 router.put("/events/:eventId/faqs", eventData.setFaqs);
 
 if (env.botDevEnabled) {

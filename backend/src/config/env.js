@@ -98,11 +98,14 @@ export const env = {
     webhookMaxSkewMs: Number(process.env.WC_WEBHOOK_MAX_SKEW_MS || 300000),
     webhookDebug: (process.env.WC_WEBHOOK_DEBUG || "false") === "true",
   },
+  uploadsDir: process.env.UPLOADS_DIR || path.join(root, "uploads"),
   meta: {
     webhookVerifyToken: process.env.META_WEBHOOK_VERIFY_TOKEN || "",
     templateName: process.env.META_TEMPLATE_NAME || "",
+    templateNameDocument: process.env.META_TEMPLATE_NAME_DOCUMENT || "constructor2",
     templateLanguage: process.env.META_TEMPLATE_LANGUAGE || "es_MX",
     graphVersion: (process.env.META_GRAPH_VERSION || "v21.0").replace(/^\//, ""),
     timeoutMs: Number(process.env.META_TIMEOUT_MS || 8000),
+    mediaTimeoutMs: Number(process.env.META_MEDIA_TIMEOUT_MS || 60000),
   },
 };

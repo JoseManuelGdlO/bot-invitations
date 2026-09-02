@@ -1,14 +1,16 @@
 import { jest } from "@jest/globals";
 
 await jest.unstable_mockModule("../../src/config/env.js", () => ({
-  env: {
-    meta: {
-      templateName: "alanna_cold",
-      templateLanguage: "es_MX",
-      graphVersion: "v21.0",
-      timeoutMs: 8000,
+    env: {
+      meta: {
+        templateName: "alanna_cold",
+        templateNameDocument: "constructor2",
+        templateLanguage: "es_MX",
+        graphVersion: "v21.0",
+        timeoutMs: 8000,
+        mediaTimeoutMs: 60000,
+      },
     },
-  },
 }));
 
 const { metaClient, sanitizeMetaBodyParam } = await import("../../src/services/meta.client.js");
@@ -87,6 +89,80 @@ describe("meta.client", () => {
         },
       ],
     });
+  });
+
+  test("sendTemplate inyecta header document y usa constructor2", async () => {
+    fetch.mockResolvedValueOnce(jsonResponse(200, { messages: [{ id: "wamid.doc" }] }));
+    await metaClient.sendTemplate({
+      to: "6183218624",
+      bodyParams: ["Luis", "Hola\ninvitación"],
+      templateName: "constructor2",
+      headerDocument: { id: "media_abc", filename: "invitacion.pdf" },
+      ...auth,
+    });
+    const body = JSON.parse(fetch.mock.calls[0][1].body);
+    expect(body.template).toEqual({
+      name: "constructor2",
+      language: { code: "es_MX" },
+      components: [
+        {
+          type: "header",
+          parameters: [
+            {
+              type: "document",
+              document: { id: "media_abc", filename: "invitacion.pdf" },
+            },
+          ],
+        },
+        {
+          type: "body",
+          parameters: [
+            { type: "text", text: "Luis" },
+            { type: "text", text: "Hola invitación" },
+          ],
+        },
+      ],
+    });
+  });
+
+  test("sendTemplate 400 si la plantilla con documento no trae archivo", async () => {
+    await expect(
+      metaClient.sendTemplate({
+        to: "6183218624",
+        bodyParams: ["Luis", "copy"],
+        templateName: "constructor2",
+        ...auth,
+      }),
+    ).rejects.toMatchObject({
+      status: 400,
+      message: "La plantilla con documento requiere un archivo adjunto.",
+    });
+    await expect(
+      metaClient.sendTemplate({
+        to: "6183218624",
+        bodyParams: ["Luis", "copy"],
+        headerDocument: { id: "  " },
+        ...auth,
+      }),
+    ).rejects.toMatchObject({ status: 400 });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  test("uploadDocument POST a /media y devuelve id", async () => {
+    fetch.mockResolvedValueOnce(jsonResponse(200, { id: "media_abc" }));
+    const id = await metaClient.uploadDocument({
+      buffer: Buffer.from("%PDF-1.4"),
+      filename: "inv.pdf",
+      mime: "application/pdf",
+      ...auth,
+    });
+    expect(id).toBe("media_abc");
+    expect(fetch).toHaveBeenCalledTimes(1);
+    const [url, init] = fetch.mock.calls[0];
+    expect(url).toBe("https://graph.facebook.com/v21.0/10987654321/media");
+    expect(init.method).toBe("POST");
+    expect(init.headers.Authorization).toBe("Bearer test-graph-token");
+    expect(init.body).toBeInstanceOf(FormData);
   });
 
   test("sendText 400 si el teléfono no tiene 10 dígitos locales", async () => {

@@ -21,9 +21,19 @@ describe("event-data.controller", () => {
   let controller;
   let models;
   const resetPlaygroundSessions = jest.fn(async () => 0);
+  const saveOpeningDocument = jest.fn(async () => ({
+    id: "t1",
+    category: "Primer contacto",
+    title: "Invitación inicial",
+    body: "copy",
+    greetingVar: "nombre",
+    attachDocument: false,
+    document: { fileName: "inv.pdf", mime: "application/pdf", size: 4 },
+  }));
 
   beforeEach(async () => {
     resetPlaygroundSessions.mockClear();
+    saveOpeningDocument.mockClear();
     ({ mod: controller, models } = await loadWithMocks("src/controllers/event-data.controller.js", {
       extraMocks: {
         "src/services/access.service.js": () => ({
@@ -33,6 +43,10 @@ describe("event-data.controller", () => {
         }),
         "src/services/bot/session.service.js": () => ({
           resetPlaygroundSessions,
+        }),
+        "src/services/opening-document.service.js": () => ({
+          saveOpeningDocument,
+          getOpeningDocumentFile: jest.fn(),
         }),
       },
     }));
@@ -248,6 +262,75 @@ describe("event-data.controller", () => {
     expect(models.Template.bulkCreate).toHaveBeenCalledWith([
       expect.objectContaining({ greetingVar: "nombre" }),
     ]);
+  });
+
+  test("setTemplates conserva el archivo de Primer contacto", async () => {
+    models.Template.findAll.mockResolvedValue([
+      {
+        category: "Primer contacto",
+        documentPath: "opening-docs/evt_1/abc.pdf",
+        documentFileName: "invitacion.pdf",
+        documentMime: "application/pdf",
+        documentSize: 2048,
+      },
+    ]);
+    models.Template.bulkCreate.mockResolvedValue([
+      {
+        id: "t1",
+        category: "Primer contacto",
+        title: "Invitación inicial",
+        body: "copy",
+        greetingVar: "nombre",
+        attachDocument: true,
+        documentPath: "opening-docs/evt_1/abc.pdf",
+        documentFileName: "invitacion.pdf",
+        documentMime: "application/pdf",
+        documentSize: 2048,
+      },
+    ]);
+    const { res } = await callHandler(controller.setTemplates, {
+      req: createMockReq({
+        body: [
+          {
+            category: "Primer contacto",
+            title: "Invitación inicial",
+            body: "copy",
+            greetingVar: "nombre",
+            attachDocument: true,
+          },
+        ],
+      }),
+    });
+    expect(models.Template.bulkCreate).toHaveBeenCalledWith([
+      expect.objectContaining({
+        attachDocument: true,
+        documentPath: "opening-docs/evt_1/abc.pdf",
+        documentFileName: "invitacion.pdf",
+        documentMime: "application/pdf",
+        documentSize: 2048,
+      }),
+    ]);
+    expect(res.json).toHaveBeenCalledWith([
+      expect.objectContaining({
+        attachDocument: true,
+        document: { fileName: "invitacion.pdf", mime: "application/pdf", size: 2048 },
+      }),
+    ]);
+  });
+
+  test("uploadOpeningDocument delega en el servicio", async () => {
+    const { res } = await callHandler(controller.uploadOpeningDocument, {
+      req: createMockReq({
+        params: { eventId: "boda-ana" },
+        file: { originalname: "inv.pdf", mimetype: "application/pdf", buffer: Buffer.from("%PDF") },
+      }),
+    });
+    expect(saveOpeningDocument).toHaveBeenCalled();
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        document: expect.objectContaining({ fileName: "inv.pdf" }),
+      }),
+    );
   });
 
   test("setFaqs crea registros", async () => {

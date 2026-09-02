@@ -133,7 +133,7 @@ describe("outbound.worker", () => {
     expect(job.update).toHaveBeenCalledWith(expect.objectContaining({ status: "done" }));
   });
 
-  test("processJob whatsapp.send reenvía hsmParams al provider", async () => {
+  test("processJob whatsapp.send reenvía hsmParams y documento al provider", async () => {
     sendMessage.mockResolvedValueOnce({ provider: "stub", skipped: false });
     const job = createInstance({
       type: "whatsapp.send",
@@ -145,6 +145,8 @@ describe("outbound.worker", () => {
         eventId: "evt_1",
         guestId: "gst_1",
         hsmParams: ["Luis", "copy libre"],
+        hsmTemplateName: "constructor2",
+        hsmHeaderDocument: { id: "media_abc", filename: "inv.pdf" },
       },
     });
     await service.processJob(job);
@@ -155,6 +157,8 @@ describe("outbound.worker", () => {
         eventId: "evt_1",
         guestId: "gst_1",
         hsmParams: ["Luis", "copy libre"],
+        hsmTemplateName: "constructor2",
+        hsmHeaderDocument: { id: "media_abc", filename: "inv.pdf" },
       }),
     );
   });

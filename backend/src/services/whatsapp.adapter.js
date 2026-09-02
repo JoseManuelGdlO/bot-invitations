@@ -49,6 +49,8 @@ export class MetaCloudProvider {
         bodyParams,
         accessToken: credentials.accessToken,
         phoneNumberId: credentials.phoneNumberId,
+        ...(meta.hsmTemplateName ? { templateName: meta.hsmTemplateName } : {}),
+        ...(meta.hsmHeaderDocument ? { headerDocument: meta.hsmHeaderDocument } : {}),
       });
     } else {
       if (!body) throw httpError(400, "text is required when type=text");
