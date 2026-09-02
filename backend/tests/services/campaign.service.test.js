@@ -9,8 +9,6 @@ describe("campaign.service", () => {
   let assertWhatsappReady;
   let recordCampaignSendResult;
   let assertOpeningDocumentReady;
-  let uploadDocument;
-  let resolveActiveWhatsappMetaByOwner;
 
   beforeEach(async () => {
     deliverAiMessage = jest.fn(async () => ({ id: "c1" }));
@@ -27,10 +25,6 @@ describe("campaign.service", () => {
         size: 12,
       };
     });
-    uploadDocument = jest.fn(async () => "media_abc");
-    resolveActiveWhatsappMetaByOwner = jest.fn(async () => ({
-      credentials: { accessToken: "tok", phoneNumberId: "10987654321" },
-    }));
     ({ mod: service, models } = await loadWithMocks("src/services/campaign.service.js", {
       extraMocks: {
         "src/services/guest-message.service.js": () => ({ deliverAiMessage }),
@@ -38,8 +32,6 @@ describe("campaign.service", () => {
         "src/services/activity.service.js": () => ({ logActivity: jest.fn(async () => undefined) }),
         "src/services/campaign-progress.js": () => ({ recordCampaignSendResult }),
         "src/services/opening-document.service.js": () => ({ assertOpeningDocumentReady }),
-        "src/services/meta.client.js": () => ({ metaClient: { uploadDocument } }),
-        "src/services/whatsapp-meta.service.js": () => ({ resolveActiveWhatsappMetaByOwner }),
       },
     }));
   });
@@ -365,7 +357,7 @@ describe("campaign.service", () => {
     );
   });
 
-  test("executeCampaignLaunch con documento sube media y usa constructor2", async () => {
+  test("executeCampaignLaunch con documento encola constructor2 y ruta del PDF", async () => {
     const campaign = createInstance({
       id: "cmp_1",
       eventId: "evt_1",
@@ -390,17 +382,14 @@ describe("campaign.service", () => {
 
     await service.executeCampaignLaunch({ payload: { campaignId: "cmp_1", eventId: "evt_1" } });
 
-    expect(uploadDocument).toHaveBeenCalledWith(
-      expect.objectContaining({
-        filePath: "/tmp/inv.pdf",
-        filename: "invitacion.pdf",
-        mime: "application/pdf",
-      }),
-    );
     expect(deliverAiMessage).toHaveBeenCalledWith(
       expect.objectContaining({
         hsmTemplateName: "constructor2",
-        hsmHeaderDocument: { id: "media_abc", filename: "invitacion.pdf" },
+        hsmHeaderDocument: {
+          filePath: "/tmp/inv.pdf",
+          filename: "invitacion.pdf",
+          mime: "application/pdf",
+        },
         hsmParams: ["Luis", "Ana y Carlos. Los esperamos."],
       }),
     );

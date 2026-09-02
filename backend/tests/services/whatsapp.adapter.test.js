@@ -6,6 +6,7 @@ describe("whatsapp.adapter MetaCloudProvider", () => {
   let models;
   let sendTemplateWithRetry;
   let sendTextWithRetry;
+  let uploadDocument;
   let resolveActiveWhatsappMetaByOwner;
   const metaAuth = { accessToken: "owner-token", phoneNumberId: "10987654321" };
 
@@ -20,13 +21,14 @@ describe("whatsapp.adapter MetaCloudProvider", () => {
   beforeEach(async () => {
     sendTemplateWithRetry = jest.fn(async () => ({ messages: [{ id: "wamid.tpl" }] }));
     sendTextWithRetry = jest.fn(async () => ({ messages: [{ id: "wamid.txt" }] }));
+    uploadDocument = jest.fn(async () => "media_from_path");
     resolveActiveWhatsappMetaByOwner = jest.fn(async () => ({
       credentials: metaAuth,
     }));
     ({ mod: adapter, models } = await loadWithMocks("src/services/whatsapp.adapter.js", {
       extraMocks: {
         "src/services/meta.client.js": () => ({
-          metaClient: { sendTemplateWithRetry, sendTextWithRetry },
+          metaClient: { sendTemplateWithRetry, sendTextWithRetry, uploadDocument },
           sanitizeMetaBodyParam,
         }),
         "src/services/whatsapp-meta.service.js": () => ({
@@ -119,6 +121,39 @@ describe("whatsapp.adapter MetaCloudProvider", () => {
       bodyParams: ["Boda Ana", "Ana y Carlos. Los esperamos."],
       templateName: "constructor2",
       headerDocument: { id: "media_abc", filename: "invitacion.pdf" },
+      ...metaAuth,
+    });
+  });
+
+  test("sube el PDF al enviar si el job trae filePath", async () => {
+    models.Event.findByPk.mockResolvedValue(fakeEvent());
+    models.Guest.findByPk.mockResolvedValue(fakeGuest({ rep: "Luis Pérez", status: "enviado" }));
+    models.Conversation.findOne.mockResolvedValue(null);
+    const provider = adapter.createWhatsAppProvider();
+    await provider.sendMessage("5512345678", "mensaje compuesto", {
+      eventId: "evt_1",
+      guestId: "gst_1",
+      hsmParams: ["Boda Ana", "Ana y Carlos. Los esperamos."],
+      hsmTemplateName: "constructor2",
+      hsmHeaderDocument: {
+        filePath: "/tmp/inv.pdf",
+        filename: "invitacion.pdf",
+        mime: "application/pdf",
+      },
+    });
+    expect(uploadDocument).toHaveBeenCalledWith(
+      expect.objectContaining({
+        filePath: "/tmp/inv.pdf",
+        filename: "invitacion.pdf",
+        mime: "application/pdf",
+        ...metaAuth,
+      }),
+    );
+    expect(sendTemplateWithRetry).toHaveBeenCalledWith({
+      to: "5215512345678",
+      bodyParams: ["Boda Ana", "Ana y Carlos. Los esperamos."],
+      templateName: "constructor2",
+      headerDocument: { id: "media_from_path", filename: "invitacion.pdf" },
       ...metaAuth,
     });
   });

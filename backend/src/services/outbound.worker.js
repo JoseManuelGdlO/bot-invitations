@@ -26,6 +26,8 @@ function sendMeta(job, extra = {}) {
     eventId: payload.eventId || null,
     guestId: payload.guestId || null,
     chars: String(payload.text || "").length,
+    hsmTemplateName: payload.hsmTemplateName || null,
+    hasDocument: Boolean(payload.hsmHeaderDocument),
     ...extra,
   };
 }

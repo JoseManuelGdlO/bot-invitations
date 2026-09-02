@@ -163,6 +163,8 @@ describe("meta.client", () => {
     expect(init.method).toBe("POST");
     expect(init.headers.Authorization).toBe("Bearer test-graph-token");
     expect(init.body).toBeInstanceOf(FormData);
+    expect(init.body.get("type")).toBe("application/pdf");
+    expect(init.body.get("messaging_product")).toBe("whatsapp");
   });
 
   test("sendText 400 si el teléfono no tiene 10 dígitos locales", async () => {

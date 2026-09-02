@@ -208,9 +208,14 @@ export const metaClient = {
     const fileName = String(filename || "documento.pdf").trim() || "documento.pdf";
     const type = String(mime || "application/pdf").trim() || "application/pdf";
     const form = new FormData();
+    const bytes = fileBuffer instanceof Uint8Array ? fileBuffer : new Uint8Array(fileBuffer);
+    const file = typeof File === "function"
+      ? new File([bytes], fileName, { type })
+      : new Blob([bytes], { type });
     form.append("messaging_product", "whatsapp");
-    form.append("type", "document");
-    form.append("file", new Blob([fileBuffer], { type }), fileName);
+    // Meta espera el MIME real (application/pdf), no el enum "document".
+    form.append("type", type);
+    form.append("file", file, fileName);
 
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), Number(env.meta.mediaTimeoutMs || 60000));

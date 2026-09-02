@@ -19,8 +19,7 @@ import { logActivity } from "./activity.service.js";
 import { recordCampaignSendResult } from "./campaign-progress.js";
 import { activateEvent } from "./event-status.service.js";
 import { assertOpeningDocumentReady } from "./opening-document.service.js";
-import { metaClient } from "./meta.client.js";
-import { resolveActiveWhatsappMetaByOwner } from "./whatsapp-meta.service.js";
+import { openingHeaderDocumentFrom } from "./whatsapp.adapter.js";
 
 const log = new Logger("Campaign");
 const ACTIVE_STATUSES = ["queued", "running"];
@@ -208,21 +207,11 @@ export async function executeCampaignLaunch(job) {
   let hsmHeaderDocument = null;
   try {
     const document = await assertOpeningDocumentReady(opening);
-    if (document.attachDocument && guests.length) {
-      const { credentials } = await resolveActiveWhatsappMetaByOwner(event.ownerId);
-      const mediaId = await metaClient.uploadDocument({
-        filePath: document.absolutePath,
-        filename: document.fileName,
-        mime: document.mime,
-        accessToken: credentials.accessToken,
-        phoneNumberId: credentials.phoneNumberId,
-      });
-      hsmTemplateName = document.templateName;
-      hsmHeaderDocument = { id: mediaId, filename: document.fileName };
-    }
+    hsmHeaderDocument = openingHeaderDocumentFrom(document);
+    if (hsmHeaderDocument) hsmTemplateName = document.templateName;
   } catch (err) {
     if (Number(err?.status) === 400) throw err;
-    log.info("campaña aplazada: no se pudo subir el documento", {
+    log.info("campaña aplazada: no se pudo preparar el documento", {
       eventId: event.id,
       campaignId: campaign.id,
       reason: err.message,

@@ -103,7 +103,7 @@ interface Ctx extends State {
     },
   ) => Promise<Guest>;
   deleteGuest: (id: string) => Promise<void>;
-  remindGuest: (id: string) => void;
+  remindGuest: (id: string) => Promise<Guest>;
   importGuests: (eventId: string, rows: Guest[]) => void;
   previewImport: (eventId: string, file: File) => Promise<ImportPreview>;
   confirmImport: (
@@ -322,15 +322,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           conversations: s.conversations.filter((c) => c.guestId !== id),
         }));
       },
-      remindGuest: (id) => {
-        api<Guest>(`/guests/${id}/remind`, { method: "POST" })
-          .then((guest) =>
-            setState((s) => ({
-              ...s,
-              guests: s.guests.map((g) => (g.id === guest.id ? guest : g)),
-            })),
-          )
-          .catch(console.error);
+      remindGuest: async (id) => {
+        const guest = await api<Guest>(`/guests/${id}/remind`, {
+          method: "POST",
+        });
+        setState((s) => ({
+          ...s,
+          guests: s.guests.map((g) => (g.id === guest.id ? guest : g)),
+        }));
+        return guest;
       },
       importGuests: (eventId, rows) => {
         setState((s) => ({ ...s, guests: [...s.guests, ...rows] }));
