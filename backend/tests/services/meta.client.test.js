@@ -26,20 +26,24 @@ function jsonResponse(status, body) {
 }
 
 describe("sanitizeMetaBodyParam", () => {
-  test("conserva saltos de línea y convierte tabs en espacio", () => {
-    expect(sanitizeMetaBodyParam("Hola\n\nmundo\t!")).toBe("Hola\n\nmundo !");
+  test("aplana saltos de línea y tabs; Meta no los admite en variables HSM", () => {
+    expect(sanitizeMetaBodyParam("Hola\n\nmundo\t!")).toBe("Hola mundo !");
   });
 
-  test("normaliza CRLF y colapsa espacios horizontales", () => {
-    expect(sanitizeMetaBodyParam("Hola\r\n\r\nmundo  extra")).toBe("Hola\n\nmundo extra");
+  test("interpreta \\n literales y colapsa espacios", () => {
+    expect(sanitizeMetaBodyParam("Hola\\n\\nmundo  extra")).toBe("Hola mundo extra");
+  });
+
+  test("normaliza CRLF a espacio", () => {
+    expect(sanitizeMetaBodyParam("Hola\r\n\r\nmundo  extra")).toBe("Hola mundo extra");
   });
 
   test("colapsa espacios y recorta", () => {
     expect(sanitizeMetaBodyParam("  hola   mundo  ")).toBe("hola mundo");
   });
 
-  test("conserva markup WhatsApp", () => {
-    expect(sanitizeMetaBodyParam("*Brenda & Denis*\n_cursiva_")).toBe("*Brenda & Denis*\n_cursiva_");
+  test("conserva markup WhatsApp y aplana el salto", () => {
+    expect(sanitizeMetaBodyParam("*Brenda & Denis*\n_cursiva_")).toBe("*Brenda & Denis* _cursiva_");
   });
 });
 
@@ -92,7 +96,7 @@ describe("meta.client", () => {
           type: "body",
           parameters: [
             { type: "text", text: "Luis" },
-            { type: "text", text: "Hola\ninvitación" },
+            { type: "text", text: "Hola invitación" },
           ],
         },
       ],
@@ -126,7 +130,7 @@ describe("meta.client", () => {
           type: "body",
           parameters: [
             { type: "text", text: "Luis" },
-            { type: "text", text: "Hola\ninvitación" },
+            { type: "text", text: "Hola invitación" },
           ],
         },
       ],

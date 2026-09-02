@@ -97,9 +97,29 @@ describe("outbound.worker", () => {
         "src/services/whatsapp.adapter.js": () => ({
           createWhatsAppProvider: () => ({ sendMessage }),
           isColdConversation,
+          openingHeaderDocumentFrom: (document) => {
+            if (!document?.attachDocument) return null;
+            return {
+              relativePath: document.relativePath,
+              filename: document.fileName,
+              mime: document.mime,
+            };
+          },
         }),
         "src/services/campaign.service.js": () => ({ executeCampaignLaunch }),
         "src/services/campaign-progress.js": () => ({ recordCampaignSendResult }),
+        "src/services/opening-document.service.js": () => ({
+          assertOpeningDocumentReady: async (tpl) => {
+            if (!tpl?.attachDocument) return { attachDocument: false };
+            return {
+              attachDocument: true,
+              templateName: "constructor2",
+              relativePath: "opening-docs/evt_1/abc.pdf",
+              fileName: "inv.pdf",
+              mime: "application/pdf",
+            };
+          },
+        }),
       },
     }));
   });
@@ -156,9 +176,45 @@ describe("outbound.worker", () => {
       expect.objectContaining({
         eventId: "evt_1",
         guestId: "gst_1",
+        kind: "campaign",
         hsmParams: ["Luis", "copy libre"],
         hsmTemplateName: "constructor2",
         hsmHeaderDocument: { id: "media_abc", filename: "inv.pdf" },
+      }),
+    );
+  });
+
+  test("processJob campaign sin documento en el payload lo toma de la plantilla", async () => {
+    sendMessage.mockResolvedValueOnce({ provider: "stub", skipped: false });
+    models.Template.findOne.mockResolvedValueOnce({
+      attachDocument: true,
+      documentPath: "opening-docs/evt_1/abc.pdf",
+      documentFileName: "inv.pdf",
+      documentMime: "application/pdf",
+    });
+    const job = createInstance({
+      type: "whatsapp.send",
+      attempts: 0,
+      payload: {
+        to: "6183218624",
+        text: "compuesto",
+        kind: "campaign",
+        eventId: "evt_1",
+        guestId: "gst_1",
+        hsmParams: ["Luis", "copy libre"],
+      },
+    });
+    await service.processJob(job);
+    expect(sendMessage).toHaveBeenCalledWith(
+      "5216183218624",
+      "compuesto",
+      expect.objectContaining({
+        hsmTemplateName: "constructor2",
+        hsmHeaderDocument: {
+          relativePath: "opening-docs/evt_1/abc.pdf",
+          filename: "inv.pdf",
+          mime: "application/pdf",
+        },
       }),
     );
   });

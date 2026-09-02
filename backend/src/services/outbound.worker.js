@@ -1,6 +1,8 @@
 import { Op } from "sequelize";
 import { Event, Guest, Message, OutboundJob } from "../models/index.js";
-import { createWhatsAppProvider, isColdConversation } from "./whatsapp.adapter.js";
+import { createWhatsAppProvider, isColdConversation, openingHeaderDocumentFrom } from "./whatsapp.adapter.js";
+import { findTemplate } from "./templates.service.js";
+import { assertOpeningDocumentReady } from "./opening-document.service.js";
 import { env } from "../config/env.js";
 import { Logger } from "../utils/logger.js";
 import { formatWhatsappTo, resolveWhatsappTo } from "../utils/whatsapp-identity.js";
@@ -87,6 +89,24 @@ function skipWhatsappSendReason(payload) {
   return null;
 }
 
+async function resolveCampaignHeader(payload = {}) {
+  const existing = payload.hsmHeaderDocument || null;
+  const templateName = payload.hsmTemplateName || null;
+  if (payload.kind !== "campaign" || existing || !payload.eventId) {
+    return { hsmHeaderDocument: existing, hsmTemplateName: templateName };
+  }
+  const opening = await findTemplate(payload.eventId, { category: "Primer contacto" });
+  if (!opening?.attachDocument) {
+    return { hsmHeaderDocument: null, hsmTemplateName: templateName };
+  }
+  const document = await assertOpeningDocumentReady(opening);
+  const hsmHeaderDocument = openingHeaderDocumentFrom(document);
+  return {
+    hsmHeaderDocument,
+    hsmTemplateName: templateName || document.templateName || null,
+  };
+}
+
 async function claimQueuedJob(job) {
   if (job.id) {
     const [claimed] = await OutboundJob.update(
@@ -149,14 +169,20 @@ export async function processJob(job) {
         const guest = await Guest.findByPk(job.payload.guestId);
         if (guest) to = resolveWhatsappTo(guest) || to;
       }
-      waLog.info("enviando whatsapp.send", sendMeta(job, { to }));
+      const { hsmHeaderDocument, hsmTemplateName } = await resolveCampaignHeader(job.payload);
+      waLog.info("enviando whatsapp.send", sendMeta(job, {
+        to,
+        hsmTemplateName,
+        hasDocument: Boolean(hsmHeaderDocument),
+      }));
       const result = await provider.sendMessage(to, job.payload.text, {
         eventId: job.payload.eventId,
         guestId: job.payload.guestId,
         conversationId: job.payload.conversationId,
+        kind: job.payload.kind,
         hsmParams: job.payload.hsmParams,
-        hsmTemplateName: job.payload.hsmTemplateName,
-        hsmHeaderDocument: job.payload.hsmHeaderDocument,
+        hsmTemplateName,
+        hsmHeaderDocument,
       });
       const ok = !result.skipped;
       const status = result.skipped ? "skipped" : "done";
