@@ -88,6 +88,7 @@ export const Event = sequelize.define("events", {
   estimatedGuests: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
   cover: { type: DataTypes.TEXT("medium"), allowNull: false },
   status: { type: DataTypes.ENUM("activo", "borrador", "finalizado"), allowNull: false, defaultValue: "borrador" },
+  timezone: { type: DataTypes.STRING(64), allowNull: false, defaultValue: "America/Mexico_City" },
 });
 
 export const EventMember = sequelize.define("event_members", {
@@ -167,6 +168,7 @@ export const Message = sequelize.define("messages", {
   from: { type: DataTypes.ENUM("ai", "guest", "planner"), allowNull: false },
   text: { type: DataTypes.TEXT, allowNull: false },
   at: { type: DataTypes.STRING(20), allowNull: false },
+  kind: { type: DataTypes.STRING(40), allowNull: true },
   providerId: { type: DataTypes.STRING(120), allowNull: true, unique: true },
 });
 
@@ -566,6 +568,22 @@ export async function ensureMessageProviderId() {
   console.log("[db] columna messages.providerId creada");
 }
 
+export async function ensureMessageKind() {
+  const qi = sequelize.getQueryInterface();
+  let table;
+  try {
+    table = await qi.describeTable("messages");
+  } catch {
+    return;
+  }
+  if (table.kind) return;
+  await qi.addColumn("messages", "kind", {
+    type: DataTypes.STRING(40),
+    allowNull: true,
+  });
+  console.log("[db] columna messages.kind creada");
+}
+
 export async function ensureGuestCustomData() {
   const qi = sequelize.getQueryInterface();
   let table;
@@ -666,4 +684,21 @@ export async function ensureTemplateDocumentColumns() {
     });
     console.log("[db] columna templates.documentSize creada");
   }
+}
+
+export async function ensureEventTimezone() {
+  const qi = sequelize.getQueryInterface();
+  let table;
+  try {
+    table = await qi.describeTable("events");
+  } catch {
+    return;
+  }
+  if (table.timezone) return;
+  await qi.addColumn("events", "timezone", {
+    type: DataTypes.STRING(64),
+    allowNull: false,
+    defaultValue: "America/Mexico_City",
+  });
+  console.log("[db] columna events.timezone creada");
 }

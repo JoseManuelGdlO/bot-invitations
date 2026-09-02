@@ -63,7 +63,7 @@ export const sendMessage = asyncHandler(async (req, res) => {
     conversationId: found.conv.id,
     from: ["ai", "guest", "planner"].includes(from) ? from : "planner",
     text,
-    at: formatClock(),
+    at: formatClock(undefined, found.event.timezone),
   });
   found.conv.unread = 0;
   await found.conv.save();

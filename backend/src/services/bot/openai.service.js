@@ -386,6 +386,7 @@ export async function processTurn({ instructions, items, executeTool, refreshLoc
       logs,
       items: nextItems,
       tools: toolTrace,
+      fromTemplate: true,
     };
   }
 

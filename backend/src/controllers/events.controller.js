@@ -21,6 +21,7 @@ import { seedEventDefaults } from "../services/event-setup.service.js";
 import { logActivity } from "../services/activity.service.js";
 import { assertCanCreateEvent } from "../services/plans.service.js";
 import { findCurrentCampaign } from "../services/campaign.service.js";
+import { DEFAULT_EVENT_TIMEZONE, validateTimezone } from "../utils/timezone.js";
 
 const DEFAULT_COVER = "linear-gradient(135deg, var(--gold-soft), var(--rose))";
 
@@ -77,6 +78,7 @@ export const createEvent = asyncHandler(async (req, res) => {
         estimatedGuests: Number(body.estimatedGuests) || 0,
         cover: sanitizeCover(body.cover),
         status: body.status || "borrador",
+        timezone: body.timezone ? validateTimezone(body.timezone) : DEFAULT_EVENT_TIMEZONE,
       },
       { transaction },
     );
@@ -111,10 +113,19 @@ export const updateEvent = asyncHandler(async (req, res) => {
     "estimatedGuests",
     "cover",
     "status",
+    "timezone",
   ];
   for (const key of allowed) {
     if (req.body?.[key] === undefined) continue;
-    event[key] = key === "cover" ? sanitizeCover(req.body[key]) : req.body[key];
+    if (key === "cover") {
+      event[key] = sanitizeCover(req.body[key]);
+      continue;
+    }
+    if (key === "timezone") {
+      event[key] = validateTimezone(req.body[key]);
+      continue;
+    }
+    event[key] = req.body[key];
   }
   await event.save();
   const campaign = await findCurrentCampaign(event.id);

@@ -1,5 +1,11 @@
-export function formatClock(date = new Date()) {
-  return new Date(date).toLocaleTimeString("es-MX", { hour: "2-digit", minute: "2-digit" });
+import { resolveEventTimezone } from "./timezone.js";
+
+export function formatClock(date = new Date(), timeZone) {
+  return new Date(date).toLocaleTimeString("es-MX", {
+    hour: "2-digit",
+    minute: "2-digit",
+    timeZone: resolveEventTimezone(timeZone),
+  });
 }
 
 export function formatRelative(date) {

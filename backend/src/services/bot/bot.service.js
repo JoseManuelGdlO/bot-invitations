@@ -32,10 +32,10 @@ async function getOrCreateConversation(event, guest) {
   return conv;
 }
 
-function markGuestReplied(guest, text) {
+function markGuestReplied(guest, text, timeZone) {
   const previous = guest.status;
   guest.lastReply = String(text || "").slice(0, 240);
-  guest.lastReplyAt = formatClock();
+  guest.lastReplyAt = formatClock(undefined, timeZone);
   guest.whatsapp = "respondido";
   if (["sin_contactar", "enviado", "entregado", "sin_respuesta", "respondio"].includes(previous)) {
     guest.status = "en_conversacion";
@@ -157,9 +157,9 @@ export async function processGuestMessage({
       conversationId: conv.id,
       from: "guest",
       text: message,
-      at: formatClock(),
+      at: formatClock(undefined, event.timezone),
     });
-    markGuestReplied(guest, message);
+    markGuestReplied(guest, message, event.timezone);
     conv.unread = (conv.unread || 0) + 1;
     await conv.save();
     await guest.save();
@@ -178,7 +178,7 @@ export async function processGuestMessage({
         conversationId: conv.id,
         from: "ai",
         text: wait,
-        at: formatClock(),
+        at: formatClock(undefined, event.timezone),
       });
     }
     return { skipped: false, locked: true, reply: wait, conversationId: conv?.id || null };
@@ -218,7 +218,8 @@ export async function processGuestMessage({
         conversationId: conv.id,
         from: "ai",
         text: result.reply,
-        at: formatClock(),
+        at: formatClock(undefined, event.timezone),
+        ...(result.fromTemplate ? { kind: "template" } : {}),
       });
       guest.lastMessage = String(result.reply || "").slice(0, 80);
       await guest.save();

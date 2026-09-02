@@ -45,7 +45,7 @@ describe("events.controller", () => {
   test("listEvents serializa por slug", async () => {
     models.Event.findAll.mockResolvedValue([fakeEvent()]);
     const { res } = await callHandler(controller.listEvents);
-    expect(res.json).toHaveBeenCalledWith([expect.objectContaining({ id: "boda-ana", name: "Boda Ana" })]);
+    expect(res.json).toHaveBeenCalledWith([expect.objectContaining({ id: "boda-ana", timezone: "America/Mexico_City" })]);
   });
 
   test("createEvent 201", async () => {
@@ -107,6 +107,49 @@ describe("events.controller", () => {
     });
     expect(event.venue).toBe("Jardín");
     expect(res.json).toHaveBeenCalled();
+  });
+
+  test("updateEvent guarda timezone IANA", async () => {
+    const event = fakeEvent();
+    requireEvent.mockResolvedValue(event);
+    const { res } = await callHandler(controller.updateEvent, {
+      req: createMockReq({
+        params: { eventId: event.slug },
+        body: { timezone: "america/cancun" },
+      }),
+    });
+    expect(event.timezone).toBe("America/Cancun");
+    expect(res.json).toHaveBeenCalled();
+  });
+
+  test("updateEvent rechaza timezone inválida", async () => {
+    const event = fakeEvent();
+    requireEvent.mockResolvedValue(event);
+    const { next } = await callHandler(controller.updateEvent, {
+      req: createMockReq({
+        params: { eventId: event.slug },
+        body: { timezone: "Not/AZone" },
+      }),
+    });
+    expect(next).toHaveBeenCalledWith(expect.objectContaining({ status: 400 }));
+  });
+
+  test("createEvent persiste timezone", async () => {
+    models.Event.findOne.mockResolvedValue(null);
+    const createdEvent = fakeEvent({ name: "Boda Ana", timezone: "America/Monterrey" });
+    models.Event.create.mockResolvedValue(createdEvent);
+
+    await callHandler(controller.createEvent, {
+      req: createMockReq({
+        user: fakeUser(),
+        body: { name: "Boda Ana", timezone: "america/monterrey" },
+      }),
+    });
+
+    expect(models.Event.create).toHaveBeenCalledWith(
+      expect.objectContaining({ timezone: "America/Monterrey" }),
+      expect.objectContaining({ transaction: expect.anything() }),
+    );
   });
 
   test("deleteEvent 403 si no es dueño", async () => {

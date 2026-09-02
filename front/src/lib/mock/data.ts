@@ -1,6 +1,7 @@
 import type {
   ActivityItem,
   AIConfig,
+  ChatMessage,
   ConfirmationStatus,
   Conversation,
   EventData,
@@ -29,6 +30,7 @@ export const events: EventItem[] = [
     hosts: "Andrea Rivas & Carlos Medina",
     date: "2026-11-15",
     time: "18:00",
+    timezone: "America/Mexico_City",
     venue: "Hacienda San José",
     address: "Carretera Mérida–Motul Km 12, Yucatán",
     estimatedGuests: 250,
@@ -43,6 +45,7 @@ export const events: EventItem[] = [
     hosts: "Mariana Solís & Diego Ferrer",
     date: "2026-09-26",
     time: "17:30",
+    timezone: "America/Tijuana",
     venue: "Viñedo Santa Elena",
     address: "Ruta del Vino s/n, Valle de Guadalupe, BC",
     estimatedGuests: 180,
@@ -57,6 +60,7 @@ export const events: EventItem[] = [
     hosts: "Familia Guzmán Torres",
     date: "2026-10-03",
     time: "20:00",
+    timezone: "America/Mexico_City",
     venue: "Salón Versalles",
     address: "Av. Constituyentes 455, CDMX",
     estimatedGuests: 140,
@@ -71,6 +75,7 @@ export const events: EventItem[] = [
     hosts: "Fernanda Lara & Luis Cantú",
     date: "2027-02-20",
     time: "19:00",
+    timezone: "America/Monterrey",
     venue: "Casa Bosque",
     address: "Camino Real 210, San Pedro Garza García, NL",
     estimatedGuests: 200,
@@ -396,27 +401,36 @@ export function buildConversations(guests: Guest[]): Conversation[] {
   const talking = guests
     .filter((g) => g.whatsapp === "respondido")
     .slice(0, 22);
+  const yesterday = new Date();
+  yesterday.setDate(yesterday.getDate() - 1);
+  yesterday.setHours(10, 12, 0, 0);
+  const todayMorning = new Date();
+  todayMorning.setHours(10, 31, 0, 0);
   return talking.map((g, i) => {
-    const msgs = [
+    const msgs: ChatMessage[] = [
       {
         id: `${g.id}-m1`,
-        from: "ai" as const,
-        text: `Hola ${g.rep.split(" ")[0] ?? g.rep} 👋 Soy Sofía, del equipo de los anfitriones. Estamos confirmando invitados y tenemos registrada una invitación para ${g.invited} personas. ¿Podrán acompañarnos?`,
+        from: "ai",
+        text: `Hola *${g.rep.split(" ")[0] ?? g.rep}* 👋 Soy Sofía, del equipo de los anfitriones. Estamos confirmando invitados y tenemos registrada una invitación para *${g.invited}* personas. ¿Podrán acompañarnos?`,
         at: "10:12",
+        createdAt: yesterday.toISOString(),
+        kind: "template",
       },
       {
         id: `${g.id}-m2`,
-        from: "guest" as const,
+        from: "guest",
         text: g.lastReply || "Hola, sí recibimos la invitación.",
         at: "10:31",
+        createdAt: todayMorning.toISOString(),
       },
     ];
     if (g.status === "confirmado") {
       msgs.push({
         id: `${g.id}-m3`,
         from: "ai",
-        text: `¡Perfecto ${g.rep.split(" ")[0] ?? g.rep}! Entonces confirmamos ${g.invited} asistentes. Les esperamos con mucho gusto ✨`,
+        text: `¡Perfecto ${g.rep.split(" ")[0] ?? g.rep}! Entonces confirmamos *${g.invited}* asistentes. Les esperamos con mucho gusto ✨`,
         at: "10:32",
+        createdAt: new Date(todayMorning.getTime() + 60_000).toISOString(),
       });
     } else if (g.status === "parcial") {
       msgs.push({
@@ -424,12 +438,14 @@ export function buildConversations(guests: Guest[]): Conversation[] {
         from: "ai",
         text: `Gracias por avisar. Entonces confirmamos ${g.confirmed} asistentes de los ${g.invited} lugares reservados. ¿Es correcto?`,
         at: "10:33",
+        createdAt: new Date(todayMorning.getTime() + 120_000).toISOString(),
       });
       msgs.push({
         id: `${g.id}-m4`,
         from: "guest",
         text: "Sí, así es 🙂",
         at: "10:40",
+        createdAt: new Date(todayMorning.getTime() + 540_000).toISOString(),
       });
     } else if (g.status === "no_asistira") {
       msgs.push({
@@ -437,6 +453,7 @@ export function buildConversations(guests: Guest[]): Conversation[] {
         from: "ai",
         text: "Gracias por avisarnos, quedamos atentos por si algo cambia. ¡Un abrazo!",
         at: "11:02",
+        createdAt: new Date(todayMorning.getTime() + 1_860_000).toISOString(),
       });
     } else if (g.status === "seguimiento") {
       msgs.push({
@@ -444,6 +461,7 @@ export function buildConversations(guests: Guest[]): Conversation[] {
         from: "ai",
         text: "Claro que sí, sin prisa. Te escribo de nuevo en unos días para confirmar 😊",
         at: "11:15",
+        createdAt: new Date(todayMorning.getTime() + 2_640_000).toISOString(),
       });
     } else if (g.status === "en_conversacion") {
       msgs.push({
@@ -451,6 +469,7 @@ export function buildConversations(guests: Guest[]): Conversation[] {
         from: "ai",
         text: "Con gusto te comparto los detalles. ¿Hay algo más en lo que pueda ayudarte?",
         at: "11:20",
+        createdAt: new Date(todayMorning.getTime() + 2_940_000).toISOString(),
       });
     }
     return {

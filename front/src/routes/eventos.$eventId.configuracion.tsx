@@ -35,6 +35,7 @@ import { useEvent, useStore } from "@/lib/mock/store";
 import { toast } from "sonner";
 import { hasEventPerm, PERMS } from "@/lib/permissions";
 import { ApiError } from "@/lib/api/client";
+import { TimezoneSelect } from "@/components/timezone-select";
 
 export const Route = createFileRoute("/eventos/$eventId/configuracion")({
   head: () => ({
@@ -127,6 +128,11 @@ function Configuracion() {
               onChange={(e) => updateEvent(eventId, { time: e.target.value })}
             />
           </div>
+          <TimezoneSelect
+            value={event.timezone}
+            disabled={!canEditEvent}
+            onChange={(timezone) => updateEvent(eventId, { timezone })}
+          />
           <div className="space-y-2">
             <Label>Lugar</Label>
             <Input
