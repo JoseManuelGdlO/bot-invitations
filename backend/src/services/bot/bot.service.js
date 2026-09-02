@@ -1,4 +1,5 @@
 import { Conversation, Event, Guest, Message } from "../../models/index.js";
+import { env } from "../../config/env.js";
 import { formatClock } from "../../utils/time.js";
 import { httpError } from "../../utils/http-error.js";
 import { enqueueJob } from "../outbound.worker.js";
@@ -7,6 +8,7 @@ import { buildInstructions, loadEventBotContext } from "./prompt.service.js";
 import { processTurn } from "./openai.service.js";
 import { executeBotTool } from "./tools.js";
 import { botError, botLog, botTurnContext, botTurnResult, botWarn } from "./bot-logger.js";
+import { armFlush, inboundBufferKey, pushPending } from "./inbound-buffer.js";
 import {
   appendSessionItems,
   asItems,
@@ -18,6 +20,8 @@ import {
   tryLockBotSession,
   unlockBotSession,
 } from "./session.service.js";
+
+export { resetInboundBuffers } from "./inbound-buffer.js";
 
 async function getOrCreateConversation(event, guest) {
   let conv = await Conversation.findOne({ where: { guestId: guest.id } });
@@ -112,76 +116,50 @@ export async function rememberWhatsappChatId(guest, chatId) {
   return guest;
 }
 
-export async function processGuestMessage({
-  eventId,
-  guestId,
-  text,
-  userId,
-  dryRun = false,
-  persistConversation = true,
-}) {
-  const message = String(text || "").trim();
-  if (!message) throw httpError(400, "El mensaje no puede estar vacío.");
+function historyWithoutTrailingGuest(rows) {
+  let end = rows.length;
+  while (end > 0 && rows[end - 1].from === "guest") end -= 1;
+  return rows.slice(0, end).map((row) => ({
+    type: "message",
+    role: row.from === "guest" ? "user" : "assistant",
+    content: row.text,
+  }));
+}
 
-  const event = await Event.findByPk(eventId);
-  const guest = await Guest.findOne({ where: { id: guestId, eventId } });
-  if (!event || !guest) throw httpError(404, "Evento o invitado no encontrado.");
-
-  const sessionUserId = userId || liveUserId(guest);
-  const conv = persistConversation
-    ? await getOrCreateConversation(event, guest)
-    : await Conversation.findOne({ where: { guestId: guest.id } });
-
-  const session = await getOrCreateBotSession({
-    eventId: event.id,
-    guestId: guest.id,
-    userId: sessionUserId,
+async function hydrateSessionIfEmpty(session, conv) {
+  if (asItems(session.items).length > 0 || !conv?.id) return;
+  const history = await Message.findAll({
+    where: { conversationId: conv.id },
+    order: [["createdAt", "ASC"]],
+    limit: 40,
   });
-  if (asItems(session.items).length === 0 && conv?.id) {
-    const history = await Message.findAll({
-      where: { conversationId: conv.id },
-      order: [["createdAt", "ASC"]],
-      limit: 40,
-    });
-    session.items = history.map((row) => ({
-      type: "message",
-      role: row.from === "guest" ? "user" : "assistant",
-      content: row.text,
-    }));
-    session.changed("items", true);
-    await session.save();
-  }
+  session.items = historyWithoutTrailingGuest(history);
+  session.changed("items", true);
+  await session.save();
+}
 
-  if (persistConversation) {
-    await Message.create({
-      conversationId: conv.id,
-      from: "guest",
-      text: message,
-      at: formatClock(),
-    });
-    markGuestReplied(guest, message);
-    conv.unread = (conv.unread || 0) + 1;
-    await conv.save();
-    await guest.save();
-  }
-
-  if (persistConversation && conv?.aiPaused) {
-    botWarn("turn omitido: asistente pausado", botTurnContext({ event, guest, message, dryRun, persistConversation, userId: sessionUserId }));
-    return { skipped: true, reason: "ai_paused", reply: null, conversationId: conv.id };
-  }
+async function runGuestTurn({
+  event,
+  guest,
+  session,
+  conv,
+  combinedText,
+  dryRun,
+  persistConversation,
+  sessionUserId,
+}) {
   const locked = await tryLockBotSession(session);
   if (!locked) {
-    const wait = "Por favor espera a que termine la respuesta anterior.";
-    botWarn("turn bloqueado: sesión ocupada", botTurnContext({ event, guest, message, dryRun, persistConversation, userId: sessionUserId }));
-    if (persistConversation) {
-      await Message.create({
-        conversationId: conv.id,
-        from: "ai",
-        text: wait,
-        at: formatClock(),
-      });
-    }
-    return { skipped: false, locked: true, reply: wait, conversationId: conv?.id || null };
+    botWarn(
+      "turn diferido: sesión ocupada",
+      botTurnContext({ event, guest, message: combinedText, dryRun, persistConversation, userId: sessionUserId }),
+    );
+    return { deferred: true };
+  }
+
+  await hydrateSessionIfEmpty(session, conv);
+  if (typeof guest.reload === "function") {
+    await guest.reload();
   }
 
   const ctx = await loadEventBotContext(event, guest);
@@ -195,9 +173,12 @@ export async function processGuestMessage({
   });
 
   const items = asItems(session.items);
-  items.push({ type: "message", role: "user", content: message });
+  items.push({ type: "message", role: "user", content: combinedText });
 
-  botLog("turn inicio", botTurnContext({ event, guest, message, dryRun, persistConversation, userId: sessionUserId }));
+  botLog(
+    "turn inicio",
+    botTurnContext({ event, guest, message: combinedText, dryRun, persistConversation, userId: sessionUserId }),
+  );
 
   try {
     const result = await processTurn({
@@ -209,7 +190,9 @@ export async function processGuestMessage({
       refreshLock: () => refreshBotSessionLock(session),
     });
     await saveSessionItems(session, result.items);
-    await guest.reload();
+    if (typeof guest.reload === "function") {
+      await guest.reload();
+    }
 
     botLog("turn completado", botTurnResult(result));
 
@@ -237,6 +220,7 @@ export async function processGuestMessage({
     return {
       skipped: false,
       locked: false,
+      queued: false,
       reply: result.reply,
       intent: result.intent || null,
       logs: result.logs || [],
@@ -246,7 +230,7 @@ export async function processGuestMessage({
     };
   } catch (error) {
     botError("turn falló", {
-      ...botTurnContext({ event, guest, message, dryRun, persistConversation, userId: sessionUserId }),
+      ...botTurnContext({ event, guest, message: combinedText, dryRun, persistConversation, userId: sessionUserId }),
       error: error.message,
     });
     try {
@@ -262,4 +246,94 @@ export async function processGuestMessage({
       botError("no se pudo liberar lock", { error: unlockError.message });
     }
   }
+}
+
+export async function processGuestMessage({
+  eventId,
+  guestId,
+  text,
+  userId,
+  dryRun = false,
+  persistConversation = true,
+  awaitTurn = true,
+  debounceMs,
+}) {
+  const message = String(text || "").trim();
+  if (!message) throw httpError(400, "El mensaje no puede estar vacío.");
+
+  const event = await Event.findByPk(eventId);
+  const guest = await Guest.findOne({ where: { id: guestId, eventId } });
+  if (!event || !guest) throw httpError(404, "Evento o invitado no encontrado.");
+
+  const sessionUserId = userId || liveUserId(guest);
+  const conv = persistConversation
+    ? await getOrCreateConversation(event, guest)
+    : await Conversation.findOne({ where: { guestId: guest.id } });
+
+  const session = await getOrCreateBotSession({
+    eventId: event.id,
+    guestId: guest.id,
+    userId: sessionUserId,
+  });
+
+  if (persistConversation) {
+    await Message.create({
+      conversationId: conv.id,
+      from: "guest",
+      text: message,
+      at: formatClock(),
+    });
+    markGuestReplied(guest, message);
+    conv.unread = (conv.unread || 0) + 1;
+    await conv.save();
+    await guest.save();
+  }
+
+  if (persistConversation && conv?.aiPaused) {
+    botWarn("turn omitido: asistente pausado", botTurnContext({ event, guest, message, dryRun, persistConversation, userId: sessionUserId }));
+    return { skipped: true, reason: "ai_paused", reply: null, conversationId: conv.id };
+  }
+
+  const liveDebounce = persistConversation && !dryRun;
+  const delay = liveDebounce
+    ? Number.isFinite(Number(debounceMs))
+      ? Math.max(0, Number(debounceMs))
+      : env.botInboundDebounceMs
+    : 0;
+  const key = inboundBufferKey(event.id, guest.id);
+  pushPending(key, message);
+  const flushPromise = armFlush(key, {
+    delayMs: delay,
+    debounceMs: delay,
+    flushFn: (combined) =>
+      runGuestTurn({
+        event,
+        guest,
+        session,
+        conv,
+        combinedText: combined,
+        dryRun,
+        persistConversation,
+        sessionUserId,
+      }),
+  });
+
+  if (!awaitTurn) {
+    flushPromise.catch((error) => {
+      botError("turn en cola falló", {
+        ...botTurnContext({ event, guest, message, dryRun, persistConversation, userId: sessionUserId }),
+        error: error.message,
+      });
+    });
+    return {
+      skipped: false,
+      queued: true,
+      locked: false,
+      reason: "queued",
+      reply: null,
+      conversationId: conv?.id || null,
+    };
+  }
+
+  return flushPromise;
 }

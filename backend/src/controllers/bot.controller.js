@@ -103,25 +103,26 @@ export async function handleInboundWhatsapp({ payload, integration, rawBody = ""
   }
 
   try {
-    const result = await processGuestMessage({
-      eventId: event.id,
-      guestId: guest.id,
-      text: inbound.text,
-      userId: normalizePhone(guest.phone) || inbound.displayPhone || inbound.chatId,
-      dryRun: false,
-      persistConversation: true,
-    });
-    botLog("inbound procesado", {
-      eventId: event.id,
-      guestId: guest.id,
-      reason: result.skipped ? result.reason : "ai_reply",
+  const result = await processGuestMessage({
+    eventId: event.id,
+    guestId: guest.id,
+    text: inbound.text,
+    userId: normalizePhone(guest.phone) || inbound.displayPhone || inbound.chatId,
+    dryRun: false,
+    persistConversation: true,
+    awaitTurn: false,
+  });
+  botLog("inbound procesado", {
+    eventId: event.id,
+    guestId: guest.id,
+    reason: result.skipped ? result.reason : result.queued ? "queued" : "ai_reply",
       intent: result.intent || null,
       tools: (result.tools || []).map((t) => t.name).filter(Boolean),
       logs: (result.logs || []).map((l) => `${l.kind}:${l.value || l.label}`),
     });
     return {
       processed: true,
-      reason: result.skipped ? result.reason : "ai_reply",
+      reason: result.skipped ? result.reason : result.queued ? "queued" : "ai_reply",
       eventId: event.id,
       guestId: guest.id,
       conversationId: result.conversationId || null,

@@ -16,6 +16,16 @@ function parseOrigins(...values) {
   ];
 }
 
+function parseBotInboundDebounceMs() {
+  if (process.env.JEST_WORKER_ID) return 0;
+  const raw = process.env.BOT_INBOUND_DEBOUNCE_MS;
+  if (raw != null && String(raw).trim() !== "") {
+    const n = Number(raw);
+    if (Number.isFinite(n) && n >= 0) return Math.floor(n);
+  }
+  return 2000;
+}
+
 function parseWaMaxInitialConversations() {
   const DEFAULT_MAX = 1000;
   const raw = process.env.WA_MAX_INITIAL_CONVERSATIONS_24H;
@@ -90,6 +100,7 @@ export const env = {
     model: process.env.OPENAI_MODEL || "gpt-4o-mini",
   },
   botDevEnabled: process.env.BOT_DEV_PLAYGROUND === "true",
+  botInboundDebounceMs: parseBotInboundDebounceMs(),
   wc: {
     apiUrl: (process.env.WC_API_URL || "").replace(/\/$/, ""),
     serviceJwt: process.env.WC_SERVICE_JWT || "",

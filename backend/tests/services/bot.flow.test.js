@@ -77,6 +77,10 @@ describe("flujo RSVP processGuestMessage", () => {
     models.User.findByPk.mockResolvedValue({ name: "Ana" });
   }
 
+  afterEach(() => {
+    service?.resetInboundBuffers?.();
+  });
+
   async function runTurn({ text, guest, turnImpl }) {
     await setup(turnImpl);
     const event = fakeEvent({ status: "activo" });
