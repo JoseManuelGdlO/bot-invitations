@@ -129,24 +129,24 @@ function EventLayout() {
   return (
     <div className="flex min-h-0 min-w-0 flex-1 flex-col">
       <header className="shrink-0 border-b border-border bg-card/70 backdrop-blur">
-        <div className="flex flex-wrap items-center gap-4 px-5 pb-4 pt-6 md:px-8">
+        <div className="flex flex-wrap items-center gap-3 px-4 pb-3 pt-4 sm:gap-4 sm:px-5 sm:pb-4 sm:pt-6 md:px-8">
           <span
-            className="flex size-12 items-center justify-center rounded-xl font-display text-lg text-primary/70"
+            className="flex size-10 shrink-0 items-center justify-center rounded-xl font-display text-base text-primary/70 sm:size-12 sm:text-lg"
             style={coverStyle(event.cover)}
           >
             {event.shortName}
           </span>
-          <div className="min-w-0">
-            <h1 className="font-display text-3xl leading-tight">
+          <div className="min-w-0 flex-1">
+            <h1 className="truncate font-display text-2xl leading-tight sm:text-3xl">
               {event.name}
             </h1>
-            <p className="text-sm text-muted-foreground">
+            <p className="truncate text-xs text-muted-foreground sm:text-sm">
               {formatDate(event.date)} · {event.time} · {event.venue}
             </p>
           </div>
           <EventStatusBadge status={event.status} className="ml-auto" />
         </div>
-        <nav className="flex gap-1 overflow-x-auto px-3 md:px-6">
+        <nav className="-mb-px flex gap-1 overflow-x-auto px-3 md:px-6">
           {visibleTabs.map((t) => {
             const active = pathname === t.to.replace("$eventId", eventId);
             return (
@@ -168,7 +168,7 @@ function EventLayout() {
           })}
         </nav>
       </header>
-      <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+      <div className="min-w-0 flex-1 overflow-x-hidden">
         <Outlet />
       </div>
     </div>
