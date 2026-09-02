@@ -24,6 +24,8 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api/client";
 import { PlanLimitBanner, isUpgradeError } from "@/components/plan-limit";
+import { TimezoneSelect } from "@/components/timezone-select";
+import { DEFAULT_EVENT_TIMEZONE } from "@/lib/timezones";
 
 export const Route = createFileRoute("/eventos/nuevo")({
   head: () => ({
@@ -67,6 +69,7 @@ function NewEvent() {
     hosts: "",
     date: "",
     time: "18:00",
+    timezone: DEFAULT_EVENT_TIMEZONE,
     venue: "",
     address: "",
     estimatedGuests: "150",
@@ -107,6 +110,7 @@ function NewEvent() {
         hosts: form.hosts || "Anfitriones",
         date: form.date || "2027-01-01",
         time: form.time,
+        timezone: form.timezone,
         venue: form.venue || "Por definir",
         address: form.address,
         estimatedGuests: Number(form.estimatedGuests) || 0,
@@ -227,6 +231,10 @@ function NewEvent() {
                 onChange={(e) => set("time", e.target.value)}
               />
             </div>
+            <TimezoneSelect
+              value={form.timezone}
+              onChange={(timezone) => set("timezone", timezone)}
+            />
             <div className="space-y-2">
               <Label>Lugar</Label>
               <Input

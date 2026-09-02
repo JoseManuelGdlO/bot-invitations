@@ -1,5 +1,7 @@
 import { Template } from "../models/index.js";
-import { applyTemplate, eventGuestVars, flattenTemplateLine, normalizeGreetingVar, normalizeTemplateMultiline } from "../utils/defaults.js";
+import { applyTemplate, eventGuestVars, flattenTemplateLine, normalizeGreetingVar } from "../utils/defaults.js";
+import { fillMetaTemplate, metaClient } from "./meta.client.js";
+import { resolveActiveWhatsappMetaByOwner } from "./whatsapp-meta.service.js";
 
 export const FALLBACK_OPENING = "Hola {{nombre}}, ¿podrán acompañarnos?";
 export const FALLBACK_REMINDER =
@@ -28,26 +30,101 @@ export function renderTemplate(templateOrBody, event, guest, plannerName = "") {
 
 export function composeConstructorMessage(param1, param2) {
   const greeting = flattenTemplateLine(param1) || "invitado";
-  const copy = normalizeTemplateMultiline(param2);
+  const copy = flattenTemplateLine(param2);
   return `¡Hola, buen día! ${greeting}\nNos comunicamos de ${copy}\nMuchas gracias.`;
 }
 
-export function resolveOpeningParts(tpl, event, guest, plannerName = "", openingMessage) {
-  const vars = eventGuestVars(event, guest, plannerName);
+function parseBodyVars(value) {
+  if (Array.isArray(value)) return value.map((item) => flattenTemplateLine(item));
+  if (typeof value === "string" && value.trim()) {
+    try {
+      const parsed = JSON.parse(value);
+      if (Array.isArray(parsed)) return parsed.map((item) => flattenTemplateLine(item));
+    } catch {
+      return null;
+    }
+  }
+  return null;
+}
+
+export function openingSlotsFromTemplate(tpl, openingMessage) {
+  const fromJson = parseBodyVars(tpl?.bodyVars);
+  if (fromJson?.length) return fromJson;
   const greetingKey = normalizeGreetingVar(tpl?.greetingVar);
-  const param1 = flattenTemplateLine(vars[greetingKey]) || "invitado";
   const rawBody = tpl?.body || openingMessage || FALLBACK_OPENING;
-  const param2 = normalizeTemplateMultiline(renderTemplate(rawBody, event, guest, plannerName));
+  return [`{{${greetingKey}}}`, flattenTemplateLine(rawBody)];
+}
+
+export function projectOpeningDualWrite(slots) {
+  const list = Array.isArray(slots) ? slots.map((item) => flattenTemplateLine(item)) : [];
+  const first = String(list[0] || "").trim();
+  const match = first.match(/^\{\{(\w+)\}\}$/);
+  const greetingVar = match ? normalizeGreetingVar(match[1]) : "nombre";
+  const body = list.length >= 2 ? list[1] : "";
+  return { bodyVars: list, greetingVar, body };
+}
+
+export function normalizeOpeningSlots(input = {}) {
+  const fromJson = parseBodyVars(input.bodyVars);
+  if (fromJson?.length) return projectOpeningDualWrite(fromJson);
+  const greetingVar = normalizeGreetingVar(input.greetingVar);
+  const body = flattenTemplateLine(input.body || "");
   return {
+    bodyVars: [`{{${greetingVar}}}`, body],
+    greetingVar,
+    body,
+  };
+}
+
+function composeFromMetaTemplate(metaTemplate, params) {
+  const bodyText = metaTemplate?.body?.text;
+  if (!bodyText) return null;
+  const keys = (metaTemplate.body.parameters || []).map((p) => p.key);
+  let text = fillMetaTemplate(bodyText, params, keys);
+  const footer = String(metaTemplate.footer?.text || "").trim();
+  if (footer) text = `${text}\n${footer}`;
+  return text;
+}
+
+async function loadOpeningMetaTemplate(event, tpl) {
+  const ownerId = event?.ownerId;
+  if (!ownerId) return null;
+  const { credentials } = await resolveActiveWhatsappMetaByOwner(ownerId);
+  return metaClient.getMessageTemplate({
+    accessToken: credentials.accessToken,
+    wabaId: credentials.wabaId,
+    document: Boolean(tpl?.attachDocument),
+  });
+}
+
+export async function resolveOpeningParts(tpl, event, guest, plannerName = "", openingMessage) {
+  const vars = eventGuestVars(event, guest, plannerName);
+  const slots = openingSlotsFromTemplate(tpl, openingMessage);
+  const params = slots.map((slot) => flattenTemplateLine(applyTemplate(slot, vars)));
+  if (!params[0]) params[0] = flattenTemplateLine(vars.nombre) || "invitado";
+  const param1 = params[0] || "invitado";
+  const param2 = params[1] || "";
+
+  let text = composeConstructorMessage(param1, param2);
+  try {
+    const metaTemplate = await loadOpeningMetaTemplate(event, tpl);
+    const composed = composeFromMetaTemplate(metaTemplate, params);
+    if (composed) text = composed;
+  } catch {
+    // Sin credenciales o Graph caído: el shell local sigue siendo el texto del chat.
+  }
+
+  return {
+    params,
     param1,
     param2,
-    text: composeConstructorMessage(param1, param2),
+    text,
   };
 }
 
 export async function resolveOpeningText(event, guest, plannerName, openingMessage) {
   const tpl = await findTemplate(event.id, { category: "Primer contacto" });
-  return resolveOpeningParts(tpl, event, guest, plannerName, openingMessage).text;
+  return (await resolveOpeningParts(tpl, event, guest, plannerName, openingMessage)).text;
 }
 
 export async function resolveReminderText(event, guest, plannerName) {

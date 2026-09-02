@@ -117,8 +117,8 @@ function Resumen() {
   }
 
   return (
-    <main className="mx-auto flex h-full min-h-0 w-full max-w-7xl flex-1 flex-col overflow-hidden px-5 py-8 md:px-8">
-      <div className="grid shrink-0 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+    <main className="mx-auto w-full min-w-0 max-w-7xl px-4 py-6 pb-10 sm:px-6 md:px-8 md:py-8 md:pb-12">
+      <div className="grid grid-cols-2 gap-3 md:gap-4 lg:grid-cols-4">
         <StatCard
           label="Invitaciones registradas"
           value={s.invitations}
@@ -157,48 +157,47 @@ function Resumen() {
         />
       </div>
 
-      <div className="mt-8 grid min-h-0 flex-1 gap-6 lg:grid-cols-[1fr_1.4fr] lg:grid-rows-1">
-        <section className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-border bg-card p-4 shadow-soft">
-          <h2 className="shrink-0 font-display text-2xl">Progreso general</h2>
-          <div className="mt-3 flex min-h-0 flex-1 flex-col items-center justify-center gap-3 overflow-hidden">
+      <div className="mt-6 grid grid-cols-1 gap-6 lg:mt-8 lg:grid-cols-2 xl:grid-cols-[minmax(260px,22rem)_minmax(0,1fr)]">
+        <section className="w-full min-w-0 rounded-2xl border border-border bg-card p-5 shadow-soft sm:p-6">
+          <h2 className="font-display text-xl sm:text-2xl">Progreso general</h2>
+          <div className="mt-5 flex flex-col items-center gap-5">
             <ProgressRing
               value={s.progress}
-              size={96}
-              stroke={8}
+              size={132}
+              stroke={10}
               caption={`${s.progress}% de invitados ya confirmaron`}
             />
             <div className="grid w-full grid-cols-3 gap-2 text-center">
-              <div className="rounded-lg bg-success-soft p-2">
-                <p className="font-display text-lg leading-none text-success">
+              <div className="min-w-0 rounded-lg bg-success-soft px-1 py-2.5 sm:p-3">
+                <p className="font-display text-lg leading-none text-success sm:text-xl">
                   {s.confirmedPeople}
                 </p>
-                <p className="mt-1 text-[10px] text-muted-foreground">
+                <p className="mt-1 text-[10px] leading-tight text-muted-foreground sm:text-xs">
                   Confirmados
                 </p>
               </div>
-              <div className="rounded-lg bg-warning-soft p-2">
-                <p className="font-display text-lg leading-none text-warning">
+              <div className="min-w-0 rounded-lg bg-warning-soft px-1 py-2.5 sm:p-3">
+                <p className="font-display text-lg leading-none text-warning sm:text-xl">
                   {s.pending}
                 </p>
-                <p className="mt-1 text-[10px] text-muted-foreground">
+                <p className="mt-1 text-[10px] leading-tight text-muted-foreground sm:text-xs">
                   Pendientes
                 </p>
               </div>
-              <div className="rounded-lg bg-rose p-2">
-                <p className="font-display text-lg leading-none text-rose-foreground">
+              <div className="min-w-0 rounded-lg bg-rose px-1 py-2.5 sm:p-3">
+                <p className="font-display text-lg leading-none text-rose-foreground sm:text-xl">
                   {s.rejectedPeople}
                 </p>
-                <p className="mt-1 text-[10px] text-muted-foreground">
+                <p className="mt-1 text-[10px] leading-tight text-muted-foreground sm:text-xs">
                   No asisten
                 </p>
               </div>
             </div>
-            <div className="flex w-full shrink-0 flex-col gap-1.5">
+            <div className="flex w-full flex-col gap-2">
               {hasPerm(eventId, PERMS.REPLY) ? (
                 <>
                   <Button
-                    size="sm"
-                    className="relative h-auto min-h-8 w-full overflow-hidden disabled:opacity-100"
+                    className="relative h-auto min-h-9 w-full overflow-hidden whitespace-normal disabled:opacity-100"
                     disabled={running || submitting || complete || eventFinished}
                     onClick={() => {
                       if (canLaunch) {
@@ -207,7 +206,7 @@ function Resumen() {
                       }
                     }}
                   >
-                    <Send className="size-4" /> {label}
+                    <Send className="size-4 shrink-0" /> {label}
                     {running || complete ? (
                       <Progress
                         value={percent}
@@ -258,7 +257,7 @@ function Resumen() {
                 </>
               ) : null}
               {hasPerm(eventId, PERMS.EXPORT) ? (
-                <Button variant="outline" size="sm" asChild>
+                <Button variant="outline" asChild>
                   <Link to="/eventos/$eventId/lista-final" params={{ eventId }}>
                     Ver lista final
                   </Link>
@@ -268,9 +267,11 @@ function Resumen() {
           </div>
         </section>
 
-        <section className="flex h-full min-h-0 flex-col overflow-hidden rounded-2xl border border-border bg-card p-6 shadow-soft">
-          <h2 className="shrink-0 font-display text-2xl">Actividad del evento</h2>
-          <div className="mt-4 min-h-0 flex-1 overflow-y-auto">
+        <section className="flex max-h-[min(28rem,55vh)] w-full min-w-0 flex-col overflow-hidden rounded-2xl border border-border bg-card p-5 shadow-soft sm:p-6 lg:h-0 lg:max-h-none lg:min-h-full">
+          <h2 className="shrink-0 font-display text-xl sm:text-2xl">
+            Actividad del evento
+          </h2>
+          <div className="mt-4 min-h-0 flex-1 overflow-y-auto overscroll-contain pr-1">
             {eventActivity.length === 0 ? (
               <p className="text-sm text-muted-foreground">
                 Todavía no hay actividad registrada.
@@ -287,15 +288,17 @@ function Resumen() {
                       kindTone[a.kind],
                     )}
                   />
-                  <div>
-                    <p className="text-sm">{a.text}</p>
+                  <div className="min-w-0">
+                    <p className="text-sm break-words">{a.text}</p>
                     <p className="text-[11px] text-muted-foreground">{a.at}</p>
                   </div>
                 </div>
               ))
             )}
 
-            <h3 className="mt-6 font-display text-xl">Últimas respuestas</h3>
+            <h3 className="mt-6 font-display text-lg sm:text-xl">
+              Últimas respuestas
+            </h3>
             <div className="mt-3 space-y-3 pb-1">
               {guests
                 .filter((g) => g.lastReply)
@@ -305,7 +308,7 @@ function Resumen() {
                     key={g.id}
                     className="rounded-xl border border-border bg-secondary/40 p-3"
                   >
-                    <p className="text-sm">“{g.lastReply}”</p>
+                    <p className="text-sm break-words">“{g.lastReply}”</p>
                     <p className="mt-1 text-[11px] text-muted-foreground">
                       {g.rep} · {g.lastReplyAt}
                     </p>

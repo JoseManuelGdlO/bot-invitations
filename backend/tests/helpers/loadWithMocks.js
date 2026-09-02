@@ -130,6 +130,7 @@ export function fakeEvent(overrides = {}) {
     hosts: "Ana y Carlos",
     date: "2027-01-01",
     time: "18:00",
+    timezone: "America/Mexico_City",
     venue: "Hacienda",
     address: "",
     estimatedGuests: 100,

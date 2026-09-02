@@ -7,18 +7,22 @@ import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ConstructorOpeningEditor } from "@/components/constructor-opening-editor";
+import { MetaTemplateEditor } from "@/components/meta-template-editor";
 import { TemplateBodyEditor } from "@/components/template-body-editor";
 import { TemplatePreview } from "@/components/template-preview";
 import { useEvent, useStore } from "@/lib/mock/store";
 import type { EventItem, Guest, Template } from "@/lib/mock/types";
 import {
-  composeConstructorTemplate,
   extraTemplateKeys,
-  normalizeGreetingVar,
+  fillMetaBody,
+  openingSlotsFromSaved,
 } from "@/lib/template-vars";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api/client";
+import {
+  integrationsApi,
+  type WhatsAppMetaTemplateDto,
+} from "@/lib/api/integrations";
 
 export const Route = createFileRoute("/eventos/$eventId/mensajes")({
   head: () => ({
@@ -45,7 +49,7 @@ export const Route = createFileRoute("/eventos/$eventId/mensajes")({
 const categories = [
   {
     id: "Primer contacto",
-    hint: "Campaña inicial de WhatsApp. El saludo es fijo; tú eliges la variable y el texto de «Nos comunicamos de».",
+    hint: "Campaña inicial de WhatsApp. El texto fijo sale de la plantilla de Meta; tú rellenas las variables.",
   },
   {
     id: "Recordatorio",
@@ -222,22 +226,73 @@ function TemplateCategory({
 }) {
   const isConstructor = category === "Primer contacto";
   const [draft, setDraft] = useState(template?.body ?? "");
-  const [draftGreeting, setDraftGreeting] = useState(
-    normalizeGreetingVar(template?.greetingVar),
+  const [draftSlots, setDraftSlots] = useState(() =>
+    openingSlotsFromSaved(template, 2),
   );
+  const [metaTemplate, setMetaTemplate] = useState<WhatsAppMetaTemplateDto | null>(
+    null,
+  );
+  const [metaLoading, setMetaLoading] = useState(isConstructor);
+  const [metaError, setMetaError] = useState("");
 
   useEffect(() => {
     setDraft(template?.body ?? "");
-    setDraftGreeting(normalizeGreetingVar(template?.greetingVar));
-  }, [template?.id, template?.body, template?.greetingVar]);
+  }, [template?.id, template?.body]);
 
-  const previewBody = isConstructor
-    ? composeConstructorTemplate(draftGreeting, draft)
-    : draft;
-  const copyText = isConstructor
-    ? composeConstructorTemplate(draftGreeting, draft)
-    : draft;
+  useEffect(() => {
+    if (!isConstructor) return;
+    const paramCount = metaTemplate?.body?.parameters?.length || 2;
+    setDraftSlots(openingSlotsFromSaved(template, paramCount));
+  }, [
+    isConstructor,
+    template?.id,
+    template?.body,
+    template?.greetingVar,
+    template?.bodyVars,
+    metaTemplate?.body?.parameters?.length,
+  ]);
+
+  useEffect(() => {
+    if (!isConstructor) return;
+    let cancelled = false;
+    setMetaLoading(true);
+    setMetaError("");
+    void integrationsApi
+      .getWhatsAppTemplate(Boolean(template?.attachDocument))
+      .then((data) => {
+        if (cancelled) return;
+        setMetaTemplate(data);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setMetaTemplate(null);
+        setMetaError(
+          err instanceof ApiError
+            ? err.message
+            : "No se pudo cargar la plantilla de Meta.",
+        );
+      })
+      .finally(() => {
+        if (!cancelled) setMetaLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isConstructor, template?.attachDocument]);
+
   const extraVariables = extraTemplateKeys(guests);
+  const fallbackMetaBody =
+    "¡Hola, buen día! {{1}}\nNos comunicamos de {{2}}\nMuchas gracias.";
+  const metaBodyText = metaTemplate?.body?.text || fallbackMetaBody;
+  const previewBody = isConstructor
+    ? (() => {
+        const keys = metaTemplate?.body?.parameters?.map((p) => p.key);
+        const filled = fillMetaBody(metaBodyText, draftSlots, keys);
+        const footer = metaTemplate?.footer?.text;
+        return footer ? `${filled}\n${footer}` : filled;
+      })()
+    : draft;
+  const copyText = previewBody;
 
   return (
     <section>
@@ -261,20 +316,33 @@ function TemplateCategory({
             </div>
             {isConstructor ? (
               <>
-                <ConstructorOpeningEditor
-                  greetingVar={draftGreeting}
-                  body={draft}
+                {metaLoading ? (
+                  <p className="mb-3 text-sm text-muted-foreground">
+                    Cargando plantilla de Meta…
+                  </p>
+                ) : null}
+                {metaError ? (
+                  <p className="mb-3 text-sm text-destructive">{metaError}</p>
+                ) : null}
+                <MetaTemplateEditor
+                  bodyText={metaBodyText}
+                  footerText={metaTemplate?.footer?.text ?? null}
+                  values={draftSlots}
                   extraVariables={extraVariables}
-                  onGreetingVarChange={setDraftGreeting}
-                  onChange={setDraft}
-                  onSave={({ body, greetingVar }) => {
-                    setDraft(body);
-                    setDraftGreeting(greetingVar);
+                  disabled={metaLoading}
+                  onChange={setDraftSlots}
+                  onSave={(slots) => {
+                    setDraftSlots(slots);
+                    setDraft(slots[1] ?? "");
                     setTemplates(
                       eventId,
                       templates.map((x) =>
                         x.id === template.id
-                          ? { ...x, body, greetingVar }
+                          ? {
+                              ...x,
+                              body: slots[1] ?? x.body,
+                              bodyVars: slots,
+                            }
                           : x,
                       ),
                     );

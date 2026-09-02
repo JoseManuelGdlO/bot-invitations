@@ -32,6 +32,10 @@ describe("whatsapp.adapter MetaCloudProvider", () => {
         "src/services/meta.client.js": () => ({
           metaClient: { sendTemplateWithRetry, sendTextWithRetry, uploadDocument },
           sanitizeMetaBodyParam,
+          fillMetaTemplate: (text, values = []) =>
+            String(text || "")
+              .replace("{{1}}", values[0] ?? "")
+              .replace("{{2}}", values[1] ?? ""),
         }),
         "src/services/whatsapp-meta.service.js": () => ({
           resolveActiveWhatsappMetaByOwner,
@@ -102,6 +106,23 @@ describe("whatsapp.adapter MetaCloudProvider", () => {
     expect(sendTemplateWithRetry).toHaveBeenCalledWith({
       to: "5215512345678",
       bodyParams: ["Boda Ana", "Ana y Carlos. Los esperamos."],
+      ...metaAuth,
+    });
+  });
+
+  test("cold con hsmParams de 3 variables no recorta a 2", async () => {
+    models.Event.findByPk.mockResolvedValue(fakeEvent());
+    models.Guest.findByPk.mockResolvedValue(fakeGuest({ rep: "Luis Pérez", status: "sin_contactar" }));
+    models.Conversation.findOne.mockResolvedValue(null);
+    const provider = adapter.createWhatsAppProvider();
+    await provider.sendMessage("5512345678", "mensaje compuesto", {
+      eventId: "evt_1",
+      guestId: "gst_1",
+      hsmParams: ["Luis", "Boda Ana", "RG Eventos"],
+    });
+    expect(sendTemplateWithRetry).toHaveBeenCalledWith({
+      to: "5215512345678",
+      bodyParams: ["Luis", "Boda Ana", "RG Eventos"],
       ...metaAuth,
     });
   });

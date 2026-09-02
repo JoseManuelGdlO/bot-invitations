@@ -177,6 +177,7 @@ async function seedConversations(event, guests) {
       from: "ai",
       text: `Hola ${first} 👋 Soy Sofía, del equipo de los anfitriones. Estamos confirmando invitados y tenemos registrada una invitación para ${g.invited} personas. ¿Podrán acompañarnos?`,
       at: "10:12",
+      kind: "template",
     });
     await Message.create({
       conversationId: conv.id,

@@ -6,6 +6,9 @@ import { formatWhatsappGraphTo } from "../utils/whatsapp-identity.js";
 
 const metaLog = new Logger("WhatsApp");
 const BODY_PARAM_MAX = 1024;
+const TEMPLATE_CACHE_TTL_MS = 5 * 60 * 1000;
+const PLACEHOLDER_RE = /\{\{([0-9]+|[A-Za-z_][A-Za-z0-9_]*)\}\}/g;
+const templateCache = new Map();
 
 class MetaRequestError extends Error {
   constructor(status, message, meta = null) {
@@ -35,9 +38,111 @@ function requireMetaAuth({ accessToken, phoneNumberId } = {}) {
   return { token, phoneId };
 }
 
+function graphVersion() {
+  return String(env.meta.graphVersion || "v21.0").replace(/^\//, "");
+}
+
 function graphUrl(phoneNumberId, suffix) {
-  const version = String(env.meta.graphVersion || "v21.0").replace(/^\//, "");
-  return `https://graph.facebook.com/${version}/${encodeURIComponent(phoneNumberId)}/${suffix}`;
+  return `https://graph.facebook.com/${graphVersion()}/${encodeURIComponent(phoneNumberId)}/${suffix}`;
+}
+
+function graphWabaTemplatesUrl(wabaId, name) {
+  const params = new URLSearchParams({
+    name: String(name || ""),
+    fields: "name,language,status,parameter_format,components",
+  });
+  return `https://graph.facebook.com/${graphVersion()}/${encodeURIComponent(wabaId)}/message_templates?${params}`;
+}
+
+export function extractTemplateParameters(text) {
+  const seen = new Set();
+  const parameters = [];
+  const raw = String(text || "");
+  for (const match of raw.matchAll(PLACEHOLDER_RE)) {
+    const key = match[1];
+    if (seen.has(key)) continue;
+    seen.add(key);
+    parameters.push({ key });
+  }
+  return parameters;
+}
+
+export function fillMetaTemplate(bodyText, values = [], keys = []) {
+  const map = {};
+  const orderedKeys = keys.length ? keys.map(String) : extractTemplateParameters(bodyText).map((p) => p.key);
+  orderedKeys.forEach((key, i) => {
+    map[key] = values[i] ?? "";
+  });
+  return String(bodyText || "").replace(PLACEHOLDER_RE, (full, key) =>
+    Object.prototype.hasOwnProperty.call(map, key) ? map[key] : full,
+  );
+}
+
+function componentType(component) {
+  return String(component?.type || "").toUpperCase();
+}
+
+export function parseMessageTemplate(row = {}) {
+  const components = Array.isArray(row.components) ? row.components : [];
+  const bodyComp = components.find((c) => componentType(c) === "BODY") || null;
+  const footerComp = components.find((c) => componentType(c) === "FOOTER") || null;
+  const headerComp = components.find((c) => componentType(c) === "HEADER") || null;
+  const bodyText = String(bodyComp?.text || "");
+  const headerFormat = String(headerComp?.format || (headerComp ? "TEXT" : "")).toUpperCase();
+  return {
+    id: row.id || null,
+    name: String(row.name || "").trim() || null,
+    language: String(row.language || "").trim() || null,
+    status: String(row.status || "").trim() || null,
+    parameterFormat: String(row.parameter_format || "positional").trim().toLowerCase() || "positional",
+    header: headerComp
+      ? {
+          format: headerFormat || "TEXT",
+          text: headerComp.text != null ? String(headerComp.text) : null,
+        }
+      : null,
+    body: {
+      text: bodyText,
+      parameters: extractTemplateParameters(bodyText),
+    },
+    footer: footerComp?.text ? { text: String(footerComp.text) } : null,
+  };
+}
+
+function pickTemplateRow(rows, language) {
+  const list = Array.isArray(rows) ? rows : [];
+  const lang = String(language || "").trim().toLowerCase();
+  const byLang = lang
+    ? list.filter((row) => String(row.language || "").trim().toLowerCase() === lang)
+    : [];
+  const pool = byLang.length ? byLang : list;
+  return pool.find((row) => String(row.status || "").toUpperCase() === "APPROVED") || pool[0] || null;
+}
+
+function templateCacheKey(wabaId, name, language) {
+  return `${wabaId}:${name}:${language}`;
+}
+
+export function clearMessageTemplateCache() {
+  templateCache.clear();
+}
+
+function wrapMetaRequestError(err, { asTemplateRead = false } = {}) {
+  if (err?.name === "AbortError") throw httpError(504, "Meta Cloud API timeout");
+  if (err instanceof MetaRequestError) {
+    if (asTemplateRead && err.status === 403) {
+      const forbidden = httpError(403, "No hay permiso para leer plantillas de Meta (whatsapp_business_management).");
+      forbidden.meta = err.meta;
+      throw forbidden;
+    }
+    const wrapped = err.status >= 500
+      ? httpError(502, "Meta Cloud API upstream error")
+      : httpError(err.status, err.message);
+    wrapped.meta = err.meta;
+    throw wrapped;
+  }
+  if (err?.status) throw err;
+  throw httpError(502, "Meta Cloud API network error");
 }
 
 function graphMessagesUrl(phoneNumberId) {
@@ -112,15 +217,37 @@ async function metaFetch(body, auth) {
     }
     return data;
   } catch (err) {
-    if (err?.name === "AbortError") throw httpError(504, "Meta Cloud API timeout");
-    if (err instanceof MetaRequestError) {
-      const wrapped = err.status >= 500
-        ? httpError(502, "Meta Cloud API upstream error")
-        : httpError(err.status, err.message);
-      wrapped.meta = err.meta;
-      throw wrapped;
+    wrapMetaRequestError(err);
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+async function graphGet(url, token) {
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), Number(env.meta.timeoutMs || 8000));
+  try {
+    const response = await fetch(url, {
+      method: "GET",
+      headers: { Authorization: `Bearer ${token}` },
+      signal: controller.signal,
+    });
+    const raw = await response.text();
+    let data = {};
+    try {
+      data = raw ? JSON.parse(raw) : {};
+    } catch {
+      data = {};
     }
-    throw httpError(502, "Meta Cloud API network error");
+    if (!response.ok) {
+      const meta = summarizeMetaError(data);
+      const message = meta.message || meta.details || `Meta error ${response.status}`;
+      metaLog.error("Graph template error", { httpStatus: response.status, url, ...meta });
+      throw new MetaRequestError(response.status, message, meta);
+    }
+    return data;
+  } catch (err) {
+    wrapMetaRequestError(err, { asTemplateRead: true });
   } finally {
     clearTimeout(timeout);
   }
@@ -159,15 +286,20 @@ export const metaClient = {
     );
   },
 
-  async sendTemplate({ to, bodyParams = [], accessToken, phoneNumberId, templateName, headerDocument } = {}) {
+  async sendTemplate({ to, bodyParams = [], parameterKeys = [], accessToken, phoneNumberId, templateName, headerDocument } = {}) {
     const header = headerDocumentFrom(headerDocument);
     const name = resolveTemplateName(templateName, header);
     const phone = requirePhone(to);
     const language = String(env.meta?.templateLanguage || "es_MX").trim();
-    const parameters = bodyParams.map((value) => ({
-      type: "text",
-      text: sanitizeMetaBodyParam(value),
-    }));
+    const parameters = bodyParams.map((value, index) => {
+      const key = parameterKeys?.[index];
+      const item = {
+        type: "text",
+        text: sanitizeMetaBodyParam(value),
+      };
+      if (key && !/^\d+$/.test(String(key))) item.parameter_name = String(key);
+      return item;
+    });
     const components = [];
     if (header) {
       components.push({
@@ -279,5 +411,31 @@ export const metaClient = {
 
   async sendTemplateWithRetry(params, opts) {
     return withRetry(() => metaClient.sendTemplate(params), opts);
+  },
+
+  async getMessageTemplate({ accessToken, wabaId, document = false, templateName } = {}) {
+    const token = String(accessToken || "").trim();
+    const waba = String(wabaId || "").trim();
+    if (!token || !waba) throw httpError(400, "Faltan credenciales de WhatsApp (Meta).");
+
+    const documentName = String(env.meta?.templateNameDocument || "").trim();
+    const name = document
+      ? documentName
+      : String(templateName || env.meta?.templateName || "").trim();
+    if (document && !name) throw httpError(400, "Falta META_TEMPLATE_NAME_DOCUMENT.");
+    if (!name) throw httpError(400, "Falta META_TEMPLATE_NAME.");
+    const language = String(env.meta?.templateLanguage || "es_MX").trim();
+
+    const key = templateCacheKey(waba, name, language);
+    const cached = templateCache.get(key);
+    if (cached && Date.now() - cached.at < TEMPLATE_CACHE_TTL_MS) return cached.value;
+
+    const data = await graphGet(graphWabaTemplatesUrl(waba, name), token);
+    const row = pickTemplateRow(data?.data, language);
+    if (!row) throw httpError(404, "No se encontró la plantilla de Meta.");
+    const parsed = parseMessageTemplate(row);
+    if (!parsed.body?.text) throw httpError(404, "La plantilla de Meta no tiene BODY.");
+    templateCache.set(key, { at: Date.now(), value: parsed });
+    return parsed;
   },
 };

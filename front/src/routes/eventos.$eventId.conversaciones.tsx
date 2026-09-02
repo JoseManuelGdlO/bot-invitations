@@ -1,7 +1,8 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import {
   Bot,
+  FileText,
   Pause,
   Play,
   Search,
@@ -13,11 +14,14 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { StatusBadge } from "@/components/status-badge";
+import { WhatsAppFormattedText } from "@/components/whatsapp-formatted-text";
 import { useEvent, useStore } from "@/lib/mock/store";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { PERMS } from "@/lib/permissions";
 import { botApi } from "@/lib/api/bot";
+import { matchesConversationSearch } from "@/lib/conversation-search";
+import { formatChatDayLabel, formatMessageTime, getZonedDayKey } from "@/lib/datetime";
 
 export const Route = createFileRoute("/eventos/$eventId/conversaciones")({
   validateSearch: (s: Record<string, unknown>) => ({
@@ -63,6 +67,7 @@ function Conversaciones() {
   const messagesRef = useRef<HTMLDivElement>(null);
   const prevActiveIdRef = useRef<string | null>(null);
   const nearBottomRef = useRef(true);
+  const timeZone = event?.timezone;
 
   useEffect(() => {
     let cancelled = false;
@@ -82,15 +87,23 @@ function Conversaciones() {
     else if (!activeId && conversations[0]) setActiveId(conversations[0].id);
   }, [guestId, conversations, activeId]);
 
-  const list = useMemo(() => {
-    return conversations
-      .map((c) => ({ conv: c, guest: guests.find((g) => g.id === c.guestId)! }))
-      .filter(
-        (x) => x.guest && x.guest.rep.toLowerCase().includes(q.toLowerCase()),
-      );
-  }, [conversations, guests, q]);
+  const rows = useMemo(
+    () =>
+      conversations
+        .map((c) => ({ conv: c, guest: guests.find((g) => g.id === c.guestId) }))
+        .filter(
+          (x): x is { conv: (typeof conversations)[number]; guest: NonNullable<typeof x.guest> } =>
+            Boolean(x.guest),
+        ),
+    [conversations, guests],
+  );
 
-  const active = list.find((x) => x.conv.id === activeId) ?? list[0];
+  const list = useMemo(
+    () => rows.filter((x) => matchesConversationSearch(x.guest, q)),
+    [rows, q],
+  );
+
+  const active = rows.find((x) => x.conv.id === activeId) ?? rows[0];
 
   const lastMessageId =
     active?.conv.messages[active.conv.messages.length - 1]?.id;
@@ -116,7 +129,7 @@ function Conversaciones() {
     };
   }, [active?.conv.messages.length, lastMessageId, activeId]);
 
-  if (!active) {
+  if (!conversations.length || !active) {
     return (
       <main className="flex h-full flex-1 items-center justify-center p-10 text-sm text-muted-foreground">
         Aún no hay conversaciones en este evento. Inicia las confirmaciones
@@ -142,14 +155,13 @@ function Conversaciones() {
       }
       return;
     }
+    const now = new Date().toISOString();
     sendMessage(active.conv.id, {
       id: `m-${Date.now()}`,
       from: active.conv.aiPaused ? "planner" : "ai",
       text: draft,
-      at: new Date().toLocaleTimeString("es-MX", {
-        hour: "2-digit",
-        minute: "2-digit",
-      }),
+      at: formatMessageTime(now, timeZone),
+      createdAt: now,
     });
     setDraft("");
   };
@@ -170,46 +182,56 @@ function Conversaciones() {
           </div>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto">
-          {list.map(({ conv, guest }) => (
-            <button
-              key={conv.id}
-              onClick={() => setActiveId(conv.id)}
-              className={cn(
-                "flex w-full gap-3 border-b border-border/60 p-3 text-left transition-colors hover:bg-secondary/60",
-                conv.id === active.conv.id && "bg-secondary",
-              )}
-            >
-              <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-gold-soft text-[11px] font-semibold text-gold-foreground">
-                {guest.rep
-                  .split(" ")
-                  .map((p) => p[0])
-                  .join("")
-                  .slice(0, 2)}
-              </span>
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="truncate text-sm font-medium">{guest.rep}</p>
-                  <span className="shrink-0 text-[10px] text-muted-foreground">
-                    {conv.messages[conv.messages.length - 1]?.at}
-                  </span>
+          {list.length === 0 ? (
+            <p className="px-4 py-8 text-center text-sm text-muted-foreground">
+              Ninguna conversación coincide.
+            </p>
+          ) : null}
+          {list.map(({ conv, guest }) => {
+            const last = conv.messages[conv.messages.length - 1];
+            return (
+              <button
+                key={conv.id}
+                onClick={() => setActiveId(conv.id)}
+                className={cn(
+                  "flex w-full gap-3 border-b border-border/60 p-3 text-left transition-colors hover:bg-secondary/60",
+                  conv.id === active.conv.id && "bg-secondary",
+                )}
+              >
+                <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-gold-soft text-[11px] font-semibold text-gold-foreground">
+                  {guest.rep
+                    .split(" ")
+                    .map((p) => p[0])
+                    .join("")
+                    .slice(0, 2)}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="truncate text-sm font-medium">{guest.rep}</p>
+                    <span className="shrink-0 text-[10px] text-muted-foreground">
+                      {last
+                        ? formatMessageTime(last.createdAt, timeZone, last.at)
+                        : ""}
+                    </span>
+                  </div>
+                  <p className="truncate text-[11px] text-muted-foreground">
+                    {guest.phone}
+                  </p>
+                  <p className="truncate text-xs text-muted-foreground">
+                    {last?.text}
+                  </p>
+                  <div className="mt-1 flex items-center gap-1.5">
+                    <StatusBadge status={guest.status} />
+                    {conv.unread > 0 ? (
+                      <Badge className="h-4 rounded-full bg-whatsapp px-1.5 text-[10px] text-primary-foreground">
+                        {conv.unread}
+                      </Badge>
+                    ) : null}
+                  </div>
                 </div>
-                <p className="truncate text-[11px] text-muted-foreground">
-                  {guest.phone}
-                </p>
-                <p className="truncate text-xs text-muted-foreground">
-                  {conv.messages[conv.messages.length - 1]?.text}
-                </p>
-                <div className="mt-1 flex items-center gap-1.5">
-                  <StatusBadge status={guest.status} />
-                  {conv.unread > 0 ? (
-                    <Badge className="h-4 rounded-full bg-whatsapp px-1.5 text-[10px] text-primary-foreground">
-                      {conv.unread}
-                    </Badge>
-                  ) : null}
-                </div>
-              </div>
-            </button>
-          ))}
+              </button>
+            );
+          })}
         </div>
       </aside>
 
@@ -236,16 +258,6 @@ function Conversaciones() {
                 </Button>
               ) : (
                 <>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      toggleAI(active.conv.id, true);
-                      toast.info("IA pausada en esta conversación");
-                    }}
-                  >
-                    <Pause className="size-4" /> Pausar IA
-                  </Button>
                   <Button
                     size="sm"
                     variant="outline"
@@ -284,36 +296,61 @@ function Conversaciones() {
           }}
           className="chat-canvas min-h-0 flex-1 space-y-3 overflow-y-auto p-5"
         >
-          {active.conv.messages.map((m) => (
-            <div
-              key={m.id}
-              className={cn(
-                "flex animate-in fade-in slide-in-from-bottom-1 duration-300",
-                m.from === "guest" ? "justify-start" : "justify-end",
-              )}
-            >
-              <div
-                className={cn(
-                  "max-w-[78%] rounded-2xl px-3.5 py-2.5 text-sm shadow-soft",
-                  m.from === "guest"
-                    ? "rounded-bl-sm bg-card"
-                    : m.from === "planner"
-                      ? "rounded-br-sm bg-gold-soft"
-                      : "rounded-br-sm bg-success-soft",
-                )}
-              >
-                <p className="whitespace-pre-line">{m.text}</p>
-                <p className="mt-1 text-right text-[10px] text-muted-foreground">
-                  {m.from === "planner"
-                    ? "Equipo · "
-                    : m.from === "ai"
-                      ? "Asistente · "
-                      : ""}
-                  {m.at}
-                </p>
-              </div>
-            </div>
-          ))}
+          {active.conv.messages.map((m, index, list) => {
+            const isTemplate = m.from === "ai" && m.kind === "template";
+            const dayKey = getZonedDayKey(m.createdAt, timeZone);
+            const prevDayKey =
+              index > 0 ? getZonedDayKey(list[index - 1]?.createdAt, timeZone) : null;
+            const showDaySeparator = Boolean(dayKey && dayKey !== prevDayKey);
+            return (
+              <Fragment key={m.id}>
+                {showDaySeparator ? (
+                  <div className="flex justify-center py-1">
+                    <span className="rounded-lg border border-border/50 bg-card/95 px-3 py-1 text-[11px] font-medium text-muted-foreground shadow-soft">
+                      {formatChatDayLabel(m.createdAt, timeZone)}
+                    </span>
+                  </div>
+                ) : null}
+                <div
+                  className={cn(
+                    "flex animate-in fade-in slide-in-from-bottom-1 duration-300",
+                    m.from === "guest" ? "justify-start" : "justify-end",
+                  )}
+                >
+                  <div
+                    className={cn(
+                      "max-w-[78%] rounded-2xl px-3.5 py-2.5 text-sm shadow-soft",
+                      m.from === "guest"
+                        ? "rounded-bl-sm bg-card"
+                        : m.from === "planner"
+                          ? "rounded-br-sm bg-gold-soft"
+                          : isTemplate
+                            ? "rounded-br-sm border border-border/60 bg-card"
+                            : "rounded-br-sm bg-success-soft",
+                    )}
+                  >
+                    {isTemplate ? (
+                      <p className="mb-1 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                        <FileText className="size-3" /> Plantilla
+                      </p>
+                    ) : m.from === "ai" ? (
+                      <p className="mb-1 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-success">
+                        <Bot className="size-3" /> Asistente
+                      </p>
+                    ) : m.from === "planner" ? (
+                      <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-gold-foreground">
+                        Equipo
+                      </p>
+                    ) : null}
+                    <WhatsAppFormattedText text={m.text} />
+                    <p className="mt-1 text-right text-[10px] text-muted-foreground">
+                      {formatMessageTime(m.createdAt, timeZone, m.at)}
+                    </p>
+                  </div>
+                </div>
+              </Fragment>
+            );
+          })}
         </div>
 
         {canReply ? (

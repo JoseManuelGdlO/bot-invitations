@@ -33,6 +33,24 @@ export type WhatsAppMetaCredentialsInput = {
   displayPhoneNumber?: string | null;
 };
 
+export type WhatsAppMetaTemplateParameter = {
+  key: string;
+};
+
+export type WhatsAppMetaTemplateDto = {
+  id: string | null;
+  name: string | null;
+  language: string | null;
+  status: string | null;
+  parameterFormat: string;
+  header: { format: string; text: string | null } | null;
+  body: {
+    text: string;
+    parameters: WhatsAppMetaTemplateParameter[];
+  };
+  footer: { text: string } | null;
+};
+
 export type WhatsAppSendTestType = "text" | "template";
 
 export const integrationsApi = {
@@ -80,6 +98,10 @@ export const integrationsApi = {
     }),
   getWhatsAppStatus: () =>
     api<WhatsAppMetaStatusDto>("/internal/whatsapp/status"),
+  getWhatsAppTemplate: (document = false) =>
+    api<WhatsAppMetaTemplateDto>(
+      `/internal/whatsapp/template?document=${document ? "true" : "false"}`,
+    ),
   saveWhatsAppCredentials: (body: WhatsAppMetaCredentialsInput) =>
     api<WhatsAppMetaStatusDto & { ok: boolean }>("/internal/whatsapp/credentials", {
       method: "POST",

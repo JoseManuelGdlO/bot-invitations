@@ -244,13 +244,13 @@ export async function executeCampaignLaunch(job) {
     if (!taken) continue;
     await guest.reload();
     claimedCount += 1;
-    const { text, param1, param2 } = resolveOpeningParts(opening, event, guest, plannerName, ai?.openingMessage);
+    const { text, params, param1, param2 } = await resolveOpeningParts(opening, event, guest, plannerName, ai?.openingMessage);
     try {
       const conv = await deliverAiMessage({
         event,
         guest,
         text,
-        hsmParams: [param1, param2],
+        hsmParams: params?.length ? params : [param1, param2],
         ...(hsmTemplateName ? { hsmTemplateName } : {}),
         ...(hsmHeaderDocument ? { hsmHeaderDocument } : {}),
         kind: "campaign",

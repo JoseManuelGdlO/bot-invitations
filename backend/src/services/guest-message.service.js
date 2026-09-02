@@ -32,11 +32,18 @@ export async function deliverAiMessage({
       unread: 0,
     });
   }
+  const messageKind =
+    hsmTemplateName || hsmHeaderDocument || kind === "campaign" || kind === "template"
+      ? "template"
+      : kind === "message"
+        ? null
+        : kind;
   await Message.create({
     conversationId: conv.id,
     from: "ai",
     text: body,
-    at: formatClock(),
+    at: formatClock(undefined, event.timezone),
+    ...(messageKind ? { kind: messageKind } : {}),
   });
   await enqueueJob("whatsapp.send", {
     to: resolveWhatsappTo(guest),

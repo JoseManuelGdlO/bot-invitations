@@ -355,8 +355,8 @@ describe("campaign.service", () => {
 
     expect(deliverAiMessage).toHaveBeenCalledWith(
       expect.objectContaining({
-        text: "¡Hola, buen día! Boda Ana\nNos comunicamos de Ana y Carlos.\nConfirma asistencia para Boda Ana.\nMuchas gracias.",
-        hsmParams: ["Boda Ana", "Ana y Carlos.\nConfirma asistencia para Boda Ana."],
+        text: "¡Hola, buen día! Boda Ana\nNos comunicamos de Ana y Carlos. Confirma asistencia para Boda Ana.\nMuchas gracias.",
+        hsmParams: ["Boda Ana", "Ana y Carlos. Confirma asistencia para Boda Ana."],
       }),
     );
   });

@@ -27,21 +27,26 @@ export function StatCard({
   return (
     <div
       className={cn(
-        "group rounded-xl border border-border bg-card p-5 shadow-soft transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lift",
+        "group min-w-0 rounded-xl border border-border bg-card p-3.5 shadow-soft transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lift sm:p-5",
         className,
       )}
     >
-      <div className="flex items-start justify-between gap-3">
-        <p className="text-xs font-medium uppercase tracking-[0.08em] text-muted-foreground">
+      <div className="flex items-start justify-between gap-2 sm:gap-3">
+        <p className="min-w-0 text-[10px] font-medium uppercase tracking-[0.08em] text-muted-foreground sm:text-xs">
           {label}
         </p>
         {Icon ? (
-          <span className="rounded-lg bg-secondary p-1.5 text-muted-foreground transition-colors group-hover:bg-gold-soft group-hover:text-gold">
+          <span className="shrink-0 rounded-lg bg-secondary p-1.5 text-muted-foreground transition-colors group-hover:bg-gold-soft group-hover:text-gold">
             <Icon className="size-4" />
           </span>
         ) : null}
       </div>
-      <p className={cn("mt-3 font-display text-3xl leading-none", tones[tone])}>
+      <p
+        className={cn(
+          "mt-2 font-display text-2xl leading-none sm:mt-3 sm:text-3xl",
+          tones[tone],
+        )}
+      >
         {value}
       </p>
       {hint ? (

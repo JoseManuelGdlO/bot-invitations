@@ -1,4 +1,5 @@
 import { formatRelative } from "./time.js";
+import { resolveEventTimezone } from "./timezone.js";
 import { extraInstructions } from "../services/bot/prompt.service.js";
 import { mergeFollowUps, normalizeFollowUp } from "../services/follow-up.service.js";
 
@@ -59,6 +60,7 @@ export function serializeEvent(event, campaign) {
     hosts: event.hosts,
     date: event.date,
     time: event.time,
+    timezone: resolveEventTimezone(event.timezone),
     venue: event.venue,
     address: event.address || "",
     estimatedGuests: event.estimatedGuests,
@@ -95,11 +97,17 @@ export function serializeGuest(guest, eventSlug) {
 }
 
 export function serializeMessage(message) {
+  const createdAtRaw = message.createdAt;
+  const createdAtDate = createdAtRaw ? new Date(createdAtRaw) : null;
+  const createdAt =
+    createdAtDate && !Number.isNaN(createdAtDate.getTime()) ? createdAtDate.toISOString() : null;
   return {
     id: message.id,
     from: message.from,
     text: message.text,
     at: message.at,
+    createdAt,
+    kind: message.kind || null,
   };
 }
 
@@ -131,12 +139,14 @@ export function serializeAi(ai) {
 export function serializeTemplate(t) {
   const fileName = t.documentFileName || null;
   const hasFile = Boolean(t.documentPath && fileName);
+  const bodyVars = Array.isArray(t.bodyVars) ? t.bodyVars : null;
   return {
     id: t.id,
     category: t.category,
     title: t.title,
     body: t.body,
     greetingVar: t.greetingVar || "nombre",
+    bodyVars,
     attachDocument: Boolean(t.attachDocument),
     document: hasFile
       ? {

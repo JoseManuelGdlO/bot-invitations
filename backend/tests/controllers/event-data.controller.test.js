@@ -216,14 +216,15 @@ describe("event-data.controller", () => {
     expect(res.status).toHaveBeenCalledWith(400);
   });
 
-  test("setTemplates persiste greetingVar y conserva saltos en Primer contacto", async () => {
+  test("setTemplates persiste bodyVars y aplana saltos en Primer contacto", async () => {
     models.Template.bulkCreate.mockResolvedValue([
       {
         id: "t1",
         category: "Primer contacto",
         title: "Invitación inicial",
-        body: "Ana y Carlos.\nLos esperamos.",
+        body: "Ana y Carlos. Los esperamos.",
         greetingVar: "evento",
+        bodyVars: ["{{evento}}", "Ana y Carlos. Los esperamos."],
       },
     ]);
     const { res } = await callHandler(controller.setTemplates, {
@@ -241,12 +242,17 @@ describe("event-data.controller", () => {
     expect(models.Template.bulkCreate).toHaveBeenCalledWith([
       expect.objectContaining({
         category: "Primer contacto",
-        body: "Ana y Carlos.\nLos esperamos.",
+        body: "Ana y Carlos. Los esperamos.",
         greetingVar: "evento",
+        bodyVars: ["{{evento}}", "Ana y Carlos. Los esperamos."],
       }),
     ]);
     expect(res.json).toHaveBeenCalledWith([
-      expect.objectContaining({ greetingVar: "evento", body: "Ana y Carlos.\nLos esperamos." }),
+      expect.objectContaining({
+        greetingVar: "evento",
+        body: "Ana y Carlos. Los esperamos.",
+        bodyVars: ["{{evento}}", "Ana y Carlos. Los esperamos."],
+      }),
     ]);
   });
 

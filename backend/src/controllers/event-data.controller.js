@@ -12,8 +12,8 @@ import {
   DEFAULT_AI_TONE,
   defaultConversationRules,
   mergeConversationRules,
-  normalizeGreetingVar,
 } from "../utils/defaults.js";
+import { normalizeOpeningSlots } from "../services/templates.service.js";
 
 export const getAi = asyncHandler(async (req, res) => {
   const event = await requireEvent(req, res);
@@ -113,13 +113,15 @@ export const setTemplates = asyncHandler(async (req, res) => {
       const category = t.category;
       const isOpening = category === "Primer contacto";
       const prev = existingByCategory.get(category);
+      const opening = isOpening ? normalizeOpeningSlots(t) : null;
       return {
         id: t.id && String(t.id).length === 36 ? t.id : undefined,
         eventId: event.id,
         category,
         title: t.title,
-        body: t.body,
-        greetingVar: isOpening ? normalizeGreetingVar(t.greetingVar) : "nombre",
+        body: isOpening ? opening.body : t.body,
+        greetingVar: isOpening ? opening.greetingVar : "nombre",
+        bodyVars: isOpening ? opening.bodyVars : null,
         attachDocument: isOpening ? Boolean(t.attachDocument) : false,
         documentPath: isOpening ? prev?.documentPath || null : null,
         documentFileName: isOpening ? prev?.documentFileName || null : null,

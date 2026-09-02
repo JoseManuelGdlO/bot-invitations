@@ -44,12 +44,95 @@ export function normalizeGreetingVar(
   return isTemplateVariable(key) ? key : "nombre";
 }
 
+export function flattenTemplateLine(value: string | null | undefined) {
+  return String(value || "")
+    .replace(/\\n/g, " ")
+    .replace(/[\r\n\t]+/g, " ")
+    .replace(/ {2,}/g, " ")
+    .trim();
+}
+
 export function composeConstructorTemplate(
   greetingVar: string,
   body: string,
 ) {
   const key = normalizeGreetingVar(greetingVar);
-  return `¡Hola, buen día! {{${key}}}\nNos comunicamos de ${body}\nMuchas gracias.`;
+  return `¡Hola, buen día! {{${key}}}\nNos comunicamos de ${flattenTemplateLine(body)}\nMuchas gracias.`;
+}
+
+export type MetaBodySegment =
+  | { type: "text"; value: string }
+  | { type: "slot"; key: string; index: number };
+
+const META_PLACEHOLDER_RE = /\{\{([0-9]+|[A-Za-z_][A-Za-z0-9_]*)\}\}/g;
+
+export function splitMetaBody(text: string): MetaBodySegment[] {
+  const segments: MetaBodySegment[] = [];
+  const raw = String(text || "");
+  const seen = new Map<string, number>();
+  let last = 0;
+  let nextIndex = 0;
+  for (const match of raw.matchAll(META_PLACEHOLDER_RE)) {
+    const start = match.index ?? 0;
+    if (start > last) {
+      segments.push({ type: "text", value: raw.slice(last, start) });
+    }
+    const key = match[1];
+    let index = seen.get(key);
+    if (index === undefined) {
+      index = nextIndex;
+      seen.set(key, nextIndex);
+      nextIndex += 1;
+    }
+    segments.push({ type: "slot", key, index });
+    last = start + match[0].length;
+  }
+  if (last < raw.length) {
+    segments.push({ type: "text", value: raw.slice(last) });
+  }
+  return segments;
+}
+
+export function metaBodyParameterKeys(text: string) {
+  return splitMetaBody(text)
+    .filter((segment): segment is Extract<MetaBodySegment, { type: "slot" }> => segment.type === "slot")
+    .filter((segment, i, list) => list.findIndex((item) => item.key === segment.key) === i)
+    .map((segment) => segment.key);
+}
+
+export function fillMetaBody(bodyText: string, values: string[], keys?: string[]) {
+  const orderedKeys = keys?.length ? keys : metaBodyParameterKeys(bodyText);
+  const map: Record<string, string> = {};
+  orderedKeys.forEach((key, i) => {
+    map[key] = values[i] ?? "";
+  });
+  return String(bodyText || "").replace(META_PLACEHOLDER_RE, (full, key: string) =>
+    Object.prototype.hasOwnProperty.call(map, key) ? map[key] : full,
+  );
+}
+
+export function openingSlotsFromSaved(
+  template:
+    | {
+        bodyVars?: string[] | null;
+        greetingVar?: string;
+        body?: string;
+      }
+    | null
+    | undefined,
+  count = 2,
+) {
+  const fromVars = Array.isArray(template?.bodyVars)
+    ? template.bodyVars.map((item) => flattenTemplateLine(item))
+    : [];
+  const fallback = [
+    `{{${normalizeGreetingVar(template?.greetingVar)}}}`,
+    flattenTemplateLine(template?.body || ""),
+  ];
+  const base = fromVars.length ? fromVars : fallback;
+  const next = base.slice(0, Math.max(count, 0));
+  while (next.length < count) next.push("");
+  return next;
 }
 
 export function guestTemplateVars(

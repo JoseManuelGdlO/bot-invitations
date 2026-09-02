@@ -41,6 +41,7 @@ export interface EventItem {
   hosts: string;
   date: string; // ISO
   time: string;
+  timezone: string;
   venue: string;
   address: string;
   estimatedGuests: number;
@@ -75,6 +76,8 @@ export interface ChatMessage {
   from: "ai" | "guest" | "planner";
   text: string;
   at: string;
+  createdAt?: string | null;
+  kind?: string | null;
 }
 
 export interface Conversation {
@@ -113,6 +116,7 @@ export interface Template {
   title: string;
   body: string;
   greetingVar?: string;
+  bodyVars?: string[] | null;
   attachDocument?: boolean;
   document?: {
     fileName: string;
