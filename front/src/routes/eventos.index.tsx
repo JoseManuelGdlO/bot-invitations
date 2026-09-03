@@ -9,6 +9,13 @@ import {
   Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import {
+  Carousel,
+  CarouselContent,
+  CarouselItem,
+  CarouselNext,
+  CarouselPrevious,
+} from "@/components/ui/carousel";
 import { StatCard } from "@/components/stat-card";
 import { EventCard } from "@/components/event-card";
 import { statsFor, useStore } from "@/lib/mock/store";
@@ -57,14 +64,14 @@ function EventsDashboard() {
     <main className="mx-auto w-full max-w-7xl flex-1 px-5 py-8 md:px-8 md:py-10">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
-          <p className="text-xs font-medium uppercase tracking-[0.14em] text-gold">
-            Panel general
-          </p>
-          <h1 className="mt-1 font-display text-4xl">Tus eventos</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Cada evento mantiene sus invitados, conversaciones y configuración
-            por separado.
-          </p>
+            <p className="text-xs font-medium uppercase tracking-[0.14em] text-gold">
+              Panel general
+            </p>
+            <h1 className="mt-1 font-display text-4xl">Tus eventos</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Cada evento mantiene sus invitados, conversaciones y configuración
+              por separado.
+            </p>
         </div>
         {session?.usage?.canCreateEvent !== false ? (
           <Button asChild size="lg">
@@ -74,12 +81,12 @@ function EventsDashboard() {
           </Button>
         ) : null}
       </div>
-      <div className="mt-6 space-y-4">
+      <div className="mt-4 space-y-4">
         <PendingPaymentBanner session={session} />
         <PlanLimitBanner session={session} kind="event" />
       </div>
 
-      <section className="mt-8 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="mt-4 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           label="Eventos activos"
           value={active}
@@ -133,48 +140,63 @@ function EventsDashboard() {
         />
       </section>
 
-      <div className="mt-10 grid gap-8 lg:grid-cols-[1.6fr_1fr]">
-        <section>
-          <h2 className="font-display text-2xl">Eventos</h2>
-          <div className="mt-4 grid gap-5 sm:grid-cols-2">
-            {events.map((e) => (
+      <div className="mt-6 grid grid-cols-1 gap-8 lg:grid-cols-12">
+
+  <section className="w-full lg:col-span-7">
+    <div className="flex items-center justify-between">
+      <h2 className="font-display text-2xl">Eventos</h2>
+    </div>
+
+    <div className="relative mt-4 h-[350px] px-4 sm:px-6">
+      <Carousel
+        className="h-full w-full"
+        opts={{ align: "start", loop: events.length > 2 }}
+      >
+        <CarouselContent className="-ml-4">
+          {events.map((e) => (
+            <CarouselItem key={e.id} className="pl-4 basis-full sm:basis-1/2">
               <EventCard
-                key={e.id}
                 event={e}
                 guests={guests.filter((g) => g.eventId === e.id)}
               />
-            ))}
-          </div>
-        </section>
-
-        <section>
-          <h2 className="font-display text-2xl">Actividad reciente</h2>
-          <div className="mt-4 space-y-1 rounded-2xl border border-border bg-card p-5 shadow-soft">
-            {activity.map((a) => {
-              const ev = events.find((e) => e.id === a.eventId);
-              return (
-                <div
-                  key={a.id}
-                  className="flex gap-3 border-b border-border/60 py-3 last:border-0"
-                >
-                  <span
-                    className={cn(
-                      "mt-1.5 size-2 shrink-0 rounded-full",
-                      kindTone[a.kind],
-                    )}
-                  />
-                  <div className="min-w-0">
-                    <p className="text-sm leading-snug">{a.text}</p>
-                    <p className="mt-0.5 text-[11px] text-muted-foreground">
-                      {ev?.name ?? "General"} · {a.at}
-                    </p>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </section>
+            </CarouselItem>
+          ))}
+        </CarouselContent>
+        <CarouselPrevious className="-left-3 lg:-left-4 shadow-sm hover:sm-muted" />
+        <CarouselNext className="-right-3 lg:-right-4 shadow-sm hover:sm-muted" />
+      </Carousel>
+    </div>
+  </section>
+  <section className="w-full lg:col-span-5">
+    <h2 className="font-display text-2xl">Actividad reciente</h2>
+    <div className="mt-4 h-[350px] overflow-y-auto rounded-2xl border border-border bg-card p-5 shadow-soft">
+      <div className="space-y-1">
+        {activity.map((a) => {
+          const ev = events.find((e) => e.id === a.eventId);
+          return (
+            <div
+              key={a.id}
+              className="flex gap-3 border-b border-border/60 py-3 last:border-0"
+            >
+              <span
+                className={cn(
+                  "mt-1.5 size-2 shrink-0 rounded-full",
+                  kindTone[a.kind]
+                )}
+              />
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-medium leading-snug">{a.text}</p>
+                <p className="mt-0.5 text-[11px] text-muted-foreground truncate">
+                  {ev?.name ?? "General"} · {a.at}
+                </p>
+              </div>
+            </div>
+          );
+        })}
       </div>
+    </div>
+  </section>
+</div>
     </main>
   );
 }
