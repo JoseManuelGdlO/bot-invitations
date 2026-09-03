@@ -63,6 +63,7 @@ import {
 import type { Guest } from "@/lib/mock/types";
 import { toast } from "sonner";
 import { PlanLimitBanner } from "@/components/plan-limit";
+import { SendGuestInvitationDialog } from "@/components/send-guest-invitation-dialog";
 import { PERMS } from "@/lib/permissions";
 import { ApiError } from "@/lib/api/client";
 
@@ -113,7 +114,6 @@ function Invitados() {
   const {
     updateGuest,
     createGuest,
-    remindGuest,
     exportGuests,
     session,
     hasPerm,
@@ -132,7 +132,6 @@ function Invitados() {
   const [guestToDelete, setGuestToDelete] = useState<Guest | null>(null);
   const [guestToMessage, setGuestToMessage] = useState<Guest | null>(null);
   const [deleting, setDeleting] = useState(false);
-  const [sendingMessage, setSendingMessage] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState(EMPTY_GUEST_FORM);
@@ -706,60 +705,10 @@ function Invitados() {
         </SheetContent>
       </Sheet>
 
-      <AlertDialog
-        open={!!guestToMessage}
-        onOpenChange={(open) =>
-          !open && !sendingMessage && setGuestToMessage(null)
-        }
-      >
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>
-              {guestToMessage?.status === "sin_contactar"
-                ? `¿Enviar invitación a ${guestToMessage?.rep}?`
-                : `¿Enviar recordatorio a ${guestToMessage?.rep}?`}
-            </AlertDialogTitle>
-            <AlertDialogDescription>
-              {guestToMessage?.status === "sin_contactar"
-                ? "Se enviará la invitación inicial (primer contacto) por WhatsApp."
-                : "Se enviará un recordatorio por WhatsApp. Solo confirma si quieres reenviar el mensaje."}
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel disabled={sendingMessage}>
-              Cancelar
-            </AlertDialogCancel>
-            <AlertDialogAction
-              disabled={sendingMessage}
-              onClick={async (e) => {
-                e.preventDefault();
-                if (!guestToMessage) return;
-                const isOpening = guestToMessage.status === "sin_contactar";
-                setSendingMessage(true);
-                try {
-                  await remindGuest(guestToMessage.id);
-                  toast.success(
-                    isOpening
-                      ? `Invitación enviada a ${guestToMessage.rep}`
-                      : `Recordatorio enviado a ${guestToMessage.rep}`,
-                  );
-                  setGuestToMessage(null);
-                } catch (err) {
-                  toast.error(
-                    err instanceof ApiError
-                      ? err.message
-                      : "No se pudo enviar el mensaje",
-                  );
-                } finally {
-                  setSendingMessage(false);
-                }
-              }}
-            >
-              {sendingMessage ? "Enviando…" : "Enviar"}
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+      <SendGuestInvitationDialog
+        guest={guestToMessage}
+        onClose={() => setGuestToMessage(null)}
+      />
 
       <AlertDialog
         open={!!guestToDelete}
