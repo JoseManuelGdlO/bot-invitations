@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Bold, Code, Italic, Save, Strikethrough } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { TEMPLATE_VARIABLES } from "@/lib/template-vars";
+import { TemplateVariableMenu } from "@/components/template-variable-menu";
 import { insertAtCursor, wrapSelection } from "@/lib/whatsapp-markup";
 
 type Props = {
@@ -12,7 +12,7 @@ type Props = {
   rows?: number;
   prefix?: ReactNode;
   suffix?: ReactNode;
-  extraVariables?: string[];
+  variables?: string[];
 };
 
 export function TemplateBodyEditor({
@@ -22,7 +22,7 @@ export function TemplateBodyEditor({
   rows = 8,
   prefix,
   suffix,
-  extraVariables = [],
+  variables = [],
 }: Props) {
   const [body, setBody] = useState(value);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -131,23 +131,7 @@ export function TemplateBodyEditor({
         className="font-sans text-sm leading-relaxed"
       />
       {suffix}
-      <div className="mt-3 flex flex-wrap gap-2">
-        {[
-          ...TEMPLATE_VARIABLES,
-          ...extraVariables.filter(
-            (key) => !(TEMPLATE_VARIABLES as readonly string[]).includes(key),
-          ),
-        ].map((v) => (
-          <button
-            key={v}
-            type="button"
-            onClick={() => insertToken(`{{${v}}}`)}
-            className="rounded-full border border-border bg-secondary px-2.5 py-1 text-[11px] transition-colors hover:bg-gold-soft"
-          >
-            {`{{${v}}}`}
-          </button>
-        ))}
-      </div>
+      <TemplateVariableMenu variables={variables} onInsert={insertToken} />
       <Button className="mt-4" onClick={() => onSave(body)}>
         <Save className="size-4" /> Guardar
       </Button>

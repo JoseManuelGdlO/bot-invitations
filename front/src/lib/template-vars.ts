@@ -1,5 +1,5 @@
-import { formatDate } from "@/lib/mock/format";
-import type { EventItem, Guest } from "@/lib/mock/types";
+import { formatDate } from "./mock/format.ts";
+import type { EventItem, Guest } from "./mock/types.ts";
 
 export const TEMPLATE_VARIABLES = [
   "nombre",
@@ -35,6 +35,46 @@ export function extraTemplateKeys(guests: Guest[]) {
     }
   }
   return [...keys].sort();
+}
+
+const ALWAYS_TEMPLATE_KEYS: readonly TemplateVariable[] = [
+  "nombre",
+  "nombre_completo",
+  "numero_invitados",
+  "numero_confirmados",
+  "evento",
+  "fecha",
+  "lugar",
+  "hora",
+  "planner",
+];
+
+const OPTIONAL_GUEST_KEYS: {
+  key: TemplateVariable;
+  field: keyof Guest;
+}[] = [
+  { key: "mesa", field: "table" },
+  { key: "familia", field: "family" },
+  { key: "tipo", field: "guestType" },
+  { key: "notas", field: "notes" },
+  { key: "etiqueta", field: "tag" },
+];
+
+function hasValue(value: unknown) {
+  return String(value ?? "").trim() !== "";
+}
+
+export function availableTemplateKeys(
+  guests: Guest[],
+  event: EventItem | undefined,
+) {
+  const present = new Set<string>(ALWAYS_TEMPLATE_KEYS);
+  if (event && hasValue(event.address)) present.add("direccion");
+  for (const { key, field } of OPTIONAL_GUEST_KEYS) {
+    if (guests.some((guest) => hasValue(guest[field]))) present.add(key);
+  }
+  const core = TEMPLATE_VARIABLES.filter((key) => present.has(key));
+  return [...core, ...extraTemplateKeys(guests)];
 }
 
 export function normalizeGreetingVar(

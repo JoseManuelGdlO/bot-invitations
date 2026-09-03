@@ -13,7 +13,7 @@ import { TemplatePreview } from "@/components/template-preview";
 import { useEvent, useStore } from "@/lib/mock/store";
 import type { EventItem, Guest, Template } from "@/lib/mock/types";
 import {
-  extraTemplateKeys,
+  availableTemplateKeys,
   fillMetaBody,
   openingSlotsFromSaved,
 } from "@/lib/template-vars";
@@ -280,7 +280,7 @@ function TemplateCategory({
     };
   }, [isConstructor, template?.attachDocument]);
 
-  const extraVariables = extraTemplateKeys(guests);
+  const variables = availableTemplateKeys(guests, event);
   const fallbackMetaBody =
     "¡Hola, buen día! {{1}}\nNos comunicamos de {{2}}\nMuchas gracias.";
   const metaBodyText = metaTemplate?.body?.text || fallbackMetaBody;
@@ -328,7 +328,7 @@ function TemplateCategory({
                   bodyText={metaBodyText}
                   footerText={metaTemplate?.footer?.text ?? null}
                   values={draftSlots}
-                  extraVariables={extraVariables}
+                  variables={variables}
                   disabled={metaLoading}
                   onChange={setDraftSlots}
                   onSave={(slots) => {
@@ -360,7 +360,7 @@ function TemplateCategory({
               <TemplateBodyEditor
                 value={template.body}
                 onChange={setDraft}
-                extraVariables={extraVariables}
+                variables={variables}
                 onSave={(body) => {
                   setTemplates(
                     eventId,
