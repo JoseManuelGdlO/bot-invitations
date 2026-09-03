@@ -27,7 +27,7 @@ export async function seedEventDefaults(event, owner, assistantName = "Sofía", 
     opts,
   );
   await Faq.bulkCreate(
-    defaultFaqs(event.venue).map((f) => ({ ...f, eventId: event.id })),
+    defaultFaqs(event.venue, event.type).map((f) => ({ ...f, eventId: event.id })),
     opts,
   );
   await EventMember.create(
