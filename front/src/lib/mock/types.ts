@@ -8,6 +8,7 @@ export type ConfirmationStatus =
   | "no_asistira"
   | "seguimiento";
 
+export type GuestType = "VIP";
 export type WhatsappStatus =
   "pendiente" | "enviado" | "entregado" | "leido" | "respondido";
 

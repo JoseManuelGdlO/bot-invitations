@@ -104,13 +104,48 @@ export function defaultTemplates(hosts) {
   ];
 }
 
-export function defaultFaqs(venue) {
-  return [
-    { q: "¿Dónde es la boda?", a: `${venue}.` },
-    { q: "¿Pueden ir niños?", a: "El evento está planeado únicamente para adultos." },
-    { q: "¿Cuál es el código de vestimenta?", a: "Formal." },
-    { q: "¿Hay estacionamiento?", a: "Sí, contamos con valet parking sin costo." },
-  ];
+export function faqPackForType(type) {
+  const key = String(type || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+  if (key === "boda") return "boda";
+  if (key === "xv anos" || key === "cumpleanos" || key === "aniversario") return "cumpleanos";
+  if (key === "corporativo") return "corporativo";
+  return "general";
+}
+
+export function defaultFaqs(venue, type) {
+  const place = String(venue || "").trim();
+  const packs = {
+    boda: [
+      { q: "¿Cuál es la ubicación del evento?", a: `La cita es en ${place}. Te recomendamos llegar 15 minutos antes de la ceremonia.` },
+      { q: "¿Cuál es el código de vestimenta?", a: "Se recomienda etiqueta / Formal. Agradecemos reservar los tonos blancos para la novia." },
+      { q: "¿Tienen mesa de regalos?", a: "Tu presencia es nuestro mejor obsequio. Si deseas tener un detalle, consulta con los anfitriones sobre la mesa de regalos o el sobre de felicitación." },
+      { q: "¿Puedo asistir con niños?", a: "Nos encantaría recibirlos, pero este evento está pensado exclusivamente para adultos. ¡Agradecemos tu comprensión!" },
+      { q: "¿El lugar cuenta con estacionamiento?", a: "Sí, el recinto cuenta con área de estacionamiento / servicio de valet parking." },
+    ],
+    cumpleanos: [
+      { q: "¿Cuál es la ubicación?", a: `La recepción se llevará a cabo en ${place}.` },
+      { q: "¿Cuál es el código de vestimenta?", a: "Recomendamos vestir de Formal / Semiformal. ¡Ven con ganas de bailar!" },
+      { q: "¿Habrá estacionamiento?", a: "Sí, el salón dispone de área de estacionamiento para invitados." },
+    ],
+    corporativo: [
+      { q: "¿Dónde se realizará el evento y cuál es el horario?", a: `Tendrá lugar en ${place}. El registro comienza puntual a la hora indicada.` },
+      { q: "¿Cuál es el código de vestimenta?", a: "Business casual / Formal de negocios." },
+      { q: "¿El evento incluye alimentos o catering?", a: "Sí, contaremos con servicio de coffee break y alimentos durante la jornada." },
+      { q: "¿Hay estacionamiento disponible?", a: "Sí, contamos con cajones de estacionamiento asignados dentro del recinto." },
+      { q: "¿Cómo valido mi acceso al llegar?", a: "Basta con presentar tu confirmación digital o identificación oficial en el módulo de recepción." },
+    ],
+    general: [
+      { q: "¿Cuál es la ubicación?", a: `El evento se llevará a cabo en ${place}.` },
+      { q: "¿Cuál es el código de vestimenta?", a: "Formal / Semiformal." },
+      { q: "¿El lugar cuenta con estacionamiento?", a: "Sí, el recinto dispone de estacionamiento para los asistentes." },
+      { q: "¿Puedo llevar acompañantes?", a: "Los accesos son únicamente los especificados en tu mensaje de invitación." },
+    ],
+  };
+  return packs[faqPackForType(type)] || packs.general;
 }
 
 export function applyTemplate(text, vars) {

@@ -55,7 +55,11 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useEvent, useStore } from "@/lib/mock/store";
-import { STATUS_FILTER_OPTIONS, WHATSAPP_LABEL } from "@/lib/mock/format";
+import {
+  GUEST_TYPE,
+  STATUS_FILTER_OPTIONS,
+  WHATSAPP_LABEL,
+} from "@/lib/mock/format";
 import type { Guest } from "@/lib/mock/types";
 import { toast } from "sonner";
 import { PlanLimitBanner } from "@/components/plan-limit";
@@ -139,7 +143,7 @@ function Invitados() {
     () =>
       guests.filter(
         (g) =>
-          (status === "todos" || g.status === status) &&
+          (status === "todos" || g.tag === (status) || g.status === status) &&
           (g.rep.toLowerCase().includes(q.toLowerCase()) ||
             g.phone.includes(q)),
       ),
@@ -185,6 +189,11 @@ function Invitados() {
                 {label}
               </SelectItem>
             ))}
+            {Object.entries(GUEST_TYPE).map(([ky, vl]) => (
+              <SelectItem key={ky} value={ky}>
+                {vl.label}
+              </SelectItem>
+            ))}
           </SelectContent>
         </Select>
         <Select
@@ -219,7 +228,7 @@ function Invitados() {
             <Download className="size-4" /> Exportar
           </Button>
         ) : null}
-        {canEditGuest ? (
+        { canEditGuest ? (
           <Dialog
             open={addOpen}
             onOpenChange={(next) => {
@@ -436,7 +445,13 @@ function Invitados() {
               <TableRow
                 key={g.id}
                 className="cursor-pointer transition-colors"
-                onClick={() => setSelectedId(g.id)}
+                onClick={() =>
+                  navigate({
+                    to: "/eventos/$eventId/conversaciones",
+                    params: { eventId },
+                    search: { guestId: g.id },
+                  })
+                }
               >
                 <TableCell className="whitespace-nowrap">
                   <div className="flex items-center gap-2.5">

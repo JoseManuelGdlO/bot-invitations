@@ -1,4 +1,4 @@
-import type { ConfirmationStatus } from "./types";
+import type { ConfirmationStatus, GuestType } from "./types";
 
 export const STATUS_META: Record<
   ConfirmationStatus,
@@ -35,6 +35,16 @@ export const STATUS_META: Record<
   seguimiento: {
     label: "Requiere seguimiento",
     className: "bg-warning-soft text-warning border-transparent",
+  },
+};
+
+export const GUEST_TYPE: Record<
+  GuestType,
+  { label: string; className: string }
+> = {
+  VIP: {
+    label: "VIP",
+    className: "bg-gold-soft text-gold-foreground border-transparent",
   },
 };
 

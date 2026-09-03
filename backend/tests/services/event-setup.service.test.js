@@ -23,7 +23,15 @@ describe("event-setup.service", () => {
       ]),
       {},
     );
-    expect(models.Faq.bulkCreate).toHaveBeenCalled();
+    expect(models.Faq.bulkCreate).toHaveBeenCalledWith(
+      expect.arrayContaining([
+        expect.objectContaining({
+          eventId: "evt_1",
+          q: "¿Tienen mesa de regalos?",
+        }),
+      ]),
+      {},
+    );
     expect(models.EventMember.create).toHaveBeenCalledWith(expect.objectContaining({ role: "Administrador" }), {});
     expect(models.EventRolePermission.bulkCreate).toHaveBeenCalled();
   });
