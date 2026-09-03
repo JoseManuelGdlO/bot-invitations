@@ -1,4 +1,4 @@
-import type { ConfirmationStatus } from "./types";
+import type { ConfirmationStatus, GuestType } from "./types";
 
 export const STATUS_META: Record<
   ConfirmationStatus,
@@ -46,6 +46,15 @@ export const STATUS_META: Record<
   },
 };
 
+export const GUEST_TYPE: Record<
+GuestType, 
+{ label: string; className: string }
+> = {
+  VIP: {
+    label: "VIP",
+    className: "bg-gold-soft text-gold-foreground border-transparent",
+  }
+}
 export const WHATSAPP_LABEL: Record<string, string> = {
   pendiente: "Pendiente",
   enviado: "Enviado",

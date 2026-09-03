@@ -55,7 +55,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useEvent, useStore } from "@/lib/mock/store";
-import { STATUS_META, WHATSAPP_LABEL } from "@/lib/mock/format";
+import { STATUS_META, WHATSAPP_LABEL, GUEST_TYPE } from "@/lib/mock/format";
 import type { Guest } from "@/lib/mock/types";
 import { toast } from "sonner";
 import { PlanLimitBanner } from "@/components/plan-limit";
@@ -82,6 +82,7 @@ const EMPTY_GUEST_FORM = {
 };
 
 const PAGE_SIZES = [20, 30, 40, 50] as const;
+const GUEST_TYPE_KEYS = new Set(Object.keys(GUEST_TYPE));
 
 export const Route = createFileRoute("/eventos/$eventId/invitados")({
   head: () => ({
@@ -138,7 +139,7 @@ function Invitados() {
     () =>
       guests.filter(
         (g) =>
-          (status === "todos" || g.status === status) &&
+          (status === "todos" || g.tag === (status) || g.status === status) &&
           (g.rep.toLowerCase().includes(q.toLowerCase()) ||
             g.phone.includes(q)),
       ),
@@ -182,6 +183,11 @@ function Invitados() {
             {Object.entries(STATUS_META).map(([k, v]) => (
               <SelectItem key={k} value={k}>
                 {v.label}
+              </SelectItem>
+            ))}
+            {Object.entries(GUEST_TYPE).map(([ky, vl]) => (
+              <SelectItem key={ky} value={ky}>
+                {vl.label}
               </SelectItem>
             ))}
           </SelectContent>
