@@ -82,7 +82,6 @@ const EMPTY_GUEST_FORM = {
 };
 
 const PAGE_SIZES = [20, 30, 40, 50] as const;
-const GUEST_TYPE_KEYS = new Set(Object.keys(GUEST_TYPE));
 
 export const Route = createFileRoute("/eventos/$eventId/invitados")({
   head: () => ({
@@ -224,7 +223,7 @@ function Invitados() {
             <Download className="size-4" /> Exportar
           </Button>
         ) : null}
-        {canEditGuest ? (
+        { canEditGuest ? (
           <Dialog
             open={addOpen}
             onOpenChange={(next) => {
@@ -445,7 +444,13 @@ function Invitados() {
               <TableRow
                 key={g.id}
                 className="cursor-pointer transition-colors"
-                onClick={() => setSelectedId(g.id)}
+                onClick={() =>
+                  navigate({
+                    to: "/eventos/$eventId/conversaciones",
+                    params: { eventId },
+                    search: { guestId: g.id },
+                  })
+                }
               >
                 <TableCell className="whitespace-nowrap">
                   <div className="flex items-center gap-2.5">
