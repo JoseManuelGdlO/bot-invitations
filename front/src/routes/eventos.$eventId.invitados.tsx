@@ -55,7 +55,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useEvent, useStore } from "@/lib/mock/store";
-import { STATUS_META, WHATSAPP_LABEL } from "@/lib/mock/format";
+import { STATUS_FILTER_OPTIONS, WHATSAPP_LABEL } from "@/lib/mock/format";
 import type { Guest } from "@/lib/mock/types";
 import { toast } from "sonner";
 import { PlanLimitBanner } from "@/components/plan-limit";
@@ -176,13 +176,13 @@ function Invitados() {
         <Select value={status} onValueChange={setStatus}>
           <SelectTrigger className="w-56">
             <SlidersHorizontal className="size-4" />
-            <SelectValue />
+            <SelectValue placeholder="Todos los estados" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="todos">Todos los estados</SelectItem>
-            {Object.entries(STATUS_META).map(([k, v]) => (
-              <SelectItem key={k} value={k}>
-                {v.label}
+            {STATUS_FILTER_OPTIONS.map(({ value, label }) => (
+              <SelectItem key={value} value={value}>
+                {label}
               </SelectItem>
             ))}
           </SelectContent>

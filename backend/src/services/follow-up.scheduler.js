@@ -23,9 +23,7 @@ const log = new Logger("FollowUp");
 const DRIP_OPEN_STATUSES = [
   "enviado",
   "entregado",
-  "respondio",
   "en_conversacion",
-  "sin_respuesta",
 ];
 
 const OPEN_STATUSES = [...DRIP_OPEN_STATUSES, "seguimiento"];

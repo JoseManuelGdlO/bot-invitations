@@ -34,8 +34,12 @@ export function statsFor(guests) {
   const partial = guests.filter((g) => g.status === "parcial").length;
   const rejected = guests.filter((g) => g.status === "no_asistira");
   const rejectedPeople = rejected.reduce((a, g) => a + g.invited, 0);
-  const noReply = guests.filter((g) => ["sin_respuesta", "enviado", "entregado", "sin_contactar"].includes(g.status));
-  const pending = guests.filter((g) => ["seguimiento", "respondio", "en_conversacion"].includes(g.status));
+  const noReply = guests.filter((g) =>
+    ["enviado", "entregado", "sin_contactar"].includes(g.status),
+  );
+  const pending = guests.filter((g) =>
+    ["seguimiento", "en_conversacion"].includes(g.status),
+  );
   const active = guests.filter((g) => g.status === "en_conversacion").length;
   const responded = guests.filter((g) => g.whatsapp === "respondido").length;
   return {

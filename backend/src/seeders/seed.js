@@ -107,14 +107,13 @@ const guestTypes = ["Familia", "Amigos", "Trabajo", "Padrinos", "Familia políti
 const tags = ["VIP", "Hospedaje", "Foráneo", "Mesa principal", "Sin etiqueta"];
 const statusPool = [
   "confirmado","confirmado","confirmado","confirmado","parcial","no_asistira",
-  "sin_respuesta","en_conversacion","enviado","entregado","respondio","seguimiento","sin_contactar",
+  "en_conversacion","enviado","entregado","seguimiento","sin_contactar",
 ];
 const replies = {
   confirmado: ["Sí, ahí estaremos todos. ¡Gracias!", "Confirmados, contamos los días 🥂", "Claro que sí, asistimos completos."],
   parcial: ["Sí vamos, solamente seremos tres personas.", "Vamos dos nada más, mi hijo no podrá.", "Asistimos, pero seríamos uno menos."],
   no_asistira: ["Lamentablemente no podremos asistir.", "Gracias por la invitación, esa fecha estaremos fuera.", "No alcanzamos a llegar, mil disculpas."],
-  respondio: ["Hola, sí recibí la invitación.", "Gracias, en un momento te confirmo."],
-  en_conversacion: ["¿Los niños pueden asistir?", "¿A qué hora es la ceremonia?"],
+  en_conversacion: ["¿Los niños pueden asistir?", "¿A qué hora es la ceremonia?", "Hola, sí recibí la invitación.", "Gracias, en un momento te confirmo."],
   seguimiento: ["Todavía no sabemos, te aviso la próxima semana.", "Déjame confirmar con mi esposo."],
 };
 
@@ -149,13 +148,13 @@ function makeGuestFields(eventSlug, i) {
         ? "pendiente"
         : status === "enviado"
           ? "enviado"
-          : status === "entregado" || status === "sin_respuesta"
+          : status === "entregado"
             ? "entregado"
             : "respondido",
     lastMessage: status === "sin_contactar" ? "" : `Mensaje inicial · ${day}/07`,
     lastReply: reply,
     lastReplyAt: reply ? `${day}/07 · ${int(9, 21)}:${String(int(10, 59))}` : "",
-    followUp: status === "seguimiento" || status === "sin_respuesta" ? `${int(1, 28)}/08/2026` : "",
+    followUp: status === "seguimiento" ? `${int(1, 28)}/08/2026` : "",
     confirmedAt: ["confirmado", "parcial"].includes(status) ? new Date(Date.now() - int(1, 20) * 86400000) : null,
     contactedAt: status === "sin_contactar" ? null : new Date(Date.now() - int(2, 30) * 86400000),
   };

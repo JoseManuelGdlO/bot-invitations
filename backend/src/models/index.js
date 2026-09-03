@@ -129,12 +129,10 @@ export const Guest = sequelize.define("guests", {
       "sin_contactar",
       "enviado",
       "entregado",
-      "respondio",
       "en_conversacion",
       "confirmado",
       "parcial",
       "no_asistira",
-      "sin_respuesta",
       "seguimiento",
     ),
     allowNull: false,
@@ -701,4 +699,50 @@ export async function ensureEventTimezone() {
     defaultValue: "America/Mexico_City",
   });
   console.log("[db] columna events.timezone creada");
+}
+
+const GUEST_STATUS_ENUM = [
+  "sin_contactar",
+  "enviado",
+  "entregado",
+  "en_conversacion",
+  "confirmado",
+  "parcial",
+  "no_asistira",
+  "seguimiento",
+];
+
+/** Remapea estados legacy y estrecha el ENUM de guests.status. */
+export async function ensureGuestStatusCleanup() {
+  const qi = sequelize.getQueryInterface();
+  let table;
+  try {
+    table = await qi.describeTable("guests");
+  } catch {
+    return;
+  }
+  if (!table.status) return;
+
+  const [[legacy]] = await sequelize.query(
+    `SELECT COUNT(*) AS c FROM guests WHERE status IN ('respondio', 'sin_respuesta')`,
+  );
+  const legacyCount = Number(legacy?.c ?? 0);
+  if (legacyCount > 0) {
+    await sequelize.query(
+      `UPDATE guests SET status = 'en_conversacion' WHERE status = 'respondio'`,
+    );
+    await sequelize.query(
+      `UPDATE guests SET status = 'sin_contactar' WHERE status = 'sin_respuesta'`,
+    );
+    console.log(`[db] remapeados ${legacyCount} guests con status legacy`);
+  }
+
+  const type = String(table.status.type || "");
+  if (!/respondio|sin_respuesta/i.test(type)) return;
+
+  const enumSql = GUEST_STATUS_ENUM.map((s) => `'${s}'`).join(",");
+  await sequelize.query(
+    `ALTER TABLE guests MODIFY COLUMN status ENUM(${enumSql}) NOT NULL DEFAULT 'sin_contactar'`,
+  );
+  console.log("[db] guests.status ENUM sin valores legacy");
 }
