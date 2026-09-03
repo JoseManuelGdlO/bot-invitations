@@ -4,7 +4,6 @@ import {
   ChevronLeft,
   ChevronRight,
   Download,
-  MessageSquare,
   Plus,
   Search,
   Send,
@@ -31,12 +30,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-} from "@/components/ui/sheet";
+
 import {
   Dialog,
   DialogContent,
@@ -128,14 +122,12 @@ function Invitados() {
   const [status, setStatus] = useState("todos");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState<(typeof PAGE_SIZES)[number]>(20);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
   const [guestToDelete, setGuestToDelete] = useState<Guest | null>(null);
   const [guestToMessage, setGuestToMessage] = useState<Guest | null>(null);
   const [deleting, setDeleting] = useState(false);
   const [addOpen, setAddOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState(EMPTY_GUEST_FORM);
-  const selected = guests.find((g) => g.id === selectedId) ?? null;
   const showTableColumn = guests.some((g) => (g.table ?? "").trim() !== "");
 
   const rows = useMemo(
@@ -566,7 +558,7 @@ function Invitados() {
         </div>
       ) : null}
 
-      <Sheet open={!!selected} onOpenChange={(o) => !o && setSelectedId(null)}>
+      {/*<Sheet open={!!selected} onOpenChange={(o) => !o && setSelectedId(null)}>
         <SheetContent className="w-full sm:max-w-md">
           {selected ? (
             <>
@@ -703,7 +695,7 @@ function Invitados() {
             </>
           ) : null}
         </SheetContent>
-      </Sheet>
+      </Sheet> */}
 
       <SendGuestInvitationDialog
         guest={guestToMessage}
@@ -735,7 +727,6 @@ function Invitados() {
                 setDeleting(true);
                 try {
                   await deleteGuest(guestToDelete.id);
-                  if (selectedId === guestToDelete.id) setSelectedId(null);
                   toast.success("Invitación eliminada");
                   setGuestToDelete(null);
                 } catch (err) {
