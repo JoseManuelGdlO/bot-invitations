@@ -167,29 +167,37 @@ function Resumen() {
               stroke={10}
               caption={`${s.progress}% de invitados ya confirmaron`}
             />
-            <div className="grid w-full grid-cols-3 gap-2 text-center">
-              <div className="min-w-0 rounded-lg bg-success-soft px-1 py-2.5 sm:p-3">
+            <div className="grid w-full grid-cols-2 gap-2 text-center sm:grid-cols-4">
+              <div className="flex min-w-0 flex-col items-center justify-center rounded-lg bg-success-soft px-1.5 py-2.5 sm:px-2 sm:py-3">
                 <p className="font-display text-lg leading-none text-success sm:text-xl">
                   {s.confirmedPeople}
                 </p>
-                <p className="mt-1 text-[10px] leading-tight text-muted-foreground sm:text-xs">
+                <p className="mt-1.5 text-[10px] leading-none whitespace-nowrap text-muted-foreground">
                   Confirmados
                 </p>
               </div>
-              <div className="min-w-0 rounded-lg bg-warning-soft px-1 py-2.5 sm:p-3">
+              <div className="flex min-w-0 flex-col items-center justify-center rounded-lg bg-warning-soft px-1.5 py-2.5 sm:px-2 sm:py-3">
                 <p className="font-display text-lg leading-none text-warning sm:text-xl">
                   {s.pending}
                 </p>
-                <p className="mt-1 text-[10px] leading-tight text-muted-foreground sm:text-xs">
+                <p className="mt-1.5 text-[10px] leading-none whitespace-nowrap text-muted-foreground">
                   Pendientes
                 </p>
               </div>
-              <div className="min-w-0 rounded-lg bg-rose px-1 py-2.5 sm:p-3">
+              <div className="flex min-w-0 flex-col items-center justify-center rounded-lg bg-rose px-1.5 py-2.5 sm:px-2 sm:py-3">
                 <p className="font-display text-lg leading-none text-rose-foreground sm:text-xl">
                   {s.rejectedPeople}
                 </p>
-                <p className="mt-1 text-[10px] leading-tight text-muted-foreground sm:text-xs">
+                <p className="mt-1.5 text-[10px] leading-none whitespace-nowrap text-muted-foreground">
                   No asisten
+                </p>
+              </div>
+              <div className="flex min-w-0 flex-col items-center justify-center rounded-lg bg-secondary px-1.5 py-2.5 sm:px-2 sm:py-3">
+                <p className="font-display text-lg leading-none text-foreground sm:text-xl">
+                  {s.noReply}
+                </p>
+                <p className="mt-1.5 text-[10px] leading-none whitespace-nowrap text-muted-foreground">
+                  Sin respuesta
                 </p>
               </div>
             </div>

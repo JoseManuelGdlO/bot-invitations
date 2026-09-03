@@ -3,14 +3,12 @@ import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import {
   Bot,
   FileText,
-  Pause,
   Play,
   Search,
   Send,
   ShieldAlert,
   UserRound,
   Pencil,
-  MessageSquare,
   Trash2,
 } from "lucide-react";
 import { Input } from "@/components/ui/input";
@@ -42,11 +40,16 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { WhatsAppFormattedText } from "@/components/whatsapp-formatted-text";
+import { SendGuestInvitationDialog } from "@/components/send-guest-invitation-dialog";
 import { useEvent, useStore } from "@/lib/mock/store";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { PERMS } from "@/lib/permissions";
 import { botApi } from "@/lib/api/bot";
+import {
+  buildConversationInboxRows,
+  conversationHasMessages,
+} from "@/lib/conversation-inbox";
 import { matchesConversationSearch } from "@/lib/conversation-search";
 import { formatChatDayLabel, formatMessageTime, getZonedDayKey } from "@/lib/datetime";
 import type { Guest } from "@/lib/mock/types";
@@ -89,22 +92,32 @@ function Conversaciones() {
   const { eventId } = Route.useParams();
   const { guestId } = Route.useSearch();
   const { conversations, guests, event } = useEvent(eventId);
-  const { sendMessage, toggleAI, updateGuest, hasPerm, refresh, deleteGuest } = useStore();
+  const {
+    sendMessage,
+    toggleAI,
+    updateGuest,
+    hasPerm,
+    refresh,
+    syncEventLive,
+    deleteGuest,
+  } = useStore();
   const canReply = hasPerm(eventId, PERMS.REPLY);
   const canConfirm = hasPerm(eventId, PERMS.CONFIRM);
   const canEditGuest = hasPerm(eventId, PERMS.EDIT_ALL);
   const navigate = useNavigate({ from: Route.fullPath });
-  const initial =
-    conversations.find((c) => c.guestId === guestId)?.id ??
-    conversations[0]?.id ??
-    null;
-  const [activeId, setActiveId] = useState<string | null>(initial);
+  const rows = useMemo(
+    () => buildConversationInboxRows(guests, conversations),
+    [conversations, guests],
+  );
+  const initial = guestId ?? rows[0]?.guest.id ?? null;
+  const [activeGuestId, setActiveGuestId] = useState<string | null>(initial);
   const [q, setQ] = useState("");
   const [draft, setDraft] = useState("");
   const [simulateGuest, setSimulateGuest] = useState(false);
   const [devBot, setDevBot] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [guestToDelete, setGuestToDelete] = useState<Guest | null>(null);
+  const [guestToInvite, setGuestToInvite] = useState<Guest | null>(null);
   const [deleting, setDeleting] = useState(false);
   const messagesRef = useRef<HTMLDivElement>(null);
   const prevActiveIdRef = useRef<string | null>(null);
@@ -122,39 +135,28 @@ function Conversaciones() {
   }, []);
 
   useEffect(() => {
-    const found = guestId
-      ? conversations.find((c) => c.guestId === guestId)
-      : null;
-    if (found) setActiveId(found.id);
-    else if (!guestId && !activeId && conversations[0]) {
-      setActiveId(conversations[0].id);
+    if (guestId) {
+      setActiveGuestId(guestId);
+      return;
     }
-  }, [guestId, conversations]);
-
-  const rows = useMemo(
-    () =>
-      conversations
-        .map((c) => ({ conv: c, guest: guests.find((g) => g.id === c.guestId) }))
-        .filter(
-          (x): x is { conv: (typeof conversations)[number]; guest: NonNullable<typeof x.guest> } =>
-            Boolean(x.guest),
-        ),
-    [conversations, guests],
-  );
+    if (!activeGuestId && rows[0]) setActiveGuestId(rows[0].guest.id);
+  }, [guestId, rows, activeGuestId]);
 
   const list = useMemo(
     () => rows.filter((x) => matchesConversationSearch(x.guest, q)),
     [rows, q],
   );
 
-  const active = rows.find((x) => x.conv.id === activeId) ?? rows[0];
-
-  const lastMessageId =
-    active?.conv.messages[active.conv.messages.length - 1]?.id;
+  const active = rows.find((x) => x.guest.id === activeGuestId) ?? rows[0];
+  const hasThread = conversationHasMessages(active?.conv);
+  const lastMessageId = hasThread
+    ? active?.conv?.messages[active.conv.messages.length - 1]?.id
+    : undefined;
 
   useEffect(() => {
-    const switched = prevActiveIdRef.current !== activeId;
-    prevActiveIdRef.current = activeId ?? null;
+    const switched = prevActiveIdRef.current !== activeGuestId;
+    prevActiveIdRef.current = activeGuestId ?? null;
+    if (!hasThread) return;
     if (!switched && !nearBottomRef.current) return;
     const behavior: ScrollBehavior = switched ? "auto" : "smooth";
     let cancelled = false;
@@ -171,19 +173,27 @@ function Conversaciones() {
       cancelled = true;
       cancelAnimationFrame(frame);
     };
-  }, [active?.conv.messages.length, lastMessageId, activeId]);
+  }, [active?.conv?.messages.length, lastMessageId, activeGuestId, hasThread]);
 
-  if (!conversations.length || !active) {
+  if (!guests.length || !active) {
     return (
       <main className="flex h-full flex-1 items-center justify-center p-10 text-sm text-muted-foreground">
-        Aún no hay conversaciones en este evento. Inicia las confirmaciones
-        desde el resumen.
+        Aún no hay invitados en este evento. Agrégalos desde la lista de
+        invitados.
       </main>
     );
   }
 
+  const selectGuest = (nextGuestId: string) => {
+    setActiveGuestId(nextGuestId);
+    void navigate({
+      search: { guestId: nextGuestId },
+      replace: true,
+    });
+  };
+
   const send = async () => {
-    if (!draft.trim()) return;
+    if (!draft.trim() || !active.conv) return;
     if (simulateGuest && devBot) {
       const text = draft.trim();
       setDraft("");
@@ -232,20 +242,15 @@ function Conversaciones() {
             </p>
           ) : null}
           {list.map(({ conv, guest }) => {
-            const last = conv.messages[conv.messages.length - 1];
+            const last = conv?.messages[conv.messages.length - 1];
+            const started = conversationHasMessages(conv);
             return (
               <button
-                key={conv.id}
-                onClick={() => {
-                  setActiveId(conv.id);
-                  void navigate({
-                    search: { guestId: conv.guestId },
-                    replace: true,
-                  });
-                }}
+                key={guest.id}
+                onClick={() => selectGuest(guest.id)}
                 className={cn(
                   "flex w-full gap-3 border-b border-border/60 p-3 text-left transition-colors hover:bg-secondary/60",
-                  conv.id === active.conv.id && "bg-secondary",
+                  guest.id === active.guest.id && "bg-secondary",
                 )}
               >
                 <span className="flex size-9 shrink-0 items-center justify-center rounded-full bg-gold-soft text-[11px] font-semibold text-gold-foreground">
@@ -268,11 +273,11 @@ function Conversaciones() {
                     {guest.phone}
                   </p>
                   <p className="truncate text-xs text-muted-foreground">
-                    {last?.text}
+                    {started ? last?.text : "Aún no inicia una conversación"}
                   </p>
                   <div className="mt-1 flex items-center gap-1.5">
                     <StatusBadge status={guest.status} />
-                    {conv.unread > 0 ? (
+                    {started && conv && conv.unread > 0 ? (
                       <Badge className="h-4 rounded-full bg-whatsapp px-1.5 text-[10px] text-primary-foreground">
                         {conv.unread}
                       </Badge>
@@ -295,115 +300,134 @@ function Conversaciones() {
             </p>
           </div>
           <div className="ml-auto flex flex-wrap gap-2">
-            {canReply ? (
+            {canReply && hasThread && active.conv ? (
               active.conv.aiPaused ? (
                 <Button
                   size="sm"
                   onClick={() => {
-                    toggleAI(active.conv.id, false);
+                    const convId = active.conv?.id;
+                    if (!convId) return;
+                    toggleAI(convId, false);
                     toast.success("Automatización reactivada");
                   }}
                 >
                   <Play className="size-4" /> Reactivar automatización
                 </Button>
               ) : (
-                <>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      toggleAI(active.conv.id, true);
-                      toast.info("Ahora respondes personalmente");
-                    }}
-                  >
-                    <UserRound className="size-4" /> Responder personalmente
-                  </Button>
-                </>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    const convId = active.conv?.id;
+                    if (!convId) return;
+                    toggleAI(convId, true);
+                    toast.info("Ahora respondes personalmente");
+                  }}
+                >
+                  <UserRound className="size-4" /> Responder personalmente
+                </Button>
               )
             ) : null}
           </div>
         </div>
 
-        {active.conv.aiPaused ? (
-          <div className="flex items-center gap-2 border-b border-border bg-warning-soft px-4 py-2 text-xs text-warning">
-            <ShieldAlert className="size-4" /> Conversación tomada por un
-            miembro del equipo.
+        {hasThread && active.conv ? (
+          active.conv.aiPaused ? (
+            <div className="flex items-center gap-2 border-b border-border bg-warning-soft px-4 py-2 text-xs text-warning">
+              <ShieldAlert className="size-4" /> Conversación tomada por un
+              miembro del equipo.
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 border-b border-border bg-success-soft px-4 py-2 text-xs text-success">
+              <Bot className="size-4" /> El asistente está respondiendo
+              automáticamente.
+            </div>
+          )
+        ) : null}
+
+        {hasThread && active.conv ? (
+          <div
+            ref={messagesRef}
+            onScroll={() => {
+              const el = messagesRef.current;
+              if (!el) return;
+              nearBottomRef.current =
+                el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+            }}
+            className="chat-canvas min-h-0 flex-1 space-y-3 overflow-y-auto p-5"
+          >
+            {active.conv.messages.map((m, index, list) => {
+              const isTemplate = m.from === "ai" && m.kind === "template";
+              const dayKey = getZonedDayKey(m.createdAt, timeZone);
+              const prevDayKey =
+                index > 0
+                  ? getZonedDayKey(list[index - 1]?.createdAt, timeZone)
+                  : null;
+              const showDaySeparator = Boolean(dayKey && dayKey !== prevDayKey);
+              return (
+                <Fragment key={m.id}>
+                  {showDaySeparator ? (
+                    <div className="flex justify-center py-1">
+                      <span className="rounded-lg border border-border/50 bg-card/95 px-3 py-1 text-[11px] font-medium text-muted-foreground shadow-soft">
+                        {formatChatDayLabel(m.createdAt, timeZone)}
+                      </span>
+                    </div>
+                  ) : null}
+                  <div
+                    className={cn(
+                      "flex animate-in fade-in slide-in-from-bottom-1 duration-300",
+                      m.from === "guest" ? "justify-start" : "justify-end",
+                    )}
+                  >
+                    <div
+                      className={cn(
+                        "max-w-[78%] rounded-2xl px-3.5 py-2.5 text-sm shadow-soft",
+                        m.from === "guest"
+                          ? "rounded-bl-sm bg-card"
+                          : m.from === "planner"
+                            ? "rounded-br-sm bg-gold-soft"
+                            : isTemplate
+                              ? "rounded-br-sm border border-border/60 bg-card"
+                              : "rounded-br-sm bg-success-soft",
+                      )}
+                    >
+                      {isTemplate ? (
+                        <p className="mb-1 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
+                          <FileText className="size-3" /> Plantilla
+                        </p>
+                      ) : m.from === "ai" ? (
+                        <p className="mb-1 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-success">
+                          <Bot className="size-3" /> Asistente
+                        </p>
+                      ) : m.from === "planner" ? (
+                        <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-gold-foreground">
+                          Equipo
+                        </p>
+                      ) : null}
+                      <WhatsAppFormattedText text={m.text} />
+                      <p className="mt-1 text-right text-[10px] text-muted-foreground">
+                        {formatMessageTime(m.createdAt, timeZone, m.at)}
+                      </p>
+                    </div>
+                  </div>
+                </Fragment>
+              );
+            })}
           </div>
         ) : (
-          <div className="flex items-center gap-2 border-b border-border bg-success-soft px-4 py-2 text-xs text-success">
-            <Bot className="size-4" /> El asistente está respondiendo
-            automáticamente.
+          <div className="chat-canvas flex min-h-0 flex-1 flex-col items-center justify-center gap-4 p-5 text-center">
+            <p className="text-sm text-muted-foreground">
+              Aún no inicia una conversación
+            </p>
+            {canReply ? (
+              <Button onClick={() => setGuestToInvite(active.guest)}>
+                <Send className="size-4" /> Enviar invitación inicial
+              </Button>
+            ) : null}
           </div>
         )}
 
-        <div
-          ref={messagesRef}
-          onScroll={() => {
-            const el = messagesRef.current;
-            if (!el) return;
-            nearBottomRef.current =
-              el.scrollHeight - el.scrollTop - el.clientHeight < 80;
-          }}
-          className="chat-canvas min-h-0 flex-1 space-y-3 overflow-y-auto p-5"
-        >
-          {active.conv.messages.map((m, index, list) => {
-            const isTemplate = m.from === "ai" && m.kind === "template";
-            const dayKey = getZonedDayKey(m.createdAt, timeZone);
-            const prevDayKey =
-              index > 0 ? getZonedDayKey(list[index - 1]?.createdAt, timeZone) : null;
-            const showDaySeparator = Boolean(dayKey && dayKey !== prevDayKey);
-            return (
-              <Fragment key={m.id}>
-                {showDaySeparator ? (
-                  <div className="flex justify-center py-1">
-                    <span className="rounded-lg border border-border/50 bg-card/95 px-3 py-1 text-[11px] font-medium text-muted-foreground shadow-soft">
-                      {formatChatDayLabel(m.createdAt, timeZone)}
-                    </span>
-                  </div>
-                ) : null}
-                <div
-                  className={cn(
-                    "flex animate-in fade-in slide-in-from-bottom-1 duration-300",
-                    m.from === "guest" ? "justify-start" : "justify-end",
-                  )}
-                >
-                  <div
-                    className={cn(
-                      "max-w-[78%] rounded-2xl px-3.5 py-2.5 text-sm shadow-soft",
-                      m.from === "guest"
-                        ? "rounded-bl-sm bg-card"
-                        : m.from === "planner"
-                          ? "rounded-br-sm bg-gold-soft"
-                          : isTemplate
-                            ? "rounded-br-sm border border-border/60 bg-card"
-                            : "rounded-br-sm bg-success-soft",
-                    )}
-                  >
-                    {isTemplate ? (
-                      <p className="mb-1 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground">
-                        <FileText className="size-3" /> Plantilla
-                      </p>
-                    ) : m.from === "ai" ? (
-                      <p className="mb-1 flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-success">
-                        <Bot className="size-3" /> Asistente
-                      </p>
-                    ) : m.from === "planner" ? (
-                      <p className="mb-1 text-[10px] font-semibold uppercase tracking-wide text-gold-foreground">
-                        Equipo
-                      </p>
-                    ) : null}
-                    <WhatsAppFormattedText text={m.text} />
-                    <p className="mt-1 text-right text-[10px] text-muted-foreground">
-                      {formatMessageTime(m.createdAt, timeZone, m.at)}
-                    </p>
-                  </div>
-                </div>
-              </Fragment>
-            );
-          })}
-        </div>
-
-        {canReply ? (
+        {hasThread && canReply ? (
           <div className="border-t border-border bg-card p-3">
             {devBot ? (
               <label className="mb-2 flex items-center gap-2 text-xs text-muted-foreground">
@@ -423,7 +447,7 @@ function Conversaciones() {
                 placeholder={
                   simulateGuest && devBot
                     ? "Escribe como el invitado…"
-                    : active.conv.aiPaused
+                    : active.conv?.aiPaused
                       ? "Escribe como parte del equipo…"
                       : "Escribe un mensaje…"
                 }
@@ -433,11 +457,11 @@ function Conversaciones() {
               </Button>
             </div>
           </div>
-        ) : (
+        ) : hasThread ? (
           <p className="border-t border-border bg-card px-4 py-3 text-xs text-muted-foreground">
             Tienes acceso de solo lectura a estas conversaciones.
           </p>
-        )}
+        ) : null}
       </section>
 
       {/* Perfil */}
@@ -508,13 +532,13 @@ function Conversaciones() {
         <Sheet open={editOpen} onOpenChange={setEditOpen}>
           <SheetContent className="w-full sm:max-w-md">
             <>
-              <SheetHeader>
+              <SheetHeader className="items-start text-left">
                 <SheetTitle className="font-display text-2xl">
                   {active.guest.rep}
                 </SheetTitle>
-              </SheetHeader>
-              <div className="space-y-4 px-4 pb-6 text-sm">
                 <StatusBadge status={active.guest.status} />
+              </SheetHeader>
+              <div className="space-y-4 pb-6 text-sm">
                 {(
                   [
                     ["phone", "Teléfono"],
@@ -598,10 +622,10 @@ function Conversaciones() {
                     <p className="mt-1">“{active.guest.lastReply}”</p>
                   </div>
                 ) : null}
-                <div className="flex flex-wrap gap-2 pt-2">
+                <div className="flex flex-col gap-2 pt-2">
                   {canConfirm ? (
                     <Button
-                      className="flex-1"
+                      className="w-full"
                       onClick={() => {
                         updateGuest(active.guest.id, {
                           status: "confirmado",
@@ -615,19 +639,6 @@ function Conversaciones() {
                       Marcar confirmado
                     </Button>
                   ) : null}
-                  <Button
-                    variant="outline"
-                    className="flex-1"
-                    onClick={() =>
-                      navigate({
-                        to: "/eventos/$eventId/conversaciones",
-                        params: { eventId },
-                        search: { guestId: active.guest.id },
-                      })
-                    }
-                  >
-                    <MessageSquare className="size-4" /> Conversación
-                  </Button>
                   {canEditGuest ? (
                     <Button
                       variant="outline"
@@ -643,6 +654,12 @@ function Conversaciones() {
           </SheetContent>
         </Sheet>
       </aside>
+
+      <SendGuestInvitationDialog
+        guest={guestToInvite}
+        onClose={() => setGuestToInvite(null)}
+        onSent={() => syncEventLive(eventId)}
+      />
 
       <AlertDialog
         open={!!guestToDelete}
@@ -668,8 +685,17 @@ function Conversaciones() {
                 if (!guestToDelete) return;
                 setDeleting(true);
                 try {
-                  await deleteGuest(guestToDelete.id);
+                  const deletedId = guestToDelete.id;
+                  await deleteGuest(deletedId);
                   setEditOpen(false);
+                  if (activeGuestId === deletedId) {
+                    const next = rows.find((r) => r.guest.id !== deletedId);
+                    setActiveGuestId(next?.guest.id ?? null);
+                    void navigate({
+                      search: { guestId: next?.guest.id },
+                      replace: true,
+                    });
+                  }
                   toast.success("Invitación eliminada");
                   setGuestToDelete(null);
                 } catch (err) {
