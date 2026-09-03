@@ -154,11 +154,9 @@ const statusPool: ConfirmationStatus[] = [
   "confirmado",
   "parcial",
   "no_asistira",
-  "sin_respuesta",
   "en_conversacion",
   "enviado",
   "entregado",
-  "respondio",
   "seguimiento",
   "sin_contactar",
 ];
@@ -179,13 +177,11 @@ const replies: Record<string, string[]> = {
     "Gracias por la invitación, esa fecha estaremos fuera.",
     "No alcanzamos a llegar, mil disculpas.",
   ],
-  respondio: [
-    "Hola, sí recibí la invitación.",
-    "Gracias, en un momento te confirmo.",
-  ],
   en_conversacion: [
     "¿Los niños pueden asistir?",
     "¿A qué hora es la ceremonia?",
+    "Hola, sí recibí la invitación.",
+    "Gracias, en un momento te confirmo.",
   ],
   seguimiento: [
     "Todavía no sabemos, te aviso la próxima semana.",
@@ -227,7 +223,7 @@ function makeGuest(eventId: string, i: number): Guest {
         ? "pendiente"
         : status === "enviado"
           ? "enviado"
-          : status === "entregado" || status === "sin_respuesta"
+          : status === "entregado"
             ? "entregado"
             : "respondido",
     lastMessage:
@@ -236,10 +232,7 @@ function makeGuest(eventId: string, i: number): Guest {
     lastReplyAt: reply
       ? `${day}/07 · ${int(9, 21)}:${String(int(10, 59))}`
       : "",
-    followUp:
-      status === "seguimiento" || status === "sin_respuesta"
-        ? `${int(1, 28)}/08/2026`
-        : "",
+    followUp: status === "seguimiento" ? `${int(1, 28)}/08/2026` : "",
   };
 }
 

@@ -1,4 +1,4 @@
-import { Plan, User, sequelize, syncModels, ensureEventMemberRemovedAt, ensureInboundEventDedupTable, ensureWhatsappMetaTables, ensureCampaignColumns, ensureTemplateGreetingVar, ensureTemplateBodyVars, ensureTemplateDocumentColumns, ensureMessageProviderId, ensureMessageKind, ensureGuestCustomData, ensureEventTimezone } from "../models/index.js";
+import { Plan, User, sequelize, syncModels, ensureEventMemberRemovedAt, ensureInboundEventDedupTable, ensureWhatsappMetaTables, ensureCampaignColumns, ensureTemplateGreetingVar, ensureTemplateBodyVars, ensureTemplateDocumentColumns, ensureMessageProviderId, ensureMessageKind, ensureGuestCustomData, ensureEventTimezone, ensureGuestStatusCleanup } from "../models/index.js";
 import { ensurePlans } from "../services/plans.service.js";
 import { ensureAdmin } from "../controllers/admin.controller.js";
 import { syncStripePlans } from "../services/stripe.service.js";
@@ -7,6 +7,8 @@ const alter = process.argv.includes("--alter") || !force;
 
 try {
   await sequelize.authenticate();
+  // Remapear/estrechar ENUM antes del sync alter, para no fallar con filas legacy.
+  if (!force) await ensureGuestStatusCleanup();
   await syncModels({ force, alter: force ? false : alter });
   await ensureEventMemberRemovedAt();
   await ensureInboundEventDedupTable();
@@ -19,6 +21,7 @@ try {
   await ensureMessageKind();
   await ensureGuestCustomData();
   await ensureEventTimezone();
+  await ensureGuestStatusCleanup();
   await ensurePlans();
   await ensureAdmin();
   await syncStripePlans();

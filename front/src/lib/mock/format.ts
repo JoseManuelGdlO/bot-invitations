@@ -16,10 +16,6 @@ export const STATUS_META: Record<
     label: "Entregado",
     className: "bg-info-soft text-info border-transparent",
   },
-  respondio: {
-    label: "Respondió",
-    className: "bg-gold-soft text-gold-foreground border-transparent",
-  },
   en_conversacion: {
     label: "En conversación",
     className: "bg-gold-soft text-gold-foreground border-transparent",
@@ -36,10 +32,6 @@ export const STATUS_META: Record<
     label: "No asistirá",
     className: "bg-rose text-rose-foreground border-transparent",
   },
-  sin_respuesta: {
-    label: "Sin respuesta",
-    className: "bg-muted text-muted-foreground border-border",
-  },
   seguimiento: {
     label: "Requiere seguimiento",
     className: "bg-warning-soft text-warning border-transparent",
@@ -47,14 +39,19 @@ export const STATUS_META: Record<
 };
 
 export const GUEST_TYPE: Record<
-GuestType, 
-{ label: string; className: string }
+  GuestType,
+  { label: string; className: string }
 > = {
   VIP: {
     label: "VIP",
     className: "bg-gold-soft text-gold-foreground border-transparent",
-  }
-}
+  },
+};
+
+export const STATUS_FILTER_OPTIONS = (
+  Object.keys(STATUS_META) as ConfirmationStatus[]
+).map((value) => ({ value, label: STATUS_META[value].label }));
+
 export const WHATSAPP_LABEL: Record<string, string> = {
   pendiente: "Pendiente",
   enviado: "Enviado",

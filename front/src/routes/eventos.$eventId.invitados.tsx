@@ -55,7 +55,11 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { useEvent, useStore } from "@/lib/mock/store";
-import { STATUS_META, WHATSAPP_LABEL, GUEST_TYPE } from "@/lib/mock/format";
+import {
+  GUEST_TYPE,
+  STATUS_FILTER_OPTIONS,
+  WHATSAPP_LABEL,
+} from "@/lib/mock/format";
 import type { Guest } from "@/lib/mock/types";
 import { toast } from "sonner";
 import { PlanLimitBanner } from "@/components/plan-limit";
@@ -133,6 +137,7 @@ function Invitados() {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState(EMPTY_GUEST_FORM);
   const selected = guests.find((g) => g.id === selectedId) ?? null;
+  const showTableColumn = guests.some((g) => (g.table ?? "").trim() !== "");
 
   const rows = useMemo(
     () =>
@@ -175,13 +180,13 @@ function Invitados() {
         <Select value={status} onValueChange={setStatus}>
           <SelectTrigger className="w-56">
             <SlidersHorizontal className="size-4" />
-            <SelectValue />
+            <SelectValue placeholder="Todos los estados" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="todos">Todos los estados</SelectItem>
-            {Object.entries(STATUS_META).map(([k, v]) => (
-              <SelectItem key={k} value={k}>
-                {v.label}
+            {STATUS_FILTER_OPTIONS.map(({ value, label }) => (
+              <SelectItem key={value} value={value}>
+                {label}
               </SelectItem>
             ))}
             {Object.entries(GUEST_TYPE).map(([ky, vl]) => (
@@ -402,28 +407,24 @@ function Invitados() {
       </div>
 
       <div className="mt-4 min-h-0 min-w-0 max-w-full flex-1 overflow-auto rounded-2xl border border-border bg-card shadow-soft [&_.relative]:overflow-visible">
-        <Table className="min-w-[1200px]">
+        <Table className="min-w-[980px]">
           <TableHeader className="sticky top-0 z-10 bg-card">
             <TableRow className="hover:bg-transparent">
               <TableHead className="whitespace-nowrap">Representante</TableHead>
-              <TableHead className="whitespace-nowrap">Teléfono</TableHead>
-              <TableHead className="whitespace-nowrap text-center">
-                Invitados
-              </TableHead>
-              <TableHead className="whitespace-nowrap text-center">
-                Confirmados
-              </TableHead>
+              {showTableColumn ? (
+                <TableHead className="whitespace-nowrap">Mesa</TableHead>
+              ) : null}
               <TableHead className="whitespace-nowrap">
-                Estado WhatsApp
+                WhatsApp
               </TableHead>
-              <TableHead className="whitespace-nowrap">
-                Último mensaje
-              </TableHead>
+              <TableHead className="whitespace-nowrap">Confirmación</TableHead>
               <TableHead className="max-w-56 whitespace-nowrap">
                 Última respuesta
               </TableHead>
-              <TableHead className="whitespace-nowrap">Confirmación</TableHead>
-              <TableHead className="whitespace-nowrap">Seguimiento</TableHead>
+              <TableHead className="whitespace-nowrap text-center">
+                Invitados confirmados
+              </TableHead>
+              <TableHead className="whitespace-nowrap"> Mensajes de seguimiento</TableHead>
               <TableHead className="whitespace-nowrap text-center">
                 Acciones
               </TableHead>
@@ -433,7 +434,7 @@ function Invitados() {
             {pageRows.length === 0 ? (
               <TableRow className="hover:bg-transparent">
                 <TableCell
-                  colSpan={10}
+                  colSpan={showTableColumn ? 8 : 7}
                   className="py-10 text-center text-sm text-muted-foreground"
                 >
                   No hay invitados que coincidan con el filtro.
@@ -464,31 +465,28 @@ function Invitados() {
                     <div>
                       <p className="font-medium leading-tight">{g.rep}</p>
                       <p className="text-[11px] text-muted-foreground">
-                        {g.guestType} · {g.table}
+                        {g.phone}
                       </p>
                     </div>
                   </div>
                 </TableCell>
-                <TableCell className="whitespace-nowrap text-muted-foreground">
-                  {g.phone}
-                </TableCell>
-                <TableCell className="text-center font-medium">
-                  {g.invited}
-                </TableCell>
-                <TableCell className="text-center font-medium text-success">
-                  {g.confirmed}
-                </TableCell>
+                {showTableColumn ? (
+                  <TableCell className="whitespace-nowrap text-muted-foreground">
+                    {(g.table ?? "").trim() || "—"}
+                  </TableCell>
+                ) : null}
                 <TableCell className="text-muted-foreground">
                   {WHATSAPP_LABEL[g.whatsapp]}
                 </TableCell>
-                <TableCell className="whitespace-nowrap text-muted-foreground">
-                  {g.lastMessage || "—"}
+                <TableCell>
+                  <StatusBadge status={g.status} />
                 </TableCell>
                 <TableCell className="max-w-56 truncate text-muted-foreground">
                   {g.lastReply || "—"}
                 </TableCell>
-                <TableCell>
-                  <StatusBadge status={g.status} />
+                <TableCell className="text-center font-medium">
+                  <span className="text-success">{g.confirmed}</span>
+                  <span className="text-muted-foreground"> / {g.invited}</span>
                 </TableCell>
                 <TableCell className="whitespace-nowrap text-muted-foreground">
                   {g.followUp || "—"}

@@ -11,7 +11,7 @@ describe("state.service", () => {
   test("statsFor calcula progreso y tasas", () => {
     const stats = service.statsFor([
       fakeGuest({ invited: 2, confirmed: 2, status: "confirmado", whatsapp: "respondido" }),
-      fakeGuest({ id: "gst_2", invited: 2, confirmed: 0, status: "sin_respuesta", whatsapp: "pendiente" }),
+      fakeGuest({ id: "gst_2", invited: 2, confirmed: 0, status: "sin_contactar", whatsapp: "pendiente" }),
     ]);
     expect(stats.people).toBe(4);
     expect(stats.confirmedPeople).toBe(2);

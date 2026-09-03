@@ -41,7 +41,7 @@ function markGuestReplied(guest, text, timeZone) {
   guest.lastReply = String(text || "").slice(0, 240);
   guest.lastReplyAt = formatClock(undefined, timeZone);
   guest.whatsapp = "respondido";
-  if (["sin_contactar", "enviado", "entregado", "sin_respuesta", "respondio"].includes(previous)) {
+  if (["sin_contactar", "enviado", "entregado"].includes(previous)) {
     guest.status = "en_conversacion";
   }
 }

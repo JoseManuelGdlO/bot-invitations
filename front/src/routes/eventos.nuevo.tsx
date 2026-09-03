@@ -25,6 +25,7 @@ import { toast } from "sonner";
 import { ApiError } from "@/lib/api/client";
 import { PlanLimitBanner, isUpgradeError } from "@/components/plan-limit";
 import { TimezoneSelect } from "@/components/timezone-select";
+import { DownloadTemplateButton } from "@/components/download-template-dialog";
 import { DEFAULT_EVENT_TIMEZONE } from "@/lib/timezones";
 
 export const Route = createFileRoute("/eventos/nuevo")({
@@ -311,9 +312,12 @@ function NewEvent() {
               <p className="mt-1 text-xs text-muted-foreground">
                 Formatos aceptados: .xlsx, .xls, .csv
               </p>
-              <Button className="mt-4" onClick={() => finish(true)}>
-                Ir a importar Excel
-              </Button>
+              <div className="mt-4 flex flex-col items-center justify-center gap-3 sm:flex-row">
+                <Button onClick={() => finish(true)}>
+                  Ir a importar Excel
+                </Button>
+                <DownloadTemplateButton />
+              </div>
             </div>
             <button
               onClick={() => finish(false)}

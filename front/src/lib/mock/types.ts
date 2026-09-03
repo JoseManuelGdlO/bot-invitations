@@ -2,12 +2,10 @@ export type ConfirmationStatus =
   | "sin_contactar"
   | "enviado"
   | "entregado"
-  | "respondio"
   | "en_conversacion"
   | "confirmado"
   | "parcial"
   | "no_asistira"
-  | "sin_respuesta"
   | "seguimiento";
 
 export type GuestType = "VIP";

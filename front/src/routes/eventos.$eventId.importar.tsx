@@ -29,7 +29,9 @@ import type { ImportPreview } from "@/lib/mock/types";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api/client";
 import { PlanLimitBanner, isUpgradeError } from "@/components/plan-limit";
+import { DownloadTemplateButton } from "@/components/download-template-dialog";
 import { columnVarKeys } from "@/lib/import-vars";
+import { FIELD_IDS, IMPORT_FIELDS } from "@/lib/import-fields";
 
 export const Route = createFileRoute("/eventos/$eventId/importar")({
   head: () => ({
@@ -62,20 +64,6 @@ const excelColumns = [
   "TIPO",
   "NOTAS",
 ];
-
-const fields = [
-  { id: "rep", label: "Nombre del representante" },
-  { id: "phone", label: "Número de WhatsApp" },
-  { id: "invited", label: "Número de personas invitadas" },
-  { id: "table", label: "Mesa asignada" },
-  { id: "family", label: "Familia" },
-  { id: "guestType", label: "Tipo de invitado" },
-  { id: "notes", label: "Notas" },
-  { id: "tag", label: "Etiqueta" },
-  { id: "ignore", label: "No importar" },
-];
-
-const FIELD_IDS = new Set(fields.map((f) => f.id));
 
 const defaultMap: Record<string, string> = {
   NOMBRE: "rep",
@@ -274,7 +262,9 @@ function Importar() {
             Sube tu lista de invitados
           </h2>
           <p className="mt-2 text-sm text-muted-foreground">
-            Arrastra tu archivo aquí o selecciónalo desde tu equipo
+            Arrastra tu archivo aquí o selecciónalo desde tu equipo. Si aún no
+            tienes uno, descarga la plantilla, llénala con tus invitados y
+            súbela.
           </p>
           <p className="mt-1 text-xs text-muted-foreground">
             Formatos aceptados: .xlsx · .xls · .csv
@@ -289,9 +279,12 @@ function Importar() {
               if (file) void startProcessing(file);
             }}
           />
-          <Button className="mt-6" onClick={() => fileRef.current?.click()}>
-            <FileSpreadsheet className="size-4" /> Seleccionar archivo
-          </Button>
+          <div className="mt-6 flex flex-col items-center gap-3 sm:flex-row sm:justify-center">
+            <Button onClick={() => fileRef.current?.click()}>
+              <FileSpreadsheet className="size-4" /> Seleccionar archivo
+            </Button>
+            <DownloadTemplateButton />
+          </div>
         </div>
       ) : null}
 
@@ -387,7 +380,7 @@ function Importar() {
                       />
                     </SelectTrigger>
                     <SelectContent>
-                      {fields.map((f) => (
+                      {IMPORT_FIELDS.map((f) => (
                         <SelectItem key={f.id} value={f.id}>
                           {f.label}
                         </SelectItem>
