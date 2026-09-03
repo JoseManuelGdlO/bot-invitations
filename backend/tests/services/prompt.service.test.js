@@ -30,6 +30,7 @@ describe("prompt.service", () => {
     expect(text).toContain("MÁS personas que el cupo");
     expect(text).toMatch(/Si NO hay una regla así/);
     expect(text).toContain("CÓMO redactar");
+    expect(text).toContain("confirmar asistencia al evento");
   });
 
   test("defaultPrompt interpola los días de la regla indeciso", () => {
@@ -61,7 +62,7 @@ describe("prompt.service", () => {
     expect(text).toContain("[Seguimiento] Recontacto");
     expect(text).toContain("¿Pueden ir niños?");
     expect(text).toContain("faq | asistira | no_asistira | seguimiento | desconocido");
-    expect(text).toContain("cierra YA el RSVP");
+    expect(text).toContain("INMEDIATAMENTE a actualizar_confirmacion");
     expect(text).toContain("marcar_seguimiento");
     expect(text).toContain("{{nombre}}");
     expect(text).toMatch(/Si NO hay una regla así/);

@@ -52,6 +52,7 @@ describe("handleInboundWhatsapp dedupe", () => {
     const result = await handleInboundWhatsapp({ payload, integration, rawBody });
     expect(result.reason).toBe("ai_reply");
     expect(processGuestMessage).toHaveBeenCalledTimes(1);
+    expect(processGuestMessage).toHaveBeenCalledWith(expect.objectContaining({ awaitTurn: false }));
     expect(claimInboundEvent).toHaveBeenCalled();
   });
 
