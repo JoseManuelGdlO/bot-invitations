@@ -46,6 +46,27 @@ describe("app meta webhook (público)", () => {
     expect(body).toBe("99");
   });
 
+  test("GET /api/webhooks/meta/whatsapp es alias público del challenge", async () => {
+    const query = new URLSearchParams({
+      "hub.mode": "subscribe",
+      "hub.challenge": "42",
+      "hub.verify_token": "test-meta-verify-token",
+    });
+    const { status, body } = await requestApp(app, `${META_WEBHOOK_PATH}/whatsapp?${query}`);
+    expect(status).toBe(200);
+    expect(body).toBe("42");
+  });
+
+  test("POST /api/webhooks/meta/whatsapp sin messages responde 200", async () => {
+    const { status, body } = await requestApp(app, `${META_WEBHOOK_PATH}/whatsapp`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ object: "whatsapp_business_account", entry: [] }),
+    });
+    expect(status).toBe(200);
+    expect(JSON.parse(body).ok).toBe(true);
+  });
+
   test("GET /api/webhooks/meta sin token válido devuelve 403, no 401", async () => {
     const query = new URLSearchParams({
       "hub.mode": "subscribe",

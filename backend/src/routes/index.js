@@ -17,6 +17,7 @@ import * as help from "../controllers/help.controller.js";
 import * as integrations from "../controllers/integrations.controller.js";
 // import * as whatsappConnect from "../controllers/whatsapp-connect.controller.js";
 import * as whatsappMeta from "../controllers/whatsapp-meta.controller.js";
+import * as metaWhatsapp from "../controllers/meta-whatsapp.controller.js";
 import * as botDev from "../controllers/bot-dev.controller.js";
 import { requireAdmin } from "../middleware/admin.js";
 import { env } from "../config/env.js";
@@ -81,6 +82,9 @@ router.post("/internal/whatsapp/send-test", whatsappMeta.postWhatsappMetaSendTes
 // router.post("/internal/whatsapp/qr-link", whatsappConnect.postWhatsappConnectQrLink);
 // router.get("/internal/whatsapp/device-status", whatsappConnect.getWhatsappConnectDeviceStatus);
 // router.post("/internal/whatsapp/send-test", whatsappConnect.postWhatsappConnectSendTest);
+router.get("/integrations/whatsapp/meta/config", metaWhatsapp.getMetaSignupConfig);
+router.post("/integrations/whatsapp/meta/signup", metaWhatsapp.postMetaEmbeddedSignup);
+router.post("/integrations/whatsapp/meta/disconnect", metaWhatsapp.postMetaDisconnect);
 
 router.get("/events", events.listEvents);
 router.post("/events", events.createEvent);

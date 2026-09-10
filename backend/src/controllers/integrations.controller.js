@@ -6,6 +6,7 @@ import { httpError } from "../utils/http-error.js";
 import {
   WHATSAPP_CHANNEL,
   WHATSAPP_PROVIDER,
+  WHATSAPP_PROVIDERS,
   assertDeviceIdExclusiveToOwner,
 } from "../services/integration-resolver.service.js";
 import { wcClient } from "../services/wc.client.js";
@@ -63,6 +64,10 @@ async function integrationDto(row) {
     lastHealthcheckAt: row.lastHealthcheckAt,
     lastError: row.lastError,
     hasActiveCredential: Boolean(activeCred),
+    wabaId: row.wabaId || null,
+    phoneNumberId: row.phoneNumberId || null,
+    displayPhoneNumber: row.displayPhoneNumber || null,
+    coexistenceEnabled: Boolean(row.coexistenceEnabled),
   };
 }
 
@@ -70,7 +75,9 @@ function parseCreateBody(body = {}) {
   const channel = String(body.channel || WHATSAPP_CHANNEL).trim();
   const provider = String(body.provider || WHATSAPP_PROVIDER).trim();
   if (channel !== WHATSAPP_CHANNEL) throw httpError(400, "Solo se admite el canal WhatsApp.");
-  if (provider !== WHATSAPP_PROVIDER) throw httpError(400, "El proveedor debe ser whatsapp-connect.");
+  if (!WHATSAPP_PROVIDERS.has(provider)) {
+    throw httpError(400, "El proveedor debe ser whatsapp-connect o meta.");
+  }
   const displayName = body.displayName == null ? null : String(body.displayName).trim().slice(0, 160) || null;
   const webhookUrl = body.webhookUrl == null ? null : String(body.webhookUrl).trim().slice(0, 500) || null;
   const status = body.status ? String(body.status) : "draft";

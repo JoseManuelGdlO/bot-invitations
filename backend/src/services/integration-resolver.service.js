@@ -5,7 +5,10 @@ import { env } from "../config/env.js";
 import { resolveActiveWhatsappMetaByOwner } from "./whatsapp-meta.service.js";
 
 export const WHATSAPP_PROVIDER = "whatsapp-connect";
+export const WHATSAPP_CONNECT_PROVIDER = "whatsapp-connect";
+export const META_WHATSAPP_PROVIDER = "meta";
 export const WHATSAPP_CHANNEL = "whatsapp";
+export const WHATSAPP_PROVIDERS = new Set([WHATSAPP_CONNECT_PROVIDER, META_WHATSAPP_PROVIDER]);
 
 function assertWhatsAppConnectIntegration(integration) {
   if (!integration || integration.status === "eliminated") {
@@ -14,7 +17,7 @@ function assertWhatsAppConnectIntegration(integration) {
   if (integration.channel !== WHATSAPP_CHANNEL) {
     throw httpError(400, "El canal de la integración debe ser whatsapp.");
   }
-  if (integration.provider !== WHATSAPP_PROVIDER) {
+  if (integration.provider !== WHATSAPP_CONNECT_PROVIDER) {
     throw httpError(400, "El proveedor debe ser whatsapp-connect.");
   }
 }
@@ -24,6 +27,17 @@ export function normalizeWcCredentials(payload = {}) {
     webhookSecret: String(payload.webhookSecret || "").trim(),
     deviceId: String(payload.deviceId || "").trim(),
     tenantId: String(payload.tenantId || "").trim() || null,
+  };
+}
+
+export function normalizeMetaCredentials(payload = {}) {
+  return {
+    businessId: String(payload.businessId || payload.metaBusinessId || "").trim() || null,
+    wabaId: String(payload.wabaId || "").trim() || null,
+    phoneNumberId: String(payload.phoneNumberId || "").trim() || null,
+    displayPhoneNumber: String(payload.displayPhoneNumber || "").trim() || null,
+    accessToken: String(payload.accessToken || "").trim(),
+    coexistenceEnabled: Boolean(payload.coexistenceEnabled),
   };
 }
 
@@ -76,7 +90,7 @@ export async function resolveActiveWhatsappConnectByOwner({ ownerUserId }) {
     where: {
       ownerUserId,
       channel: WHATSAPP_CHANNEL,
-      provider: WHATSAPP_PROVIDER,
+      provider: WHATSAPP_CONNECT_PROVIDER,
       status: "active",
     },
     order: [["updatedAt", "DESC"]],
@@ -86,7 +100,40 @@ export async function resolveActiveWhatsappConnectByOwner({ ownerUserId }) {
   const credentials = normalizeWcCredentials(credentialsPayload);
   if (!credentials.deviceId) throw httpError(400, "La integración de WhatsApp no tiene deviceId.");
   if (!credentials.tenantId) throw httpError(400, "La integración de WhatsApp no tiene tenantId.");
-  return { integration, credentials };
+  return { integration, credentials, provider: WHATSAPP_CONNECT_PROVIDER };
+}
+
+export async function resolveActiveMetaWhatsappByOwner({ ownerUserId }) {
+  const integration = await ChannelIntegration.findOne({
+    where: {
+      ownerUserId,
+      channel: WHATSAPP_CHANNEL,
+      provider: META_WHATSAPP_PROVIDER,
+      status: "active",
+    },
+    order: [["updatedAt", "DESC"]],
+  });
+  if (!integration) throw httpError(400, "No hay una conexión de WhatsApp Cloud API activa.");
+  const credentialsPayload = await getActiveCredentialPayload(ownerUserId, integration.id);
+  const credentials = normalizeMetaCredentials({
+    ...credentialsPayload,
+    wabaId: integration.wabaId || credentialsPayload.wabaId,
+    phoneNumberId: integration.phoneNumberId || credentialsPayload.phoneNumberId,
+    displayPhoneNumber: integration.displayPhoneNumber || credentialsPayload.displayPhoneNumber,
+    coexistenceEnabled: integration.coexistenceEnabled || credentialsPayload.coexistenceEnabled,
+  });
+  if (!credentials.phoneNumberId) throw httpError(400, "La conexión de Meta no tiene phone_number_id.");
+  if (!credentials.accessToken) throw httpError(400, "La conexión de Meta no tiene access token.");
+  return { integration, credentials, provider: META_WHATSAPP_PROVIDER };
+}
+
+export async function resolveActiveWhatsappByOwner({ ownerUserId }) {
+  try {
+    return await resolveActiveMetaWhatsappByOwner({ ownerUserId });
+  } catch (metaErr) {
+    if (metaErr?.status && metaErr.status !== 400) throw metaErr;
+    return resolveActiveWhatsappConnectByOwner({ ownerUserId });
+  }
 }
 
 export async function assertWhatsappReady(event) {
@@ -94,6 +141,70 @@ export async function assertWhatsappReady(event) {
   await resolveActiveWhatsappMetaByOwner(event.ownerId);
   const templateName = String(env.meta?.templateName || "").trim();
   if (!templateName) throw httpError(400, "Falta META_TEMPLATE_NAME.");
+}
+
+export async function resolveMetaWhatsappByPhoneNumberId({ phoneNumberId }) {
+  const target = String(phoneNumberId || "").trim();
+  if (!target) throw httpError(400, "Falta phone_number_id para enrutar el webhook.");
+
+  const byColumn = await ChannelIntegration.findOne({
+    where: {
+      channel: WHATSAPP_CHANNEL,
+      provider: META_WHATSAPP_PROVIDER,
+      status: "active",
+      phoneNumberId: target,
+    },
+    order: [["updatedAt", "DESC"]],
+  });
+  if (byColumn) {
+    const credentialsPayload = await getActiveCredentialPayload(byColumn.ownerUserId, byColumn.id);
+    return {
+      integration: byColumn,
+      credentials: normalizeMetaCredentials({
+        ...credentialsPayload,
+        wabaId: byColumn.wabaId || credentialsPayload.wabaId,
+        phoneNumberId: byColumn.phoneNumberId || credentialsPayload.phoneNumberId,
+        displayPhoneNumber: byColumn.displayPhoneNumber || credentialsPayload.displayPhoneNumber,
+        coexistenceEnabled: byColumn.coexistenceEnabled || credentialsPayload.coexistenceEnabled,
+      }),
+      provider: META_WHATSAPP_PROVIDER,
+    };
+  }
+
+  const integrations = await ChannelIntegration.findAll({
+    where: { channel: WHATSAPP_CHANNEL, provider: META_WHATSAPP_PROVIDER, status: "active" },
+    order: [["updatedAt", "DESC"]],
+  });
+  for (const integration of integrations) {
+    try {
+      const payload = await getActiveCredentialPayload(integration.ownerUserId, integration.id);
+      const credentials = normalizeMetaCredentials(payload);
+      if (credentials.phoneNumberId && credentials.phoneNumberId === target) {
+        return { integration, credentials, provider: META_WHATSAPP_PROVIDER };
+      }
+    } catch {
+      // Credenciales inválidas: seguir buscando.
+    }
+  }
+
+  throw httpError(404, "No hay una conexión Meta activa para este phone_number_id.");
+}
+
+export async function assertPhoneNumberIdExclusiveToOwner({ phoneNumberId, ownerUserId }) {
+  const target = String(phoneNumberId || "").trim();
+  if (!target) throw httpError(400, "phoneNumberId es obligatorio.");
+
+  const others = await ChannelIntegration.findAll({
+    where: {
+      channel: WHATSAPP_CHANNEL,
+      provider: META_WHATSAPP_PROVIDER,
+      status: "active",
+      phoneNumberId: target,
+    },
+  });
+  if (others.some((row) => row.ownerUserId !== ownerUserId)) {
+    throw httpError(409, "Este número de WhatsApp ya está vinculado a otra cuenta.");
+  }
 }
 
 export async function resolveWhatsappConnectIntegrationByDevice({ deviceId }) {
