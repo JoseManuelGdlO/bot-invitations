@@ -125,6 +125,7 @@ async function processEventFollowUps(event, budget) {
   if (budget.left <= 0) return;
   const ai = await AiConfig.findOne({ where: { eventId: event.id } });
   if (!ai) return;
+  if (ai.followUpsEnabled === false) return;
 
   try {
     await assertWhatsappReady(event);

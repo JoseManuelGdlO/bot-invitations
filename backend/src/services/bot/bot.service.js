@@ -1,4 +1,4 @@
-import { Conversation, Event, Guest, Message } from "../../models/index.js";
+import { AiConfig, Conversation, Event, Guest, Message } from "../../models/index.js";
 import { env } from "../../config/env.js";
 import { formatClock } from "../../utils/time.js";
 import { httpError } from "../../utils/http-error.js";
@@ -293,6 +293,20 @@ export async function processGuestMessage({
   if (persistConversation && conv?.aiPaused) {
     botWarn("turn omitido: asistente pausado", botTurnContext({ event, guest, message, dryRun, persistConversation, userId: sessionUserId }));
     return { skipped: true, reason: "ai_paused", reply: null, conversationId: conv.id };
+  }
+
+  if (persistConversation) {
+    const ai = await AiConfig.findOne({
+      where: { eventId: event.id },
+      attributes: ["botEnabled"],
+    });
+    if (ai?.botEnabled === false) {
+      botWarn(
+        "turn omitido: bot del evento apagado",
+        botTurnContext({ event, guest, message, dryRun, persistConversation, userId: sessionUserId }),
+      );
+      return { skipped: true, reason: "bot_disabled", reply: null, conversationId: conv.id };
+    }
   }
 
   const liveDebounce = persistConversation && !dryRun;

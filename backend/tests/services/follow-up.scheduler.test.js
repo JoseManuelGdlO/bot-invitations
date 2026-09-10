@@ -257,6 +257,29 @@ describe("follow-up.scheduler", () => {
     expect(deliverAiMessage).not.toHaveBeenCalled();
   });
 
+  test("no envía si followUpsEnabled está apagado", async () => {
+    const guest = fakeGuest({
+      status: "enviado",
+      followUpsSent: [],
+      contactedAt: addDays(new Date(), -10),
+    });
+    stubEventGuests([guest], { followUps: DEFAULT_RULES, followUpsEnabled: false });
+    await scheduler.tickFollowUps();
+    expect(deliverAiMessage).not.toHaveBeenCalled();
+  });
+
+  test("no envía recontacto a indecisos si followUpsEnabled está apagado", async () => {
+    const guest = fakeGuest({
+      status: "seguimiento",
+      followUp: formatFollowUpDate(addDays(new Date(), -1)),
+      followUpsSent: [],
+    });
+    stubEventGuests([guest], { followUps: DEFAULT_RULES, followUpsEnabled: false });
+    await scheduler.tickFollowUps();
+    expect(deliverAiMessage).not.toHaveBeenCalled();
+    expect(resolveSeguimientoText).not.toHaveBeenCalled();
+  });
+
   test("no envía si WhatsApp no está listo", async () => {
     assertWhatsappReady.mockRejectedValue(new Error("WhatsApp no conectado"));
     const guest = fakeGuest({

@@ -44,6 +44,8 @@ export const updateAi = asyncHandler(async (req, res) => {
     "prompt",
     "rules",
     "followUps",
+    "botEnabled",
+    "followUpsEnabled",
   ];
   const promptChanged = req.body?.prompt !== undefined && String(req.body.prompt) !== String(ai.prompt || "");
   if (req.body?.followUps !== undefined) {
@@ -57,6 +59,8 @@ export const updateAi = asyncHandler(async (req, res) => {
     }
     req.body.rules = mergeConversationRules(req.body.rules);
   }
+  if (req.body?.botEnabled !== undefined) req.body.botEnabled = !!req.body.botEnabled;
+  if (req.body?.followUpsEnabled !== undefined) req.body.followUpsEnabled = !!req.body.followUpsEnabled;
   const personalityKeys = ["assistantName", "tone", "formality", "emojis", "length", "rules"];
   const personalityChanged = personalityKeys.some((key) => {
     if (req.body?.[key] === undefined) return false;

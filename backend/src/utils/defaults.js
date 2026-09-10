@@ -74,6 +74,8 @@ export function defaultAI(assistant, hosts) {
     openingMessage: `Hola {{nombre}} 👋\n\nSoy ${assistant}, asistente del equipo de ${hosts}.\n\nEstamos confirmando los invitados para {{evento}} del próximo {{fecha}} en {{lugar}}.\n\nTenemos registrada una invitación para {{numero_invitados}} personas.\n\n¿Nos podrías confirmar si podrán acompañarnos?`,
     rules: defaultConversationRules(),
     followUps: DEFAULT_FOLLOW_UPS.map((rule) => ({ ...rule })),
+    botEnabled: true,
+    followUpsEnabled: true,
   };
 }
 

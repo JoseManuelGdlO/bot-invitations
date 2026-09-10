@@ -337,6 +337,8 @@ function defaultAI(assistant: string, hosts: string): AIConfig {
         active: true,
       },
     ],
+    botEnabled: true,
+    followUpsEnabled: true,
   };
 }
 

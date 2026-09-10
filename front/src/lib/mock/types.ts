@@ -107,6 +107,8 @@ export interface AIConfig {
   prompt: string;
   rules: string[];
   followUps: FollowUpRule[];
+  botEnabled: boolean;
+  followUpsEnabled: boolean;
 }
 
 export interface Template {

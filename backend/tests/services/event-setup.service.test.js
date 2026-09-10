@@ -6,6 +6,8 @@ describe("event-setup.service", () => {
     await mod.seedEventDefaults(fakeEvent(), fakeUser(), "Sofía");
     expect(models.AiConfig.create).toHaveBeenCalledWith(
       expect.objectContaining({
+        botEnabled: true,
+        followUpsEnabled: true,
         followUps: expect.arrayContaining([
           expect.objectContaining({ id: "indeciso", days: 3, active: true }),
         ]),
@@ -58,6 +60,8 @@ describe("event-setup.service", () => {
           eventId: event.id,
           assistantName: "Sofía",
           prompt: "",
+          botEnabled: true,
+          followUpsEnabled: true,
         }),
       }),
     );

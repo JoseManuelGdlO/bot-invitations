@@ -284,6 +284,46 @@ function Automatizacion() {
     <main className="mx-auto grid w-full max-w-7xl flex-1 gap-6 px-5 py-8 md:px-8 lg:grid-cols-[1.35fr_1fr]">
       <div className="space-y-6">
         <section className="rounded-2xl border border-border bg-card p-6 shadow-soft">
+          <h2 className="font-display text-2xl">Automatización de este evento</h2>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Apaga el asistente, los recordatorios, o ambos. El mensaje inicial
+            se sigue lanzando desde Resumen.
+          </p>
+          <div className="mt-4 space-y-3">
+            <div className="flex flex-col gap-3 rounded-xl border border-border p-3 sm:flex-row sm:items-center">
+              <div className="flex-1 space-y-1">
+                <p className="text-sm font-medium">Asistente</p>
+                <p className="text-xs text-muted-foreground">
+                  Si lo apagas, no responde por WhatsApp. Los mensajes de los
+                  invitados siguen llegando a Conversaciones.
+                </p>
+              </div>
+              <Switch
+                checked={ai.botEnabled !== false}
+                onCheckedChange={(c) => updateAI(eventId, { botEnabled: c })}
+                aria-label="Asistente activo"
+              />
+            </div>
+            <div className="flex flex-col gap-3 rounded-xl border border-border p-3 sm:flex-row sm:items-center">
+              <div className="flex-1 space-y-1">
+                <p className="text-sm font-medium">Recordatorios</p>
+                <p className="text-xs text-muted-foreground">
+                  Apaga todos los recordatorios automáticos y el recontacto a
+                  indecisos de este evento.
+                </p>
+              </div>
+              <Switch
+                checked={ai.followUpsEnabled !== false}
+                onCheckedChange={(c) =>
+                  updateAI(eventId, { followUpsEnabled: c })
+                }
+                aria-label="Recordatorios activos"
+              />
+            </div>
+          </div>
+        </section>
+
+        <section className="rounded-2xl border border-border bg-card p-6 shadow-soft">
           <div className="flex items-center gap-2">
             <Bot className="size-5 text-gold" />
             <h2 className="font-display text-2xl">

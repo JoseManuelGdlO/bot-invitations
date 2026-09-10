@@ -265,5 +265,7 @@ function defaultEmptyAi() {
     prompt: "",
     rules: [],
     followUps: [],
+    botEnabled: true,
+    followUpsEnabled: true,
   };
 }

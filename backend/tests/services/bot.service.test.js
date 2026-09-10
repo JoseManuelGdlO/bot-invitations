@@ -168,4 +168,73 @@ describe("bot.service processGuestMessage", () => {
     expect(aiTexts).not.toContain("Por favor espera a que termine la respuesta anterior.");
     expect(aiTexts).toContain("Claro");
   });
+
+  test("no responde si el bot del evento está apagado", async () => {
+    await setup();
+    const event = fakeEvent();
+    const guest = fakeGuest({ status: "enviado" });
+    const conv = createInstance({
+      id: "c1",
+      eventId: event.id,
+      guestId: guest.id,
+      aiPaused: false,
+      unread: 0,
+    });
+    models.Event.findByPk.mockResolvedValue(event);
+    models.Guest.findOne.mockResolvedValue(guest);
+    models.Conversation.findOne.mockResolvedValue(conv);
+    models.AiConfig.findOne.mockResolvedValue({ botEnabled: false });
+
+    const result = await service.processGuestMessage({
+      eventId: event.id,
+      guestId: guest.id,
+      text: "Hola",
+      dryRun: false,
+      persistConversation: true,
+      debounceMs: 0,
+    });
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        skipped: true,
+        reason: "bot_disabled",
+        reply: null,
+        conversationId: conv.id,
+      }),
+    );
+    expect(processTurn).not.toHaveBeenCalled();
+    expect(enqueueJob).not.toHaveBeenCalled();
+    const guestTexts = models.Message.create.mock.calls
+      .map(([row]) => row)
+      .filter((row) => row.from === "guest")
+      .map((row) => row.text);
+    expect(guestTexts).toEqual(["Hola"]);
+  });
+
+  test("playground ignora botEnabled apagado", async () => {
+    await setup();
+    const event = fakeEvent();
+    const guest = fakeGuest({ status: "enviado" });
+    models.Event.findByPk.mockResolvedValue(event);
+    models.Guest.findOne.mockResolvedValue(guest);
+    models.Conversation.findOne.mockResolvedValue(null);
+    models.AiConfig.findOne.mockResolvedValue({ botEnabled: false });
+    processTurn.mockImplementation(async () => ({
+      reply: "Hola de prueba",
+      items: [],
+      tools: [],
+    }));
+
+    const result = await service.processGuestMessage({
+      eventId: event.id,
+      guestId: guest.id,
+      text: "Hola",
+      dryRun: true,
+      persistConversation: false,
+    });
+
+    expect(processTurn).toHaveBeenCalledTimes(1);
+    expect(result.reply).toBe("Hola de prueba");
+    expect(enqueueJob).not.toHaveBeenCalled();
+  });
 });

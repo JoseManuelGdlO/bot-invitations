@@ -192,6 +192,36 @@ describe("event-data.controller", () => {
     expect(res.json).toHaveBeenCalled();
   });
 
+  test("updateAi persiste botEnabled y followUpsEnabled sin resetear playground", async () => {
+    const ai = sampleAi({ botEnabled: true, followUpsEnabled: true });
+    stubAi(ai);
+    const { res } = await callHandler(controller.updateAi, {
+      req: createMockReq({
+        body: { botEnabled: false, followUpsEnabled: false },
+      }),
+    });
+    expect(ai.botEnabled).toBe(false);
+    expect(ai.followUpsEnabled).toBe(false);
+    expect(resetPlaygroundSessions).not.toHaveBeenCalled();
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ botEnabled: false, followUpsEnabled: false }),
+    );
+  });
+
+  test("resetAi no apaga botEnabled ni followUpsEnabled", async () => {
+    const ai = sampleAi({ botEnabled: false, followUpsEnabled: false, prompt: "extra" });
+    stubAi(ai);
+    const { res } = await callHandler(controller.resetAi, {
+      req: createMockReq({ params: { eventId: "boda-ana" } }),
+    });
+    expect(ai.botEnabled).toBe(false);
+    expect(ai.followUpsEnabled).toBe(false);
+    expect(ai.prompt).toBe("");
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ botEnabled: false, followUpsEnabled: false }),
+    );
+  });
+
   test("updateAi reinyecta reglas técnicas si el cliente las omite", async () => {
     const ai = sampleAi({ prompt: "", rules: [] });
     stubAi(ai);

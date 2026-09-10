@@ -687,6 +687,8 @@ const fallbackData: EventData = {
     prompt: "",
     rules: [],
     followUps: [],
+    botEnabled: true,
+    followUpsEnabled: true,
   },
   templates: [],
   faqs: [],

@@ -133,6 +133,8 @@ export function serializeAi(ai) {
     prompt: extraInstructions(ai.prompt),
     rules: ai.rules || [],
     followUps: mergeFollowUps(ai.followUps).map(normalizeFollowUp),
+    botEnabled: ai.botEnabled !== false,
+    followUpsEnabled: ai.followUpsEnabled !== false,
   };
 }
 

@@ -182,6 +182,8 @@ export const AiConfig = sequelize.define("ai_configs", {
   prompt: { type: DataTypes.TEXT, allowNull: true },
   rules: { type: DataTypes.JSON, allowNull: false, defaultValue: [] },
   followUps: { type: DataTypes.JSON, allowNull: false, defaultValue: [] },
+  botEnabled: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
+  followUpsEnabled: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
 });
 
 export const Template = sequelize.define("templates", {
@@ -705,6 +707,25 @@ export async function ensureEventTimezone() {
     defaultValue: "America/Mexico_City",
   });
   console.log("[db] columna events.timezone creada");
+}
+
+export async function ensureAiConfigToggles() {
+  const qi = sequelize.getQueryInterface();
+  let table;
+  try {
+    table = await qi.describeTable("ai_configs");
+  } catch {
+    return;
+  }
+  const columns = {
+    botEnabled: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
+    followUpsEnabled: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
+  };
+  for (const [name, spec] of Object.entries(columns)) {
+    if (table[name]) continue;
+    await qi.addColumn("ai_configs", name, spec);
+    console.log(`[db] columna ai_configs.${name} creada`);
+  }
 }
 
 const GUEST_STATUS_ENUM = [
