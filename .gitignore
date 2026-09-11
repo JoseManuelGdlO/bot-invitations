@@ -6,6 +6,8 @@ backend/.env
 .DS_Store
 docs
 .cursor
+.worktrees
+.superpowers
 front/.output
 front/.wrangler
 front/dist
