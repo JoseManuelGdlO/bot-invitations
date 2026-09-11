@@ -9,9 +9,7 @@ describe("guests.controller", () => {
   let assertCanAddGuests;
   let deliverAiMessage;
   let resolveReminderText;
-  let findTemplate;
-  let resolveOpeningParts;
-  let assertOpeningDocumentReady;
+  let resolveCampaignSendContext;
 
   beforeEach(async () => {
     requireEvent = jest.fn(async () => fakeEvent());
@@ -19,13 +17,17 @@ describe("guests.controller", () => {
     assertCanAddGuests = jest.fn(async () => undefined);
     deliverAiMessage = jest.fn(async () => undefined);
     resolveReminderText = jest.fn(async () => "Recordatorio de prueba");
-    findTemplate = jest.fn(async () => ({ id: "tpl_1", category: "Primer contacto", body: "Hola" }));
-    resolveOpeningParts = jest.fn(() => ({
-      text: "¡Hola! Invitación",
-      param1: "Luis",
-      param2: "evento",
+    resolveCampaignSendContext = jest.fn(async () => ({
+      template: {
+        name: "alanna_pc_aa_1",
+        components: [{ type: "BODY", text: "Hola {{1}}, tienes {{2}} pases." }],
+      },
+      link: {},
+      hsmTemplateName: "alanna_pc_aa_1",
+      hsmParamsFor: jest.fn(async () => ["Luis", "2"]),
+      hsmHeaderDocument: null,
+      hsmHeaderImage: null,
     }));
-    assertOpeningDocumentReady = jest.fn(async () => ({ attachDocument: false }));
 
     ({ mod: controller, models } = await loadWithMocks("src/controllers/guests.controller.js", {
       extraMocks: {
@@ -48,18 +50,15 @@ describe("guests.controller", () => {
         }),
         "src/services/guest-message.service.js": () => ({ deliverAiMessage }),
         "src/services/templates.service.js": () => ({
-          findTemplate,
-          resolveOpeningParts,
+          findTemplate: jest.fn(async () => null),
+          resolveOpeningParts: jest.fn(async () => ({})),
           resolveReminderText,
           renderTemplate: jest.fn((body) => body),
           resolveOpeningText: jest.fn(async () => "opening"),
           resolveSeguimientoText: jest.fn(async () => "seguimiento"),
           composeConstructorMessage: jest.fn(() => ""),
         }),
-        "src/services/opening-document.service.js": () => ({
-          assertOpeningDocumentReady,
-          resolveOpeningDocumentFilePath: (doc) => doc?.filePath || doc?.relativePath || null,
-        }),
+        "src/services/whatsapp-templates.service.js": () => ({ resolveCampaignSendContext }),
         "src/services/integration-resolver.service.js": () => ({
           assertWhatsappReady: jest.fn(async () => undefined),
         }),
@@ -224,13 +223,20 @@ describe("guests.controller", () => {
   test("remindGuest envía invitación inicial si el invitado no ha sido contactado", async () => {
     const guest = fakeGuest({ status: "sin_contactar", whatsapp: "pendiente" });
     models.Guest.findOne.mockResolvedValue(guest);
-    assertOpeningDocumentReady.mockResolvedValue({
-      attachDocument: true,
-      templateName: "constructor2",
-      relativePath: "opening-docs/evt_1/abc.pdf",
-      absolutePath: "/tmp/inv.pdf",
-      fileName: "invitacion.pdf",
-      mime: "application/pdf",
+    resolveCampaignSendContext.mockResolvedValue({
+      template: {
+        name: "alanna_pc_aa_1",
+        components: [{ type: "BODY", text: "Hola {{1}}, tienes {{2}} pases." }],
+      },
+      link: {},
+      hsmTemplateName: "alanna_pc_aa_1",
+      hsmParamsFor: jest.fn(async () => ["Luis", "2"]),
+      hsmHeaderDocument: null,
+      hsmHeaderImage: {
+        relativePath: "template-headers/usr_1/tpl_1/header.jpg",
+        fileName: "header.jpg",
+        mime: "image/jpeg",
+      },
     });
 
     const { res } = await callHandler(controller.remindGuest, {
@@ -238,17 +244,17 @@ describe("guests.controller", () => {
     });
 
     expect(resolveReminderText).not.toHaveBeenCalled();
-    expect(findTemplate).toHaveBeenCalledWith("evt_1", { category: "Primer contacto" });
+    expect(resolveCampaignSendContext).toHaveBeenCalledWith(expect.objectContaining({ id: "evt_1" }));
     expect(deliverAiMessage).toHaveBeenCalledWith(
       expect.objectContaining({
         kind: "campaign",
-        text: "¡Hola! Invitación",
-        hsmParams: ["Luis", "evento"],
-        hsmTemplateName: "constructor2",
-        hsmHeaderDocument: {
-          relativePath: "opening-docs/evt_1/abc.pdf",
-          filename: "invitacion.pdf",
-          mime: "application/pdf",
+        text: "Hola Luis, tienes 2 pases.",
+        hsmParams: ["Luis", "2"],
+        hsmTemplateName: "alanna_pc_aa_1",
+        hsmHeaderImage: {
+          relativePath: "template-headers/usr_1/tpl_1/header.jpg",
+          fileName: "header.jpg",
+          mime: "image/jpeg",
         },
         guestPatch: expect.objectContaining({
           status: "enviado",

@@ -186,21 +186,8 @@ describe("outbound.worker", () => {
     );
   });
 
-  test("processJob campaign con constructor2 en el job usa la plantilla de documento actual", async () => {
+  test("processJob campaign conserva el nombre y header que ya trae el job", async () => {
     sendMessage.mockResolvedValueOnce({ provider: "stub", skipped: false });
-    models.Template.findOne.mockResolvedValueOnce({
-      attachDocument: true,
-      documentPath: "opening-docs/evt_1/abc.pdf",
-      documentFileName: "inv.pdf",
-      documentMime: "application/pdf",
-    });
-    assertOpeningDocumentReady.mockResolvedValueOnce({
-      attachDocument: true,
-      templateName: "rg_eventos",
-      relativePath: "opening-docs/evt_1/abc.pdf",
-      fileName: "inv.pdf",
-      mime: "application/pdf",
-    });
     const job = createInstance({
       type: "whatsapp.send",
       attempts: 0,
@@ -211,7 +198,7 @@ describe("outbound.worker", () => {
         eventId: "evt_1",
         guestId: "gst_1",
         hsmParams: ["Luis", "copy libre"],
-        hsmTemplateName: "constructor2",
+        hsmTemplateName: "alanna_pc_aa_1",
         hsmHeaderDocument: { relativePath: "opening-docs/evt_1/abc.pdf", filename: "inv.pdf" },
       },
     });
@@ -220,20 +207,16 @@ describe("outbound.worker", () => {
       "5216183218624",
       "compuesto",
       expect.objectContaining({
-        hsmTemplateName: "rg_eventos",
+        hsmTemplateName: "alanna_pc_aa_1",
         hsmHeaderDocument: { relativePath: "opening-docs/evt_1/abc.pdf", filename: "inv.pdf" },
       }),
     );
+    expect(models.Template.findOne).not.toHaveBeenCalled();
+    expect(assertOpeningDocumentReady).not.toHaveBeenCalled();
   });
 
-  test("processJob campaign sin documento en el payload lo toma de la plantilla", async () => {
+  test("processJob campaign sin header en el payload no consulta nombres de env", async () => {
     sendMessage.mockResolvedValueOnce({ provider: "stub", skipped: false });
-    models.Template.findOne.mockResolvedValueOnce({
-      attachDocument: true,
-      documentPath: "opening-docs/evt_1/abc.pdf",
-      documentFileName: "inv.pdf",
-      documentMime: "application/pdf",
-    });
     const job = createInstance({
       type: "whatsapp.send",
       attempts: 0,
@@ -251,14 +234,12 @@ describe("outbound.worker", () => {
       "5216183218624",
       "compuesto",
       expect.objectContaining({
-        hsmTemplateName: "constructor2",
-        hsmHeaderDocument: {
-          relativePath: "opening-docs/evt_1/abc.pdf",
-          filename: "inv.pdf",
-          mime: "application/pdf",
-        },
+        hsmTemplateName: null,
+        hsmHeaderDocument: null,
       }),
     );
+    expect(models.Template.findOne).not.toHaveBeenCalled();
+    expect(assertOpeningDocumentReady).not.toHaveBeenCalled();
   });
 
   test("processJob seguimiento no se salta", async () => {

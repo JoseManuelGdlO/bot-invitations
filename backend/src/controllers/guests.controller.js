@@ -1,4 +1,4 @@
-import { AiConfig, BotSession, Conversation, Event, Guest, Message, sequelize } from "../models/index.js";
+import { BotSession, Conversation, Event, Guest, Message, sequelize } from "../models/index.js";
 import { asyncHandler } from "../utils/async.js";
 import { serializeGuest } from "../utils/serialize.js";
 import { requireEvent, userEventIds, requirePermission, hasEventPermission, PERMS } from "../services/access.service.js";
@@ -8,10 +8,11 @@ import { guestsToRows, toCsv, toPdf, toXlsx } from "../services/export.service.j
 import { assertCanAddGuestsForEvent, assertCanSendInvitations } from "../services/plans.service.js";
 import { assertWhatsappReady } from "../services/integration-resolver.service.js";
 import { deliverAiMessage } from "../services/guest-message.service.js";
-import { findTemplate, resolveOpeningParts, resolveReminderText } from "../services/templates.service.js";
-import { assertOpeningDocumentReady } from "../services/opening-document.service.js";
-import { openingHeaderDocumentFrom } from "../services/whatsapp.adapter.js";
+import { resolveReminderText } from "../services/templates.service.js";
 import { phonesMatch } from "../services/bot/session.service.js";
+import { resolveCampaignSendContext } from "../services/whatsapp-templates.service.js";
+import { fillMetaTemplate } from "../services/meta.client.js";
+import { bodyTextFromComponents } from "../services/whatsapp-template-slots.js";
 
 async function findGuestForUser(userId, guestId) {
   const ids = await userEventIds(userId);
@@ -129,25 +130,16 @@ export const deleteGuest = asyncHandler(async (req, res) => {
 });
 
 async function deliverOpeningInvitation({ event, guest, plannerName }) {
-  const opening = await findTemplate(event.id, { category: "Primer contacto" });
-  const document = await assertOpeningDocumentReady(opening);
-  const hsmHeaderDocument = openingHeaderDocumentFrom(document);
-  const hsmTemplateName = hsmHeaderDocument ? document.templateName : null;
-  const ai = await AiConfig.findOne({ where: { eventId: event.id } });
-  const { text, params, param1, param2 } = await resolveOpeningParts(
-    opening,
-    event,
-    guest,
-    plannerName,
-    ai?.openingMessage,
-  );
+  const ctx = await resolveCampaignSendContext(event);
+  const params = await ctx.hsmParamsFor(guest, plannerName);
   return deliverAiMessage({
     event,
     guest,
-    text,
-    hsmParams: params?.length ? params : [param1, param2],
-    ...(hsmTemplateName ? { hsmTemplateName } : {}),
-    ...(hsmHeaderDocument ? { hsmHeaderDocument } : {}),
+    text: fillMetaTemplate(bodyTextFromComponents(ctx.template.components), params),
+    hsmParams: params,
+    hsmTemplateName: ctx.hsmTemplateName,
+    ...(ctx.hsmHeaderDocument ? { hsmHeaderDocument: ctx.hsmHeaderDocument } : {}),
+    ...(ctx.hsmHeaderImage ? { hsmHeaderImage: ctx.hsmHeaderImage } : {}),
     kind: "campaign",
     guestPatch: {
       status: "enviado",

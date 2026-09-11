@@ -14,12 +14,12 @@ import { toCampaignSnapshot } from "../utils/serialize.js";
 import { parseDateOnly, startOfDay } from "./follow-up.service.js";
 import { assertWhatsappReady } from "./integration-resolver.service.js";
 import { deliverAiMessage } from "./guest-message.service.js";
-import { findTemplate, resolveOpeningParts } from "./templates.service.js";
 import { logActivity } from "./activity.service.js";
 import { recordCampaignSendResult } from "./campaign-progress.js";
 import { activateEvent } from "./event-status.service.js";
-import { assertOpeningDocumentReady } from "./opening-document.service.js";
-import { openingHeaderDocumentFrom } from "./whatsapp.adapter.js";
+import { resolveCampaignSendContext } from "./whatsapp-templates.service.js";
+import { fillMetaTemplate } from "./meta.client.js";
+import { bodyTextFromComponents } from "./whatsapp-template-slots.js";
 
 const log = new Logger("Campaign");
 const ACTIVE_STATUSES = ["queued", "running"];
@@ -111,9 +111,6 @@ export async function planCampaign(event, body = {}, now = new Date()) {
     throw httpError(400, "Este evento ya finalizó. No se puede iniciar una campaña.");
   }
 
-  const opening = await findTemplate(event.id, { category: "Primer contacto" });
-  await assertOpeningDocumentReady(opening);
-
   if (!isNow) {
     scheduledDate = parseScheduleDay(body?.date);
     assertScheduleDate(scheduledDate, event, now);
@@ -202,22 +199,7 @@ export async function executeCampaignLaunch(job) {
     }
   }
 
-  const opening = await findTemplate(event.id, { category: "Primer contacto" });
-  let hsmTemplateName = null;
-  let hsmHeaderDocument = null;
-  try {
-    const document = await assertOpeningDocumentReady(opening);
-    hsmHeaderDocument = openingHeaderDocumentFrom(document);
-    if (hsmHeaderDocument) hsmTemplateName = document.templateName;
-  } catch (err) {
-    if (Number(err?.status) === 400) throw err;
-    log.info("campaña aplazada: no se pudo preparar el documento", {
-      eventId: event.id,
-      campaignId: campaign.id,
-      reason: err.message,
-    });
-    return { retryAt: new Date(Date.now() + WA_RETRY_MS), reason: err.message };
-  }
+  const ctx = await resolveCampaignSendContext(event);
 
   const [claimed] = await Campaign.update(
     { status: "running", launchedAt: new Date() },
@@ -244,15 +226,16 @@ export async function executeCampaignLaunch(job) {
     if (!taken) continue;
     await guest.reload();
     claimedCount += 1;
-    const { text, params, param1, param2 } = await resolveOpeningParts(opening, event, guest, plannerName, ai?.openingMessage);
+    const params = await ctx.hsmParamsFor(guest, plannerName);
     try {
       const conv = await deliverAiMessage({
         event,
         guest,
-        text,
-        hsmParams: params?.length ? params : [param1, param2],
-        ...(hsmTemplateName ? { hsmTemplateName } : {}),
-        ...(hsmHeaderDocument ? { hsmHeaderDocument } : {}),
+        text: fillMetaTemplate(bodyTextFromComponents(ctx.template.components), params),
+        hsmParams: params,
+        hsmTemplateName: ctx.hsmTemplateName,
+        ...(ctx.hsmHeaderDocument ? { hsmHeaderDocument: ctx.hsmHeaderDocument } : {}),
+        ...(ctx.hsmHeaderImage ? { hsmHeaderImage: ctx.hsmHeaderImage } : {}),
         kind: "campaign",
         campaignId: campaign.id,
       });

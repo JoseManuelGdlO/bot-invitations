@@ -16,7 +16,7 @@ describe("opening-document.service", () => {
     envState = {
       uploadsDir: tmpDir,
       bundledOpeningDocsDir: "",
-      meta: { templateNameDocument: "rg_eventos" },
+      meta: { templateNameDocument: "" },
     };
     ({ mod: service, models } = await loadWithMocks("src/services/opening-document.service.js", {
       extraMocks: {
@@ -98,7 +98,7 @@ describe("opening-document.service", () => {
     });
     await expect(service.assertOpeningDocumentReady(tpl)).resolves.toMatchObject({
       attachDocument: true,
-      templateName: "rg_eventos",
+      templateName: null,
       eventId,
       relativePath: `opening-docs/${eventId}/${realName}`,
       fileName: "Invitacion_Brenda_Denis.pdf",
@@ -121,7 +121,7 @@ describe("opening-document.service", () => {
         documentFileName: "inv.pdf",
       }),
     ).resolves.toMatchObject({
-      templateName: "rg_eventos",
+      templateName: null,
       relativePath: `opening-docs/${eventId}/from-git.pdf`,
     });
   });

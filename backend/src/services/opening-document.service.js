@@ -212,12 +212,10 @@ export async function resolveStoredDocument(template) {
 
 export async function assertOpeningDocumentReady(template) {
   if (!template?.attachDocument) return { attachDocument: false };
-  const templateName = String(env.meta?.templateNameDocument || "").trim();
-  if (!templateName) throw httpError(400, "Falta META_TEMPLATE_NAME_DOCUMENT.");
   const stored = await resolveStoredDocument(template);
   if (!stored) throw httpError(400, MISSING_OPENING_DOCUMENT_MESSAGE);
   const eventId = template?.eventId || eventIdFromOpeningPath(stored.relativePath);
-  return { attachDocument: true, templateName, eventId, ...stored };
+  return { attachDocument: true, templateName: null, eventId, ...stored };
 }
 
 async function removeFile(storedRelative) {

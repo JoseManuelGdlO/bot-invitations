@@ -1,8 +1,6 @@
 import { Op } from "sequelize";
 import { Event, Guest, Message, OutboundJob } from "../models/index.js";
-import { createWhatsAppProvider, isColdConversation, openingHeaderDocumentFrom } from "./whatsapp.adapter.js";
-import { findTemplate } from "./templates.service.js";
-import { assertOpeningDocumentReady } from "./opening-document.service.js";
+import { createWhatsAppProvider, isColdConversation } from "./whatsapp.adapter.js";
 import { env } from "../config/env.js";
 import { Logger } from "../utils/logger.js";
 import { formatWhatsappTo, resolveWhatsappTo } from "../utils/whatsapp-identity.js";
@@ -90,20 +88,10 @@ function skipWhatsappSendReason(payload) {
 }
 
 async function resolveCampaignHeader(payload = {}) {
-  const existing = payload.hsmHeaderDocument || null;
-  const templateName = payload.hsmTemplateName || null;
-  if (payload.kind !== "campaign" || !payload.eventId) {
-    return { hsmHeaderDocument: existing, hsmTemplateName: templateName };
-  }
-  const opening = await findTemplate(payload.eventId, { category: "Primer contacto" });
-  if (!opening?.attachDocument) {
-    return { hsmHeaderDocument: existing, hsmTemplateName: templateName };
-  }
-  const document = await assertOpeningDocumentReady(opening);
-  const hsmHeaderDocument = existing || openingHeaderDocumentFrom(document);
   return {
-    hsmHeaderDocument,
-    hsmTemplateName: document.templateName || templateName || null,
+    hsmHeaderDocument: payload.hsmHeaderDocument || null,
+    hsmHeaderImage: payload.hsmHeaderImage || null,
+    hsmTemplateName: payload.hsmTemplateName || null,
   };
 }
 
@@ -169,7 +157,7 @@ export async function processJob(job) {
         const guest = await Guest.findByPk(job.payload.guestId);
         if (guest) to = resolveWhatsappTo(guest) || to;
       }
-      const { hsmHeaderDocument, hsmTemplateName } = await resolveCampaignHeader(job.payload);
+      const { hsmHeaderDocument, hsmHeaderImage, hsmTemplateName } = await resolveCampaignHeader(job.payload);
       waLog.info("enviando whatsapp.send", sendMeta(job, {
         to,
         hsmTemplateName,
@@ -183,6 +171,7 @@ export async function processJob(job) {
         hsmParams: job.payload.hsmParams,
         hsmTemplateName,
         hsmHeaderDocument,
+        hsmHeaderImage,
       });
       const ok = !result.skipped;
       const status = result.skipped ? "skipped" : "done";
@@ -192,6 +181,7 @@ export async function processJob(job) {
           ...job.payload,
           ...(hsmTemplateName ? { hsmTemplateName } : {}),
           ...(hsmHeaderDocument ? { hsmHeaderDocument } : {}),
+          ...(hsmHeaderImage ? { hsmHeaderImage } : {}),
           result,
         },
       });
