@@ -12,6 +12,7 @@ import {
 } from "./integration-resolver.service.js";
 import {
   exchangeEmbeddedSignupCode,
+  ensurePlatformCanManageWaba,
   getPhoneNumberDetails,
   initiateCoexistenceSync,
   listWabaPhoneNumbers,
@@ -117,6 +118,10 @@ export async function completeEmbeddedSignup({
 
   await subscribeWabaApp(resolvedWabaId, accessToken);
   log.info("embedded signup: WABA suscrita a webhooks", { ownerUserId, wabaId: resolvedWabaId });
+  await ensurePlatformCanManageWaba({
+    wabaId: resolvedWabaId,
+    plannerAccessToken: accessToken,
+  });
 
   const phones = await listWabaPhoneNumbers(resolvedWabaId, accessToken);
   let phone = pickPhoneFromList(phones, phoneNumberId);

@@ -3,6 +3,7 @@ import { callHandler, createMockReq, loadWithMocks } from "../helpers/controller
 
 const graphClientMock = () => ({
   resolveTemplateCrudToken: () => "t",
+  ensurePlatformCanManageWaba: jest.fn(async () => ({ shared: true, assigned: true })),
   createMessageTemplate: jest.fn(),
   updateMessageTemplate: jest.fn(),
   uploadResumableHeader: jest.fn(),

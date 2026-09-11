@@ -18,6 +18,7 @@ process.env.WC_API_URL = "https://wc.example.test";
 process.env.WC_SERVICE_JWT = "test-wc-service-jwt";
 process.env.META_WEBHOOK_VERIFY_TOKEN = "test-meta-verify-token";
 process.env.META_ACCESS_TOKEN = "test-meta-access-token";
+process.env.META_BUSINESS_ID = "test-meta-business-id";
 process.env.META_TEMPLATE_LANGUAGE = "es_MX";
 process.env.META_GRAPH_VERSION = "v21.0";
 process.env.META_APP_ID = "test-meta-app-id";

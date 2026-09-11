@@ -121,6 +121,9 @@ export const env = {
     mediaTimeoutMs: Number(process.env.META_MEDIA_TIMEOUT_MS || 60000),
     appId: process.env.META_APP_ID || "",
     appSecret: process.env.META_APP_SECRET || "",
-    configId: process.env.META_EMBEDDED_SIGNUP_CONFIG_ID || "",  
+    configId: process.env.META_EMBEDDED_SIGNUP_CONFIG_ID || "",
+    businessId: process.env.META_BUSINESS_ID || "",
+    systemUserId: process.env.META_SYSTEM_USER_ID || "",
+    debugGraphToken: process.env.META_DEBUG_GRAPH_TOKEN === "true",
   },
 };

@@ -48,14 +48,27 @@ describe("meta-graph.client", () => {
     expect(resolveTemplateCrudToken("planner_tok")).toBe("sys_tok");
   });
 
-  test("createMessageTemplate POST al WABA", async () => {
+  test("describeGraphToken distingue token de plataforma y token del planner", async () => {
+    await jest.unstable_mockModule("../../src/config/env.js", () => ({
+      env: { meta: { accessToken: "sys_tok", appId: "app_1", graphVersion: "v21.0" } },
+    }));
+    const { describeGraphToken } = await import("../../src/services/meta-graph.client.js");
+    expect(describeGraphToken("sys_tok")).toEqual(expect.objectContaining({
+      source: "META_ACCESS_TOKEN",
+    }));
+    expect(describeGraphToken("planner_tok")).toEqual(expect.objectContaining({
+      source: "plannerAccessToken",
+    }));
+  });
+
+  test("createMessageTemplate POST al WABA con Bearer del token recibido", async () => {
     global.fetch = jest.fn(async () => ({
       ok: true,
       status: 200,
       text: async () => JSON.stringify({ id: "111" }),
     }));
     await jest.unstable_mockModule("../../src/config/env.js", () => ({
-      env: { meta: { accessToken: "sys_tok", appId: "app_1", graphVersion: "v21.0" } },
+      env: { meta: { accessToken: "sys_tok", appId: "app_1", graphVersion: "v21.0", debugGraphToken: true } },
     }));
     const { createMessageTemplate } = await import("../../src/services/meta-graph.client.js");
     const out = await createMessageTemplate({
@@ -67,5 +80,53 @@ describe("meta-graph.client", () => {
     const [url, init] = fetch.mock.calls[0];
     expect(url).toContain("/waba_1/message_templates");
     expect(init.method).toBe("POST");
+    expect(init.headers.Authorization).toBe("Bearer sys_tok");
+  });
+
+  test("shareClientWhatsappBusinessAccount POST OBO al portafolio con waba_id", async () => {
+    global.fetch = jest.fn(async () => ({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ success: true }),
+    }));
+    await jest.unstable_mockModule("../../src/config/env.js", () => ({
+      env: { meta: { accessToken: "sys_tok", businessId: "bm_1", appId: "app_1", graphVersion: "v21.0" } },
+    }));
+    const { shareClientWhatsappBusinessAccount } = await import("../../src/services/meta-graph.client.js");
+    const out = await shareClientWhatsappBusinessAccount({
+      wabaId: "2187850965126759",
+      businessId: "bm_1",
+      token: "sys_tok",
+    });
+    expect(out.success).toBe(true);
+    const [url, init] = fetch.mock.calls[0];
+    expect(url).toContain("/bm_1/client_whatsapp_business_accounts");
+    expect(url).toContain("waba_id=2187850965126759");
+    expect(init.method).toBe("POST");
+    expect(init.headers.Authorization).toBe("Bearer sys_tok");
+  });
+
+  test("ensurePlatformCanManageWaba comparte el WABA y asigna el system user", async () => {
+    global.fetch = jest.fn(async (url) => {
+      const href = String(url);
+      if (href.includes("/me?")) {
+        return { ok: true, status: 200, text: async () => JSON.stringify({ id: "sys_user_1" }) };
+      }
+      return { ok: true, status: 200, text: async () => JSON.stringify({ success: true }) };
+    });
+    await jest.unstable_mockModule("../../src/config/env.js", () => ({
+      env: { meta: { accessToken: "sys_tok", businessId: "bm_1", appId: "app_1", graphVersion: "v21.0" } },
+    }));
+    const { ensurePlatformCanManageWaba } = await import("../../src/services/meta-graph.client.js");
+    const out = await ensurePlatformCanManageWaba({
+      wabaId: "waba_1",
+      plannerAccessToken: "planner_tok",
+    });
+    expect(out).toEqual(expect.objectContaining({ shared: true, assigned: true }));
+    const urls = fetch.mock.calls.map(([url]) => String(url));
+    expect(urls.some((url) => url.includes("/bm_1/client_whatsapp_business_accounts") && url.includes("waba_id=waba_1"))).toBe(true);
+    expect(urls.some((url) => url.includes("/waba_1/assigned_users") && url.includes("user=sys_user_1"))).toBe(true);
+    const assignCall = fetch.mock.calls.find(([url]) => String(url).includes("/assigned_users"));
+    expect(assignCall[1].headers.Authorization).toBe("Bearer planner_tok");
   });
 });

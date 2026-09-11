@@ -11,10 +11,12 @@ describe("meta-signup.service", () => {
   let getPhoneNumberDetails;
   let initiateCoexistenceSync;
   let upsertWhatsappMetaCredentials;
+  let ensurePlatformCanManageWaba;
 
   beforeEach(async () => {
     exchangeEmbeddedSignupCode = jest.fn(async () => ({ accessToken: "EAA_TOKEN" }));
     subscribeWabaApp = jest.fn(async () => ({ success: true }));
+    ensurePlatformCanManageWaba = jest.fn(async () => ({ shared: true, assigned: true }));
     listWabaPhoneNumbers = jest.fn(async () => [
       { id: "pn_1", display_phone_number: "+52 618 123 4567", is_on_biz_app: true, platform_type: "CLOUD_API" },
     ]);
@@ -35,6 +37,7 @@ describe("meta-signup.service", () => {
         "src/services/meta-graph.client.js": () => ({
           exchangeEmbeddedSignupCode,
           subscribeWabaApp,
+          ensurePlatformCanManageWaba,
           unsubscribeWabaApp: jest.fn(),
           listWabaPhoneNumbers,
           getPhoneNumberDetails,
@@ -85,6 +88,10 @@ describe("meta-signup.service", () => {
     });
     expect(exchangeEmbeddedSignupCode).toHaveBeenCalledWith("AUTH_CODE");
     expect(subscribeWabaApp).toHaveBeenCalledWith("waba_1", "EAA_TOKEN");
+    expect(ensurePlatformCanManageWaba).toHaveBeenCalledWith({
+      wabaId: "waba_1",
+      plannerAccessToken: "EAA_TOKEN",
+    });
     expect(models.ChannelIntegration.create).toHaveBeenCalledWith(
       expect.objectContaining({
         ownerUserId: "usr_test_1",

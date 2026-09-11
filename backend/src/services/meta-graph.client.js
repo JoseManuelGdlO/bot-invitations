@@ -73,6 +73,18 @@ export async function graphRequest({ method = "GET", path, token, query = {}, bo
   if (token) headers.Authorization = `Bearer ${token}`;
   if (body != null) headers["Content-Type"] = "application/json";
 
+  const described = describeGraphToken(token);
+  log.info("graphRequest Authorization", {
+    path,
+    method,
+    tokenSource: described.source,
+    tokenPreview: described.preview,
+  });
+  if (env.meta.debugGraphToken) {
+    // El Logger redacta `token`; esta línea es la verificación de cuál Bearer se envía.
+    console.log(`[MetaGraph] Authorization Bearer source=${described.source} token=${token || ""}`);
+  }
+
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   let res;
@@ -109,10 +121,147 @@ export async function graphRequest({ method = "GET", path, token, query = {}, bo
   return payload;
 }
 
+export function describeGraphToken(token) {
+  const value = String(token || "").trim();
+  const platform = String(env.meta.accessToken || "").trim();
+  if (!value) return { source: "missing", preview: null };
+  const source = platform && value === platform
+    ? (String(process.env.META_ACCESS_TOKEN || "").trim()
+      ? "META_ACCESS_TOKEN"
+      : String(process.env.META_SYSTEM_USER_TOKEN || "").trim()
+        ? "META_SYSTEM_USER_TOKEN"
+        : "META_ACCESS_TOKEN")
+    : "plannerAccessToken";
+  return {
+    source,
+    preview: `${value.slice(0, 8)}…len=${value.length}`,
+  };
+}
+
 export function resolveTemplateCrudToken(plannerAccessToken) {
   const token = String(env.meta.accessToken || plannerAccessToken || "").trim();
   if (!token) throw httpError(400, "Falta META_ACCESS_TOKEN y la cuenta no tiene token.");
   return token;
+}
+
+function isBenignWabaLinkError(error) {
+  const details = [
+    error?.message,
+    error?.meta?.message,
+    error?.meta?.code,
+  ].filter(Boolean).join(" ");
+  return /already|duplicate|exist|linked|shared/i.test(details);
+}
+
+export async function shareClientWhatsappBusinessAccount({ wabaId, businessId, token } = {}) {
+  const id = String(businessId || env.meta.businessId || "").trim();
+  const waba = String(wabaId || "").trim();
+  const access = String(token || env.meta.accessToken || "").trim();
+  if (!id) throw httpError(500, "Falta META_BUSINESS_ID para vincular el WABA al portafolio.");
+  if (!waba) throw httpError(400, "Falta el WABA ID.");
+  if (!access) throw httpError(400, "Falta META_ACCESS_TOKEN.");
+  return graphRequest({
+    method: "POST",
+    path: `${id}/client_whatsapp_business_accounts`,
+    token: access,
+    query: { waba_id: waba },
+  });
+}
+
+export async function assignSystemUserToWaba({ wabaId, systemUserId, token } = {}) {
+  const waba = String(wabaId || "").trim();
+  const user = String(systemUserId || env.meta.systemUserId || "").trim();
+  const access = String(token || "").trim();
+  if (!waba) throw httpError(400, "Falta el WABA ID.");
+  if (!user) throw httpError(400, "Falta el system user ID.");
+  if (!access) throw httpError(400, "Falta el token para asignar el system user.");
+  return graphRequest({
+    method: "POST",
+    path: `${waba}/assigned_users`,
+    token: access,
+    query: {
+      user,
+      tasks: JSON.stringify(["MANAGE"]),
+    },
+  });
+}
+
+export async function ensurePlatformCanManageWaba({ wabaId, plannerAccessToken } = {}) {
+  const platformToken = String(env.meta.accessToken || "").trim();
+  if (!platformToken) {
+    return { skipped: true, reason: "no_platform_token", shared: false, assigned: false };
+  }
+  const waba = String(wabaId || "").trim();
+  if (!waba) {
+    return { skipped: true, reason: "no_waba", shared: false, assigned: false };
+  }
+
+  const businessId = String(env.meta.businessId || "").trim();
+  let shared = false;
+  if (businessId) {
+    try {
+      await shareClientWhatsappBusinessAccount({ wabaId: waba, businessId, token: platformToken });
+      shared = true;
+      log.info("OBO: WABA vinculado al portafolio", { wabaId: waba, businessId });
+    } catch (error) {
+      if (isBenignWabaLinkError(error)) {
+        shared = true;
+        log.info("OBO: WABA ya estaba vinculado", { wabaId: waba, businessId });
+      } else {
+        log.warn("OBO: no se pudo vincular el WABA al portafolio", {
+          wabaId: waba,
+          businessId,
+          message: error.message,
+          code: error.meta?.code || null,
+          subcode: error.meta?.subcode || null,
+        });
+      }
+    }
+  } else {
+    log.warn("OBO: falta META_BUSINESS_ID; no se puede POST client_whatsapp_business_accounts", {
+      wabaId: waba,
+    });
+  }
+
+  let assigned = false;
+  try {
+    let systemUserId = String(env.meta.systemUserId || "").trim();
+    if (!systemUserId) {
+      const me = await graphRequest({
+        method: "GET",
+        path: "me",
+        token: platformToken,
+        query: { fields: "id" },
+      });
+      systemUserId = String(me.id || "").trim();
+    }
+    if (systemUserId) {
+      const assignToken = String(plannerAccessToken || "").trim() || platformToken;
+      await assignSystemUserToWaba({ wabaId: waba, systemUserId, token: assignToken });
+      assigned = true;
+      log.info("OBO: system user asignado al WABA", { wabaId: waba, systemUserId });
+    }
+  } catch (error) {
+    if (isBenignWabaLinkError(error)) {
+      assigned = true;
+      log.info("OBO: system user ya tenía acceso al WABA", { wabaId: waba });
+    } else {
+      log.warn("OBO: no se pudo asignar el system user", {
+        wabaId: waba,
+        message: error.message,
+        code: error.meta?.code || null,
+        subcode: error.meta?.subcode || null,
+      });
+    }
+  }
+
+  if (!shared && !assigned) {
+    throw httpError(
+      400,
+      "El token de plataforma no tiene acceso a este WABA. Configura META_BUSINESS_ID y vuelve a conectar WhatsApp.",
+    );
+  }
+  return { skipped: false, shared, assigned };
 }
 
 export async function createMessageTemplate({ wabaId, token, payload }) {

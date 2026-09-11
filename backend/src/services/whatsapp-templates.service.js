@@ -9,6 +9,7 @@ import { eventGuestVars } from "../utils/defaults.js";
 import { httpError } from "../utils/http-error.js";
 import {
   createMessageTemplate,
+  ensurePlatformCanManageWaba,
   resolveTemplateCrudToken,
   updateMessageTemplate,
   uploadResumableHeader,
@@ -188,6 +189,7 @@ export async function createWizardTemplates({
 }) {
   const validated = validateWizardTemplates(templates);
   const token = resolveTemplateCrudToken(plannerAccessToken);
+  await ensurePlatformCanManageWaba({ wabaId, plannerAccessToken });
   const created = [];
 
   for (const templateInput of validated) {

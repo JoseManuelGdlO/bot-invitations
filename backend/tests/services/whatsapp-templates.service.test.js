@@ -17,11 +17,13 @@ function ownerMetaMocks(wabaId = "waba_1") {
 
 test("wizard crea una HSM PENDING isWabaDefault y attach al evento más reciente", async () => {
   const createMessageTemplate = jest.fn(async () => ({ id: "meta_1" }));
+  const ensurePlatformCanManageWaba = jest.fn(async () => ({ shared: true, assigned: true }));
   const event = fakeEvent({ id: "evt_old", ownerId: "usr_1" });
   const { mod, models } = await loadWithMocks("src/services/whatsapp-templates.service.js", {
     extraMocks: {
       "src/services/meta-graph.client.js": () => ({
         resolveTemplateCrudToken: () => "sys_tok",
+        ensurePlatformCanManageWaba,
         createMessageTemplate,
         updateMessageTemplate: jest.fn(),
         uploadResumableHeader: jest.fn(),
@@ -50,6 +52,10 @@ test("wizard crea una HSM PENDING isWabaDefault y attach al evento más reciente
   });
 
   expect(createMessageTemplate).toHaveBeenCalledTimes(1);
+  expect(ensurePlatformCanManageWaba).toHaveBeenCalledWith({
+    wabaId: "waba_1",
+    plannerAccessToken: "planner",
+  });
   const payload = createMessageTemplate.mock.calls[0][0].payload;
   expect(payload.language).toBe("es_MX");
   expect(payload.category).toBe("MARKETING");
@@ -86,6 +92,7 @@ test("wizard ignora headerFile cuando headerType es none", async () => {
       }),
       "src/services/meta-graph.client.js": () => ({
         resolveTemplateCrudToken: () => "sys_tok",
+        ensurePlatformCanManageWaba: jest.fn(async () => ({ shared: true, assigned: true })),
         createMessageTemplate,
         updateMessageTemplate: jest.fn(),
         uploadResumableHeader,
@@ -137,6 +144,7 @@ test("wizard reintenta una vez con un nombre nuevo cuando Graph reporta duplicad
     extraMocks: {
       "src/services/meta-graph.client.js": () => ({
         resolveTemplateCrudToken: () => "sys_tok",
+        ensurePlatformCanManageWaba: jest.fn(async () => ({ shared: true, assigned: true })),
         createMessageTemplate,
         updateMessageTemplate: jest.fn(),
         uploadResumableHeader: jest.fn(),
@@ -174,6 +182,7 @@ test("wizard no reintenta errores Graph que sólo mencionan name", async () => {
     extraMocks: {
       "src/services/meta-graph.client.js": () => ({
         resolveTemplateCrudToken: () => "sys_tok",
+        ensurePlatformCanManageWaba: jest.fn(async () => ({ shared: true, assigned: true })),
         createMessageTemplate,
         updateMessageTemplate: jest.fn(),
         uploadResumableHeader: jest.fn(),
@@ -200,6 +209,7 @@ test("wizard sin plantillas válidas 400", async () => {
     extraMocks: {
       "src/services/meta-graph.client.js": () => ({
         resolveTemplateCrudToken: () => "sys_tok",
+        ensurePlatformCanManageWaba: jest.fn(async () => ({ shared: true, assigned: true })),
         createMessageTemplate: jest.fn(),
         updateMessageTemplate: jest.fn(),
         uploadResumableHeader: jest.fn(),
@@ -220,6 +230,7 @@ test("primer evento adjunta defaults sin crear otra plantilla en Graph", async (
     extraMocks: {
       "src/services/meta-graph.client.js": () => ({
         resolveTemplateCrudToken: () => "sys_tok",
+        ensurePlatformCanManageWaba: jest.fn(async () => ({ shared: true, assigned: true })),
         createMessageTemplate,
         updateMessageTemplate: jest.fn(),
         uploadResumableHeader: jest.fn(),
@@ -258,6 +269,7 @@ test("evento con attach parcial completa sólo el slot faltante sin llamar a Gra
     extraMocks: {
       "src/services/meta-graph.client.js": () => ({
         resolveTemplateCrudToken: () => "sys_tok",
+        ensurePlatformCanManageWaba: jest.fn(async () => ({ shared: true, assigned: true })),
         createMessageTemplate,
         updateMessageTemplate: jest.fn(),
         uploadResumableHeader: jest.fn(),
@@ -309,6 +321,7 @@ test("evento con sólo default 2 en slot 2 adjunta default 1 en slot 1 sin llama
     extraMocks: {
       "src/services/meta-graph.client.js": () => ({
         resolveTemplateCrudToken: () => "sys_tok",
+        ensurePlatformCanManageWaba: jest.fn(async () => ({ shared: true, assigned: true })),
         createMessageTemplate,
         updateMessageTemplate: jest.fn(),
         uploadResumableHeader: jest.fn(),
@@ -363,6 +376,7 @@ test("segundo evento clona templates ya ligados y conserva su configuración", a
     extraMocks: {
       "src/services/meta-graph.client.js": () => ({
         resolveTemplateCrudToken: () => "sys_tok",
+        ensurePlatformCanManageWaba: jest.fn(async () => ({ shared: true, assigned: true })),
         createMessageTemplate,
         updateMessageTemplate: jest.fn(),
         uploadResumableHeader: jest.fn(),
@@ -431,6 +445,7 @@ test("ensure no hereda defaults de un WABA anterior", async () => {
     extraMocks: {
       "src/services/meta-graph.client.js": () => ({
         resolveTemplateCrudToken: () => "sys_tok",
+        ensurePlatformCanManageWaba: jest.fn(async () => ({ shared: true, assigned: true })),
         createMessageTemplate,
         updateMessageTemplate: jest.fn(),
         uploadResumableHeader: jest.fn(),
@@ -472,6 +487,7 @@ test("segunda ensure del mismo evento no repite el POST a Graph", async () => {
     extraMocks: {
       "src/services/meta-graph.client.js": () => ({
         resolveTemplateCrudToken: () => "sys_tok",
+        ensurePlatformCanManageWaba: jest.fn(async () => ({ shared: true, assigned: true })),
         createMessageTemplate,
         updateMessageTemplate: jest.fn(),
         uploadResumableHeader: jest.fn(),
@@ -526,6 +542,7 @@ test("submit edita en Graph una plantilla usada por un solo pivot", async () => 
     extraMocks: {
       "src/services/meta-graph.client.js": () => ({
         resolveTemplateCrudToken: () => "sys_tok",
+        ensurePlatformCanManageWaba: jest.fn(async () => ({ shared: true, assigned: true })),
         createMessageTemplate,
         updateMessageTemplate,
         uploadResumableHeader: jest.fn(),
@@ -597,6 +614,7 @@ test("submit recrea en Graph el draft del slot 2 sin metaTemplateId", async () =
     extraMocks: {
       "src/services/meta-graph.client.js": () => ({
         resolveTemplateCrudToken: () => "sys_tok",
+        ensurePlatformCanManageWaba: jest.fn(async () => ({ shared: true, assigned: true })),
         createMessageTemplate,
         updateMessageTemplate,
         uploadResumableHeader: jest.fn(),
@@ -666,6 +684,7 @@ test("submit hace copy-on-write cuando dos pivots comparten plantilla", async ()
     extraMocks: {
       "src/services/meta-graph.client.js": () => ({
         resolveTemplateCrudToken: () => "sys_tok",
+        ensurePlatformCanManageWaba: jest.fn(async () => ({ shared: true, assigned: true })),
         createMessageTemplate,
         updateMessageTemplate,
         uploadResumableHeader: jest.fn(),
@@ -735,6 +754,7 @@ test("setCampaignSlot desmarca el slot anterior y marca el solicitado", async ()
     extraMocks: {
       "src/services/meta-graph.client.js": () => ({
         resolveTemplateCrudToken: () => "sys_tok",
+        ensurePlatformCanManageWaba: jest.fn(async () => ({ shared: true, assigned: true })),
         createMessageTemplate: jest.fn(),
         updateMessageTemplate: jest.fn(),
         uploadResumableHeader: jest.fn(),
@@ -765,6 +785,7 @@ test("submit conserva el status previo cuando Graph falla", async () => {
     extraMocks: {
       "src/services/meta-graph.client.js": () => ({
         resolveTemplateCrudToken: () => "sys_tok",
+        ensurePlatformCanManageWaba: jest.fn(async () => ({ shared: true, assigned: true })),
         createMessageTemplate: jest.fn(),
         updateMessageTemplate,
         uploadResumableHeader: jest.fn(),
@@ -814,6 +835,7 @@ test("submit crea la segunda plantilla y su pivot cuando el slot está vacío", 
     extraMocks: {
       "src/services/meta-graph.client.js": () => ({
         resolveTemplateCrudToken: () => "sys_tok",
+        ensurePlatformCanManageWaba: jest.fn(async () => ({ shared: true, assigned: true })),
         createMessageTemplate,
         updateMessageTemplate: jest.fn(),
         uploadResumableHeader: jest.fn(),
@@ -877,6 +899,7 @@ test("submit conserva en DRAFT una segunda plantilla si Graph falla al crearla",
     extraMocks: {
       "src/services/meta-graph.client.js": () => ({
         resolveTemplateCrudToken: () => "sys_tok",
+        ensurePlatformCanManageWaba: jest.fn(async () => ({ shared: true, assigned: true })),
         createMessageTemplate,
         updateMessageTemplate: jest.fn(),
         uploadResumableHeader: jest.fn(),
