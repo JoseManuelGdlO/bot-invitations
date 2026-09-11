@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { Event, Guest, Plan, User } from "../models/index.js";
 import { asyncHandler } from "../utils/async.js";
 import { serializePlan } from "../services/plans.service.js";
+import { getMetaAccessTokenByWabaId } from "../services/admin-whatsapp.service.js";
 
 export async function ensureAdmin() {
   const email = String(process.env.ADMIN_EMAIL)
@@ -151,6 +152,11 @@ export const updateClient = asyncHandler(async (req, res) => {
 export const listPlans = asyncHandler(async (_req, res) => {
   const plans = await Plan.findAll({ order: [["sortOrder", "ASC"]] });
   res.json(plans.map(serializePlan));
+});
+
+export const getWhatsappAccessToken = asyncHandler(async (req, res) => {
+  const result = await getMetaAccessTokenByWabaId(req.params.wabaId);
+  res.json(result);
 });
 
 export const updatePlan = asyncHandler(async (req, res) => {

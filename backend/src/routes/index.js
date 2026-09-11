@@ -158,3 +158,8 @@ router.get("/admin/cancellations", requireAdmin, cancellation.listAll);
 router.get("/admin/cancellations/unread", requireAdmin, cancellation.unread);
 router.post("/admin/cancellations/:requestId/approve", requireAdmin, cancellation.approve);
 router.post("/admin/cancellations/:requestId/reject", requireAdmin, cancellation.reject);
+router.get(
+  "/admin/whatsapp/wabas/:wabaId/access-token",
+  requireAdmin,
+  admin.getWhatsappAccessToken,
+);
