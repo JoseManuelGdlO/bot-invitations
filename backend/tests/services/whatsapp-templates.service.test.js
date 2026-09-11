@@ -1076,10 +1076,9 @@ test("resolveOwnerCampaignSendContext usa la campaña más reciente del WABA act
   expect(context.hsmTemplateName).toBe("alanna_live_1");
 });
 
-test("resolveOwnerCampaignSendContext 400 sin plantilla de campaña ni default del WABA", async () => {
+test("resolveOwnerCampaignSendContext 400 sin pivot isCampaign del WABA activo", async () => {
   const { mod, models } = await loadWithMocks("src/services/whatsapp-templates.service.js");
   models.EventWhatsappTemplate.findOne.mockResolvedValue(null);
-  models.WhatsappMessageTemplate.findOne.mockResolvedValue(null);
 
   await expect(mod.resolveOwnerCampaignSendContext({
     ownerUserId: "usr_1",
@@ -1088,31 +1087,21 @@ test("resolveOwnerCampaignSendContext 400 sin plantilla de campaña ni default d
     status: 400,
     message: "Crea una plantilla de primer contacto y espera la aprobación de Meta.",
   });
+  expect(models.WhatsappMessageTemplate.findOne).not.toHaveBeenCalled();
 });
 
-test("resolveOwnerCampaignSendContext usa isWabaDefault del WABA actual si no hay campaña", async () => {
+test("resolveOwnerCampaignSendContext 400 aunque existan defaults del WABA sin pivot isCampaign", async () => {
   const { mod, models } = await loadWithMocks("src/services/whatsapp-templates.service.js");
-  const template = {
-    id: "tpl_def",
-    name: "alanna_default_1",
-    status: "APPROVED",
-    headerType: "none",
-    headerMediaPath: null,
-    isWabaDefault: true,
-  };
   models.EventWhatsappTemplate.findOne.mockResolvedValue(null);
-  models.WhatsappMessageTemplate.findOne.mockResolvedValue(template);
 
-  const context = await mod.resolveOwnerCampaignSendContext({
+  await expect(mod.resolveOwnerCampaignSendContext({
     ownerUserId: "usr_1",
     wabaId: "waba_new",
+  })).rejects.toMatchObject({
+    status: 400,
+    message: "Crea una plantilla de primer contacto y espera la aprobación de Meta.",
   });
-
-  expect(models.WhatsappMessageTemplate.findOne).toHaveBeenCalledWith({
-    where: { ownerUserId: "usr_1", wabaId: "waba_new", isWabaDefault: true },
-    order: [["createdAt", "DESC"]],
-  });
-  expect(context.hsmTemplateName).toBe("alanna_default_1");
+  expect(models.WhatsappMessageTemplate.findOne).not.toHaveBeenCalled();
 });
 
 test("resolveOwnerCampaignSendContext 400 si la campaña del WABA no está APPROVED", async () => {

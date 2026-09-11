@@ -542,18 +542,7 @@ export async function resolveOwnerCampaignSendContext({ ownerUserId, wabaId } = 
     return sendContextFrom(campaignLink, eventFromLink(campaignLink));
   }
 
-  const defaultTemplate = await WhatsappMessageTemplate.findOne({
-    where: { ownerUserId, wabaId: currentWabaId, isWabaDefault: true },
-    order: [["createdAt", "DESC"]],
-  });
-  if (!defaultTemplate) throw missingCampaignTemplateError();
-  const link = {
-    template: defaultTemplate,
-    slotMappings: {},
-    eventId: null,
-  };
-  assertLinkedTemplateReady(link);
-  return sendContextFrom(link, { id: null, ownerId: ownerUserId });
+  throw missingCampaignTemplateError();
 }
 
 export async function listEventWhatsappTemplates(eventId) {

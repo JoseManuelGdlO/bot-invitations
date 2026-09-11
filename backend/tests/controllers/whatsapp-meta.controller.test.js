@@ -285,7 +285,27 @@ describe("whatsapp-meta.controller", () => {
 
   test("send-test template 400 sin plantilla de campaña del WABA activo", async () => {
     models.EventWhatsappTemplate.findOne.mockResolvedValue(null);
-    models.WhatsappMessageTemplate.findOne.mockResolvedValue(null);
+    const { next } = await callHandler(controller.postWhatsappMetaSendTest, {
+      req: createMockReq({
+        body: { to: "5512345678", type: "template", name: "Luis", text: "Invitación de boda" },
+      }),
+    });
+    expect(next).toHaveBeenCalledWith(expect.objectContaining({
+      status: 400,
+      message: "Crea una plantilla de primer contacto y espera la aprobación de Meta.",
+    }));
+    expect(sendTemplateWithRetry).not.toHaveBeenCalled();
+  });
+
+  test("send-test template 400 con dos defaults del WABA y sin pivot isCampaign", async () => {
+    models.EventWhatsappTemplate.findOne.mockResolvedValue(null);
+    models.WhatsappMessageTemplate.findOne.mockResolvedValue({
+      id: "tpl_slot2",
+      name: "alanna_default_2",
+      status: "APPROVED",
+      headerType: "none",
+      isWabaDefault: true,
+    });
     const { next } = await callHandler(controller.postWhatsappMetaSendTest, {
       req: createMockReq({
         body: { to: "5512345678", type: "template", name: "Luis", text: "Invitación de boda" },
