@@ -1,8 +1,6 @@
 import { jest } from "@jest/globals";
 
 const metaEnv = {
-  templateName: "alanna_cold",
-  templateNameDocument: "constructor2",
   templateLanguage: "es_MX",
   graphVersion: "v21.0",
   timeoutMs: 8000,
@@ -50,7 +48,6 @@ describe("sanitizeMetaBodyParam", () => {
 describe("meta.client", () => {
   beforeEach(() => {
     global.fetch = jest.fn();
-    metaEnv.templateNameDocument = "constructor2";
     clearMessageTemplateCache();
   });
 
@@ -85,6 +82,7 @@ describe("meta.client", () => {
     await metaClient.sendTemplate({
       to: "6183218624",
       bodyParams: ["Luis", "Hola\ninvitación"],
+      templateName: "alanna_cold",
       ...auth,
     });
     const body = JSON.parse(fetch.mock.calls[0][1].body);
@@ -139,35 +137,57 @@ describe("meta.client", () => {
     });
   });
 
-  test("sendTemplate con documento ignora constructor2 del job y usa META_TEMPLATE_NAME_DOCUMENT", async () => {
-    metaEnv.templateNameDocument = "rg_eventos";
+  test("sendTemplate con documento usa el name del job", async () => {
     fetch.mockResolvedValueOnce(jsonResponse(200, { messages: [{ id: "wamid.doc" }] }));
     await metaClient.sendTemplate({
       to: "6183218624",
       bodyParams: ["Luis", "Hola invitación"],
-      templateName: "constructor2",
+      templateName: "alanna_pc_deadbeef_1",
       headerDocument: { id: "media_abc", filename: "invitacion.pdf" },
       ...auth,
     });
-    expect(JSON.parse(fetch.mock.calls[0][1].body).template.name).toBe("rg_eventos");
+    const body = JSON.parse(fetch.mock.calls[0][1].body);
+    expect(body.template.name).toBe("alanna_pc_deadbeef_1");
+    expect(body.template.components[0].parameters[0].type).toBe("document");
   });
 
-  test("sendTemplate 400 si la plantilla con documento no trae archivo", async () => {
+  test("sendTemplate acepta header image por media id", async () => {
+    fetch.mockResolvedValueOnce(jsonResponse(200, { messages: [{ id: "wamid.image" }] }));
+    await metaClient.sendTemplate({
+      to: "6183218624",
+      bodyParams: ["Luis"],
+      templateName: "alanna_pc_deadbeef_2",
+      headerImage: { id: "media_image" },
+      ...auth,
+    });
+    const body = JSON.parse(fetch.mock.calls[0][1].body);
+    expect(body.template.name).toBe("alanna_pc_deadbeef_2");
+    expect(body.template.components[0]).toEqual({
+      type: "header",
+      parameters: [{ type: "image", image: { id: "media_image" } }],
+    });
+  });
+
+  test("sendTemplate sin name responde 400 exacto", async () => {
     await expect(
       metaClient.sendTemplate({
         to: "6183218624",
         bodyParams: ["Luis", "copy"],
-        templateName: "constructor2",
         ...auth,
       }),
     ).rejects.toMatchObject({
       status: 400,
-      message: "La plantilla con documento requiere un archivo adjunto.",
+      message: "Falta el nombre de la plantilla de WhatsApp.",
     });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  test("sendTemplate 400 si el header documento no trae media id", async () => {
     await expect(
       metaClient.sendTemplate({
         to: "6183218624",
         bodyParams: ["Luis", "copy"],
+        templateName: "alanna_pc_deadbeef_1",
         headerDocument: { id: "  " },
         ...auth,
       }),
@@ -302,7 +322,6 @@ describe("meta.client getMessageTemplate", () => {
 
   beforeEach(() => {
     global.fetch = jest.fn();
-    metaEnv.templateNameDocument = "constructor2";
     clearMessageTemplateCache();
   });
 
@@ -326,7 +345,7 @@ describe("meta.client getMessageTemplate", () => {
         ],
       }),
     );
-    const parsed = await metaClient.getMessageTemplate(wabaAuth);
+    const parsed = await metaClient.getMessageTemplate({ ...wabaAuth, templateName: "alanna_cold" });
     expect(fetch).toHaveBeenCalledTimes(1);
     const [url, init] = fetch.mock.calls[0];
     expect(url).toContain("https://graph.facebook.com/v21.0/waba_1/message_templates?");
@@ -350,12 +369,12 @@ describe("meta.client getMessageTemplate", () => {
         ],
       }),
     );
-    await metaClient.getMessageTemplate(wabaAuth);
-    await metaClient.getMessageTemplate(wabaAuth);
+    await metaClient.getMessageTemplate({ ...wabaAuth, templateName: "alanna_cold" });
+    await metaClient.getMessageTemplate({ ...wabaAuth, templateName: "alanna_cold" });
     expect(fetch).toHaveBeenCalledTimes(1);
   });
 
-  test("document=true usa META_TEMPLATE_NAME_DOCUMENT", async () => {
+  test("usa el templateName solicitado para consultar documento", async () => {
     fetch.mockResolvedValueOnce(
       jsonResponse(200, {
         data: [
@@ -368,14 +387,14 @@ describe("meta.client getMessageTemplate", () => {
         ],
       }),
     );
-    const parsed = await metaClient.getMessageTemplate({ ...wabaAuth, document: true });
+    const parsed = await metaClient.getMessageTemplate({ ...wabaAuth, templateName: "constructor2" });
     expect(fetch.mock.calls[0][0]).toContain("name=constructor2");
     expect(parsed.header.format).toBe("DOCUMENT");
   });
 
   test("403 pide permiso whatsapp_business_management", async () => {
     fetch.mockResolvedValueOnce(jsonResponse(403, { error: { message: "forbidden", code: 200 } }));
-    await expect(metaClient.getMessageTemplate(wabaAuth)).rejects.toMatchObject({
+    await expect(metaClient.getMessageTemplate({ ...wabaAuth, templateName: "alanna_cold" })).rejects.toMatchObject({
       status: 403,
       message: "No hay permiso para leer plantillas de Meta (whatsapp_business_management).",
     });
@@ -383,7 +402,7 @@ describe("meta.client getMessageTemplate", () => {
 
   test("404 si Graph no trae la plantilla", async () => {
     fetch.mockResolvedValueOnce(jsonResponse(200, { data: [] }));
-    await expect(metaClient.getMessageTemplate(wabaAuth)).rejects.toMatchObject({
+    await expect(metaClient.getMessageTemplate({ ...wabaAuth, templateName: "alanna_cold" })).rejects.toMatchObject({
       status: 404,
       message: "No se encontró la plantilla de Meta.",
     });
@@ -391,6 +410,14 @@ describe("meta.client getMessageTemplate", () => {
 
   test("400 si faltan credenciales", async () => {
     await expect(metaClient.getMessageTemplate({})).rejects.toMatchObject({ status: 400 });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  test("400 exacto si falta templateName", async () => {
+    await expect(metaClient.getMessageTemplate(wabaAuth)).rejects.toMatchObject({
+      status: 400,
+      message: "Falta el nombre de la plantilla de WhatsApp.",
+    });
     expect(fetch).not.toHaveBeenCalled();
   });
 });

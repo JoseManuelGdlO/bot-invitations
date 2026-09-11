@@ -35,20 +35,21 @@ export function openingHeaderDocumentFrom(document) {
   return { filePath, filename, mime, ...(eventId ? { eventId } : {}) };
 }
 
-async function resolveHeaderDocument(headerDocument, credentials) {
-  if (!headerDocument) return null;
-  const filename = String(headerDocument.filename || headerDocument.fileName || "").trim();
-  const existingId = String(headerDocument.id || "").trim();
+async function resolveHeaderMedia(headerMedia, credentials, type = "document") {
+  if (!headerMedia) return null;
+  const filename = String(headerMedia.filename || headerMedia.fileName || "").trim();
+  const existingId = String(headerMedia.id || "").trim();
   if (existingId) {
     return { id: existingId, ...(filename ? { filename } : {}) };
   }
 
   const filePath = resolveOpeningDocumentFilePath({
-    ...headerDocument,
-    eventId: headerDocument.eventId,
+    ...headerMedia,
+    eventId: headerMedia.eventId,
   });
   if (!filePath) {
-    throw httpError(400, "La plantilla con documento requiere un archivo adjunto.");
+    const label = type === "image" ? "imagen" : "documento";
+    throw httpError(400, `La plantilla con ${label} requiere un archivo adjunto.`);
   }
 
   const cacheKey = `${credentials.phoneNumberId}:${filePath}`;
@@ -57,7 +58,7 @@ async function resolveHeaderDocument(headerDocument, credentials) {
     mediaId = await metaClient.uploadDocument({
       filePath,
       filename,
-      mime: headerDocument.mime,
+      mime: headerMedia.mime,
       accessToken: credentials.accessToken,
       phoneNumberId: credentials.phoneNumberId,
     });
@@ -79,7 +80,7 @@ export class MetaCloudProvider {
     const body = String(text || "").trim();
     const guest = meta.guestId ? await Guest.findByPk(meta.guestId) : null;
     const cold = guest?.status === "sin_contactar" || (await isColdConversation(meta.guestId));
-    const forceTemplate = Boolean(meta.hsmHeaderDocument) || Boolean(meta.hsmTemplateName);
+    const forceTemplate = Boolean(meta.hsmHeaderDocument) || Boolean(meta.hsmHeaderImage) || Boolean(meta.hsmTemplateName);
     const useTemplate = forceTemplate || cold;
 
     const { credentials } = await resolveActiveWhatsappMetaByOwner(event.ownerId);
@@ -93,11 +94,18 @@ export class MetaCloudProvider {
       const bodyParam = sanitizeMetaBodyParam(body);
       const bodyParams = fromJob.length ? fromJob : [nombre, bodyParam];
       if (!bodyParams.some(Boolean)) throw httpError(400, "El mensaje de plantilla no puede estar vacío.");
-      const headerDocument = await resolveHeaderDocument(
+      const headerDocument = await resolveHeaderMedia(
         meta.hsmHeaderDocument
           ? { ...meta.hsmHeaderDocument, eventId: meta.hsmHeaderDocument.eventId || meta.eventId }
           : null,
         credentials,
+      );
+      const headerImage = await resolveHeaderMedia(
+        meta.hsmHeaderImage
+          ? { ...meta.hsmHeaderImage, eventId: meta.hsmHeaderImage.eventId || meta.eventId }
+          : null,
+        credentials,
+        "image",
       );
       payload = await metaClient.sendTemplateWithRetry({
         to: phone,
@@ -109,6 +117,7 @@ export class MetaCloudProvider {
         phoneNumberId: credentials.phoneNumberId,
         ...(meta.hsmTemplateName ? { templateName: meta.hsmTemplateName } : {}),
         ...(headerDocument ? { headerDocument } : {}),
+        ...(headerImage ? { headerImage: { id: headerImage.id } } : {}),
       });
     } else {
       if (!body) throw httpError(400, "text is required when type=text");

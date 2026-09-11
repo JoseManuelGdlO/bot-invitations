@@ -161,18 +161,16 @@ function headerDocumentFrom(headerDocument) {
   return { id, filename };
 }
 
-function resolveTemplateName(templateName, headerDocument) {
-  const documentName = String(env.meta?.templateNameDocument || "").trim();
-  if (headerDocument) {
-    // Siempre la plantilla de documento del env (prod: rg_eventos), no un nombre viejo del job.
-    if (!documentName) throw httpError(400, "Falta META_TEMPLATE_NAME_DOCUMENT.");
-    return documentName;
-  }
-  const name = String(templateName || env.meta?.templateName || "").trim();
-  if (!name) throw httpError(400, "Falta META_TEMPLATE_NAME.");
-  if (documentName && name === documentName) {
-    throw httpError(400, "La plantilla con documento requiere un archivo adjunto.");
-  }
+function headerImageFrom(headerImage) {
+  if (!headerImage) return null;
+  const id = String(headerImage.id || "").trim();
+  if (!id) throw httpError(400, "La plantilla con imagen requiere un archivo adjunto.");
+  return { id };
+}
+
+function resolveTemplateName(templateName) {
+  const name = String(templateName || "").trim();
+  if (!name) throw httpError(400, "Falta el nombre de la plantilla de WhatsApp.");
   return name;
 }
 
@@ -286,9 +284,19 @@ export const metaClient = {
     );
   },
 
-  async sendTemplate({ to, bodyParams = [], parameterKeys = [], accessToken, phoneNumberId, templateName, headerDocument } = {}) {
+  async sendTemplate({
+    to,
+    bodyParams = [],
+    parameterKeys = [],
+    accessToken,
+    phoneNumberId,
+    templateName,
+    headerDocument,
+    headerImage,
+  } = {}) {
     const header = headerDocumentFrom(headerDocument);
-    const name = resolveTemplateName(templateName, header);
+    const image = headerImageFrom(headerImage);
+    const name = resolveTemplateName(templateName);
     const phone = requirePhone(to);
     const language = String(env.meta?.templateLanguage || "es_MX").trim();
     const parameters = bodyParams.map((value, index) => {
@@ -313,6 +321,11 @@ export const metaClient = {
             },
           },
         ],
+      });
+    } else if (image) {
+      components.push({
+        type: "header",
+        parameters: [{ type: "image", image: { id: image.id } }],
       });
     }
     components.push({ type: "body", parameters });
@@ -413,17 +426,12 @@ export const metaClient = {
     return withRetry(() => metaClient.sendTemplate(params), opts);
   },
 
-  async getMessageTemplate({ accessToken, wabaId, document = false, templateName } = {}) {
+  async getMessageTemplate({ accessToken, wabaId, templateName } = {}) {
     const token = String(accessToken || "").trim();
     const waba = String(wabaId || "").trim();
     if (!token || !waba) throw httpError(400, "Faltan credenciales de WhatsApp (Meta).");
 
-    const documentName = String(env.meta?.templateNameDocument || "").trim();
-    const name = document
-      ? documentName
-      : String(templateName || env.meta?.templateName || "").trim();
-    if (document && !name) throw httpError(400, "Falta META_TEMPLATE_NAME_DOCUMENT.");
-    if (!name) throw httpError(400, "Falta META_TEMPLATE_NAME.");
+    const name = resolveTemplateName(templateName);
     const language = String(env.meta?.templateLanguage || "es_MX").trim();
 
     const key = templateCacheKey(waba, name, language);
