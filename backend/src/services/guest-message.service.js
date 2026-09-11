@@ -14,6 +14,7 @@ export async function deliverAiMessage({
   hsmParams = null,
   hsmTemplateName = null,
   hsmHeaderDocument = null,
+  hsmHeaderImage = null,
   guestPatch = {},
 }) {
   const body = String(text || "").trim();
@@ -33,7 +34,11 @@ export async function deliverAiMessage({
     });
   }
   const messageKind =
-    hsmTemplateName || hsmHeaderDocument || kind === "campaign" || kind === "template"
+    hsmTemplateName ||
+    hsmHeaderDocument ||
+    hsmHeaderImage ||
+    kind === "campaign" ||
+    kind === "template"
       ? "template"
       : kind === "message"
         ? null
@@ -57,6 +62,7 @@ export async function deliverAiMessage({
     ...(Array.isArray(hsmParams) && hsmParams.length ? { hsmParams } : {}),
     ...(hsmTemplateName ? { hsmTemplateName } : {}),
     ...(hsmHeaderDocument ? { hsmHeaderDocument } : {}),
+    ...(hsmHeaderImage ? { hsmHeaderImage } : {}),
   });
   await appendOutboundToSession({ event, guest, text: body });
   return conv;
