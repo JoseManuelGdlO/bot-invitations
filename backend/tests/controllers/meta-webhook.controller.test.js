@@ -78,6 +78,7 @@ describe("meta-webhook.controller", () => {
   let handleInboundWhatsapp;
   let resolveActiveWhatsappMetaByPhoneNumberId;
   let applyWhatsappDeliveryStatus;
+  let applyTemplateStatusUpdate;
   const integration = { id: "wa_int_1", ownerUserId: "usr_1", phoneNumberId: "10987654321" };
 
   beforeEach(async () => {
@@ -87,6 +88,7 @@ describe("meta-webhook.controller", () => {
       credentials: { accessToken: "tok", phoneNumberId: "10987654321" },
     }));
     applyWhatsappDeliveryStatus = jest.fn(async () => ({ processed: true, reason: "status_sent" }));
+    applyTemplateStatusUpdate = jest.fn(async () => ({ processed: true, reason: "template_status_updated" }));
     ({ mod: controller } = await loadWithMocks("src/controllers/meta-webhook.controller.js", {
       extraMocks: {
         "src/controllers/bot.controller.js": () => ({ handleInboundWhatsapp }),
@@ -94,6 +96,7 @@ describe("meta-webhook.controller", () => {
           resolveActiveWhatsappMetaByPhoneNumberId,
         }),
         "src/services/whatsapp-status.service.js": () => ({ applyWhatsappDeliveryStatus }),
+        "src/services/whatsapp-templates.service.js": () => ({ applyTemplateStatusUpdate }),
       },
     }));
   });

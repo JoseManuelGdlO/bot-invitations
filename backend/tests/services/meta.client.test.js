@@ -325,7 +325,7 @@ describe("parseMessageTemplate", () => {
 
   test("detecta HEADER DOCUMENT y variables named", () => {
     const parsed = parseMessageTemplate({
-      name: "rg_eventos",
+      name: "alanna_pc_named_1",
       language: "es_MX",
       status: "APPROVED",
       components: [

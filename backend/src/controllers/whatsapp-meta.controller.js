@@ -97,18 +97,14 @@ export const postWhatsappMetaCredentials = asyncHandler(async (req, res) => {
   });
 });
 
-function queryFlag(value) {
-  const v = String(value ?? "").trim().toLowerCase();
-  return v === "1" || v === "true" || v === "yes";
-}
-
 export const getWhatsappMetaTemplate = asyncHandler(async (req, res) => {
-  const document = queryFlag(req.query?.document);
+  const templateName = String(req.query?.templateName || req.body?.templateName || "").trim();
+  if (!templateName) throw httpError(400, "Falta el nombre de la plantilla de WhatsApp.");
   const { credentials } = await resolveActiveWhatsappMetaByOwner(req.user.id);
   const template = await metaClient.getMessageTemplate({
     accessToken: credentials.accessToken,
     wabaId: credentials.wabaId,
-    document,
+    templateName,
   });
   res.json(template);
 });

@@ -264,15 +264,15 @@ describe("whatsapp-meta.controller", () => {
     expect(sendTemplateWithRetry).not.toHaveBeenCalled();
   });
 
-  test("GET template usa credenciales del owner", async () => {
+  test("GET template usa credenciales del owner y templateName del query", async () => {
     const { res } = await callHandler(controller.getWhatsappMetaTemplate, {
-      req: createMockReq({ query: {} }),
+      req: createMockReq({ query: { templateName: "alanna_pc_campaign_2" } }),
     });
     expect(resolveActiveWhatsappMetaByOwner).toHaveBeenCalledWith("usr_test_1");
     expect(getMessageTemplate).toHaveBeenCalledWith({
       accessToken: "user-token",
       wabaId: "waba_1",
-      document: false,
+      templateName: "alanna_pc_campaign_2",
     });
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -282,15 +282,29 @@ describe("whatsapp-meta.controller", () => {
     );
   });
 
-  test("GET template document=true pide la plantilla con adjunto", async () => {
+  test("GET template acepta templateName en el body", async () => {
     await callHandler(controller.getWhatsappMetaTemplate, {
-      req: createMockReq({ query: { document: "true" } }),
+      req: createMockReq({ query: {}, body: { templateName: "alanna_pc_doc" } }),
     });
     expect(getMessageTemplate).toHaveBeenCalledWith({
       accessToken: "user-token",
       wabaId: "waba_1",
-      document: true,
+      templateName: "alanna_pc_doc",
     });
+  });
+
+  test("GET template 400 si falta templateName", async () => {
+    const { next } = await callHandler(controller.getWhatsappMetaTemplate, {
+      req: createMockReq({ query: {} }),
+    });
+    expect(next).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: 400,
+        message: "Falta el nombre de la plantilla de WhatsApp.",
+      }),
+    );
+    expect(resolveActiveWhatsappMetaByOwner).not.toHaveBeenCalled();
+    expect(getMessageTemplate).not.toHaveBeenCalled();
   });
 
   test("GET template 400 si WhatsApp no está configurado", async () => {
@@ -298,7 +312,7 @@ describe("whatsapp-meta.controller", () => {
       Object.assign(new Error("WhatsApp (Meta) no está configurado."), { status: 400 }),
     );
     const { next } = await callHandler(controller.getWhatsappMetaTemplate, {
-      req: createMockReq({ query: {} }),
+      req: createMockReq({ query: { templateName: "alanna_pc_campaign_2" } }),
     });
     expect(next).toHaveBeenCalledWith(expect.objectContaining({ status: 400 }));
     expect(getMessageTemplate).not.toHaveBeenCalled();

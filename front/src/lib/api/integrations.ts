@@ -133,9 +133,9 @@ export const integrationsApi = {
     }),
   getWhatsAppStatus: () =>
     api<WhatsAppMetaStatusDto>("/internal/whatsapp/status"),
-  getWhatsAppTemplate: (document = false) =>
+  getWhatsAppTemplate: (templateName: string) =>
     api<WhatsAppMetaTemplateDto>(
-      `/internal/whatsapp/template?document=${document ? "true" : "false"}`,
+      `/internal/whatsapp/template?templateName=${encodeURIComponent(templateName)}`,
     ),
   saveWhatsAppCredentials: (body: WhatsAppMetaCredentialsInput) =>
     api<WhatsAppMetaStatusDto & { ok: boolean }>("/internal/whatsapp/credentials", {

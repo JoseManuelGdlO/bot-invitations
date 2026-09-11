@@ -16,7 +16,6 @@ describe("opening-document.service", () => {
     envState = {
       uploadsDir: tmpDir,
       bundledOpeningDocsDir: "",
-      meta: { templateNameDocument: "" },
     };
     ({ mod: service, models } = await loadWithMocks("src/services/opening-document.service.js", {
       extraMocks: {
