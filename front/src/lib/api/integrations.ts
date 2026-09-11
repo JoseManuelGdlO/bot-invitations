@@ -66,6 +66,28 @@ export type WhatsAppMetaTemplateDto = {
 
 export type WhatsAppSendTestType = "text" | "template";
 
+export type WhatsappSlotMappingDto =
+  { type: "field"; key: string } | { type: "literal"; value: string } | null;
+
+export type EventWhatsappTemplateDto = {
+  id: string | null;
+  slot: number;
+  isCampaign: boolean;
+  slotMappings: Record<string, WhatsappSlotMappingDto>;
+  template: {
+    id: string | null;
+    name: string | null;
+    metaTemplateId: string | null;
+    language: string | null;
+    category: string | null;
+    headerType: string;
+    headerFileName: string | null;
+    status: string | null;
+    rejectedReason: string | null;
+    body: string;
+  };
+};
+
 export const integrationsApi = {
   list: () => api<IntegrationDto[]>("/integrations"),
   create: (body?: {
@@ -151,4 +173,9 @@ export const integrationsApi = {
       method: "POST",
       body: JSON.stringify({}),
     }),
+  createWizardTemplates: (form: FormData) =>
+    api<{ templates: EventWhatsappTemplateDto[] }>(
+      "/integrations/whatsapp/meta/templates",
+      { method: "POST", body: form },
+    ),
 };

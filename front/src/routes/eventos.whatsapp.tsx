@@ -24,6 +24,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
+import { WhatsAppTemplateWizardDialog } from "@/components/whatsapp-template-wizard-dialog";
 import { apiBase, ApiError } from "@/lib/api/client";
 import {
   integrationsApi,
@@ -86,6 +87,7 @@ function WhatsAppMetaPage() {
   const [testText, setTestText] = useState(
     "Prueba de conexión desde Alanna Confirmaciones",
   );
+  const [wizardOpen, setWizardOpen] = useState(false);
 
   const load = useCallback(async () => {
     const next = await integrationsApi.getWhatsAppStatus();
@@ -131,6 +133,7 @@ function WhatsAppMetaPage() {
         event: session?.event ?? null,
       });
       await load();
+      setWizardOpen(true);
       toast.success("WhatsApp conectado", {
         description: connected.displayPhoneNumber
           ? `Número ${connected.displayPhoneNumber}`
@@ -391,9 +394,15 @@ function WhatsAppMetaPage() {
             enviar invitaciones.
           </p>
         ) : !status?.hasTemplate ? (
-          <p className="mt-3 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-            Falta META_TEMPLATE_NAME. Sin plantilla no se puede enviar en frío.
-          </p>
+          <div className="mt-3 flex flex-col gap-3 rounded-lg border border-gold/40 bg-gold-soft/50 px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm">
+              Faltan plantillas de invitación. Meta debe aprobarlas antes de
+              lanzar la campaña.
+            </p>
+            <Button type="button" size="sm" onClick={() => setWizardOpen(true)}>
+              Crear plantillas
+            </Button>
+          </div>
         ) : null}
         {!metaConfig?.configured ? (
           <p className="mt-3 text-xs text-muted-foreground">
@@ -592,6 +601,14 @@ function WhatsAppMetaPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      <WhatsAppTemplateWizardDialog
+        open={wizardOpen}
+        onOpenChange={setWizardOpen}
+        onCreated={async () => {
+          await load();
+        }}
+      />
 
       {webhookUrl ? (
         <Dialog open={webhookOpen} onOpenChange={setWebhookOpen}>
