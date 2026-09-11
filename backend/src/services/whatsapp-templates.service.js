@@ -581,10 +581,32 @@ export async function submitEventTemplate({
       await persistHeaderFile({ ownerUserId, template, headerFile: header.headerFile });
     }
   } else {
-    const pivotCount = await EventWhatsappTemplate.count({
+    if (!template.metaTemplateId) {
+      const meta = await createOnMeta({
+        wabaId: template.wabaId,
+        token,
+        slot: numericSlot,
+        components,
+        language: template.language || TEMPLATE_LANGUAGE,
+        category: template.category || TEMPLATE_CATEGORY,
+        initialName: template.name,
+      });
+      await template.update({
+        ...localTemplateFields({
+          headerType: normalizedHeaderType,
+          header,
+          components,
+        }),
+        metaTemplateId: meta.metaTemplateId,
+        name: meta.name,
+      });
+      if (header.headerFile) {
+        await persistHeaderFile({ ownerUserId, template, headerFile: header.headerFile });
+      }
+      await pivot.update({ slotMappings: mappings });
+    } else if (await EventWhatsappTemplate.count({
       where: { whatsappMessageTemplateId: template.id },
-    });
-    if (pivotCount === 1) {
+    }) === 1) {
       await updateMessageTemplate({
         templateId: template.metaTemplateId,
         token,

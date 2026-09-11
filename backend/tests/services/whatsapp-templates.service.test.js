@@ -527,6 +527,75 @@ test("submit edita en Graph una plantilla usada por un solo pivot", async () => 
   expect(result).toBe(template);
 });
 
+test("submit recrea en Graph el draft del slot 2 sin metaTemplateId", async () => {
+  const createMessageTemplate = jest.fn(async () => ({ id: "meta_2" }));
+  const updateMessageTemplate = jest.fn();
+  const { mod, models } = await loadWithMocks("src/services/whatsapp-templates.service.js", {
+    extraMocks: {
+      "src/services/meta-graph.client.js": () => ({
+        resolveTemplateCrudToken: () => "sys_tok",
+        createMessageTemplate,
+        updateMessageTemplate,
+        uploadResumableHeader: jest.fn(),
+      }),
+    },
+  });
+  const event = fakeEvent({ id: "evt_1", ownerId: "usr_1" });
+  const template = {
+    id: "tpl_2",
+    metaTemplateId: null,
+    wabaId: "waba_1",
+    name: "alanna_pc_2",
+    language: "es_MX",
+    category: "MARKETING",
+    headerType: "none",
+    status: "DRAFT",
+    update: jest.fn(async function update(patch) {
+      Object.assign(this, patch);
+      return this;
+    }),
+  };
+  const pivot = {
+    eventId: event.id,
+    slot: 2,
+    whatsappMessageTemplateId: template.id,
+    template,
+    update: jest.fn(async function update(patch) {
+      Object.assign(this, patch);
+      return this;
+    }),
+  };
+  models.Event.findOne.mockResolvedValue(event);
+  models.EventWhatsappTemplate.findAll.mockResolvedValue([pivot]);
+  models.WhatsappMessageTemplate.findAll.mockResolvedValue([]);
+  models.EventWhatsappTemplate.findOne.mockResolvedValue(pivot);
+  models.EventWhatsappTemplate.count.mockResolvedValue(1);
+
+  const result = await mod.submitEventTemplate({
+    eventId: event.id,
+    ownerUserId: "usr_1",
+    slot: 2,
+    body: "Hola {{1}}, tienes {{2}} pases",
+    headerType: "none",
+    slotMappings: {},
+    isCampaign: false,
+  });
+
+  expect(createMessageTemplate).toHaveBeenCalledTimes(1);
+  expect(updateMessageTemplate).not.toHaveBeenCalled();
+  expect(template.update).toHaveBeenCalledWith(expect.objectContaining({
+    metaTemplateId: "meta_2",
+    status: "PENDING",
+  }));
+  expect(pivot.update).toHaveBeenCalledWith({
+    slotMappings: expect.objectContaining({
+      1: { type: "field", key: "nombre" },
+      2: { type: "field", key: "numero_invitados" },
+    }),
+  });
+  expect(result).toBe(template);
+});
+
 test("submit hace copy-on-write cuando dos pivots comparten plantilla", async () => {
   const createMessageTemplate = jest.fn(async () => ({ id: "meta_clone" }));
   const updateMessageTemplate = jest.fn();
