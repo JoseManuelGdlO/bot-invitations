@@ -109,6 +109,27 @@ export function extractMetaStatuses(body = {}) {
   return out;
 }
 
+export function extractTemplateStatusUpdates(body = {}) {
+  const entries = Array.isArray(body.entry) ? body.entry : [];
+  const out = [];
+  for (const entry of entries) {
+    const changes = Array.isArray(entry?.changes) ? entry.changes : [];
+    for (const change of changes) {
+      if (change?.field !== "message_template_status_update") continue;
+      const value = change?.value && typeof change.value === "object" ? change.value : {};
+      out.push({
+        wabaId: String(entry?.id || "").trim(),
+        metaTemplateId: String(value.message_template_id || "").trim() || null,
+        name: String(value.message_template_name || "").trim(),
+        language: String(value.message_template_language || "").trim(),
+        event: String(value.event || "").trim().toUpperCase(),
+        reason: value.reason == null ? null : String(value.reason),
+      });
+    }
+  }
+  return out;
+}
+
 /** GET de verificación de Meta (hub.mode / hub.challenge / hub.verify_token). */
 export function verifyMetaWebhook(req, res) {
   const mode = readHubParam(req.query, "hub.mode");
@@ -135,17 +156,23 @@ export async function postMetaEvents(req, res, next) {
     const { handleInboundWhatsapp } = await import("./bot.controller.js");
     const { resolveActiveWhatsappMetaByPhoneNumberId } = await import("../services/whatsapp-meta.service.js");
     const { applyWhatsappDeliveryStatus } = await import("../services/whatsapp-status.service.js");
+    const { applyTemplateStatusUpdate } = await import("../services/whatsapp-templates.service.js");
     const payload = safeParseBody(req);
+    const templateUpdates = extractTemplateStatusUpdates(payload);
     const messages = extractMetaInboundMessages(payload);
     const statuses = extractMetaStatuses(payload);
-    if (messages.length || statuses.length) {
+    if (templateUpdates.length || messages.length || statuses.length) {
       waLog.info("webhook received", {
+        templateUpdates: templateUpdates.length,
         messages: messages.length,
         statuses: statuses.length,
         failed: statuses.filter((row) => row.status === "failed").length,
       });
     }
     const results = [];
+    for (const update of templateUpdates) {
+      results.push(await applyTemplateStatusUpdate(update));
+    }
     for (const inbound of messages) {
       if (!inbound.phoneNumberId) {
         logMetaWebhook("inbound skipped: missing phone_number_id");

@@ -26,6 +26,50 @@ import { resolveActiveWhatsappMetaByOwner } from "./whatsapp-meta.service.js";
 const TEMPLATE_LANGUAGE = "es_MX";
 const TEMPLATE_CATEGORY = "MARKETING";
 const HEADER_TYPES = new Set(["none", "document", "image"]);
+const TEMPLATE_STATUS_EVENTS = new Set([
+  "PENDING",
+  "APPROVED",
+  "REJECTED",
+  "PAUSED",
+  "DISABLED",
+]);
+
+export function mapTemplateStatusEvent(event) {
+  const normalized = String(event || "").trim().toUpperCase();
+  if (normalized === "FLAGGED") return "PAUSED";
+  return TEMPLATE_STATUS_EVENTS.has(normalized) ? normalized : null;
+}
+
+export async function applyTemplateStatusUpdate(update = {}) {
+  const status = mapTemplateStatusEvent(update.event);
+  if (!status) {
+    return { processed: true, reason: "unknown_event" };
+  }
+
+  const metaTemplateId = String(update.metaTemplateId || "").trim();
+  const where = metaTemplateId
+    ? { metaTemplateId }
+    : {
+      wabaId: String(update.wabaId || "").trim(),
+      name: String(update.name || "").trim(),
+    };
+  const template = await WhatsappMessageTemplate.findOne({ where });
+  if (!template) {
+    return { processed: true, reason: "unknown_template" };
+  }
+
+  await template.update({
+    status,
+    rejectedReason: status === "REJECTED" ? update.reason || null : null,
+    lastStatusAt: new Date(),
+  });
+  return {
+    processed: true,
+    reason: "template_status_updated",
+    templateId: template.id,
+    status,
+  };
+}
 
 function validateWizardTemplates(templates) {
   if (!Array.isArray(templates) || templates.length < 1 || templates.length > 2) {
