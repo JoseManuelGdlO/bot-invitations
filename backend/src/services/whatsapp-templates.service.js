@@ -9,14 +9,17 @@ import { httpError } from "../utils/http-error.js";
 import {
   createMessageTemplate,
   resolveTemplateCrudToken,
+  updateMessageTemplate,
   uploadResumableHeader,
 } from "./meta-graph.client.js";
 import {
+  assertSlotMappingsComplete,
   assertWizardBody,
   buildTemplateComponents,
   defaultSlotMappings,
   exampleValuesFromMappings,
   generateTemplateName,
+  mergeSlotMappings,
 } from "./whatsapp-template-slots.js";
 import { resolveActiveWhatsappMetaByOwner } from "./whatsapp-meta.service.js";
 
@@ -86,8 +89,9 @@ async function createOnMeta({
   components,
   language = TEMPLATE_LANGUAGE,
   category = TEMPLATE_CATEGORY,
+  initialName,
 }) {
-  let name = generateTemplateName(slot);
+  let name = initialName || generateTemplateName(slot);
   for (let attempt = 0; attempt < 2; attempt += 1) {
     const payload = {
       name,
@@ -387,4 +391,255 @@ export async function listEventWhatsappTemplates(eventId) {
     include: [{ model: WhatsappMessageTemplate, as: "template", required: true }],
     order: [["slot", "ASC"]],
   });
+}
+
+export async function setCampaignSlot({ eventId, slot }) {
+  await EventWhatsappTemplate.update(
+    { isCampaign: false },
+    { where: { eventId } },
+  );
+  await EventWhatsappTemplate.update(
+    { isCampaign: true },
+    { where: { eventId, slot } },
+  );
+}
+
+async function editableHeader({ template, headerType, headerFile, token }) {
+  if (headerType === "none") {
+    return {
+      headerHandle: null,
+      headerFile: null,
+      headerMediaPath: null,
+      headerFileName: null,
+      headerMime: null,
+      headerSize: null,
+    };
+  }
+
+  if (headerFile) {
+    const headerHandle = await uploadResumableHeader({
+      token,
+      fileName: headerFile.fileName,
+      fileLength: headerFile.size,
+      fileType: headerFile.mime,
+      buffer: headerFile.buffer,
+    });
+    return {
+      headerHandle,
+      headerFile,
+      headerMediaPath: null,
+      headerFileName: headerFile.fileName,
+      headerMime: headerFile.mime,
+      headerSize: headerFile.size,
+    };
+  }
+
+  if (template?.headerHandle) {
+    return {
+      headerHandle: template.headerHandle,
+      headerFile: null,
+      headerMediaPath: template.headerMediaPath || null,
+      headerFileName: template.headerFileName || null,
+      headerMime: template.headerMime || null,
+      headerSize: template.headerSize ?? null,
+    };
+  }
+
+  if (template?.headerMediaPath) {
+    const absolutePath = path.resolve(process.cwd(), "uploads", template.headerMediaPath);
+    const buffer = await fs.promises.readFile(absolutePath);
+    const headerHandle = await uploadResumableHeader({
+      token,
+      fileName: template.headerFileName || path.basename(template.headerMediaPath),
+      fileLength: template.headerSize ?? buffer.length,
+      fileType: template.headerMime,
+      buffer,
+    });
+    return {
+      headerHandle,
+      headerFile: null,
+      headerMediaPath: template.headerMediaPath,
+      headerFileName: template.headerFileName || path.basename(template.headerMediaPath),
+      headerMime: template.headerMime || null,
+      headerSize: template.headerSize ?? buffer.length,
+    };
+  }
+
+  throw httpError(400, "La plantilla requiere un archivo de encabezado.");
+}
+
+function localTemplateFields({
+  headerType,
+  header,
+  components,
+  bodyStatus = "PENDING",
+}) {
+  return {
+    headerType,
+    headerMediaPath: header.headerMediaPath,
+    headerFileName: header.headerFileName,
+    headerMime: header.headerMime,
+    headerSize: header.headerSize,
+    headerHandle: header.headerHandle,
+    components,
+    status: bodyStatus,
+    rejectedReason: null,
+  };
+}
+
+export async function submitEventTemplate({
+  eventId,
+  ownerUserId,
+  slot,
+  body,
+  headerType,
+  headerFile,
+  slotMappings,
+  isCampaign,
+}) {
+  const numericSlot = Number(slot);
+  const normalizedHeaderType = String(headerType || "none").toLowerCase();
+  if (![1, 2].includes(numericSlot)) {
+    throw httpError(400, "El slot de plantilla no es válido.");
+  }
+  if (!HEADER_TYPES.has(normalizedHeaderType)) {
+    throw httpError(400, "El tipo de encabezado no es válido.");
+  }
+
+  const event = await Event.findOne({
+    where: { id: eventId, ownerId: ownerUserId },
+  });
+  if (!event) throw httpError(404, "Evento no encontrado.");
+
+  await ensureEventWhatsappTemplates(event);
+  let pivot = await EventWhatsappTemplate.findOne({
+    where: { eventId, slot: numericSlot },
+    include: [{ model: WhatsappMessageTemplate, as: "template" }],
+  });
+  let template = pivot?.template || null;
+
+  const bodyText = String(body || "");
+  assertWizardBody(bodyText);
+  const mappings = assertSlotMappingsComplete(
+    bodyText,
+    mergeSlotMappings(bodyText, slotMappings || {}),
+  );
+  const token = await resolveOwnerTemplateToken(ownerUserId);
+  const header = await editableHeader({
+    template,
+    headerType: normalizedHeaderType,
+    headerFile,
+    token,
+  });
+  const components = buildTemplateComponents({
+    headerType: normalizedHeaderType,
+    headerHandle: header.headerHandle,
+    bodyText,
+    exampleValues: exampleValuesFromMappings(mappings),
+  });
+
+  if (!pivot) {
+    const { credentials } = await resolveActiveWhatsappMetaByOwner(ownerUserId);
+    const name = generateTemplateName(numericSlot);
+    template = await WhatsappMessageTemplate.create({
+      ownerUserId,
+      wabaId: credentials.wabaId,
+      metaTemplateId: null,
+      name,
+      language: TEMPLATE_LANGUAGE,
+      category: TEMPLATE_CATEGORY,
+      ...localTemplateFields({
+        headerType: normalizedHeaderType,
+        header,
+        components,
+        bodyStatus: "DRAFT",
+      }),
+      isWabaDefault: false,
+    });
+    pivot = await EventWhatsappTemplate.create({
+      eventId,
+      whatsappMessageTemplateId: template.id,
+      ownerUserId,
+      slot: numericSlot,
+      isCampaign: false,
+      slotMappings: mappings,
+    });
+    const meta = await createOnMeta({
+      wabaId: credentials.wabaId,
+      token,
+      slot: numericSlot,
+      components,
+      initialName: name,
+    });
+    await template.update({
+      metaTemplateId: meta.metaTemplateId,
+      name: meta.name,
+      status: "PENDING",
+      rejectedReason: null,
+    });
+    if (header.headerFile) {
+      await persistHeaderFile({ ownerUserId, template, headerFile: header.headerFile });
+    }
+  } else {
+    const pivotCount = await EventWhatsappTemplate.count({
+      where: { whatsappMessageTemplateId: template.id },
+    });
+    if (pivotCount === 1) {
+      await updateMessageTemplate({
+        templateId: template.metaTemplateId,
+        token,
+        payload: {
+          components,
+          language: template.language || TEMPLATE_LANGUAGE,
+          category: template.category || TEMPLATE_CATEGORY,
+        },
+      });
+      await template.update(localTemplateFields({
+        headerType: normalizedHeaderType,
+        header,
+        components,
+      }));
+      if (header.headerFile) {
+        await persistHeaderFile({ ownerUserId, template, headerFile: header.headerFile });
+      }
+      await pivot.update({ slotMappings: mappings });
+    } else {
+      const meta = await createOnMeta({
+        wabaId: template.wabaId,
+        token,
+        slot: numericSlot,
+        components,
+        language: template.language,
+        category: template.category,
+      });
+      const clone = await WhatsappMessageTemplate.create({
+        ownerUserId,
+        wabaId: template.wabaId,
+        metaTemplateId: meta.metaTemplateId,
+        name: meta.name,
+        language: template.language || TEMPLATE_LANGUAGE,
+        category: template.category || TEMPLATE_CATEGORY,
+        ...localTemplateFields({
+          headerType: normalizedHeaderType,
+          header,
+          components,
+        }),
+        isWabaDefault: false,
+        clonedFromId: template.id,
+      });
+      if (header.headerFile) {
+        await persistHeaderFile({ ownerUserId, template: clone, headerFile: header.headerFile });
+      }
+      await pivot.update({
+        whatsappMessageTemplateId: clone.id,
+        slotMappings: mappings,
+      });
+      template = clone;
+    }
+  }
+
+  if (isCampaign === true) {
+    await setCampaignSlot({ eventId, slot: numericSlot });
+  }
+  return template;
 }
