@@ -128,7 +128,7 @@ describe("templates.service opening constructor", () => {
       },
       footer: { text: "Gracias" },
     });
-    const { mod } = await loadWithMocks("src/services/templates.service.js", {
+    const { mod, models } = await loadWithMocks("src/services/templates.service.js", {
       extraMocks: {
         "src/services/meta.client.js": () => ({
           metaClient: { getMessageTemplate },
@@ -144,18 +144,73 @@ describe("templates.service opening constructor", () => {
         }),
       },
     });
+    models.EventWhatsappTemplate.findOne.mockResolvedValue({
+      isCampaign: true,
+      template: { name: "alanna_pc_campaign_2" },
+    });
     const parts = await mod.resolveOpeningParts(
       {
         bodyVars: ["{{nombre}}", "el equipo de {{evento}}"],
         greetingVar: "nombre",
         body: "viejo",
+        attachDocument: true,
       },
       fakeEvent(),
       fakeGuest(),
       "Ana",
     );
+    expect(models.EventWhatsappTemplate.findOne).toHaveBeenCalledWith({
+      where: { eventId: "evt_1", isCampaign: true },
+      include: [{ model: models.WhatsappMessageTemplate, as: "template", required: true }],
+    });
+    expect(getMessageTemplate).toHaveBeenCalledWith({
+      accessToken: "tok",
+      wabaId: "waba_1",
+      templateName: "alanna_pc_campaign_2",
+    });
+    expect(getMessageTemplate.mock.calls[0][0]).not.toHaveProperty("document");
+    expect(getMessageTemplate.mock.calls[0][0].templateName).toBeTruthy();
     expect(parts.params).toEqual(["Luis", "el equipo de Boda Ana"]);
     expect(parts.text).toBe("Hola Luis, te escribimos de el equipo de Boda Ana.\nGracias");
+  });
+
+  test("resolveOpeningParts no llama Graph sin templateName de campaña", async () => {
+    getMessageTemplate.mockResolvedValue({
+      body: {
+        text: "Hola {{1}}, te escribimos de {{2}}.",
+        parameters: [{ key: "1" }, { key: "2" }],
+      },
+    });
+    const { mod, models } = await loadWithMocks("src/services/templates.service.js", {
+      extraMocks: {
+        "src/services/meta.client.js": () => ({
+          metaClient: { getMessageTemplate },
+          fillMetaTemplate: (bodyText, values = []) =>
+            String(bodyText || "")
+              .replace("{{1}}", values[0] ?? "")
+              .replace("{{2}}", values[1] ?? ""),
+        }),
+        "src/services/whatsapp-meta.service.js": () => ({
+          resolveActiveWhatsappMetaByOwner: jest.fn(async () => ({
+            credentials: { accessToken: "tok", wabaId: "waba_1" },
+          })),
+        }),
+      },
+    });
+    models.EventWhatsappTemplate.findOne.mockResolvedValue(null);
+    const parts = await mod.resolveOpeningParts(
+      {
+        bodyVars: ["{{nombre}}", "copy"],
+        greetingVar: "nombre",
+        body: "viejo",
+        attachDocument: true,
+      },
+      fakeEvent(),
+      fakeGuest(),
+      "Ana",
+    );
+    expect(getMessageTemplate).not.toHaveBeenCalled();
+    expect(parts.text).toBe("¡Hola, buen día! Luis\nNos comunicamos de copy\nMuchas gracias.");
   });
 
   test("resolveOpeningText usa Primer contacto guardado", async () => {

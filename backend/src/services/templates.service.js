@@ -1,4 +1,4 @@
-import { Template } from "../models/index.js";
+import { EventWhatsappTemplate, Template, WhatsappMessageTemplate } from "../models/index.js";
 import { applyTemplate, eventGuestVars, flattenTemplateLine, normalizeGreetingVar } from "../utils/defaults.js";
 import { fillMetaTemplate, metaClient } from "./meta.client.js";
 import { resolveActiveWhatsappMetaByOwner } from "./whatsapp-meta.service.js";
@@ -86,14 +86,23 @@ function composeFromMetaTemplate(metaTemplate, params) {
   return text;
 }
 
-async function loadOpeningMetaTemplate(event, tpl) {
-  const ownerId = event?.ownerId;
-  if (!ownerId) return null;
+async function loadOpeningMetaTemplate(event) {
+  const eventId = String(event?.id || "").trim();
+  const ownerId = String(event?.ownerId || "").trim();
+  if (!eventId || !ownerId) return null;
+
+  const link = await EventWhatsappTemplate.findOne({
+    where: { eventId, isCampaign: true },
+    include: [{ model: WhatsappMessageTemplate, as: "template", required: true }],
+  });
+  const templateName = String(link?.template?.name || "").trim();
+  if (!templateName) return null;
+
   const { credentials } = await resolveActiveWhatsappMetaByOwner(ownerId);
   return metaClient.getMessageTemplate({
     accessToken: credentials.accessToken,
     wabaId: credentials.wabaId,
-    document: Boolean(tpl?.attachDocument),
+    templateName,
   });
 }
 
@@ -107,7 +116,7 @@ export async function resolveOpeningParts(tpl, event, guest, plannerName = "", o
 
   let text = composeConstructorMessage(param1, param2);
   try {
-    const metaTemplate = await loadOpeningMetaTemplate(event, tpl);
+    const metaTemplate = await loadOpeningMetaTemplate(event);
     const composed = composeFromMetaTemplate(metaTemplate, params);
     if (composed) text = composed;
   } catch {
