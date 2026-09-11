@@ -3,6 +3,7 @@ import { callHandler, createMockReq, loadWithMocks } from "../helpers/controller
 
 describe("whatsapp-meta.controller", () => {
   let controller;
+  let models;
   let sendTextWithRetry;
   let sendTemplateWithRetry;
   let getMessageTemplate;
@@ -13,7 +14,6 @@ describe("whatsapp-meta.controller", () => {
   const envState = {
     nodeEnv: "development",
     meta: {
-      templateName: "constructor",
       templateLanguage: "es_MX",
     },
   };
@@ -25,7 +25,6 @@ describe("whatsapp-meta.controller", () => {
 
   beforeEach(async () => {
     envState.nodeEnv = "development";
-    envState.meta.templateName = "constructor";
     sendTextWithRetry = jest.fn(async () => ({ messages: [{ id: "wamid.text" }] }));
     sendTemplateWithRetry = jest.fn(async () => ({ messages: [{ id: "wamid.tpl" }] }));
     getMessageTemplate = jest.fn(async () => ({
@@ -63,7 +62,7 @@ describe("whatsapp-meta.controller", () => {
       },
     }));
 
-    ({ mod: controller } = await loadWithMocks("src/controllers/whatsapp-meta.controller.js", {
+    ({ mod: controller, models } = await loadWithMocks("src/controllers/whatsapp-meta.controller.js", {
       extraMocks: {
         "src/config/env.js": () => ({ env: envState }),
         "src/services/meta.client.js": () => ({
@@ -85,6 +84,8 @@ describe("whatsapp-meta.controller", () => {
         }),
       },
     }));
+    models.WhatsappMessageTemplate.count.mockResolvedValue(1);
+    models.WhatsappMessageTemplate.findOne.mockResolvedValue({ name: "alanna_pc_default_1" });
   });
 
   test("status incluye webhookUrl en development y datos del owner", async () => {
@@ -102,10 +103,28 @@ describe("whatsapp-meta.controller", () => {
       phoneNumberId: "10987654321",
       displayPhoneNumber: "5512345678",
       hasTemplate: true,
-      templateName: "constructor",
+      templateName: "alanna_pc_default_1",
       templateLanguage: "es_MX",
       webhookUrl: "http://localhost:4000/api/webhooks/meta",
     });
+    expect(models.WhatsappMessageTemplate.count).toHaveBeenCalledWith({
+      where: { ownerUserId: "usr_test_1" },
+    });
+    expect(models.WhatsappMessageTemplate.findOne).toHaveBeenCalledWith({
+      where: { ownerUserId: "usr_test_1", isWabaDefault: true },
+      order: [["createdAt", "ASC"]],
+    });
+  });
+
+  test("status informa que no hay plantilla cuando el owner no tiene filas", async () => {
+    models.WhatsappMessageTemplate.count.mockResolvedValue(0);
+    models.WhatsappMessageTemplate.findOne.mockResolvedValue(null);
+    const { res } = await callHandler(controller.getWhatsappMetaStatus, {
+      req: createMockReq(),
+    });
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ hasTemplate: false, templateName: null }),
+    );
   });
 
   test("status oculta webhookUrl en production", async () => {

@@ -18,6 +18,7 @@ import * as integrations from "../controllers/integrations.controller.js";
 // import * as whatsappConnect from "../controllers/whatsapp-connect.controller.js";
 import * as whatsappMeta from "../controllers/whatsapp-meta.controller.js";
 import * as metaWhatsapp from "../controllers/meta-whatsapp.controller.js";
+import * as whatsappTemplates from "../controllers/whatsapp-templates.controller.js";
 import * as botDev from "../controllers/bot-dev.controller.js";
 import { requireAdmin } from "../middleware/admin.js";
 import { env } from "../config/env.js";
@@ -85,12 +86,33 @@ router.post("/internal/whatsapp/send-test", whatsappMeta.postWhatsappMetaSendTes
 router.get("/integrations/whatsapp/meta/config", metaWhatsapp.getMetaSignupConfig);
 router.post("/integrations/whatsapp/meta/signup", metaWhatsapp.postMetaEmbeddedSignup);
 router.post("/integrations/whatsapp/meta/disconnect", metaWhatsapp.postMetaDisconnect);
+router.post(
+  "/integrations/whatsapp/meta/templates",
+  upload.fields([
+    { name: "header_1", maxCount: 1 },
+    { name: "header_2", maxCount: 1 },
+  ]),
+  whatsappTemplates.postWizardTemplates,
+);
 
 router.get("/events", events.listEvents);
 router.post("/events", events.createEvent);
 router.get("/events/:eventId", events.getEvent);
 router.patch("/events/:eventId", events.updateEvent);
 router.delete("/events/:eventId", events.deleteEvent);
+router.get(
+  "/events/:eventId/whatsapp-templates",
+  whatsappTemplates.getEventWhatsappTemplates,
+);
+router.put(
+  "/events/:eventId/whatsapp-templates/:slot",
+  upload.fields([{ name: "header", maxCount: 1 }]),
+  whatsappTemplates.putEventWhatsappTemplate,
+);
+router.patch(
+  "/events/:eventId/whatsapp-templates/:slot",
+  whatsappTemplates.patchEventWhatsappTemplate,
+);
 
 router.get("/events/:eventId/guests", events.listGuests);
 router.post("/events/:eventId/guests", guests.createGuest);

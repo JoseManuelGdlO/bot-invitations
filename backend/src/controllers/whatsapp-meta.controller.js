@@ -1,4 +1,5 @@
 import { env } from "../config/env.js";
+import { WhatsappMessageTemplate } from "../models/index.js";
 import { asyncHandler } from "../utils/async.js";
 import { httpError } from "../utils/http-error.js";
 import { Logger } from "../utils/logger.js";
@@ -35,19 +36,25 @@ function metaWebhookUrl(req) {
   return `${proto}://${host}/api/webhooks/meta`;
 }
 
-function templateStatus() {
-  const templateName = String(env.meta?.templateName || "").trim();
+async function templateStatus(ownerUserId) {
+  const [count, defaultTemplate] = await Promise.all([
+    WhatsappMessageTemplate.count({ where: { ownerUserId } }),
+    WhatsappMessageTemplate.findOne({
+      where: { ownerUserId, isWabaDefault: true },
+      order: [["createdAt", "ASC"]],
+    }),
+  ]);
   const templateLanguage = String(env.meta?.templateLanguage || "es_MX").trim();
   return {
-    hasTemplate: Boolean(templateName),
-    templateName: templateName || null,
+    hasTemplate: count > 0,
+    templateName: defaultTemplate?.name || null,
     templateLanguage: templateLanguage || "es_MX",
   };
 }
 
 export const getWhatsappMetaStatus = asyncHandler(async (req, res) => {
   const owner = await findWhatsappMetaStatusByOwner(req.user.id);
-  const template = templateStatus();
+  const template = await templateStatus(req.user.id);
   res.json({
     provider: "meta-cloud",
     configured: owner.configured,
@@ -65,7 +72,7 @@ export const postWhatsappMetaCredentials = asyncHandler(async (req, res) => {
     ownerUserId: req.user.id,
     ...parsed,
   });
-  const template = templateStatus();
+  const template = await templateStatus(req.user.id);
   log.info("credentials upsert", { ownerUserId: req.user.id, phoneNumberId: integration.phoneNumberId });
   res.status(201).json({
     ok: true,
