@@ -13,6 +13,8 @@ import { ProgressRing } from "@/components/progress-ring";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { LaunchCampaignDialog } from "@/components/launch-campaign-dialog";
+import { integrationsApi } from "@/lib/api/integrations";
+import { campaignTemplateStatus as campaignStatusFromList } from "@/lib/whatsapp-templates";
 import { statsFor, useEvent, useStore } from "@/lib/mock/store";
 import { daysUntil, formatShortDate } from "@/lib/mock/format";
 import { cn } from "@/lib/utils";
@@ -65,10 +67,29 @@ function Resumen() {
   const [modalOpen, setModalOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [launchError, setLaunchError] = useState("");
+  const [campaignTemplateStatus, setCampaignTemplateStatus] = useState<
+    string | null
+  >(null);
 
   useEffect(() => {
     setCampaign(event?.campaign ?? IDLE_CAMPAIGN);
   }, [event?.campaign]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void integrationsApi
+      .listEventWhatsappTemplates(eventId)
+      .then((data) => {
+        if (cancelled) return;
+        setCampaignTemplateStatus(campaignStatusFromList(data.templates || []));
+      })
+      .catch(() => {
+        if (!cancelled) setCampaignTemplateStatus(null);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [eventId]);
 
   useEffect(() => {
     if (!["running", "scheduled"].includes(campaign.status)) return;
@@ -232,6 +253,7 @@ function Resumen() {
                     {...(event?.date ? { eventDate: event.date } : {})}
                     submitting={submitting}
                     error={launchError}
+                    campaignTemplateStatus={campaignTemplateStatus}
                     onConfirm={async (payload) => {
                       setSubmitting(true);
                       setLaunchError("");

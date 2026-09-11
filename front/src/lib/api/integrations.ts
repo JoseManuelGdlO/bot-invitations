@@ -178,4 +178,18 @@ export const integrationsApi = {
       "/integrations/whatsapp/meta/templates",
       { method: "POST", body: form },
     ),
+  listEventWhatsappTemplates: (eventId: string) =>
+    api<{ templates: EventWhatsappTemplateDto[] }>(
+      `/events/${eventId}/whatsapp-templates`,
+    ),
+  putEventWhatsappTemplate: (eventId: string, slot: number, form: FormData) =>
+    api<{ template: EventWhatsappTemplateDto }>(
+      `/events/${eventId}/whatsapp-templates/${slot}`,
+      { method: "PUT", body: form },
+    ),
+  patchEventWhatsappCampaign: (eventId: string, slot: number) =>
+    api<{ ok: boolean }>(`/events/${eventId}/whatsapp-templates/${slot}`, {
+      method: "PATCH",
+      body: JSON.stringify({ isCampaign: true }),
+    }),
 };

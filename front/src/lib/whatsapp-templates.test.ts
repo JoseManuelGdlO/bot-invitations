@@ -1,10 +1,17 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  buildEventTemplateFormData,
   buildWizardFormData,
+  campaignTemplateStatus,
   canSubmitWizard,
+  extraPlaceholderIds,
+  extraSlotOptionLabel,
+  extraSlotOptions,
   extractBodyPlaceholders,
+  isEventTemplateCardReady,
   isWizardCardReady,
+  mergeEventSlotMappings,
   statusBadgeLabel,
   wizardBodyError,
   type WizardTemplateDraft,
@@ -51,6 +58,19 @@ test("statusBadgeLabel PENDING", () => {
   assert.equal(statusBadgeLabel("APPROVED"), "Aprobada");
 });
 
+test("statusBadgeLabel REJECTED", () => {
+  assert.equal(statusBadgeLabel("REJECTED"), "Rechazada");
+});
+
+test("extraSlotOptions añade la opción literal al final", () => {
+  assert.deepEqual(extraSlotOptions(["fecha", "lugar"]), [
+    "fecha",
+    "lugar",
+    "__literal__",
+  ]);
+  assert.deepEqual(extraSlotOptions([]), ["__literal__"]);
+});
+
 test("statusBadgeLabel cubre el resto de estados Meta", () => {
   assert.equal(statusBadgeLabel("DRAFT"), "Borrador");
   assert.equal(statusBadgeLabel("REJECTED"), "Rechazada");
@@ -78,10 +98,7 @@ test("isWizardCardReady exige archivo si el encabezado no es texto", () => {
 test("canSubmitWizard exige que todas las tarjetas visibles estén listas", () => {
   assert.equal(canSubmitWizard([draft({ body: "hola" })]), false);
   assert.equal(canSubmitWizard([draft()]), true);
-  assert.equal(
-    canSubmitWizard([draft(), draft({ slot: 2, body: "" })]),
-    false,
-  );
+  assert.equal(canSubmitWizard([draft(), draft({ slot: 2, body: "" })]), false);
   assert.equal(
     canSubmitWizard([draft(), draft({ slot: 2, isCampaign: false })]),
     true,
@@ -128,4 +145,114 @@ test("buildWizardFormData incluye todas las tarjetas visibles listas", () => {
   assert.equal(payload.templates.length, 2);
   assert.equal(payload.templates[0].slot, 1);
   assert.equal(payload.templates[1].slot, 2);
+});
+
+test("extraPlaceholderIds ignora {{1}} y {{2}}", () => {
+  assert.deepEqual(
+    extraPlaceholderIds("Hola {{1}}, pases {{2}} extra {{3}} y {{4}}"),
+    ["3", "4"],
+  );
+  assert.deepEqual(extraPlaceholderIds("Hola {{1}}, pases {{2}}"), []);
+});
+
+test("extraSlotOptionLabel muestra texto fijo", () => {
+  assert.equal(extraSlotOptionLabel("__literal__"), "Texto fijo");
+  assert.equal(extraSlotOptionLabel("fecha"), "fecha");
+});
+
+test("mergeEventSlotMappings bloquea 1 y 2 y conserva extras", () => {
+  const mappings = mergeEventSlotMappings("Hola {{1}}, pases {{2}} el {{3}}", {
+    "1": { type: "field", key: "evento" },
+    "3": { type: "field", key: "fecha" },
+  });
+  assert.deepEqual(mappings["1"], { type: "field", key: "nombre" });
+  assert.deepEqual(mappings["2"], { type: "field", key: "numero_invitados" });
+  assert.deepEqual(mappings["3"], { type: "field", key: "fecha" });
+});
+
+test("isEventTemplateCardReady exige mapeo de extras y archivo si aplica", () => {
+  const body = "Hola {{1}}, pases {{2}} el {{3}}";
+  assert.equal(
+    isEventTemplateCardReady({
+      body,
+      headerType: "none",
+      slotMappings: mergeEventSlotMappings(body, {}),
+    }),
+    false,
+  );
+  assert.equal(
+    isEventTemplateCardReady({
+      body,
+      headerType: "none",
+      slotMappings: mergeEventSlotMappings(body, {
+        "3": { type: "field", key: "fecha" },
+      }),
+    }),
+    true,
+  );
+  assert.equal(
+    isEventTemplateCardReady({
+      body: "Hola {{1}}, pases {{2}}",
+      headerType: "document",
+      headerFile: null,
+      headerFileName: null,
+      slotMappings: mergeEventSlotMappings("Hola {{1}}, pases {{2}}", {}),
+    }),
+    false,
+  );
+  assert.equal(
+    isEventTemplateCardReady({
+      body: "Hola {{1}}, pases {{2}}",
+      headerType: "document",
+      headerFileName: "invitacion.pdf",
+      slotMappings: mergeEventSlotMappings("Hola {{1}}, pases {{2}}", {}),
+    }),
+    true,
+  );
+});
+
+test("buildEventTemplateFormData manda payload JSON y header", () => {
+  const file = new File(["pdf"], "invitacion.pdf", { type: "application/pdf" });
+  const form = buildEventTemplateFormData({
+    body: "Hola {{1}}, pases {{2}} el {{3}}",
+    headerType: "document",
+    isCampaign: true,
+    slotMappings: {
+      "1": { type: "field", key: "nombre" },
+      "2": { type: "field", key: "numero_invitados" },
+      "3": { type: "literal", value: "sábado" },
+    },
+    headerFile: file,
+  });
+  assert.equal(
+    form.get("payload"),
+    JSON.stringify({
+      body: "Hola {{1}}, pases {{2}} el {{3}}",
+      headerType: "document",
+      slotMappings: {
+        "1": { type: "field", key: "nombre" },
+        "2": { type: "field", key: "numero_invitados" },
+        "3": { type: "literal", value: "sábado" },
+      },
+      isCampaign: true,
+    }),
+  );
+  assert.equal(form.get("header"), file);
+});
+
+test("campaignTemplateStatus usa la fila isCampaign", () => {
+  assert.equal(
+    campaignTemplateStatus([
+      {
+        isCampaign: false,
+        template: { status: "APPROVED" },
+      },
+      {
+        isCampaign: true,
+        template: { status: "PENDING" },
+      },
+    ]),
+    "PENDING",
+  );
+  assert.equal(campaignTemplateStatus([]), null);
 });

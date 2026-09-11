@@ -1,28 +1,32 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useEffect, useRef, useState } from "react";
-import { Copy, FileUp, Plus } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Copy, Plus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Switch } from "@/components/ui/switch";
+import { RadioGroup } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { MetaTemplateEditor } from "@/components/meta-template-editor";
 import { TemplateBodyEditor } from "@/components/template-body-editor";
 import { TemplatePreview } from "@/components/template-preview";
+import {
+  WhatsappTemplateCard,
+  type EventTemplateCardDraft,
+} from "@/components/whatsapp-template-card";
 import { useEvent, useStore } from "@/lib/mock/store";
 import type { EventItem, Guest, Template } from "@/lib/mock/types";
-import {
-  availableTemplateKeys,
-  fillMetaBody,
-  openingSlotsFromSaved,
-} from "@/lib/template-vars";
+import { availableTemplateKeys } from "@/lib/template-vars";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api/client";
 import {
   integrationsApi,
-  type WhatsAppMetaTemplateDto,
+  type EventWhatsappTemplateDto,
 } from "@/lib/api/integrations";
+import {
+  buildEventTemplateFormData,
+  mergeEventSlotMappings,
+  type WizardHeaderType,
+} from "@/lib/whatsapp-templates";
 
 export const Route = createFileRoute("/eventos/$eventId/mensajes")({
   head: () => ({
@@ -46,11 +50,7 @@ export const Route = createFileRoute("/eventos/$eventId/mensajes")({
   component: Mensajes,
 });
 
-const categories = [
-  {
-    id: "Primer contacto",
-    hint: "Campaña inicial de WhatsApp. El texto fijo sale de la plantilla de Meta; tú rellenas las variables.",
-  },
+const localCategories = [
   {
     id: "Recordatorio",
     hint: "Recordatorio automático. El envío masivo está desactivado; el texto queda listo por si se reactiva.",
@@ -61,145 +61,238 @@ const categories = [
   },
 ] as const;
 
-const OPENING_DOC_MAX_BYTES = 10 * 1024 * 1024;
-const OPENING_DOC_ACCEPT =
-  ".pdf,.doc,.docx,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+const PRIMER_CONTACTO_HINT =
+  "Campaña inicial de WhatsApp. Editas el cuerpo de cada plantilla de Meta y eliges cuál usar en el envío masivo.";
 
-function formatFileSize(bytes: number) {
-  if (!bytes) return "";
-  if (bytes < 1024) return `${bytes} B`;
-  if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
-  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+function headerTypeOf(value: string | null | undefined): WizardHeaderType {
+  return value === "document" || value === "image" ? value : "none";
 }
 
-function isOpeningDocumentFile(file: File) {
-  const byExt = /\.(pdf|docx?)$/i.test(file.name);
-  const byMime =
-    !file.type ||
-    file.type === "application/pdf" ||
-    file.type === "application/msword" ||
-    file.type ===
-      "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
-  return byExt && byMime;
+function blankEventTemplateDraft(
+  slot: 1 | 2,
+  isCampaign: boolean,
+): EventTemplateCardDraft {
+  return {
+    slot,
+    body: "",
+    headerType: "none",
+    headerFile: null,
+    headerFileName: null,
+    savedHeaderType: "none",
+    savedHeaderFileName: null,
+    isCampaign,
+    status: "DRAFT",
+    rejectedReason: null,
+    slotMappings: mergeEventSlotMappings("", {}),
+    persisted: false,
+  };
 }
 
-function OpeningDocumentAttach({
+function dtoToEventTemplateDraft(
+  dto: EventWhatsappTemplateDto,
+): EventTemplateCardDraft {
+  const headerType = headerTypeOf(dto.template.headerType);
+  const slot: 1 | 2 = dto.slot === 2 ? 2 : 1;
+  return {
+    slot,
+    body: dto.template.body || "",
+    headerType,
+    headerFile: null,
+    headerFileName: dto.template.headerFileName,
+    savedHeaderType: headerType,
+    savedHeaderFileName: dto.template.headerFileName,
+    isCampaign: dto.isCampaign,
+    status: dto.template.status,
+    rejectedReason: dto.template.rejectedReason,
+    slotMappings: mergeEventSlotMappings(
+      dto.template.body || "",
+      dto.slotMappings || {},
+    ),
+    persisted: true,
+  };
+}
+
+function draftsFromTemplates(templates: EventWhatsappTemplateDto[]) {
+  const slot1 = templates.find((item) => item.slot === 1);
+  const slot2 = templates.find((item) => item.slot === 2);
+  const first = slot1
+    ? dtoToEventTemplateDraft(slot1)
+    : blankEventTemplateDraft(1, slot2 ? !slot2.isCampaign : true);
+  if (!slot2) return { drafts: [first], showSecond: false };
+  return {
+    drafts: [first, dtoToEventTemplateDraft(slot2)],
+    showSecond: true,
+  };
+}
+
+function PrimerContactoTemplates({
   eventId,
-  template,
-  templates,
-  setTemplates,
+  guests,
+  event,
 }: {
   eventId: string;
-  template: Template;
-  templates: Template[];
-  setTemplates: (eventId: string, t: Template[]) => void;
+  guests: Guest[];
+  event: EventItem | undefined;
 }) {
-  const { uploadOpeningDocument } = useStore();
-  const inputRef = useRef<HTMLInputElement>(null);
-  const [uploading, setUploading] = useState(false);
-  const attached = Boolean(template.attachDocument);
-  const current = template.document;
+  const extraKeys = availableTemplateKeys(guests, event);
+  const [drafts, setDrafts] = useState<EventTemplateCardDraft[]>([
+    blankEventTemplateDraft(1, true),
+  ]);
+  const [showSecond, setShowSecond] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [savingSlot, setSavingSlot] = useState<1 | 2 | null>(null);
 
-  const persistAttach = (checked: boolean) => {
-    setTemplates(
-      eventId,
-      templates.map((x) =>
-        x.id === template.id ? { ...x, attachDocument: checked } : x,
+  const visibleDrafts = showSecond ? drafts.slice(0, 2) : drafts.slice(0, 1);
+  const campaignSlot = String(
+    visibleDrafts.find((draft) => draft.isCampaign)?.slot ??
+      visibleDrafts[0]?.slot ??
+      1,
+  );
+
+  const updateDraft = (slot: 1 | 2, patch: Partial<EventTemplateCardDraft>) => {
+    setDrafts((prev) =>
+      prev.map((draft) =>
+        draft.slot === slot ? { ...draft, ...patch } : draft,
       ),
     );
   };
 
-  const onPick = async (file: File | undefined) => {
-    if (!file) return;
-    if (!isOpeningDocumentFile(file)) {
-      toast.error("El documento debe ser PDF o Word (doc, docx).");
-      return;
-    }
-    if (file.size > OPENING_DOC_MAX_BYTES) {
-      toast.error("El archivo no puede superar 10 MB.");
-      return;
-    }
-    setUploading(true);
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    setError("");
+    void integrationsApi
+      .listEventWhatsappTemplates(eventId)
+      .then((data) => {
+        if (cancelled) return;
+        const next = draftsFromTemplates(data.templates || []);
+        setDrafts(next.drafts);
+        setShowSecond(next.showSecond);
+      })
+      .catch((err) => {
+        if (cancelled) return;
+        setError(
+          err instanceof ApiError
+            ? err.message
+            : "No se pudieron cargar las plantillas de Meta.",
+        );
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [eventId]);
+
+  const saveDraft = async (draft: EventTemplateCardDraft) => {
+    if (savingSlot) return;
+    setSavingSlot(draft.slot);
     try {
-      await uploadOpeningDocument(eventId, file);
-      toast.success(current ? "Documento reemplazado" : "Documento adjunto");
+      const { template } = await integrationsApi.putEventWhatsappTemplate(
+        eventId,
+        draft.slot,
+        buildEventTemplateFormData({
+          body: draft.body,
+          headerType: draft.headerType,
+          slotMappings: draft.slotMappings,
+          isCampaign: draft.isCampaign,
+          headerFile: draft.headerFile,
+        }),
+      );
+      const next = dtoToEventTemplateDraft(template);
+      setDrafts((prev) => {
+        const others = prev.filter((item) => item.slot !== next.slot);
+        const merged = [...others, next].sort((a, b) => a.slot - b.slot);
+        if (!next.isCampaign) return merged;
+        return merged.map((item) => ({
+          ...item,
+          isCampaign: item.slot === next.slot,
+        }));
+      });
+      toast.success("Plantilla enviada a revisión");
     } catch (err) {
       toast.error(
-        err instanceof ApiError ? err.message : "No se pudo subir el documento",
+        err instanceof ApiError
+          ? err.message
+          : "No se pudo enviar la plantilla a revisión",
       );
     } finally {
-      setUploading(false);
-      if (inputRef.current) inputRef.current.value = "";
+      setSavingSlot(null);
+    }
+  };
+
+  const selectCampaign = async (value: string) => {
+    const slot: 1 | 2 = Number(value) === 2 ? 2 : 1;
+    const previous = drafts;
+    setDrafts((prev) =>
+      prev.map((draft) => ({ ...draft, isCampaign: draft.slot === slot })),
+    );
+    const target = drafts.find((draft) => draft.slot === slot);
+    if (!target?.persisted) return;
+    try {
+      await integrationsApi.patchEventWhatsappCampaign(eventId, slot);
+    } catch (err) {
+      setDrafts(previous);
+      toast.error(
+        err instanceof ApiError
+          ? err.message
+          : "No se pudo marcar la plantilla de campaña",
+      );
     }
   };
 
   return (
-    <div className="mt-4 space-y-3 rounded-xl border border-border bg-secondary/40 p-4">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <Label htmlFor="attach-document" className="font-medium">
-            Adjuntar documento
-          </Label>
-          <p className="mt-0.5 text-xs text-muted-foreground">
-            Si está activo, la invitación inicial usa la plantilla de Meta con
-            PDF o Word.
-          </p>
-        </div>
-        <Switch
-          id="attach-document"
-          checked={attached}
-          onCheckedChange={persistAttach}
-        />
-      </div>
-      {attached ? (
-        <div className="space-y-2">
-          <input
-            ref={inputRef}
-            type="file"
-            accept={OPENING_DOC_ACCEPT}
-            className="sr-only"
-            onChange={(e) => void onPick(e.target.files?.[0])}
-          />
-          {current ? (
-            <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-border bg-card px-3 py-2 text-sm">
-              <p className="min-w-0 truncate">
-                {current.fileName}
-                {current.size ? (
-                  <span className="ml-2 text-muted-foreground">
-                    {formatFileSize(current.size)}
-                  </span>
-                ) : null}
-              </p>
-              <Button
-                type="button"
-                size="sm"
-                variant="outline"
-                disabled={uploading}
-                onClick={() => inputRef.current?.click()}
-              >
-                {uploading ? "Subiendo…" : "Reemplazar"}
-              </Button>
-            </div>
-          ) : (
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full"
-              disabled={uploading}
-              onClick={() => inputRef.current?.click()}
-            >
-              <FileUp className="size-4" />
-              {uploading ? "Subiendo…" : "Adjuntar documento"}
-            </Button>
-          )}
-          {!current ? (
-            <p className="text-xs text-destructive">
-              Sin documento la plantilla con adjunto fallará al enviar.
-            </p>
-          ) : null}
-        </div>
+    <section>
+      <h2 className="font-display text-2xl">Primer contacto</h2>
+      <p className="mt-1 text-sm text-muted-foreground">
+        {PRIMER_CONTACTO_HINT}
+      </p>
+      {loading ? (
+        <p className="mt-3 text-sm text-muted-foreground">
+          Cargando plantillas de Meta…
+        </p>
       ) : null}
-    </div>
+      {error ? <p className="mt-3 text-sm text-destructive">{error}</p> : null}
+      {!loading ? (
+        <RadioGroup
+          value={campaignSlot}
+          onValueChange={(value) => void selectCampaign(value)}
+          className="mt-3 grid gap-4 md:grid-cols-2"
+        >
+          {visibleDrafts.map((draft) => (
+            <WhatsappTemplateCard
+              key={draft.slot}
+              draft={draft}
+              extraKeys={extraKeys}
+              submitting={savingSlot === draft.slot}
+              onChange={(patch) => updateDraft(draft.slot, patch)}
+              onSave={() => void saveDraft(draft)}
+            />
+          ))}
+          {!showSecond ? (
+            <button
+              type="button"
+              className="flex min-h-48 flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-border bg-card p-5 text-sm font-medium text-muted-foreground shadow-soft hover:border-primary hover:text-foreground"
+              onClick={() => {
+                setDrafts((prev) => {
+                  const withoutSecond = prev.filter((item) => item.slot !== 2);
+                  return [
+                    ...withoutSecond,
+                    blankEventTemplateDraft(2, false),
+                  ].sort((a, b) => a.slot - b.slot);
+                });
+                setShowSecond(true);
+              }}
+            >
+              <Plus className="size-5" />
+              Crear segunda plantilla
+            </button>
+          ) : null}
+        </RadioGroup>
+      ) : null}
+    </section>
   );
 }
 
@@ -224,75 +317,13 @@ function TemplateCategory({
   plannerName: string;
   setTemplates: (eventId: string, t: Template[]) => void;
 }) {
-  const isConstructor = category === "Primer contacto";
   const [draft, setDraft] = useState(template?.body ?? "");
-  const [draftSlots, setDraftSlots] = useState(() =>
-    openingSlotsFromSaved(template, 2),
-  );
-  const [metaTemplate, setMetaTemplate] = useState<WhatsAppMetaTemplateDto | null>(
-    null,
-  );
-  const [metaLoading, setMetaLoading] = useState(isConstructor);
-  const [metaError, setMetaError] = useState("");
 
   useEffect(() => {
     setDraft(template?.body ?? "");
   }, [template?.id, template?.body]);
 
-  useEffect(() => {
-    if (!isConstructor) return;
-    const paramCount = metaTemplate?.body?.parameters?.length || 2;
-    setDraftSlots(openingSlotsFromSaved(template, paramCount));
-  }, [
-    isConstructor,
-    template?.id,
-    template?.body,
-    template?.greetingVar,
-    template?.bodyVars,
-    metaTemplate?.body?.parameters?.length,
-  ]);
-
-  useEffect(() => {
-    if (!isConstructor) return;
-    let cancelled = false;
-    setMetaLoading(true);
-    setMetaError("");
-    void integrationsApi
-      .getWhatsAppTemplate(Boolean(template?.attachDocument))
-      .then((data) => {
-        if (cancelled) return;
-        setMetaTemplate(data);
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        setMetaTemplate(null);
-        setMetaError(
-          err instanceof ApiError
-            ? err.message
-            : "No se pudo cargar la plantilla de Meta.",
-        );
-      })
-      .finally(() => {
-        if (!cancelled) setMetaLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [isConstructor, template?.attachDocument]);
-
   const variables = availableTemplateKeys(guests, event);
-  const fallbackMetaBody =
-    "¡Hola, buen día! {{1}}\nNos comunicamos de {{2}}\nMuchas gracias.";
-  const metaBodyText = metaTemplate?.body?.text || fallbackMetaBody;
-  const previewBody = isConstructor
-    ? (() => {
-        const keys = metaTemplate?.body?.parameters?.map((p) => p.key);
-        const filled = fillMetaBody(metaBodyText, draftSlots, keys);
-        const footer = metaTemplate?.footer?.text;
-        return footer ? `${filled}\n${footer}` : filled;
-      })()
-    : draft;
-  const copyText = previewBody;
 
   return (
     <section>
@@ -306,7 +337,7 @@ function TemplateCategory({
               <button
                 type="button"
                 onClick={() => {
-                  void navigator.clipboard.writeText(copyText);
+                  void navigator.clipboard.writeText(draft);
                   toast.success("Plantilla copiada");
                 }}
                 className="rounded-md p-1.5 text-muted-foreground hover:bg-secondary"
@@ -314,67 +345,23 @@ function TemplateCategory({
                 <Copy className="size-4" />
               </button>
             </div>
-            {isConstructor ? (
-              <>
-                {metaLoading ? (
-                  <p className="mb-3 text-sm text-muted-foreground">
-                    Cargando plantilla de Meta…
-                  </p>
-                ) : null}
-                {metaError ? (
-                  <p className="mb-3 text-sm text-destructive">{metaError}</p>
-                ) : null}
-                <MetaTemplateEditor
-                  bodyText={metaBodyText}
-                  footerText={metaTemplate?.footer?.text ?? null}
-                  values={draftSlots}
-                  variables={variables}
-                  disabled={metaLoading}
-                  onChange={setDraftSlots}
-                  onSave={(slots) => {
-                    setDraftSlots(slots);
-                    setDraft(slots[1] ?? "");
-                    setTemplates(
-                      eventId,
-                      templates.map((x) =>
-                        x.id === template.id
-                          ? {
-                              ...x,
-                              body: slots[1] ?? x.body,
-                              bodyVars: slots,
-                            }
-                          : x,
-                      ),
-                    );
-                    toast.success("Plantilla guardada");
-                  }}
-                />
-                <OpeningDocumentAttach
-                  eventId={eventId}
-                  template={template}
-                  templates={templates}
-                  setTemplates={setTemplates}
-                />
-              </>
-            ) : (
-              <TemplateBodyEditor
-                value={template.body}
-                onChange={setDraft}
-                variables={variables}
-                onSave={(body) => {
-                  setTemplates(
-                    eventId,
-                    templates.map((x) =>
-                      x.id === template.id ? { ...x, body } : x,
-                    ),
-                  );
-                  toast.success("Plantilla guardada");
-                }}
-              />
-            )}
+            <TemplateBodyEditor
+              value={template.body}
+              onChange={setDraft}
+              variables={variables}
+              onSave={(body) => {
+                setTemplates(
+                  eventId,
+                  templates.map((x) =>
+                    x.id === template.id ? { ...x, body } : x,
+                  ),
+                );
+                toast.success("Plantilla guardada");
+              }}
+            />
           </div>
           <TemplatePreview
-            body={previewBody}
+            body={draft}
             guests={guests}
             event={event}
             plannerName={plannerName}
@@ -406,7 +393,12 @@ function Mensajes() {
         </TabsList>
 
         <TabsContent value="plantillas" className="mt-6 space-y-8">
-          {categories.map((cat) => (
+          <PrimerContactoTemplates
+            eventId={eventId}
+            guests={guests}
+            event={event}
+          />
+          {localCategories.map((cat) => (
             <TemplateCategory
               key={cat.id}
               eventId={eventId}

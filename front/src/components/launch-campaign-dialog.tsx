@@ -24,6 +24,7 @@ export function LaunchCampaignDialog({
   eventDate,
   submitting,
   error,
+  campaignTemplateStatus,
   onConfirm,
 }: {
   open: boolean;
@@ -32,6 +33,7 @@ export function LaunchCampaignDialog({
   eventDate?: string | undefined;
   submitting: boolean;
   error?: string;
+  campaignTemplateStatus: string | null;
   onConfirm: (payload: { mode: Mode; date?: string }) => Promise<void>;
 }) {
   const today = toInputDate();
@@ -52,6 +54,7 @@ export function LaunchCampaignDialog({
     setDate(next || toInputDate());
   }, [open, campaign.status, campaign.scheduledAt]);
 
+  const campaignApproved = campaignTemplateStatus === "APPROVED";
   const dateError =
     mode === "schedule" && date
       ? date < today
@@ -75,6 +78,9 @@ export function LaunchCampaignDialog({
           <DialogDescription>
             El primer contacto se envía a quienes todavía no han sido
             contactados. Puedes lanzarlo ahora o dejarlo programado.
+            {campaignApproved
+              ? null
+              : " Meta aún no aprueba la plantilla de campaña."}
           </DialogDescription>
         </DialogHeader>
         <RadioGroup
@@ -153,7 +159,7 @@ export function LaunchCampaignDialog({
           </Button>
           <Button
             type="button"
-            disabled={submitting || Boolean(dateError)}
+            disabled={submitting || Boolean(dateError) || !campaignApproved}
             onClick={() =>
               void onConfirm(
                 mode === "schedule" ? { mode, date } : { mode: "now" },
