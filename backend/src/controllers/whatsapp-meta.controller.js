@@ -56,14 +56,10 @@ async function templateStatus(ownerUserId) {
       ],
     }),
   ]);
-  const defaultTemplate = campaignLink?.template || await WhatsappMessageTemplate.findOne({
-    where: { ownerUserId, isWabaDefault: true },
-    order: [["createdAt", "ASC"]],
-  });
   const templateLanguage = String(env.meta?.templateLanguage || "es_MX").trim();
   return {
     hasTemplate: count > 0,
-    templateName: defaultTemplate?.name || null,
+    templateName: campaignLink?.template?.name || null,
     templateLanguage: templateLanguage || "es_MX",
   };
 }

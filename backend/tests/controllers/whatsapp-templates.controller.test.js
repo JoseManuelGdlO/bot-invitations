@@ -175,6 +175,33 @@ describe("whatsapp-templates.controller", () => {
     });
   });
 
+  test("POST wizard sin evento no expone mappings bloqueados falsificados", async () => {
+    const templates = [{
+      slot: 1,
+      headerType: "none",
+      body: "Hola {{1}}, tienes {{2}} pases.",
+      isCampaign: true,
+      slotMappings: {
+        "1": { type: "literal", value: "nombre falso" },
+        "2": { type: "field", key: "otro_campo" },
+      },
+    }];
+
+    const { res } = await callHandler(controller.postWizardTemplates, {
+      req: createMockReq({ body: { templates } }),
+    });
+
+    expect(res.json).toHaveBeenCalledWith({
+      templates: [expect.objectContaining({
+        id: null,
+        slotMappings: {
+          "1": { type: "field", key: "nombre" },
+          "2": { type: "field", key: "numero_invitados" },
+        },
+      })],
+    });
+  });
+
   test("POST wizard responde 400 sin templates", async () => {
     const { res } = await callHandler(controller.postWizardTemplates, {
       req: createMockReq({ body: {} }),

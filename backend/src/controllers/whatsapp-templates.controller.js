@@ -117,6 +117,7 @@ export const postWizardTemplates = asyncHandler(async (req, res) => {
     : rows.map((row, index) => ({
       id: null,
       ...templates[index],
+      slotMappings: defaultSlotMappings(templates[index]?.body),
       template: row,
     }));
   res.status(201).json({

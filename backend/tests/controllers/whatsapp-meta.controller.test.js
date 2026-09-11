@@ -132,19 +132,16 @@ describe("whatsapp-meta.controller", () => {
     expect(models.WhatsappMessageTemplate.findOne).not.toHaveBeenCalled();
   });
 
-  test("status usa la default más antigua si no hay campaña", async () => {
+  test("status conserva hasTemplate pero no elige una default si no hay campaña", async () => {
     models.EventWhatsappTemplate.findOne.mockResolvedValue(null);
     const { res } = await callHandler(controller.getWhatsappMetaStatus, {
       req: createMockReq(),
     });
 
     expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({ templateName: "alanna_pc_default_1" }),
+      expect.objectContaining({ hasTemplate: true, templateName: null }),
     );
-    expect(models.WhatsappMessageTemplate.findOne).toHaveBeenCalledWith({
-      where: { ownerUserId: "usr_test_1", isWabaDefault: true },
-      order: [["createdAt", "ASC"]],
-    });
+    expect(models.WhatsappMessageTemplate.findOne).not.toHaveBeenCalled();
   });
 
   test("status informa que no hay plantilla cuando el owner no tiene filas", async () => {
