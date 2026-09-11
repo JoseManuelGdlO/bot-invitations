@@ -1,5 +1,5 @@
 import { env } from "./config/env.js";
-import { sequelize, ensureEventMemberRemovedAt, ensureInboundEventDedupTable, ensureCampaignColumns, ensureTemplateGreetingVar, ensureTemplateBodyVars, ensureTemplateDocumentColumns, ensureWhatsappMetaTables, ensureMessageProviderId, ensureMessageKind, ensureGuestCustomData, ensureEventTimezone, ensureChannelIntegrationMetaColumns, ensureAiConfigToggles } from "./models/index.js";
+import { sequelize, ensureEventMemberRemovedAt, ensureInboundEventDedupTable, ensureCampaignColumns, ensureTemplateGreetingVar, ensureTemplateBodyVars, ensureTemplateDocumentColumns, ensureWhatsappMetaTables, ensureWhatsappTemplateTables, ensureMessageProviderId, ensureMessageKind, ensureGuestCustomData, ensureEventTimezone, ensureChannelIntegrationMetaColumns, ensureAiConfigToggles } from "./models/index.js";
 import { createApp } from "./app.js";
 import { startOutboundWorker } from "./services/outbound.worker.js";
 import { startFollowUpScheduler } from "./services/follow-up.scheduler.js";
@@ -12,6 +12,7 @@ try {
   await ensureEventMemberRemovedAt();
   await ensureInboundEventDedupTable();
   await ensureWhatsappMetaTables();
+  await ensureWhatsappTemplateTables();
   await ensureCampaignColumns();
   await ensureTemplateGreetingVar();
   await ensureTemplateBodyVars();

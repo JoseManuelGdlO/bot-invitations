@@ -114,8 +114,7 @@ export const env = {
     process.env.BUNDLED_OPENING_DOCS_DIR || path.join(root, "bundled-opening-docs"),
   meta: {
     webhookVerifyToken: process.env.META_WEBHOOK_VERIFY_TOKEN || "",
-    templateName: process.env.META_TEMPLATE_NAME || "",
-    templateNameDocument: process.env.META_TEMPLATE_NAME_DOCUMENT || "rg_eventos",
+    accessToken: process.env.META_ACCESS_TOKEN || process.env.META_SYSTEM_USER_TOKEN || "",
     templateLanguage: process.env.META_TEMPLATE_LANGUAGE || "es_MX",
     graphVersion: (process.env.META_GRAPH_VERSION || "v21.0").replace(/^\/*/, ""),
     timeoutMs: Number(process.env.META_TIMEOUT_MS || 8000),

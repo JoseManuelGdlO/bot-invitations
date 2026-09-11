@@ -367,6 +367,66 @@ export const WhatsappCredential = sequelize.define(
   },
 );
 
+export const WhatsappMessageTemplate = sequelize.define(
+  "whatsapp_message_templates",
+  {
+    id: uuid,
+    ownerUserId: { type: DataTypes.CHAR(36), allowNull: false },
+    wabaId: { type: DataTypes.STRING(40), allowNull: false },
+    metaTemplateId: { type: DataTypes.STRING(40), allowNull: true },
+    name: { type: DataTypes.STRING(512), allowNull: false },
+    language: { type: DataTypes.STRING(10), allowNull: false, defaultValue: "es_MX" },
+    category: { type: DataTypes.STRING(40), allowNull: false, defaultValue: "MARKETING" },
+    headerType: {
+      type: DataTypes.ENUM("none", "document", "image"),
+      allowNull: false,
+      defaultValue: "none",
+    },
+    headerMediaPath: { type: DataTypes.STRING(500), allowNull: true },
+    headerFileName: { type: DataTypes.STRING(255), allowNull: true },
+    headerMime: { type: DataTypes.STRING(120), allowNull: true },
+    headerSize: { type: DataTypes.INTEGER, allowNull: true },
+    headerHandle: { type: DataTypes.TEXT, allowNull: true },
+    components: { type: DataTypes.JSON, allowNull: false, defaultValue: [] },
+    status: {
+      type: DataTypes.ENUM("DRAFT", "PENDING", "APPROVED", "REJECTED", "PAUSED", "DISABLED"),
+      allowNull: false,
+      defaultValue: "DRAFT",
+    },
+    rejectedReason: { type: DataTypes.TEXT, allowNull: true },
+    isWabaDefault: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+    clonedFromId: { type: DataTypes.CHAR(36), allowNull: true },
+    lastStatusAt: { type: DataTypes.DATE, allowNull: true },
+  },
+  {
+    indexes: [
+      { unique: true, fields: ["wabaId", "name"] },
+      { fields: ["wabaId", "metaTemplateId"] },
+      { fields: ["ownerUserId"] },
+    ],
+  },
+);
+
+export const EventWhatsappTemplate = sequelize.define(
+  "event_whatsapp_templates",
+  {
+    id: uuid,
+    eventId: { type: DataTypes.CHAR(36), allowNull: false },
+    whatsappMessageTemplateId: { type: DataTypes.CHAR(36), allowNull: false },
+    ownerUserId: { type: DataTypes.CHAR(36), allowNull: false },
+    slot: { type: DataTypes.TINYINT, allowNull: false },
+    isCampaign: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+    slotMappings: { type: DataTypes.JSON, allowNull: false, defaultValue: {} },
+  },
+  {
+    indexes: [
+      { unique: true, fields: ["eventId", "slot"] },
+      { fields: ["eventId"] },
+      { fields: ["whatsappMessageTemplateId"] },
+    ],
+  },
+);
+
 export const BotSession = sequelize.define(
   "bot_sessions",
   {
@@ -480,6 +540,18 @@ WhatsappIntegration.hasMany(WhatsappCredential, { foreignKey: "whatsappIntegrati
 WhatsappCredential.belongsTo(WhatsappIntegration, { foreignKey: "whatsappIntegrationId" });
 User.hasMany(WhatsappCredential, { foreignKey: "ownerUserId" });
 WhatsappCredential.belongsTo(User, { foreignKey: "ownerUserId" });
+User.hasMany(WhatsappMessageTemplate, { foreignKey: "ownerUserId" });
+WhatsappMessageTemplate.belongsTo(User, { foreignKey: "ownerUserId" });
+Event.hasMany(EventWhatsappTemplate, { foreignKey: "eventId", as: "whatsappTemplates" });
+EventWhatsappTemplate.belongsTo(Event, { foreignKey: "eventId" });
+WhatsappMessageTemplate.hasMany(EventWhatsappTemplate, {
+  foreignKey: "whatsappMessageTemplateId",
+  as: "eventLinks",
+});
+EventWhatsappTemplate.belongsTo(WhatsappMessageTemplate, {
+  foreignKey: "whatsappMessageTemplateId",
+  as: "template",
+});
 User.hasMany(InboundEventDedup, { foreignKey: "ownerUserId" });
 InboundEventDedup.belongsTo(User, { foreignKey: "ownerUserId" });
 
@@ -515,6 +587,11 @@ export async function ensureInboundEventDedupTable() {
 export async function ensureWhatsappMetaTables() {
   await WhatsappIntegration.sync();
   await WhatsappCredential.sync();
+}
+
+export async function ensureWhatsappTemplateTables() {
+  await WhatsappMessageTemplate.sync();
+  await EventWhatsappTemplate.sync();
 }
 
 export async function ensureCampaignColumns() {
