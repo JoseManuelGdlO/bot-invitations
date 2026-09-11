@@ -75,7 +75,7 @@ function isDuplicateNameError(error) {
     error?.meta?.message,
     error?.meta?.code,
   ].filter(Boolean).join(" ");
-  return /unique|duplicate|already exists|name/i.test(details);
+  return /duplicate|already\s+exists|unique|name\s+collision/i.test(details);
 }
 
 async function createOnMeta({ wabaId, token, slot, components }) {
@@ -126,7 +126,9 @@ export async function createWizardTemplates({
   const created = [];
 
   for (const templateInput of validated) {
-    const headerFile = templateInput.headerFile || null;
+    const headerFile = templateInput.headerType === "none"
+      ? null
+      : templateInput.headerFile || null;
     const headerHandle = headerFile
       ? await uploadResumableHeader({
         token,
