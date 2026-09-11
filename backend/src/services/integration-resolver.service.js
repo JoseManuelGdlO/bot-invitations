@@ -1,7 +1,6 @@
 import { ChannelCredential, ChannelIntegration } from "../models/index.js";
 import { decryptCredentialsPayload } from "../utils/credentials-crypto.js";
 import { httpError } from "../utils/http-error.js";
-import { env } from "../config/env.js";
 import { resolveActiveWhatsappMetaByOwner } from "./whatsapp-meta.service.js";
 
 export const WHATSAPP_PROVIDER = "whatsapp-connect";
@@ -139,8 +138,8 @@ export async function resolveActiveWhatsappByOwner({ ownerUserId }) {
 export async function assertWhatsappReady(event) {
   if (!event?.ownerId) throw httpError(400, "WhatsApp (Meta) no está configurado.");
   await resolveActiveWhatsappMetaByOwner(event.ownerId);
-  const templateName = String(env.meta?.templateName || "").trim();
-  if (!templateName) throw httpError(400, "Falta META_TEMPLATE_NAME.");
+  const { assertCampaignTemplateReady } = await import("./whatsapp-templates.service.js");
+  await assertCampaignTemplateReady(event);
 }
 
 export async function resolveMetaWhatsappByPhoneNumberId({ phoneNumberId }) {

@@ -5,6 +5,7 @@ import {
   EventWhatsappTemplate,
   WhatsappMessageTemplate,
 } from "../models/index.js";
+import { eventGuestVars } from "../utils/defaults.js";
 import { httpError } from "../utils/http-error.js";
 import {
   createMessageTemplate,
@@ -20,6 +21,7 @@ import {
   exampleValuesFromMappings,
   generateTemplateName,
   mergeSlotMappings,
+  resolveSlotParamValues,
 } from "./whatsapp-template-slots.js";
 import { resolveActiveWhatsappMetaByOwner } from "./whatsapp-meta.service.js";
 import { Logger } from "../utils/logger.js";
@@ -431,6 +433,58 @@ export async function ensureEventWhatsappTemplates(event) {
     cloned = true;
   }
   return { attached, cloned, links };
+}
+
+export async function assertCampaignTemplateReady(event) {
+  await ensureEventWhatsappTemplates(event);
+  const link = await EventWhatsappTemplate.findOne({
+    where: { eventId: event.id, isCampaign: true },
+    include: [{ model: WhatsappMessageTemplate, as: "template", required: true }],
+  });
+  if (!link) {
+    throw httpError(
+      400,
+      "Crea una plantilla de primer contacto y espera la aprobación de Meta.",
+    );
+  }
+  if (link.template?.status !== "APPROVED") {
+    throw httpError(400, "Meta aún no aprueba la plantilla de campaña.");
+  }
+  if (
+    ["document", "image"].includes(link.template.headerType)
+    && !link.template.headerMediaPath
+  ) {
+    throw httpError(400, "La plantilla de campaña requiere un archivo de encabezado.");
+  }
+  return link;
+}
+
+export async function resolveCampaignSendContext(event) {
+  const link = await assertCampaignTemplateReady(event);
+  const { template } = link;
+  const header = template.headerMediaPath
+    ? {
+      relativePath: template.headerMediaPath,
+      fileName: template.headerFileName || path.basename(template.headerMediaPath),
+      mime: template.headerMime || null,
+    }
+    : null;
+
+  return {
+    template,
+    link,
+    hsmTemplateName: template.name,
+    async hsmParamsFor(guest, plannerName) {
+      return resolveSlotParamValues(
+        link.slotMappings || {},
+        eventGuestVars(event, guest, plannerName),
+      );
+    },
+    hsmHeaderDocument: template.headerType === "document"
+      ? { ...header, eventId: event.id }
+      : null,
+    hsmHeaderImage: template.headerType === "image" ? header : null,
+  };
 }
 
 export async function listEventWhatsappTemplates(eventId) {

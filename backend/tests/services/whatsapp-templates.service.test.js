@@ -1,5 +1,9 @@
 import { jest } from "@jest/globals";
-import { loadWithMocks, fakeEvent } from "../helpers/loadWithMocks.js";
+import {
+  loadWithMocks,
+  fakeEvent,
+  fakeGuest,
+} from "../helpers/loadWithMocks.js";
 
 test("wizard crea una HSM PENDING isWabaDefault y attach al evento más reciente", async () => {
   const createMessageTemplate = jest.fn(async () => ({ id: "meta_1" }));
@@ -855,4 +859,120 @@ test("submit conserva en DRAFT una segunda plantilla si Graph falla al crearla",
   expect(row.status).toBe("DRAFT");
   expect(row.update).not.toHaveBeenCalled();
   expect(models.EventWhatsappTemplate.create).toHaveBeenCalledTimes(1);
+});
+
+test("assertCampaignTemplateReady exige una plantilla marcada para campaña", async () => {
+  const { mod, models } = await loadWithMocks("src/services/whatsapp-templates.service.js");
+  models.EventWhatsappTemplate.findAll.mockResolvedValue([]);
+  models.WhatsappMessageTemplate.findAll.mockResolvedValue([]);
+  models.Event.findAll.mockResolvedValue([]);
+  models.EventWhatsappTemplate.findOne.mockResolvedValue(null);
+
+  await expect(mod.assertCampaignTemplateReady(
+    fakeEvent({ id: "evt_1", ownerId: "usr_1" }),
+  )).rejects.toMatchObject({
+    status: 400,
+    message: "Crea una plantilla de primer contacto y espera la aprobación de Meta.",
+  });
+});
+
+test("assertCampaignTemplateReady exige que Meta haya aprobado la campaña", async () => {
+  const { mod, models } = await loadWithMocks("src/services/whatsapp-templates.service.js");
+  const link = {
+    eventId: "evt_1",
+    isCampaign: true,
+    template: { id: "tpl_1", status: "PENDING", headerType: "none" },
+  };
+  models.EventWhatsappTemplate.findAll.mockResolvedValue([link]);
+  models.WhatsappMessageTemplate.findAll.mockResolvedValue([]);
+  models.EventWhatsappTemplate.findOne.mockResolvedValue(link);
+
+  await expect(mod.assertCampaignTemplateReady(
+    fakeEvent({ id: "evt_1", ownerId: "usr_1" }),
+  )).rejects.toMatchObject({
+    status: 400,
+    message: "Meta aún no aprueba la plantilla de campaña.",
+  });
+});
+
+test("assertCampaignTemplateReady exige el archivo del encabezado", async () => {
+  const { mod, models } = await loadWithMocks("src/services/whatsapp-templates.service.js");
+  const link = {
+    eventId: "evt_1",
+    isCampaign: true,
+    template: {
+      id: "tpl_1",
+      status: "APPROVED",
+      headerType: "document",
+      headerMediaPath: null,
+    },
+  };
+  models.EventWhatsappTemplate.findAll.mockResolvedValue([link]);
+  models.WhatsappMessageTemplate.findAll.mockResolvedValue([]);
+  models.EventWhatsappTemplate.findOne.mockResolvedValue(link);
+
+  await expect(mod.assertCampaignTemplateReady(
+    fakeEvent({ id: "evt_1", ownerId: "usr_1" }),
+  )).rejects.toMatchObject({
+    status: 400,
+    message: "La plantilla de campaña requiere un archivo de encabezado.",
+  });
+});
+
+test("assertCampaignTemplateReady propaga errores al asegurar plantillas", async () => {
+  const graphError = Object.assign(new Error("Meta Graph no disponible."), { status: 502 });
+  const { mod, models } = await loadWithMocks("src/services/whatsapp-templates.service.js");
+  models.EventWhatsappTemplate.findAll.mockRejectedValue(graphError);
+
+  await expect(mod.assertCampaignTemplateReady(
+    fakeEvent({ id: "evt_1", ownerId: "usr_1" }),
+  )).rejects.toBe(graphError);
+});
+
+test("resolveCampaignSendContext resuelve slots 1/2/3 y documento del template", async () => {
+  const { mod, models } = await loadWithMocks("src/services/whatsapp-templates.service.js");
+  const template = {
+    id: "tpl_1",
+    name: "alanna_campana_1",
+    status: "APPROVED",
+    headerType: "document",
+    headerMediaPath: "template-headers/usr_1/tpl_1/invitacion.pdf",
+    headerFileName: "invitacion.pdf",
+    headerMime: "application/pdf",
+  };
+  const link = {
+    eventId: "evt_1",
+    isCampaign: true,
+    slotMappings: {
+      1: { type: "field", key: "nombre" },
+      2: { type: "field", key: "evento" },
+      3: { type: "field", key: "codigo" },
+    },
+    template,
+  };
+  models.EventWhatsappTemplate.findAll.mockResolvedValue([link]);
+  models.WhatsappMessageTemplate.findAll.mockResolvedValue([]);
+  models.EventWhatsappTemplate.findOne.mockResolvedValue(link);
+  const event = fakeEvent({ id: "evt_1", ownerId: "usr_1", name: "Boda Ana" });
+  const guest = fakeGuest({
+    rep: "Luis Pérez",
+    customData: { codigo: "MESA-7" },
+  });
+
+  const context = await mod.resolveCampaignSendContext(event);
+
+  expect(context).toMatchObject({
+    template,
+    link,
+    hsmTemplateName: "alanna_campana_1",
+    hsmHeaderDocument: {
+      relativePath: "template-headers/usr_1/tpl_1/invitacion.pdf",
+      fileName: "invitacion.pdf",
+      mime: "application/pdf",
+      eventId: "evt_1",
+    },
+    hsmHeaderImage: null,
+  });
+  await expect(context.hsmParamsFor(guest, "Planner Ana"))
+    .resolves.toEqual(["Luis", "Boda Ana", "MESA-7"]);
 });
