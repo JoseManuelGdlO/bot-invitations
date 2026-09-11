@@ -1,5 +1,9 @@
 import { env } from "../config/env.js";
-import { WhatsappMessageTemplate } from "../models/index.js";
+import {
+  Event,
+  EventWhatsappTemplate,
+  WhatsappMessageTemplate,
+} from "../models/index.js";
 import { asyncHandler } from "../utils/async.js";
 import { httpError } from "../utils/http-error.js";
 import { Logger } from "../utils/logger.js";
@@ -37,13 +41,25 @@ function metaWebhookUrl(req) {
 }
 
 async function templateStatus(ownerUserId) {
-  const [count, defaultTemplate] = await Promise.all([
+  const [count, campaignLink] = await Promise.all([
     WhatsappMessageTemplate.count({ where: { ownerUserId } }),
-    WhatsappMessageTemplate.findOne({
-      where: { ownerUserId, isWabaDefault: true },
-      order: [["createdAt", "ASC"]],
+    EventWhatsappTemplate.findOne({
+      where: { isCampaign: true },
+      include: [
+        { model: Event, required: true, where: { ownerId: ownerUserId } },
+        {
+          model: WhatsappMessageTemplate,
+          as: "template",
+          required: true,
+          where: { ownerUserId },
+        },
+      ],
     }),
   ]);
+  const defaultTemplate = campaignLink?.template || await WhatsappMessageTemplate.findOne({
+    where: { ownerUserId, isWabaDefault: true },
+    order: [["createdAt", "ASC"]],
+  });
   const templateLanguage = String(env.meta?.templateLanguage || "es_MX").trim();
   return {
     hasTemplate: count > 0,

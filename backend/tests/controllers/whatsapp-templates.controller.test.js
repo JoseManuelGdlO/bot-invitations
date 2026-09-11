@@ -39,6 +39,7 @@ function link(overrides = {}) {
 
 describe("whatsapp-templates.controller", () => {
   let controller;
+  let models;
   let createWizardTemplates;
   let ensureEventWhatsappTemplates;
   let listEventWhatsappTemplates;
@@ -60,7 +61,7 @@ describe("whatsapp-templates.controller", () => {
     requireEvent = jest.fn(async () => fakeEvent({ id: "evt_1", ownerId: "usr_owner_1" }));
     requirePermission = jest.fn(async () => true);
 
-    ({ mod: controller } = await loadWithMocks("src/controllers/whatsapp-templates.controller.js", {
+    ({ mod: controller, models } = await loadWithMocks("src/controllers/whatsapp-templates.controller.js", {
       extraMocks: {
         "src/services/access.service.js": () => ({
           requireEvent,
@@ -199,8 +200,10 @@ describe("whatsapp-templates.controller", () => {
       body: "Hola {{1}}, tienes {{2}} pases.",
       headerType: "image",
       slotMappings: link().slotMappings,
-      isCampaign: true,
     };
+    models.EventWhatsappTemplate.findOne.mockResolvedValue(
+      link({ id: "link_2", slot: 2, isCampaign: true }),
+    );
     const { res } = await callHandler(controller.putEventWhatsappTemplate, {
       req: createMockReq({
         params: { eventId: "evt_1", slot: "2" },
@@ -213,6 +216,7 @@ describe("whatsapp-templates.controller", () => {
       ownerUserId: "usr_owner_1",
       slot: "2",
       ...payload,
+      isCampaign: undefined,
       headerFile: {
         buffer: uploaded.buffer,
         fileName: "portada.jpg",
@@ -222,6 +226,7 @@ describe("whatsapp-templates.controller", () => {
     });
     expect(res.json).toHaveBeenCalledWith({
       template: expect.objectContaining({
+        id: "link_2",
         slot: 2,
         isCampaign: true,
         template: expect.objectContaining({ id: "tpl_1" }),
@@ -230,6 +235,7 @@ describe("whatsapp-templates.controller", () => {
   });
 
   test("PATCH selecciona el slot de campaña", async () => {
+    models.EventWhatsappTemplate.findOne.mockResolvedValue(link({ slot: 2 }));
     const { res } = await callHandler(controller.patchEventWhatsappTemplate, {
       req: createMockReq({
         params: { eventId: "evt_1", slot: "2" },
@@ -238,5 +244,30 @@ describe("whatsapp-templates.controller", () => {
     });
     expect(setCampaignSlot).toHaveBeenCalledWith({ eventId: "evt_1", slot: 2 });
     expect(res.json).toHaveBeenCalledWith({ ok: true });
+  });
+
+  test("PATCH rechaza un slot inválido antes de cambiar la campaña", async () => {
+    const { next } = await callHandler(controller.patchEventWhatsappTemplate, {
+      req: createMockReq({
+        params: { eventId: "evt_1", slot: "3" },
+        body: { isCampaign: true },
+      }),
+    });
+
+    expect(next).toHaveBeenCalledWith(expect.objectContaining({ status: 400 }));
+    expect(models.EventWhatsappTemplate.findOne).not.toHaveBeenCalled();
+    expect(setCampaignSlot).not.toHaveBeenCalled();
+  });
+
+  test("PATCH responde 404 si el slot no tiene pivot", async () => {
+    const { next } = await callHandler(controller.patchEventWhatsappTemplate, {
+      req: createMockReq({
+        params: { eventId: "evt_1", slot: "2" },
+        body: { isCampaign: true },
+      }),
+    });
+
+    expect(next).toHaveBeenCalledWith(expect.objectContaining({ status: 404 }));
+    expect(setCampaignSlot).not.toHaveBeenCalled();
   });
 });

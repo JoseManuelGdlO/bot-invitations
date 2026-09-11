@@ -86,9 +86,12 @@ describe("whatsapp-meta.controller", () => {
     }));
     models.WhatsappMessageTemplate.count.mockResolvedValue(1);
     models.WhatsappMessageTemplate.findOne.mockResolvedValue({ name: "alanna_pc_default_1" });
+    models.EventWhatsappTemplate.findOne.mockResolvedValue({
+      template: { name: "alanna_pc_campaign_2" },
+    });
   });
 
-  test("status incluye webhookUrl en development y datos del owner", async () => {
+  test("status usa la plantilla marcada para campaña del owner", async () => {
     const { res } = await callHandler(controller.getWhatsappMetaStatus, {
       req: createMockReq({
         protocol: "http",
@@ -103,13 +106,41 @@ describe("whatsapp-meta.controller", () => {
       phoneNumberId: "10987654321",
       displayPhoneNumber: "5512345678",
       hasTemplate: true,
-      templateName: "alanna_pc_default_1",
+      templateName: "alanna_pc_campaign_2",
       templateLanguage: "es_MX",
       webhookUrl: "http://localhost:4000/api/webhooks/meta",
     });
     expect(models.WhatsappMessageTemplate.count).toHaveBeenCalledWith({
       where: { ownerUserId: "usr_test_1" },
     });
+    expect(models.EventWhatsappTemplate.findOne).toHaveBeenCalledWith({
+      where: { isCampaign: true },
+      include: [
+        {
+          model: models.Event,
+          required: true,
+          where: { ownerId: "usr_test_1" },
+        },
+        {
+          model: models.WhatsappMessageTemplate,
+          as: "template",
+          required: true,
+          where: { ownerUserId: "usr_test_1" },
+        },
+      ],
+    });
+    expect(models.WhatsappMessageTemplate.findOne).not.toHaveBeenCalled();
+  });
+
+  test("status usa la default más antigua si no hay campaña", async () => {
+    models.EventWhatsappTemplate.findOne.mockResolvedValue(null);
+    const { res } = await callHandler(controller.getWhatsappMetaStatus, {
+      req: createMockReq(),
+    });
+
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ templateName: "alanna_pc_default_1" }),
+    );
     expect(models.WhatsappMessageTemplate.findOne).toHaveBeenCalledWith({
       where: { ownerUserId: "usr_test_1", isWabaDefault: true },
       order: [["createdAt", "ASC"]],
@@ -119,6 +150,7 @@ describe("whatsapp-meta.controller", () => {
   test("status informa que no hay plantilla cuando el owner no tiene filas", async () => {
     models.WhatsappMessageTemplate.count.mockResolvedValue(0);
     models.WhatsappMessageTemplate.findOne.mockResolvedValue(null);
+    models.EventWhatsappTemplate.findOne.mockResolvedValue(null);
     const { res } = await callHandler(controller.getWhatsappMetaStatus, {
       req: createMockReq(),
     });

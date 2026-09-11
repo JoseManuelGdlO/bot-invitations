@@ -1,5 +1,9 @@
 import { asyncHandler } from "../utils/async.js";
 import { httpError } from "../utils/http-error.js";
+import {
+  EventWhatsappTemplate,
+  WhatsappMessageTemplate,
+} from "../models/index.js";
 import { requireEvent, requirePermission, PERMS } from "../services/access.service.js";
 import { resolveActiveWhatsappMetaByOwner } from "../services/whatsapp-meta.service.js";
 import {
@@ -125,7 +129,7 @@ export const putEventWhatsappTemplate = asyncHandler(async (req, res) => {
   if (!event) return;
   const payload = parsePayload(req);
   const slot = req.params.slot;
-  const row = await submitEventTemplate({
+  await submitEventTemplate({
     eventId: event.id,
     ownerUserId: event.ownerId,
     slot,
@@ -135,15 +139,12 @@ export const putEventWhatsappTemplate = asyncHandler(async (req, res) => {
     slotMappings: payload.slotMappings,
     isCampaign: payload.isCampaign,
   });
-  res.json({
-    template: serializeLink({
-      id: row.id,
-      slot,
-      isCampaign: payload.isCampaign,
-      slotMappings: payload.slotMappings || defaultSlotMappings(payload.body),
-      template: row,
-    }),
+  const link = await EventWhatsappTemplate.findOne({
+    where: { eventId: event.id, slot: Number(slot) },
+    include: [{ model: WhatsappMessageTemplate, as: "template", required: true }],
   });
+  if (!link) throw httpError(404, "Plantilla del evento no encontrada.");
+  res.json({ template: serializeLink(link) });
 });
 
 export const patchEventWhatsappTemplate = asyncHandler(async (req, res) => {
@@ -153,6 +154,15 @@ export const patchEventWhatsappTemplate = asyncHandler(async (req, res) => {
     throw httpError(400, "isCampaign debe ser true.");
   }
   const slot = Number(req.params.slot);
+  if (![1, 2].includes(slot)) {
+    throw httpError(400, "El slot de plantilla no es válido.");
+  }
+  const link = await EventWhatsappTemplate.findOne({
+    where: { eventId: event.id, slot },
+  });
+  if (!link) {
+    throw httpError(404, "Plantilla del evento no encontrada.");
+  }
   await setCampaignSlot({ eventId: event.id, slot });
   res.json({ ok: true });
 });
