@@ -285,6 +285,58 @@ test("evento con attach parcial completa sólo el slot faltante sin llamar a Gra
   });
 });
 
+test("evento con sólo default 2 en slot 2 adjunta default 1 en slot 1 sin llamar a Graph", async () => {
+  const createMessageTemplate = jest.fn();
+  const { mod, models } = await loadWithMocks("src/services/whatsapp-templates.service.js", {
+    extraMocks: {
+      "src/services/meta-graph.client.js": () => ({
+        resolveTemplateCrudToken: () => "sys_tok",
+        createMessageTemplate,
+        uploadResumableHeader: jest.fn(),
+      }),
+    },
+  });
+  const defaults = [
+    { id: "tpl_default_1", ownerUserId: "usr_1", isWabaDefault: true },
+    { id: "tpl_default_2", ownerUserId: "usr_1", isWabaDefault: true },
+  ];
+  const existingLink = {
+    eventId: "evt_first",
+    whatsappMessageTemplateId: "tpl_default_2",
+    slot: 2,
+    isCampaign: false,
+    slotMappings: {},
+  };
+  models.EventWhatsappTemplate.findAll
+    .mockResolvedValueOnce([existingLink])
+    .mockResolvedValueOnce([existingLink]);
+  models.WhatsappMessageTemplate.findAll.mockResolvedValue(defaults);
+  models.EventWhatsappTemplate.create.mockImplementation(async (row) => row);
+
+  const result = await mod.ensureEventWhatsappTemplates(
+    fakeEvent({ id: "evt_first", ownerId: "usr_1" }),
+  );
+
+  expect(createMessageTemplate).not.toHaveBeenCalled();
+  expect(models.EventWhatsappTemplate.create).toHaveBeenCalledTimes(1);
+  expect(models.EventWhatsappTemplate.create).toHaveBeenCalledWith({
+    eventId: "evt_first",
+    whatsappMessageTemplateId: "tpl_default_1",
+    ownerUserId: "usr_1",
+    slot: 1,
+    isCampaign: true,
+    slotMappings: {},
+  });
+  expect(result).toMatchObject({
+    attached: true,
+    cloned: false,
+    links: [existingLink, expect.objectContaining({
+      whatsappMessageTemplateId: "tpl_default_1",
+      slot: 1,
+    })],
+  });
+});
+
 test("segundo evento clona templates ya ligados y conserva su configuración", async () => {
   const createMessageTemplate = jest.fn(async () => ({ id: "meta_clone" }));
   const { mod, models } = await loadWithMocks("src/services/whatsapp-templates.service.js", {

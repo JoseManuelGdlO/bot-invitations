@@ -235,10 +235,10 @@ async function sourceTemplatesFor(event) {
   return { templates: [], links: [] };
 }
 
-function sourceLinkFor(template, links, index) {
+function sourceLinkFor(template, links) {
   return links.find(
     (link) => link.whatsappMessageTemplateId === template.id,
-  ) || links[index] || null;
+  ) || null;
 }
 
 async function cloneHeader(origin, token) {
@@ -296,7 +296,7 @@ export async function ensureEventWhatsappTemplates(event) {
   }
 
   const candidates = source.templates.map((template, index) => {
-    const sourceLink = sourceLinkFor(template, source.links, index);
+    const sourceLink = sourceLinkFor(template, source.links);
     return {
       template,
       sourceLink,
