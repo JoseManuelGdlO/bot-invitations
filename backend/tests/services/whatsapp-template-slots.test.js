@@ -19,6 +19,13 @@ describe("whatsapp-template-slots", () => {
     expect(assertWizardBody("Hola {{1}}, pases {{2}}")).toEqual(["1", "2"]);
   });
 
+  test.each(["{{0}}", "{{02}}"])(
+    "assertWizardBody rechaza el placeholder no canónico %s",
+    (placeholder) => {
+      expect(() => assertWizardBody(`Hola {{1}} {{2}} ${placeholder}`)).toThrow(/consecutiv/i);
+    },
+  );
+
   test("defaultSlotMappings fija 1=nombre y 2=pases", () => {
     expect(defaultSlotMappings("Hola {{1}} {{2}} {{3}}")).toEqual({
       "1": LOCKED_SLOT_MAPPINGS["1"],
@@ -43,6 +50,15 @@ describe("whatsapp-template-slots", () => {
     const full = mergeSlotMappings(body, { "3": { type: "field", key: "fecha" } });
     expect(assertSlotMappingsComplete(body, full)["3"]).toEqual({ type: "field", key: "fecha" });
   });
+
+  test.each([{ type: "literal" }, { type: "literal", value: "" }])(
+    "assertSlotMappingsComplete rechaza literales sin valor",
+    (invalidLiteral) => {
+      const body = "Hola {{1}} {{2}} {{3}}";
+      const mappings = mergeSlotMappings(body, { "3": invalidLiteral });
+      expect(() => assertSlotMappingsComplete(body, mappings)).toThrow(/\{\{3\}\}/);
+    },
+  );
 
   test("exampleValuesFromMappings usa María y 2", () => {
     expect(

@@ -24,19 +24,11 @@ export function extractBodyPlaceholders(bodyText) {
   return ids.sort((a, b) => Number(a) - Number(b));
 }
 
-function hasPlaceholderGaps(ids) {
-  if (ids.length === 0) return true;
-  const max = Number(ids[ids.length - 1]);
-  for (let i = 1; i <= max; i += 1) {
-    if (!ids.includes(String(i))) return true;
-  }
-  return false;
-}
-
 export function assertWizardBody(bodyText) {
   const ids = extractBodyPlaceholders(bodyText);
-  const max = ids.length > 0 ? Number(ids[ids.length - 1]) : 0;
-  if (max < 2 || !ids.includes("1") || !ids.includes("2") || hasPlaceholderGaps(ids)) {
+  const hasCanonicalSequence =
+    ids.length >= 2 && ids.every((id, index) => id === String(index + 1));
+  if (!hasCanonicalSequence) {
     throw httpError(400, "La plantilla debe incluir {{1}} (nombre) y {{2}} (pases) consecutivos.");
   }
   return ids;
@@ -48,7 +40,11 @@ function isSameMapping(a, b) {
 
 function validateMapping(mapping) {
   if (!mapping || typeof mapping !== "object") return null;
-  if (mapping.type === "literal") {
+  if (
+    mapping.type === "literal" &&
+    mapping.value != null &&
+    String(mapping.value).trim().length > 0
+  ) {
     return { type: "literal", value: mapping.value };
   }
   if (mapping.type === "field" && FIELD_KEY_REGEX.test(String(mapping.key || ""))) {
