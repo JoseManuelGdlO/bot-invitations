@@ -294,9 +294,9 @@ export const metaClient = {
     headerDocument,
     headerImage,
   } = {}) {
+    const name = resolveTemplateName(templateName);
     const header = headerDocumentFrom(headerDocument);
     const image = headerImageFrom(headerImage);
-    const name = resolveTemplateName(templateName);
     const phone = requirePhone(to);
     const language = String(env.meta?.templateLanguage || "es_MX").trim();
     const parameters = bodyParams.map((value, index) => {

@@ -182,6 +182,36 @@ describe("meta.client", () => {
     expect(fetch).not.toHaveBeenCalled();
   });
 
+  test("sendTemplate sin name con headerDocument inválido prioriza error de name", async () => {
+    await expect(
+      metaClient.sendTemplate({
+        to: "6183218624",
+        bodyParams: ["Luis", "copy"],
+        headerDocument: { id: "  " },
+        ...auth,
+      }),
+    ).rejects.toMatchObject({
+      status: 400,
+      message: "Falta el nombre de la plantilla de WhatsApp.",
+    });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  test("sendTemplate sin name con headerImage inválido prioriza error de name", async () => {
+    await expect(
+      metaClient.sendTemplate({
+        to: "6183218624",
+        bodyParams: ["Luis", "copy"],
+        headerImage: { id: "" },
+        ...auth,
+      }),
+    ).rejects.toMatchObject({
+      status: 400,
+      message: "Falta el nombre de la plantilla de WhatsApp.",
+    });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
   test("sendTemplate 400 si el header documento no trae media id", async () => {
     await expect(
       metaClient.sendTemplate({
