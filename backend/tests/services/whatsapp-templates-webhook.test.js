@@ -115,9 +115,23 @@ describe("webhook de estado de plantillas WhatsApp", () => {
     expect(row.rejectedReason).toBe("INVALID_FORMAT");
   });
 
-  test("plantilla desconocida produce 200 lógico", async () => {
+  test("plantilla desconocida registra log y produce 200 lógico", async () => {
+    const loggerSpies = {
+      info: jest.fn(),
+      warn: jest.fn(),
+    };
     const { mod, models } = await loadWithMocks("src/services/whatsapp-templates.service.js", {
-      extraMocks: { "src/services/meta-graph.client.js": graphClientMock },
+      extraMocks: {
+        "src/services/meta-graph.client.js": graphClientMock,
+        "src/utils/logger.js": () => ({
+          Logger: jest.fn().mockImplementation(() => ({
+            info: loggerSpies.info,
+            warn: loggerSpies.warn,
+            error: jest.fn(),
+            debug: jest.fn(),
+          })),
+        }),
+      },
     });
     models.WhatsappMessageTemplate.findOne.mockResolvedValue(null);
 
@@ -128,6 +142,16 @@ describe("webhook de estado de plantillas WhatsApp", () => {
       event: "REJECTED",
       reason: "invalid",
     })).resolves.toEqual({ processed: true, reason: "unknown_template" });
+
+    expect(loggerSpies.warn).toHaveBeenCalledWith(
+      "plantilla desconocida en webhook de estado",
+      {
+        wabaId: "waba_x",
+        metaTemplateId: "999",
+        name: "nope",
+      },
+    );
+    expect(loggerSpies.info).not.toHaveBeenCalled();
   });
 
   test("ignora eventos desconocidos sin consultar la plantilla", async () => {

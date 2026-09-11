@@ -22,7 +22,9 @@ import {
   mergeSlotMappings,
 } from "./whatsapp-template-slots.js";
 import { resolveActiveWhatsappMetaByOwner } from "./whatsapp-meta.service.js";
+import { Logger } from "../utils/logger.js";
 
+const log = new Logger("WhatsAppTemplates");
 const TEMPLATE_LANGUAGE = "es_MX";
 const TEMPLATE_CATEGORY = "MARKETING";
 const HEADER_TYPES = new Set(["none", "document", "image"]);
@@ -55,6 +57,11 @@ export async function applyTemplateStatusUpdate(update = {}) {
     };
   const template = await WhatsappMessageTemplate.findOne({ where });
   if (!template) {
+    log.warn("plantilla desconocida en webhook de estado", {
+      wabaId: String(update.wabaId || "").trim() || null,
+      metaTemplateId: metaTemplateId || null,
+      name: String(update.name || "").trim() || null,
+    });
     return { processed: true, reason: "unknown_template" };
   }
 
