@@ -5,6 +5,7 @@ import { formatWhatsappGraphTo } from "../utils/whatsapp-identity.js";
 import { metaClient, sanitizeMetaBodyParam } from "./meta.client.js";
 import { resolveOpeningDocumentFilePath } from "./opening-document.service.js";
 import { resolveActiveWhatsappMetaByOwner } from "./whatsapp-meta.service.js";
+import { resolveCampaignSendContext } from "./whatsapp-templates.service.js";
 
 const CUSTOMER_CARE_WINDOW_MS = 24 * 60 * 60 * 1000;
 const mediaIdByFile = new Map();
@@ -101,22 +102,34 @@ export class MetaCloudProvider {
 
     let payload;
     if (useTemplate) {
-      const fromJob = Array.isArray(meta.hsmParams)
+      let templateName = String(meta.hsmTemplateName || "").trim();
+      let fromJob = Array.isArray(meta.hsmParams)
         ? meta.hsmParams.map((value) => sanitizeMetaBodyParam(value))
         : [];
+      let headerSource = meta.hsmHeaderDocument || null;
+      let imageSource = meta.hsmHeaderImage || null;
+      if (!templateName) {
+        const ctx = await resolveCampaignSendContext(event);
+        templateName = String(ctx.hsmTemplateName || "").trim();
+        if (!fromJob.length) {
+          fromJob = (await ctx.hsmParamsFor(guest)).map((value) => sanitizeMetaBodyParam(value));
+        }
+        headerSource = headerSource || ctx.hsmHeaderDocument;
+        imageSource = imageSource || ctx.hsmHeaderImage;
+      }
       const nombre = sanitizeMetaBodyParam(eventGuestVars(event, guest).nombre) || "invitado";
       const bodyParam = sanitizeMetaBodyParam(body);
       const bodyParams = fromJob.length ? fromJob : [nombre, bodyParam];
       if (!bodyParams.some(Boolean)) throw httpError(400, "El mensaje de plantilla no puede estar vacío.");
       const headerDocument = await resolveHeaderMedia(
-        meta.hsmHeaderDocument
-          ? { ...meta.hsmHeaderDocument, eventId: meta.hsmHeaderDocument.eventId || meta.eventId }
+        headerSource
+          ? { ...headerSource, eventId: headerSource.eventId || meta.eventId }
           : null,
         credentials,
       );
       const headerImage = await resolveHeaderMedia(
-        meta.hsmHeaderImage
-          ? { ...meta.hsmHeaderImage, eventId: meta.hsmHeaderImage.eventId || meta.eventId }
+        imageSource
+          ? { ...imageSource, eventId: imageSource.eventId || meta.eventId }
           : null,
         credentials,
         "image",
@@ -129,7 +142,7 @@ export class MetaCloudProvider {
           : {}),
         accessToken: credentials.accessToken,
         phoneNumberId: credentials.phoneNumberId,
-        ...(meta.hsmTemplateName ? { templateName: meta.hsmTemplateName } : {}),
+        templateName,
         ...(headerDocument ? { headerDocument } : {}),
         ...(headerImage ? { headerImage: { id: headerImage.id } } : {}),
       });

@@ -256,9 +256,21 @@ export async function createWizardTemplates({
   return created.map(({ row }) => row);
 }
 
+async function currentOwnerWabaId(ownerUserId) {
+  try {
+    const { credentials } = await resolveActiveWhatsappMetaByOwner(ownerUserId);
+    return String(credentials?.wabaId || "").trim() || null;
+  } catch {
+    return null;
+  }
+}
+
 async function sourceTemplatesFor(event) {
+  const wabaId = await currentOwnerWabaId(event.ownerId);
+  if (!wabaId) return { templates: [], links: [] };
+
   const defaults = await WhatsappMessageTemplate.findAll({
-    where: { ownerUserId: event.ownerId, isWabaDefault: true },
+    where: { ownerUserId: event.ownerId, isWabaDefault: true, wabaId },
     order: [["createdAt", "ASC"]],
   });
   if (defaults.length) {
@@ -279,7 +291,12 @@ async function sourceTemplatesFor(event) {
     if (ownerEvent.id === event.id) continue;
     const links = await EventWhatsappTemplate.findAll({
       where: { eventId: ownerEvent.id },
-      include: [{ model: WhatsappMessageTemplate, as: "template", required: true }],
+      include: [{
+        model: WhatsappMessageTemplate,
+        as: "template",
+        required: true,
+        where: { wabaId },
+      }],
       order: [["slot", "ASC"]],
     });
     if (links.length) {
@@ -435,19 +452,16 @@ export async function ensureEventWhatsappTemplates(event) {
   return { attached, cloned, links };
 }
 
-export async function assertCampaignTemplateReady(event) {
-  await ensureEventWhatsappTemplates(event);
-  const link = await EventWhatsappTemplate.findOne({
-    where: { eventId: event.id, isCampaign: true },
-    include: [{ model: WhatsappMessageTemplate, as: "template", required: true }],
-  });
-  if (!link) {
-    throw httpError(
-      400,
-      "Crea una plantilla de primer contacto y espera la aprobación de Meta.",
-    );
-  }
-  if (link.template?.status !== "APPROVED") {
+function missingCampaignTemplateError() {
+  return httpError(
+    400,
+    "Crea una plantilla de primer contacto y espera la aprobación de Meta.",
+  );
+}
+
+function assertLinkedTemplateReady(link) {
+  if (!link?.template) throw missingCampaignTemplateError();
+  if (link.template.status !== "APPROVED") {
     throw httpError(400, "Meta aún no aprueba la plantilla de campaña.");
   }
   if (
@@ -459,8 +473,11 @@ export async function assertCampaignTemplateReady(event) {
   return link;
 }
 
-export async function resolveCampaignSendContext(event) {
-  const link = await assertCampaignTemplateReady(event);
+function eventFromLink(link) {
+  return link?.Event || link?.event || null;
+}
+
+function sendContextFrom(link, event) {
   const { template } = link;
   const header = template.headerMediaPath
     ? {
@@ -469,6 +486,7 @@ export async function resolveCampaignSendContext(event) {
       mime: template.headerMime || null,
     }
     : null;
+  const eventId = event?.id || link.eventId || null;
 
   return {
     template,
@@ -477,14 +495,65 @@ export async function resolveCampaignSendContext(event) {
     async hsmParamsFor(guest, plannerName) {
       return resolveSlotParamValues(
         link.slotMappings || {},
-        eventGuestVars(event, guest, plannerName),
+        eventGuestVars(event || {}, guest, plannerName),
       );
     },
     hsmHeaderDocument: template.headerType === "document"
-      ? { ...header, eventId: event.id }
+      ? { ...header, ...(eventId ? { eventId } : {}) }
       : null,
     hsmHeaderImage: template.headerType === "image" ? header : null,
   };
+}
+
+export async function assertCampaignTemplateReady(event) {
+  await ensureEventWhatsappTemplates(event);
+  const link = await EventWhatsappTemplate.findOne({
+    where: { eventId: event.id, isCampaign: true },
+    include: [{ model: WhatsappMessageTemplate, as: "template", required: true }],
+  });
+  if (!link) throw missingCampaignTemplateError();
+  return assertLinkedTemplateReady(link);
+}
+
+export async function resolveCampaignSendContext(event) {
+  const link = await assertCampaignTemplateReady(event);
+  return sendContextFrom(link, event);
+}
+
+export async function resolveOwnerCampaignSendContext({ ownerUserId, wabaId } = {}) {
+  const currentWabaId = String(wabaId || "").trim();
+  if (!currentWabaId) throw missingCampaignTemplateError();
+
+  const campaignLink = await EventWhatsappTemplate.findOne({
+    where: { isCampaign: true },
+    include: [
+      { model: Event, required: true, where: { ownerId: ownerUserId } },
+      {
+        model: WhatsappMessageTemplate,
+        as: "template",
+        required: true,
+        where: { wabaId: currentWabaId },
+      },
+    ],
+    order: [[{ model: Event }, "createdAt", "DESC"]],
+  });
+  if (campaignLink) {
+    assertLinkedTemplateReady(campaignLink);
+    return sendContextFrom(campaignLink, eventFromLink(campaignLink));
+  }
+
+  const defaultTemplate = await WhatsappMessageTemplate.findOne({
+    where: { ownerUserId, wabaId: currentWabaId, isWabaDefault: true },
+    order: [["createdAt", "DESC"]],
+  });
+  if (!defaultTemplate) throw missingCampaignTemplateError();
+  const link = {
+    template: defaultTemplate,
+    slotMappings: {},
+    eventId: null,
+  };
+  assertLinkedTemplateReady(link);
+  return sendContextFrom(link, { id: null, ownerId: ownerUserId });
 }
 
 export async function listEventWhatsappTemplates(eventId) {

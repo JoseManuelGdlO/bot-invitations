@@ -8,6 +8,7 @@ describe("whatsapp.adapter MetaCloudProvider", () => {
   let sendTextWithRetry;
   let uploadDocument;
   let resolveActiveWhatsappMetaByOwner;
+  let resolveCampaignSendContext;
   const metaAuth = { accessToken: "owner-token", phoneNumberId: "10987654321" };
 
   function sanitizeMetaBodyParam(value) {
@@ -27,6 +28,12 @@ describe("whatsapp.adapter MetaCloudProvider", () => {
     resolveActiveWhatsappMetaByOwner = jest.fn(async () => ({
       credentials: metaAuth,
     }));
+    resolveCampaignSendContext = jest.fn(async () => ({
+      hsmTemplateName: "alanna_pc_campaign_1",
+      hsmParamsFor: async () => ["Luis", "Hola\ninvitación"],
+      hsmHeaderDocument: null,
+      hsmHeaderImage: null,
+    }));
     ({ mod: adapter, models } = await loadWithMocks("src/services/whatsapp.adapter.js", {
       extraMocks: {
         "src/services/meta.client.js": () => ({
@@ -39,6 +46,9 @@ describe("whatsapp.adapter MetaCloudProvider", () => {
         }),
         "src/services/whatsapp-meta.service.js": () => ({
           resolveActiveWhatsappMetaByOwner,
+        }),
+        "src/services/whatsapp-templates.service.js": () => ({
+          resolveCampaignSendContext,
         }),
       },
     }));
@@ -79,6 +89,7 @@ describe("whatsapp.adapter MetaCloudProvider", () => {
     expect(sendTemplateWithRetry).toHaveBeenCalledWith({
       to: "5215512345678",
       bodyParams: ["Luis", "Hola\ninvitación"],
+      templateName: "alanna_pc_campaign_1",
       ...metaAuth,
     });
     expect(sendTextWithRetry).not.toHaveBeenCalled();
@@ -91,6 +102,44 @@ describe("whatsapp.adapter MetaCloudProvider", () => {
         conversationStarted: true,
       }),
     );
+  });
+
+  test("cold sin hsmTemplateName usa el name de campaña del evento", async () => {
+    models.Event.findByPk.mockResolvedValue(fakeEvent());
+    models.Guest.findByPk.mockResolvedValue(fakeGuest({ rep: "Luis Pérez", status: "sin_contactar" }));
+    models.Conversation.findOne.mockResolvedValue(null);
+    const provider = adapter.createWhatsAppProvider();
+    await provider.sendMessage("5215512345678", "Hola\ninvitación", {
+      eventId: "evt_1",
+      guestId: "gst_1",
+    });
+    expect(resolveCampaignSendContext).toHaveBeenCalledWith(expect.objectContaining({ id: "evt_1" }));
+    expect(sendTemplateWithRetry).toHaveBeenCalledWith({
+      to: "5215512345678",
+      bodyParams: ["Luis", "Hola\ninvitación"],
+      templateName: "alanna_pc_campaign_1",
+      ...metaAuth,
+    });
+  });
+
+  test("cold sin plantilla de campaña lista propaga 400", async () => {
+    resolveCampaignSendContext.mockRejectedValue(
+      Object.assign(new Error("Crea una plantilla de primer contacto y espera la aprobación de Meta."), {
+        status: 400,
+      }),
+    );
+    models.Event.findByPk.mockResolvedValue(fakeEvent());
+    models.Guest.findByPk.mockResolvedValue(fakeGuest({ rep: "Luis Pérez", status: "sin_contactar" }));
+    models.Conversation.findOne.mockResolvedValue(null);
+    const provider = adapter.createWhatsAppProvider();
+    await expect(provider.sendMessage("5215512345678", "Hola", {
+      eventId: "evt_1",
+      guestId: "gst_1",
+    })).rejects.toMatchObject({
+      status: 400,
+      message: "Crea una plantilla de primer contacto y espera la aprobación de Meta.",
+    });
+    expect(sendTemplateWithRetry).not.toHaveBeenCalled();
   });
 
   test("cold con hsmParams usa {{1}} y {{2}} del job", async () => {
@@ -106,6 +155,7 @@ describe("whatsapp.adapter MetaCloudProvider", () => {
     expect(sendTemplateWithRetry).toHaveBeenCalledWith({
       to: "5215512345678",
       bodyParams: ["Boda Ana", "Ana y Carlos. Los esperamos."],
+      templateName: "alanna_pc_campaign_1",
       ...metaAuth,
     });
   });
@@ -123,6 +173,7 @@ describe("whatsapp.adapter MetaCloudProvider", () => {
     expect(sendTemplateWithRetry).toHaveBeenCalledWith({
       to: "5215512345678",
       bodyParams: ["Luis", "Boda Ana", "RG Eventos"],
+      templateName: "alanna_pc_campaign_1",
       ...metaAuth,
     });
   });

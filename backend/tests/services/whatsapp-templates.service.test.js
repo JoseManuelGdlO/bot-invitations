@@ -5,6 +5,16 @@ import {
   fakeGuest,
 } from "../helpers/loadWithMocks.js";
 
+function ownerMetaMocks(wabaId = "waba_1") {
+  return {
+    "src/services/whatsapp-meta.service.js": () => ({
+      resolveActiveWhatsappMetaByOwner: jest.fn(async () => ({
+        credentials: { wabaId, accessToken: "tok", phoneNumberId: "1" },
+      })),
+    }),
+  };
+}
+
 test("wizard crea una HSM PENDING isWabaDefault y attach al evento más reciente", async () => {
   const createMessageTemplate = jest.fn(async () => ({ id: "meta_1" }));
   const event = fakeEvent({ id: "evt_old", ownerId: "usr_1" });
@@ -214,6 +224,7 @@ test("primer evento adjunta defaults sin crear otra plantilla en Graph", async (
         updateMessageTemplate: jest.fn(),
         uploadResumableHeader: jest.fn(),
       }),
+      ...ownerMetaMocks(),
     },
   });
   const origin = {
@@ -251,6 +262,7 @@ test("evento con attach parcial completa sólo el slot faltante sin llamar a Gra
         updateMessageTemplate: jest.fn(),
         uploadResumableHeader: jest.fn(),
       }),
+      ...ownerMetaMocks(),
     },
   });
   const defaults = [
@@ -301,6 +313,7 @@ test("evento con sólo default 2 en slot 2 adjunta default 1 en slot 1 sin llama
         updateMessageTemplate: jest.fn(),
         uploadResumableHeader: jest.fn(),
       }),
+      ...ownerMetaMocks(),
     },
   });
   const defaults = [
@@ -354,6 +367,7 @@ test("segundo evento clona templates ya ligados y conserva su configuración", a
         updateMessageTemplate: jest.fn(),
         uploadResumableHeader: jest.fn(),
       }),
+      ...ownerMetaMocks(),
     },
   });
   const origin = {
@@ -408,6 +422,50 @@ test("segundo evento clona templates ya ligados y conserva su configuración", a
   expect(result).toMatchObject({ attached: false, cloned: true });
 });
 
+test("ensure no hereda defaults de un WABA anterior", async () => {
+  const createMessageTemplate = jest.fn();
+  const resolveActiveWhatsappMetaByOwner = jest.fn(async () => ({
+    credentials: { wabaId: "waba_new", accessToken: "tok", phoneNumberId: "1" },
+  }));
+  const { mod, models } = await loadWithMocks("src/services/whatsapp-templates.service.js", {
+    extraMocks: {
+      "src/services/meta-graph.client.js": () => ({
+        resolveTemplateCrudToken: () => "sys_tok",
+        createMessageTemplate,
+        updateMessageTemplate: jest.fn(),
+        uploadResumableHeader: jest.fn(),
+      }),
+      "src/services/whatsapp-meta.service.js": () => ({
+        resolveActiveWhatsappMetaByOwner,
+      }),
+    },
+  });
+  const oldDefault = {
+    id: "tpl_old",
+    ownerUserId: "usr_1",
+    wabaId: "waba_old",
+    isWabaDefault: true,
+  };
+  models.EventWhatsappTemplate.findAll.mockResolvedValue([]);
+  models.WhatsappMessageTemplate.findAll.mockImplementation(async ({ where } = {}) => (
+    where?.wabaId === "waba_new" ? [] : [oldDefault]
+  ));
+  models.Event.findAll.mockResolvedValue([]);
+
+  const result = await mod.ensureEventWhatsappTemplates(
+    fakeEvent({ id: "evt_new", ownerId: "usr_1" }),
+  );
+
+  expect(resolveActiveWhatsappMetaByOwner).toHaveBeenCalledWith("usr_1");
+  expect(models.WhatsappMessageTemplate.findAll).toHaveBeenCalledWith({
+    where: { ownerUserId: "usr_1", isWabaDefault: true, wabaId: "waba_new" },
+    order: [["createdAt", "ASC"]],
+  });
+  expect(createMessageTemplate).not.toHaveBeenCalled();
+  expect(models.EventWhatsappTemplate.create).not.toHaveBeenCalled();
+  expect(result).toMatchObject({ attached: false, cloned: false });
+});
+
 test("segunda ensure del mismo evento no repite el POST a Graph", async () => {
   const createMessageTemplate = jest.fn(async () => ({ id: "meta_clone" }));
   const { mod, models } = await loadWithMocks("src/services/whatsapp-templates.service.js", {
@@ -418,6 +476,7 @@ test("segunda ensure del mismo evento no repite el POST a Graph", async () => {
         updateMessageTemplate: jest.fn(),
         uploadResumableHeader: jest.fn(),
       }),
+      ...ownerMetaMocks(),
     },
   });
   const origin = {
@@ -975,4 +1034,101 @@ test("resolveCampaignSendContext resuelve slots 1/2/3 y documento del template",
   });
   await expect(context.hsmParamsFor(guest, "Planner Ana"))
     .resolves.toEqual(["Luis", "Boda Ana", "MESA-7"]);
+});
+
+test("resolveOwnerCampaignSendContext usa la campaña más reciente del WABA activo", async () => {
+  const { mod, models } = await loadWithMocks("src/services/whatsapp-templates.service.js");
+  const event = fakeEvent({ id: "evt_latest", ownerId: "usr_1" });
+  const template = {
+    id: "tpl_1",
+    name: "alanna_live_1",
+    status: "APPROVED",
+    headerType: "none",
+    headerMediaPath: null,
+  };
+  const link = {
+    isCampaign: true,
+    eventId: event.id,
+    Event: event,
+    slotMappings: {},
+    template,
+  };
+  models.EventWhatsappTemplate.findOne.mockResolvedValue(link);
+
+  const context = await mod.resolveOwnerCampaignSendContext({
+    ownerUserId: "usr_1",
+    wabaId: "waba_new",
+  });
+
+  expect(models.EventWhatsappTemplate.findOne).toHaveBeenCalledWith({
+    where: { isCampaign: true },
+    include: [
+      { model: models.Event, required: true, where: { ownerId: "usr_1" } },
+      {
+        model: models.WhatsappMessageTemplate,
+        as: "template",
+        required: true,
+        where: { wabaId: "waba_new" },
+      },
+    ],
+    order: [[{ model: models.Event }, "createdAt", "DESC"]],
+  });
+  expect(context.hsmTemplateName).toBe("alanna_live_1");
+});
+
+test("resolveOwnerCampaignSendContext 400 sin plantilla de campaña ni default del WABA", async () => {
+  const { mod, models } = await loadWithMocks("src/services/whatsapp-templates.service.js");
+  models.EventWhatsappTemplate.findOne.mockResolvedValue(null);
+  models.WhatsappMessageTemplate.findOne.mockResolvedValue(null);
+
+  await expect(mod.resolveOwnerCampaignSendContext({
+    ownerUserId: "usr_1",
+    wabaId: "waba_new",
+  })).rejects.toMatchObject({
+    status: 400,
+    message: "Crea una plantilla de primer contacto y espera la aprobación de Meta.",
+  });
+});
+
+test("resolveOwnerCampaignSendContext usa isWabaDefault del WABA actual si no hay campaña", async () => {
+  const { mod, models } = await loadWithMocks("src/services/whatsapp-templates.service.js");
+  const template = {
+    id: "tpl_def",
+    name: "alanna_default_1",
+    status: "APPROVED",
+    headerType: "none",
+    headerMediaPath: null,
+    isWabaDefault: true,
+  };
+  models.EventWhatsappTemplate.findOne.mockResolvedValue(null);
+  models.WhatsappMessageTemplate.findOne.mockResolvedValue(template);
+
+  const context = await mod.resolveOwnerCampaignSendContext({
+    ownerUserId: "usr_1",
+    wabaId: "waba_new",
+  });
+
+  expect(models.WhatsappMessageTemplate.findOne).toHaveBeenCalledWith({
+    where: { ownerUserId: "usr_1", wabaId: "waba_new", isWabaDefault: true },
+    order: [["createdAt", "DESC"]],
+  });
+  expect(context.hsmTemplateName).toBe("alanna_default_1");
+});
+
+test("resolveOwnerCampaignSendContext 400 si la campaña del WABA no está APPROVED", async () => {
+  const { mod, models } = await loadWithMocks("src/services/whatsapp-templates.service.js");
+  models.EventWhatsappTemplate.findOne.mockResolvedValue({
+    isCampaign: true,
+    eventId: "evt_1",
+    Event: fakeEvent({ id: "evt_1", ownerId: "usr_1" }),
+    template: { name: "alanna_pending", status: "PENDING", headerType: "none" },
+  });
+
+  await expect(mod.resolveOwnerCampaignSendContext({
+    ownerUserId: "usr_1",
+    wabaId: "waba_new",
+  })).rejects.toMatchObject({
+    status: 400,
+    message: "Meta aún no aprueba la plantilla de campaña.",
+  });
 });

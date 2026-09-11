@@ -7,6 +7,8 @@ import {
 import { asyncHandler } from "../utils/async.js";
 import { httpError } from "../utils/http-error.js";
 import { Logger } from "../utils/logger.js";
+import { resolveOpeningDocumentFilePath } from "../services/opening-document.service.js";
+import { resolveOwnerCampaignSendContext } from "../services/whatsapp-templates.service.js";
 import { metaClient, sanitizeMetaBodyParam } from "../services/meta.client.js";
 import {
   findWhatsappMetaStatusByOwner,
@@ -40,9 +42,43 @@ function metaWebhookUrl(req) {
   return `${proto}://${host}/api/webhooks/meta`;
 }
 
-async function templateStatus(ownerUserId) {
+async function resolveSendHeaderMedia(headerMedia, credentials, type = "document") {
+  if (!headerMedia) return null;
+  const filename = String(headerMedia.filename || headerMedia.fileName || "").trim();
+  const existingId = String(headerMedia.id || "").trim();
+  if (existingId) {
+    return { id: existingId, ...(filename ? { filename } : {}) };
+  }
+  const filePath = resolveOpeningDocumentFilePath({
+    ...headerMedia,
+    eventId: headerMedia.eventId,
+  });
+  if (!filePath) {
+    const label = type === "image" ? "imagen" : "documento";
+    throw httpError(400, `La plantilla con ${label} requiere un archivo adjunto.`);
+  }
+  const mediaId = await metaClient.uploadDocument({
+    filePath,
+    filename,
+    mime: headerMedia.mime,
+    accessToken: credentials.accessToken,
+    phoneNumberId: credentials.phoneNumberId,
+  });
+  return { id: mediaId, ...(filename ? { filename } : {}) };
+}
+
+async function templateStatus(ownerUserId, wabaId) {
+  const currentWabaId = String(wabaId || "").trim();
+  const templateLanguage = String(env.meta?.templateLanguage || "es_MX").trim() || "es_MX";
+  if (!currentWabaId) {
+    return {
+      hasTemplate: false,
+      templateName: null,
+      templateLanguage,
+    };
+  }
   const [count, campaignLink] = await Promise.all([
-    WhatsappMessageTemplate.count({ where: { ownerUserId } }),
+    WhatsappMessageTemplate.count({ where: { ownerUserId, wabaId: currentWabaId } }),
     EventWhatsappTemplate.findOne({
       where: { isCampaign: true },
       include: [
@@ -51,22 +87,21 @@ async function templateStatus(ownerUserId) {
           model: WhatsappMessageTemplate,
           as: "template",
           required: true,
-          where: { ownerUserId },
+          where: { ownerUserId, wabaId: currentWabaId },
         },
       ],
     }),
   ]);
-  const templateLanguage = String(env.meta?.templateLanguage || "es_MX").trim();
   return {
     hasTemplate: count > 0,
     templateName: campaignLink?.template?.name || null,
-    templateLanguage: templateLanguage || "es_MX",
+    templateLanguage,
   };
 }
 
 export const getWhatsappMetaStatus = asyncHandler(async (req, res) => {
   const owner = await findWhatsappMetaStatusByOwner(req.user.id);
-  const template = await templateStatus(req.user.id);
+  const template = await templateStatus(req.user.id, owner.wabaId);
   res.json({
     provider: "meta-cloud",
     configured: owner.configured,
@@ -84,7 +119,7 @@ export const postWhatsappMetaCredentials = asyncHandler(async (req, res) => {
     ownerUserId: req.user.id,
     ...parsed,
   });
-  const template = await templateStatus(req.user.id);
+  const template = await templateStatus(req.user.id, integration.wabaId);
   log.info("credentials upsert", { ownerUserId: req.user.id, phoneNumberId: integration.phoneNumberId });
   res.status(201).json({
     ok: true,
@@ -125,11 +160,20 @@ export const postWhatsappMetaSendTest = asyncHandler(async (req, res) => {
   if (type === "template") {
     const bodyParam = sanitizeMetaBodyParam(text);
     if (!bodyParam) throw httpError(400, "El texto de la plantilla es obligatorio.");
+    const ctx = await resolveOwnerCampaignSendContext({
+      ownerUserId: req.user.id,
+      wabaId: credentials.wabaId,
+    });
+    const headerDocument = await resolveSendHeaderMedia(ctx.hsmHeaderDocument, credentials);
+    const headerImage = await resolveSendHeaderMedia(ctx.hsmHeaderImage, credentials, "image");
     payload = await metaClient.sendTemplateWithRetry({
       to,
       bodyParams: [name, bodyParam],
       accessToken: credentials.accessToken,
       phoneNumberId: credentials.phoneNumberId,
+      templateName: ctx.hsmTemplateName,
+      ...(headerDocument ? { headerDocument } : {}),
+      ...(headerImage ? { headerImage: { id: headerImage.id } } : {}),
     });
   } else {
     if (!text || text.length > 4096) throw httpError(400, "El texto de prueba es obligatorio.");
