@@ -14,6 +14,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { cn } from "@/lib/utils";
 import { toInputDate } from "@/lib/mock/format";
 import type { CampaignSnapshot } from "@/lib/mock/types";
+import { isCampaignLaunchBlocked } from "@/lib/whatsapp-templates";
 
 type Mode = "now" | "schedule";
 
@@ -25,6 +26,7 @@ export function LaunchCampaignDialog({
   submitting,
   error,
   campaignTemplateStatus,
+  campaignTemplatesLoadError = false,
   onConfirm,
 }: {
   open: boolean;
@@ -34,6 +36,7 @@ export function LaunchCampaignDialog({
   submitting: boolean;
   error?: string;
   campaignTemplateStatus: string | null;
+  campaignTemplatesLoadError?: boolean;
   onConfirm: (payload: { mode: Mode; date?: string }) => Promise<void>;
 }) {
   const today = toInputDate();
@@ -54,7 +57,10 @@ export function LaunchCampaignDialog({
     setDate(next || toInputDate());
   }, [open, campaign.status, campaign.scheduledAt]);
 
-  const campaignApproved = campaignTemplateStatus === "APPROVED";
+  const launchBlocked = isCampaignLaunchBlocked(
+    campaignTemplateStatus,
+    campaignTemplatesLoadError,
+  );
   const dateError =
     mode === "schedule" && date
       ? date < today
@@ -78,9 +84,9 @@ export function LaunchCampaignDialog({
           <DialogDescription>
             El primer contacto se envía a quienes todavía no han sido
             contactados. Puedes lanzarlo ahora o dejarlo programado.
-            {campaignApproved
-              ? null
-              : " Meta aún no aprueba la plantilla de campaña."}
+            {launchBlocked
+              ? " Meta aún no aprueba la plantilla de campaña."
+              : null}
           </DialogDescription>
         </DialogHeader>
         <RadioGroup
@@ -159,7 +165,7 @@ export function LaunchCampaignDialog({
           </Button>
           <Button
             type="button"
-            disabled={submitting || Boolean(dateError) || !campaignApproved}
+            disabled={submitting || Boolean(dateError) || launchBlocked}
             onClick={() =>
               void onConfirm(
                 mode === "schedule" ? { mode, date } : { mode: "now" },

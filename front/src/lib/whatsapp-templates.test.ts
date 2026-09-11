@@ -9,9 +9,11 @@ import {
   extraSlotOptionLabel,
   extraSlotOptions,
   extractBodyPlaceholders,
+  isCampaignLaunchBlocked,
   isEventTemplateCardReady,
   isWizardCardReady,
   mergeEventSlotMappings,
+  shouldShowEventTemplateCards,
   statusBadgeLabel,
   wizardBodyError,
   type WizardTemplateDraft,
@@ -255,4 +257,21 @@ test("campaignTemplateStatus usa la fila isCampaign", () => {
     "PENDING",
   );
   assert.equal(campaignTemplateStatus([]), null);
+});
+
+test("isCampaignLaunchBlocked solo si el GET llegó y no está APPROVED", () => {
+  assert.equal(isCampaignLaunchBlocked("APPROVED", false), false);
+  assert.equal(isCampaignLaunchBlocked("PENDING", false), true);
+  assert.equal(isCampaignLaunchBlocked("REJECTED", false), true);
+  assert.equal(isCampaignLaunchBlocked(null, false), true);
+  assert.equal(isCampaignLaunchBlocked("APPROVED", true), false);
+  assert.equal(isCampaignLaunchBlocked("PENDING", true), false);
+  assert.equal(isCampaignLaunchBlocked(null, true), false);
+});
+
+test("shouldShowEventTemplateCards oculta el editor si el GET falló", () => {
+  assert.equal(shouldShowEventTemplateCards(true, false), false);
+  assert.equal(shouldShowEventTemplateCards(false, true), false);
+  assert.equal(shouldShowEventTemplateCards(true, true), false);
+  assert.equal(shouldShowEventTemplateCards(false, false), true);
 });

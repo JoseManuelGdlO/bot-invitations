@@ -190,6 +190,21 @@ export function campaignTemplateStatus(
   return templates.find((row) => row.isCampaign)?.template.status ?? null;
 }
 
+export function isCampaignLaunchBlocked(
+  status: string | null,
+  loadError: boolean,
+): boolean {
+  if (loadError) return false;
+  return status !== "APPROVED";
+}
+
+export function shouldShowEventTemplateCards(
+  loading: boolean,
+  loadError: boolean,
+): boolean {
+  return !loading && !loadError;
+}
+
 export function statusBadgeClassName(
   status: string | null | undefined,
 ): string {

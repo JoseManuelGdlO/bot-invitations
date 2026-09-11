@@ -70,6 +70,8 @@ function Resumen() {
   const [campaignTemplateStatus, setCampaignTemplateStatus] = useState<
     string | null
   >(null);
+  const [campaignTemplatesLoadError, setCampaignTemplatesLoadError] =
+    useState(false);
 
   useEffect(() => {
     setCampaign(event?.campaign ?? IDLE_CAMPAIGN);
@@ -77,14 +79,20 @@ function Resumen() {
 
   useEffect(() => {
     let cancelled = false;
+    setCampaignTemplatesLoadError(false);
+    setCampaignTemplateStatus(null);
     void integrationsApi
       .listEventWhatsappTemplates(eventId)
       .then((data) => {
         if (cancelled) return;
+        setCampaignTemplatesLoadError(false);
         setCampaignTemplateStatus(campaignStatusFromList(data.templates || []));
       })
       .catch(() => {
-        if (!cancelled) setCampaignTemplateStatus(null);
+        if (!cancelled) {
+          setCampaignTemplatesLoadError(true);
+          setCampaignTemplateStatus(null);
+        }
       });
     return () => {
       cancelled = true;
@@ -254,6 +262,7 @@ function Resumen() {
                     submitting={submitting}
                     error={launchError}
                     campaignTemplateStatus={campaignTemplateStatus}
+                    campaignTemplatesLoadError={campaignTemplatesLoadError}
                     onConfirm={async (payload) => {
                       setSubmitting(true);
                       setLaunchError("");

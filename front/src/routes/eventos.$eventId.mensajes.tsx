@@ -25,6 +25,7 @@ import {
 import {
   buildEventTemplateFormData,
   mergeEventSlotMappings,
+  shouldShowEventTemplateCards,
   type WizardHeaderType,
 } from "@/lib/whatsapp-templates";
 
@@ -135,12 +136,11 @@ function PrimerContactoTemplates({
   event: EventItem | undefined;
 }) {
   const extraKeys = availableTemplateKeys(guests, event);
-  const [drafts, setDrafts] = useState<EventTemplateCardDraft[]>([
-    blankEventTemplateDraft(1, true),
-  ]);
+  const [drafts, setDrafts] = useState<EventTemplateCardDraft[]>([]);
   const [showSecond, setShowSecond] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [reloadKey, setReloadKey] = useState(0);
   const [savingSlot, setSavingSlot] = useState<1 | 2 | null>(null);
 
   const visibleDrafts = showSecond ? drafts.slice(0, 2) : drafts.slice(0, 1);
@@ -172,6 +172,8 @@ function PrimerContactoTemplates({
       })
       .catch((err) => {
         if (cancelled) return;
+        setDrafts([]);
+        setShowSecond(false);
         setError(
           err instanceof ApiError
             ? err.message
@@ -184,10 +186,10 @@ function PrimerContactoTemplates({
     return () => {
       cancelled = true;
     };
-  }, [eventId]);
+  }, [eventId, reloadKey]);
 
   const saveDraft = async (draft: EventTemplateCardDraft) => {
-    if (savingSlot) return;
+    if (savingSlot || error || loading) return;
     setSavingSlot(draft.slot);
     try {
       const { template } = await integrationsApi.putEventWhatsappTemplate(
@@ -254,8 +256,21 @@ function PrimerContactoTemplates({
           Cargando plantillas de Meta…
         </p>
       ) : null}
-      {error ? <p className="mt-3 text-sm text-destructive">{error}</p> : null}
-      {!loading ? (
+      {error ? (
+        <div className="mt-3 flex flex-col items-start gap-2">
+          <p className="text-sm text-destructive">{error}</p>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            disabled={loading}
+            onClick={() => setReloadKey((n) => n + 1)}
+          >
+            Reintentar
+          </Button>
+        </div>
+      ) : null}
+      {shouldShowEventTemplateCards(loading, Boolean(error)) ? (
         <RadioGroup
           value={campaignSlot}
           onValueChange={(value) => void selectCampaign(value)}
