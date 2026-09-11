@@ -22,8 +22,10 @@ import { logActivity } from "../services/activity.service.js";
 import { assertCanCreateEvent } from "../services/plans.service.js";
 import { findCurrentCampaign } from "../services/campaign.service.js";
 import { DEFAULT_EVENT_TIMEZONE, validateTimezone } from "../utils/timezone.js";
+import { Logger } from "../utils/logger.js";
 
 const DEFAULT_COVER = "linear-gradient(135deg, var(--gold-soft), var(--rose))";
+const whatsappTemplatesLog = new Logger("WhatsAppTemplates");
 
 function sanitizeCover(value) {
   const cover = String(value || "").trim();
@@ -85,6 +87,16 @@ export const createEvent = asyncHandler(async (req, res) => {
     await seedEventDefaults(created, req.user, "Sofía", { transaction });
     await logActivity(created.id, `Se creó el evento ${created.name}`, "system", { transaction });
     return created;
+  });
+  const { ensureEventWhatsappTemplates } = await import(
+    "../services/whatsapp-templates.service.js"
+  );
+  await ensureEventWhatsappTemplates(event).catch((error) => {
+    whatsappTemplatesLog.error("No se pudieron preparar las plantillas del evento", {
+      eventId: event.id,
+      ownerUserId: event.ownerId,
+      message: error.message,
+    });
   });
   const campaign = await findCurrentCampaign(event.id);
   res.status(201).json(serializeEvent(event, campaign));

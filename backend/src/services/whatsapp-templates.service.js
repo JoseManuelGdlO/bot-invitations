@@ -18,6 +18,7 @@ import {
   exampleValuesFromMappings,
   generateTemplateName,
 } from "./whatsapp-template-slots.js";
+import { resolveActiveWhatsappMetaByOwner } from "./whatsapp-meta.service.js";
 
 const TEMPLATE_LANGUAGE = "es_MX";
 const TEMPLATE_CATEGORY = "MARKETING";
@@ -78,13 +79,20 @@ function isDuplicateNameError(error) {
   return /duplicate|already\s+exists|unique|name\s+collision/i.test(details);
 }
 
-async function createOnMeta({ wabaId, token, slot, components }) {
+async function createOnMeta({
+  wabaId,
+  token,
+  slot,
+  components,
+  language = TEMPLATE_LANGUAGE,
+  category = TEMPLATE_CATEGORY,
+}) {
   let name = generateTemplateName(slot);
   for (let attempt = 0; attempt < 2; attempt += 1) {
     const payload = {
       name,
-      language: TEMPLATE_LANGUAGE,
-      category: TEMPLATE_CATEGORY,
+      language,
+      category,
       parameter_format: "POSITIONAL",
       components,
     };
@@ -189,4 +197,184 @@ export async function createWizardTemplates({
   }
 
   return created.map(({ row }) => row);
+}
+
+async function sourceTemplatesFor(event) {
+  const defaults = await WhatsappMessageTemplate.findAll({
+    where: { ownerUserId: event.ownerId, isWabaDefault: true },
+    order: [["createdAt", "ASC"]],
+  });
+  if (defaults.length) {
+    const links = await EventWhatsappTemplate.findAll({
+      where: {
+        whatsappMessageTemplateId: defaults.map((template) => template.id),
+      },
+      order: [["slot", "ASC"]],
+    });
+    return { templates: defaults, links };
+  }
+
+  const ownerEvents = await Event.findAll({
+    where: { ownerId: event.ownerId },
+    order: [["createdAt", "ASC"]],
+  });
+  for (const ownerEvent of ownerEvents) {
+    if (ownerEvent.id === event.id) continue;
+    const links = await EventWhatsappTemplate.findAll({
+      where: { eventId: ownerEvent.id },
+      include: [{ model: WhatsappMessageTemplate, as: "template", required: true }],
+      order: [["slot", "ASC"]],
+    });
+    if (links.length) {
+      return {
+        templates: links.map((link) => link.template).filter(Boolean),
+        links,
+      };
+    }
+  }
+  return { templates: [], links: [] };
+}
+
+function sourceLinkFor(template, links, index) {
+  return links.find(
+    (link) => link.whatsappMessageTemplateId === template.id,
+  ) || links[index] || null;
+}
+
+async function cloneHeader(origin, token) {
+  if (origin.headerType === "none" || !origin.headerMediaPath) {
+    return {
+      components: structuredClone(origin.components || []),
+      headerFile: null,
+      headerHandle: origin.headerHandle || null,
+    };
+  }
+  const absolutePath = path.resolve(process.cwd(), "uploads", origin.headerMediaPath);
+  const buffer = await fs.promises.readFile(absolutePath);
+  const headerHandle = await uploadResumableHeader({
+    token,
+    fileName: origin.headerFileName,
+    fileLength: origin.headerSize ?? buffer.length,
+    fileType: origin.headerMime,
+    buffer,
+  });
+  const components = structuredClone(origin.components || []);
+  const header = components.find(
+    (component) => String(component?.type || "").toUpperCase() === "HEADER",
+  );
+  if (header) header.example = { ...(header.example || {}), header_handle: [headerHandle] };
+  return {
+    components,
+    headerHandle,
+    headerFile: {
+      fileName: origin.headerFileName,
+      size: origin.headerSize ?? buffer.length,
+      mime: origin.headerMime,
+      buffer,
+    },
+  };
+}
+
+async function resolveOwnerTemplateToken(ownerUserId) {
+  try {
+    return resolveTemplateCrudToken();
+  } catch {
+    const { credentials } = await resolveActiveWhatsappMetaByOwner(ownerUserId);
+    return resolveTemplateCrudToken(credentials.accessToken);
+  }
+}
+
+export async function ensureEventWhatsappTemplates(event) {
+  const existing = await EventWhatsappTemplate.findAll({
+    where: { eventId: event.id },
+    include: [{ model: WhatsappMessageTemplate, as: "template" }],
+    order: [["slot", "ASC"]],
+  });
+  if (existing.length) {
+    return { attached: false, cloned: false, links: existing };
+  }
+
+  const source = await sourceTemplatesFor(event);
+  if (!source.templates.length) {
+    return { attached: false, cloned: false, links: [] };
+  }
+
+  if (!source.links.length) {
+    const links = [];
+    for (const [index, template] of source.templates.entries()) {
+      links.push(await EventWhatsappTemplate.create({
+        eventId: event.id,
+        whatsappMessageTemplateId: template.id,
+        ownerUserId: event.ownerId,
+        slot: index + 1,
+        isCampaign: index === 0,
+        slotMappings: {},
+      }));
+    }
+    return { attached: true, cloned: false, links };
+  }
+
+  const token = await resolveOwnerTemplateToken(event.ownerId);
+  const clones = [];
+  for (const [index, origin] of source.templates.entries()) {
+    const sourceLink = sourceLinkFor(origin, source.links, index);
+    const slot = sourceLink?.slot ?? index + 1;
+    const header = await cloneHeader(origin, token);
+    const meta = await createOnMeta({
+      wabaId: origin.wabaId,
+      token,
+      slot,
+      components: header.components,
+      language: origin.language,
+      category: origin.category,
+    });
+    const clone = await WhatsappMessageTemplate.create({
+      ownerUserId: event.ownerId,
+      wabaId: origin.wabaId,
+      metaTemplateId: meta.metaTemplateId,
+      name: meta.name,
+      language: origin.language,
+      category: origin.category,
+      headerType: origin.headerType,
+      headerMediaPath: null,
+      headerFileName: origin.headerFileName || null,
+      headerMime: origin.headerMime || null,
+      headerSize: origin.headerSize ?? null,
+      headerHandle: header.headerHandle,
+      components: header.components,
+      status: "PENDING",
+      isWabaDefault: false,
+      clonedFromId: origin.id,
+    });
+    await persistHeaderFile({
+      ownerUserId: event.ownerId,
+      template: clone,
+      headerFile: header.headerFile,
+    });
+    clones.push({ clone, sourceLink, slot, index });
+  }
+
+  const links = [];
+  for (const { clone, sourceLink, slot, index } of clones) {
+    links.push(await EventWhatsappTemplate.create({
+      eventId: event.id,
+      whatsappMessageTemplateId: clone.id,
+      ownerUserId: event.ownerId,
+      slot,
+      isCampaign: sourceLink?.isCampaign ?? index === 0,
+      slotMappings: sourceLink?.slotMappings || {},
+    }));
+  }
+  return { attached: false, cloned: true, links };
+}
+
+export async function listEventWhatsappTemplates(eventId) {
+  const event = await Event.findByPk(eventId);
+  if (!event) return [];
+  await ensureEventWhatsappTemplates(event);
+  return EventWhatsappTemplate.findAll({
+    where: { eventId },
+    include: [{ model: WhatsappMessageTemplate, as: "template", required: true }],
+    order: [["slot", "ASC"]],
+  });
 }
