@@ -63,19 +63,19 @@ export function isWizardCardReady(draft: {
 export function wizardDraftsToSubmit(
   drafts: WizardTemplateDraft[],
 ): WizardTemplateDraft[] {
-  const ready = drafts.filter((draft) => isWizardCardReady(draft)).slice(0, 2);
-  if (ready.length === 0) return [];
-  if (ready.length === 1 || !ready.some((draft) => draft.isCampaign)) {
-    return ready.map((draft, index) => ({
+  if (drafts.length === 0 || !drafts.every(isWizardCardReady)) return [];
+  const templates = drafts.slice(0, 2);
+  if (templates.length === 1 || !templates.some((draft) => draft.isCampaign)) {
+    return templates.map((draft, index) => ({
       ...draft,
       isCampaign: index === 0,
     }));
   }
-  return ready;
+  return templates;
 }
 
 export function canSubmitWizard(drafts: WizardTemplateDraft[]): boolean {
-  return wizardDraftsToSubmit(drafts).length >= 1;
+  return drafts.length >= 1 && drafts.every(isWizardCardReady);
 }
 
 export function buildWizardFormData(drafts: WizardTemplateDraft[]): FormData {

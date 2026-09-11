@@ -42,6 +42,26 @@ function handleOpeningDocumentUpload(req, res, next) {
   });
 }
 
+const templateHeaderUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 10 * 1024 * 1024 },
+});
+
+function handleTemplateHeaderUpload(fields) {
+  return (req, res, next) => {
+    templateHeaderUpload.fields(fields)(req, res, (err) => {
+      if (!err) return next();
+      if (err.code === "LIMIT_FILE_SIZE") {
+        err.status = 400;
+        err.message = "El archivo no puede superar 10 MB.";
+      } else if (!err.status) {
+        err.status = 400;
+      }
+      next(err);
+    });
+  };
+}
+
 export const router = Router();
 
 router.get("/plans", auth.listPlans);
@@ -88,7 +108,7 @@ router.post("/integrations/whatsapp/meta/signup", metaWhatsapp.postMetaEmbeddedS
 router.post("/integrations/whatsapp/meta/disconnect", metaWhatsapp.postMetaDisconnect);
 router.post(
   "/integrations/whatsapp/meta/templates",
-  upload.fields([
+  handleTemplateHeaderUpload([
     { name: "header_1", maxCount: 1 },
     { name: "header_2", maxCount: 1 },
   ]),
@@ -106,7 +126,7 @@ router.get(
 );
 router.put(
   "/events/:eventId/whatsapp-templates/:slot",
-  upload.fields([{ name: "header", maxCount: 1 }]),
+  handleTemplateHeaderUpload([{ name: "header", maxCount: 1 }]),
   whatsappTemplates.putEventWhatsappTemplate,
 );
 router.patch(

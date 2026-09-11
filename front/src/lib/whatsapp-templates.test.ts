@@ -75,9 +75,17 @@ test("isWizardCardReady exige archivo si el encabezado no es texto", () => {
   );
 });
 
-test("canSubmitWizard pide al menos una tarjeta válida", () => {
+test("canSubmitWizard exige que todas las tarjetas visibles estén listas", () => {
   assert.equal(canSubmitWizard([draft({ body: "hola" })]), false);
-  assert.equal(canSubmitWizard([draft(), draft({ slot: 2, body: "" })]), true);
+  assert.equal(canSubmitWizard([draft()]), true);
+  assert.equal(
+    canSubmitWizard([draft(), draft({ slot: 2, body: "" })]),
+    false,
+  );
+  assert.equal(
+    canSubmitWizard([draft(), draft({ slot: 2, isCampaign: false })]),
+    true,
+  );
 });
 
 test("buildWizardFormData manda payload JSON y header_1", () => {
@@ -103,13 +111,21 @@ test("buildWizardFormData manda payload JSON y header_1", () => {
   assert.equal(form.get("header_2"), null);
 });
 
-test("buildWizardFormData fuerza campaña si solo queda una plantilla válida", () => {
-  const form = buildWizardFormData([
-    draft({ isCampaign: false }),
-    draft({ slot: 2, body: "incompleto", isCampaign: true }),
-  ]);
+test("buildWizardFormData fuerza campaña con una sola tarjeta válida", () => {
+  const form = buildWizardFormData([draft({ isCampaign: false })]);
   const payload = JSON.parse(String(form.get("payload")));
   assert.equal(payload.templates.length, 1);
   assert.equal(payload.templates[0].isCampaign, true);
   assert.equal(payload.templates[0].slot, 1);
+});
+
+test("buildWizardFormData incluye todas las tarjetas visibles listas", () => {
+  const form = buildWizardFormData([
+    draft({ isCampaign: true }),
+    draft({ slot: 2, isCampaign: false }),
+  ]);
+  const payload = JSON.parse(String(form.get("payload")));
+  assert.equal(payload.templates.length, 2);
+  assert.equal(payload.templates[0].slot, 1);
+  assert.equal(payload.templates[1].slot, 2);
 });
