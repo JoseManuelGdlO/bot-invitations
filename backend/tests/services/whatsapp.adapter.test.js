@@ -228,6 +228,56 @@ describe("whatsapp.adapter MetaCloudProvider", () => {
     });
   });
 
+  test("sube imagen jpg sin mime y usa image/jpeg por defecto", async () => {
+    models.Event.findByPk.mockResolvedValue(fakeEvent());
+    models.Guest.findByPk.mockResolvedValue(fakeGuest({ rep: "Luis Pérez", status: "enviado" }));
+    models.Conversation.findOne.mockResolvedValue(null);
+    const provider = adapter.createWhatsAppProvider();
+    await provider.sendMessage("5512345678", "mensaje compuesto", {
+      eventId: "evt_1",
+      guestId: "gst_1",
+      hsmParams: ["Luis", "2"],
+      hsmTemplateName: "alanna_pc_deadbeef_2",
+      hsmHeaderImage: {
+        relativePath: "whatsapp-templates/base/image.jpg",
+        filename: "image.jpg",
+      },
+    });
+    expect(uploadDocument).toHaveBeenCalledWith(
+      expect.objectContaining({
+        filePath: expect.stringMatching(/whatsapp-templates[/\\]base[/\\]image\.jpg$/),
+        filename: "image.jpg",
+        mime: "image/jpeg",
+        ...metaAuth,
+      }),
+    );
+  });
+
+  test("sube imagen png sin mime e infiere image/png", async () => {
+    models.Event.findByPk.mockResolvedValue(fakeEvent());
+    models.Guest.findByPk.mockResolvedValue(fakeGuest({ rep: "Luis Pérez", status: "enviado" }));
+    models.Conversation.findOne.mockResolvedValue(null);
+    const provider = adapter.createWhatsAppProvider();
+    await provider.sendMessage("5512345678", "mensaje compuesto", {
+      eventId: "evt_1",
+      guestId: "gst_1",
+      hsmParams: ["Luis", "2"],
+      hsmTemplateName: "alanna_pc_deadbeef_2",
+      hsmHeaderImage: {
+        relativePath: "whatsapp-templates/base/image.png",
+        filename: "image.png",
+      },
+    });
+    expect(uploadDocument).toHaveBeenCalledWith(
+      expect.objectContaining({
+        filePath: expect.stringMatching(/whatsapp-templates[/\\]base[/\\]image\.png$/),
+        filename: "image.png",
+        mime: "image/png",
+        ...metaAuth,
+      }),
+    );
+  });
+
   test("sube imagen de header y la pasa con el name del job", async () => {
     models.Event.findByPk.mockResolvedValue(fakeEvent());
     models.Guest.findByPk.mockResolvedValue(fakeGuest({ rep: "Luis Pérez", status: "enviado" }));

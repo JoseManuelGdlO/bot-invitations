@@ -35,6 +35,15 @@ export function openingHeaderDocumentFrom(document) {
   return { filePath, filename, mime, ...(eventId ? { eventId } : {}) };
 }
 
+function resolveImageMime({ mime, filename, filePath } = {}) {
+  const normalizedMime = String(mime || "").trim().toLowerCase();
+  if (normalizedMime.startsWith("image/")) return normalizedMime;
+
+  const name = String(filename || filePath || "").trim().toLowerCase();
+  if (name.endsWith(".png")) return "image/png";
+  return "image/jpeg";
+}
+
 async function resolveHeaderMedia(headerMedia, credentials, type = "document") {
   if (!headerMedia) return null;
   const filename = String(headerMedia.filename || headerMedia.fileName || "").trim();
@@ -52,13 +61,18 @@ async function resolveHeaderMedia(headerMedia, credentials, type = "document") {
     throw httpError(400, `La plantilla con ${label} requiere un archivo adjunto.`);
   }
 
+  const mime =
+    type === "image"
+      ? resolveImageMime({ mime: headerMedia.mime, filename, filePath })
+      : headerMedia.mime;
+
   const cacheKey = `${credentials.phoneNumberId}:${filePath}`;
   let mediaId = mediaIdByFile.get(cacheKey);
   if (!mediaId) {
     mediaId = await metaClient.uploadDocument({
       filePath,
       filename,
-      mime: headerMedia.mime,
+      mime,
       accessToken: credentials.accessToken,
       phoneNumberId: credentials.phoneNumberId,
     });
