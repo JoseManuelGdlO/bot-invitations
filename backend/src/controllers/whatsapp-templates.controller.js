@@ -1,6 +1,7 @@
 import { asyncHandler } from "../utils/async.js";
 import { httpError } from "../utils/http-error.js";
 import {
+  Event,
   EventWhatsappTemplate,
   WhatsappMessageTemplate,
 } from "../models/index.js";
@@ -79,7 +80,7 @@ function serializeTemplate(template) {
 
 function serializeLink(link) {
   return {
-    id: link?.id ?? link?.template?.id ?? null,
+    id: link?.id ?? null,
     slot: Number(link?.slot),
     isCampaign: Boolean(link?.isCampaign),
     slotMappings: link?.slotMappings || {},
@@ -107,12 +108,19 @@ export const postWizardTemplates = asyncHandler(async (req, res) => {
     plannerAccessToken: resolved.credentials.accessToken,
     templates,
   });
-  res.status(201).json({
-    templates: rows.map((row, index) => serializeLink({
-      id: row.id,
+  const event = await Event.findOne({
+    where: { ownerId: req.user.id },
+    order: [["createdAt", "DESC"]],
+  });
+  const links = event
+    ? await listEventWhatsappTemplates(event.id)
+    : rows.map((row, index) => ({
+      id: null,
       ...templates[index],
       template: row,
-    })),
+    }));
+  res.status(201).json({
+    templates: links.map(serializeLink),
   });
 });
 

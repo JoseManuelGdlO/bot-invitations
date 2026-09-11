@@ -97,6 +97,7 @@ describe("whatsapp-templates.controller", () => {
       mimetype: "application/pdf",
       size: 3,
     };
+    models.Event.findOne.mockResolvedValue({ id: "evt_latest" });
 
     const { res } = await callHandler(controller.postWizardTemplates, {
       req: createMockReq({
@@ -124,10 +125,15 @@ describe("whatsapp-templates.controller", () => {
         },
       }],
     });
+    expect(models.Event.findOne).toHaveBeenCalledWith({
+      where: { ownerId: "usr_test_1" },
+      order: [["createdAt", "DESC"]],
+    });
+    expect(listEventWhatsappTemplates).toHaveBeenCalledWith("evt_latest");
     expect(res.status).toHaveBeenCalledWith(201);
     expect(res.json).toHaveBeenCalledWith({
       templates: [{
-        id: "tpl_1",
+        id: "link_1",
         slot: 1,
         isCampaign: true,
         slotMappings: {
@@ -150,7 +156,7 @@ describe("whatsapp-templates.controller", () => {
       body: "Hola {{1}}, tienes {{2}} pases.",
       isCampaign: true,
     }];
-    await callHandler(controller.postWizardTemplates, {
+    const { res } = await callHandler(controller.postWizardTemplates, {
       req: createMockReq({ body: { templates } }),
     });
     expect(createWizardTemplates).toHaveBeenCalledWith(
@@ -158,6 +164,15 @@ describe("whatsapp-templates.controller", () => {
         templates: [expect.objectContaining({ ...templates[0], headerFile: undefined })],
       }),
     );
+    expect(listEventWhatsappTemplates).not.toHaveBeenCalled();
+    expect(res.json).toHaveBeenCalledWith({
+      templates: [expect.objectContaining({
+        id: null,
+        slot: 1,
+        isCampaign: true,
+        template: expect.objectContaining({ id: "tpl_1" }),
+      })],
+    });
   });
 
   test("POST wizard responde 400 sin templates", async () => {
