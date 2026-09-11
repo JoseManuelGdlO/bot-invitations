@@ -77,7 +77,7 @@ export async function graphRequest({ method = "GET", path, token, query = {}, bo
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   let res;
   try {
-    res = await fetch(url, {
+    res = await fetch(url.toString(), {
       method,
       headers,
       body: body == null ? undefined : JSON.stringify(body),
@@ -107,6 +107,73 @@ export async function graphRequest({ method = "GET", path, token, query = {}, bo
     throw err;
   }
   return payload;
+}
+
+export function resolveTemplateCrudToken(plannerAccessToken) {
+  const token = String(env.meta.accessToken || plannerAccessToken || "").trim();
+  if (!token) throw httpError(400, "Falta META_ACCESS_TOKEN y la cuenta no tiene token.");
+  return token;
+}
+
+export async function createMessageTemplate({ wabaId, token, payload }) {
+  return graphRequest({
+    method: "POST",
+    path: `${wabaId}/message_templates`,
+    token,
+    body: payload,
+  });
+}
+
+export async function updateMessageTemplate({ templateId, token, payload }) {
+  return graphRequest({
+    method: "POST",
+    path: templateId,
+    token,
+    body: payload,
+  });
+}
+
+export async function uploadResumableHeader({ token, fileName, fileLength, fileType, buffer }) {
+  const session = await graphRequest({
+    method: "POST",
+    path: `${env.meta.appId}/uploads`,
+    query: {
+      file_name: fileName,
+      file_length: fileLength,
+      file_type: fileType,
+      access_token: token,
+    },
+    timeoutMs: env.meta.mediaTimeoutMs || 60000,
+  });
+  const sessionId = String(session.id || "").trim();
+  if (!sessionId) throw httpError(502, "Meta no devolvió una sesión de upload.");
+
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), env.meta.mediaTimeoutMs || 60000);
+  let res;
+  try {
+    res = await fetch(`${graphBase()}/${sessionId}`, {
+      method: "POST",
+      headers: {
+        Authorization: `OAuth ${token}`,
+        file_offset: "0",
+      },
+      body: buffer,
+      signal: controller.signal,
+    });
+  } catch (error) {
+    const err = httpError(502, "No se pudo contactar la API de Meta.");
+    attachMetaError(err, { httpStatus: 502, message: error.message });
+    throw err;
+  } finally {
+    clearTimeout(timer);
+  }
+
+  const payload = await parseResponse(res);
+  if (!res.ok) throw graphErrorFromResponse(res.status, payload);
+  const handle = payload.h || payload.handle;
+  if (!handle) throw httpError(502, "Meta no devolvió header_handle.");
+  return handle;
 }
 
 export async function exchangeEmbeddedSignupCode(code) {

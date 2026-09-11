@@ -39,4 +39,33 @@ describe("meta-graph.client", () => {
     expect(err.message).toContain("token de WhatsApp");
     expect(err.message).not.toContain("EAAJBSECRET");
   });
+
+  test("resolveTemplateCrudToken prefiere META_ACCESS_TOKEN", async () => {
+    await jest.unstable_mockModule("../../src/config/env.js", () => ({
+      env: { meta: { accessToken: "sys_tok", appId: "app_1", graphVersion: "v21.0" } },
+    }));
+    const { resolveTemplateCrudToken } = await import("../../src/services/meta-graph.client.js");
+    expect(resolveTemplateCrudToken("planner_tok")).toBe("sys_tok");
+  });
+
+  test("createMessageTemplate POST al WABA", async () => {
+    global.fetch = jest.fn(async () => ({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ id: "111" }),
+    }));
+    await jest.unstable_mockModule("../../src/config/env.js", () => ({
+      env: { meta: { accessToken: "sys_tok", appId: "app_1", graphVersion: "v21.0" } },
+    }));
+    const { createMessageTemplate } = await import("../../src/services/meta-graph.client.js");
+    const out = await createMessageTemplate({
+      wabaId: "waba_1",
+      token: "sys_tok",
+      payload: { name: "alanna_pc_abcd1234_1", language: "es_MX", category: "MARKETING", components: [] },
+    });
+    expect(out.id).toBe("111");
+    const [url, init] = fetch.mock.calls[0];
+    expect(url).toContain("/waba_1/message_templates");
+    expect(init.method).toBe("POST");
+  });
 });
