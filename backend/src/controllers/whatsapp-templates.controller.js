@@ -115,8 +115,8 @@ export const postWizardTemplates = asyncHandler(async (req, res) => {
   const links = event
     ? await listEventWhatsappTemplates(event.id)
     : rows.map((row, index) => ({
-      id: null,
       ...templates[index],
+      id: null,
       slotMappings: defaultSlotMappings(templates[index]?.body),
       template: row,
     }));

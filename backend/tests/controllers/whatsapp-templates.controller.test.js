@@ -175,6 +175,28 @@ describe("whatsapp-templates.controller", () => {
     });
   });
 
+  test("POST wizard sin evento ignora id falsificado en el JSON", async () => {
+    models.Event.findOne.mockResolvedValue(null);
+
+    const templates = [{
+      id: "forged_link",
+      slot: 1,
+      headerType: "none",
+      body: "Hola {{1}}, pases {{2}}",
+      isCampaign: true,
+    }];
+
+    const { res } = await callHandler(controller.postWizardTemplates, {
+      req: createMockReq({ body: { templates } }),
+    });
+
+    expect(models.Event.findOne).toHaveBeenCalled();
+    expect(listEventWhatsappTemplates).not.toHaveBeenCalled();
+    expect(res.json).toHaveBeenCalledWith({
+      templates: [expect.objectContaining({ id: null })],
+    });
+  });
+
   test("POST wizard sin evento no expone mappings bloqueados falsificados", async () => {
     const templates = [{
       slot: 1,
