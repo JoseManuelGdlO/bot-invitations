@@ -145,12 +145,12 @@ export function resolveTemplateCrudToken(plannerAccessToken) {
 }
 
 function isBenignWabaLinkError(error) {
-  const details = [
-    error?.message,
-    error?.meta?.message,
-    error?.meta?.code,
-  ].filter(Boolean).join(" ");
-  return /already|duplicate|exist|linked|shared/i.test(details);
+  const code = Number(error?.meta?.code);
+  const subcode = Number(error?.meta?.subcode);
+  if (code === 100 && subcode === 33) return false;
+  const details = [error?.message, error?.meta?.message].filter(Boolean).join(" ");
+  if (/\bdoes not exist\b|nonexist/i.test(details)) return false;
+  return /\balready\b|\bduplicate\b|\blinked\b|\bshared\b/i.test(details);
 }
 
 export async function shareClientWhatsappBusinessAccount({ wabaId, businessId, token } = {}) {

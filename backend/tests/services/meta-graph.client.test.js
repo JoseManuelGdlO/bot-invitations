@@ -129,4 +129,72 @@ describe("meta-graph.client", () => {
     const assignCall = fetch.mock.calls.find(([url]) => String(url).includes("/assigned_users"));
     expect(assignCall[1].headers.Authorization).toBe("Bearer planner_tok");
   });
+
+  test("ensurePlatformCanManageWaba no trata Graph 100/33 'does not exist' como WABA ya vinculado", async () => {
+    const missing = {
+      error: {
+        message:
+          "Unsupported get request. Object with ID 'waba_1' does not exist, cannot be loaded due to missing permissions, or does not support this operation.",
+        type: "GraphMethodException",
+        code: 100,
+        error_subcode: 33,
+        fbtrace_id: "trace_33",
+      },
+    };
+    global.fetch = jest.fn(async () => ({
+      ok: false,
+      status: 400,
+      text: async () => JSON.stringify(missing),
+    }));
+    await jest.unstable_mockModule("../../src/config/env.js", () => ({
+      env: { meta: { accessToken: "sys_tok", businessId: "bm_1", appId: "app_1", graphVersion: "v21.0" } },
+    }));
+    const { ensurePlatformCanManageWaba } = await import("../../src/services/meta-graph.client.js");
+    await expect(
+      ensurePlatformCanManageWaba({
+        wabaId: "waba_1",
+        plannerAccessToken: "planner_tok",
+      }),
+    ).rejects.toMatchObject({
+      status: 400,
+      message: expect.stringMatching(/no tiene acceso a este WABA/i),
+    });
+  });
+
+  test("ensurePlatformCanManageWaba sí ignora errores de WABA ya vinculado", async () => {
+    global.fetch = jest.fn(async (url) => {
+      const href = String(url);
+      if (href.includes("client_whatsapp_business_accounts")) {
+        return {
+          ok: false,
+          status: 400,
+          text: async () =>
+            JSON.stringify({
+              error: {
+                message: "This WhatsApp Business Account is already shared with the business.",
+                code: 100,
+              },
+            }),
+        };
+      }
+      return { ok: true, status: 200, text: async () => JSON.stringify({ success: true }) };
+    });
+    await jest.unstable_mockModule("../../src/config/env.js", () => ({
+      env: {
+        meta: {
+          accessToken: "sys_tok",
+          businessId: "bm_1",
+          systemUserId: "sys_user_1",
+          appId: "app_1",
+          graphVersion: "v21.0",
+        },
+      },
+    }));
+    const { ensurePlatformCanManageWaba } = await import("../../src/services/meta-graph.client.js");
+    const out = await ensurePlatformCanManageWaba({
+      wabaId: "waba_1",
+      plannerAccessToken: "planner_tok",
+    });
+    expect(out).toEqual(expect.objectContaining({ shared: true, assigned: true }));
+  });
 });
