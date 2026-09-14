@@ -62,7 +62,15 @@ async function parseResponse(res) {
   }
 }
 
-export async function graphRequest({ method = "GET", path, token, query = {}, body, timeoutMs = 15000 } = {}) {
+export async function graphRequest({
+  method = "GET",
+  path,
+  token,
+  query = {},
+  body,
+  timeoutMs = 15000,
+  errorLog = "error",
+} = {}) {
   const url = new URL(`${graphBase()}/${String(path || "").replace(/^\/+/, "")}`);
   for (const [key, value] of Object.entries(query)) {
     if (value == null || value === "") continue;
@@ -81,8 +89,7 @@ export async function graphRequest({ method = "GET", path, token, query = {}, bo
     tokenPreview: described.preview,
   });
   if (env.meta.debugGraphToken) {
-    // El Logger redacta `token`; esta línea es la verificación de cuál Bearer se envía.
-    console.log(`[MetaGraph] Authorization Bearer source=${described.source} token=${token || ""}`);
+    console.log(`[MetaGraph] Authorization Bearer source=${described.source} preview=${described.preview}`);
   }
 
   const controller = new AbortController();
@@ -107,7 +114,7 @@ export async function graphRequest({ method = "GET", path, token, query = {}, bo
   const payload = await parseResponse(res);
   if (!res.ok) {
     const err = graphErrorFromResponse(res.status, payload);
-    log.error("Graph API error", {
+    const graphErrorMeta = {
       path,
       method,
       httpStatus: err.meta?.httpStatus,
@@ -115,7 +122,9 @@ export async function graphRequest({ method = "GET", path, token, query = {}, bo
       subcode: err.meta?.subcode,
       fbtraceId: err.meta?.fbtraceId,
       message: err.meta?.message,
-    });
+    };
+    if (errorLog === "warn") log.warn("Graph API error", graphErrorMeta);
+    else log.error("Graph API error", graphErrorMeta);
     throw err;
   }
   return payload;
@@ -139,8 +148,8 @@ export function describeGraphToken(token) {
 }
 
 export function resolveTemplateCrudToken(plannerAccessToken) {
-  const token = String(env.meta.accessToken || plannerAccessToken || "").trim();
-  if (!token) throw httpError(400, "Falta META_ACCESS_TOKEN y la cuenta no tiene token.");
+  const token = String(plannerAccessToken || env.meta.accessToken || "").trim();
+  if (!token) throw httpError(400, "Falta el token de WhatsApp de la cuenta.");
   return token;
 }
 
@@ -165,6 +174,7 @@ export async function shareClientWhatsappBusinessAccount({ wabaId, businessId, t
     path: `${id}/client_whatsapp_business_accounts`,
     token: access,
     query: { waba_id: waba },
+    errorLog: "warn",
   });
 }
 
@@ -183,6 +193,7 @@ export async function assignSystemUserToWaba({ wabaId, systemUserId, token } = {
       user,
       tasks: JSON.stringify(["MANAGE"]),
     },
+    errorLog: "warn",
   });
 }
 
@@ -197,10 +208,11 @@ export async function ensurePlatformCanManageWaba({ wabaId, plannerAccessToken }
   }
 
   const businessId = String(env.meta.businessId || "").trim();
+  const shareToken = String(plannerAccessToken || platformToken).trim();
   let shared = false;
   if (businessId) {
     try {
-      await shareClientWhatsappBusinessAccount({ wabaId: waba, businessId, token: platformToken });
+      await shareClientWhatsappBusinessAccount({ wabaId: waba, businessId, token: shareToken });
       shared = true;
       log.info("OBO: WABA vinculado al portafolio", { wabaId: waba, businessId });
     } catch (error) {
@@ -256,10 +268,9 @@ export async function ensurePlatformCanManageWaba({ wabaId, plannerAccessToken }
   }
 
   if (!shared && !assigned) {
-    throw httpError(
-      400,
-      "El token de plataforma no tiene acceso a este WABA. Configura META_BUSINESS_ID y vuelve a conectar WhatsApp.",
-    );
+    log.warn("OBO: el token de plataforma no tiene acceso a este WABA; se usará el token del planner", {
+      wabaId: waba,
+    });
   }
   return { skipped: false, shared, assigned };
 }
@@ -286,6 +297,7 @@ export async function uploadResumableHeader({ token, fileName, fileLength, fileT
   const session = await graphRequest({
     method: "POST",
     path: `${env.meta.appId}/uploads`,
+    token,
     query: {
       file_name: fileName,
       file_length: fileLength,

@@ -17,12 +17,13 @@ function ownerMetaMocks(wabaId = "waba_1") {
 
 test("wizard crea una HSM PENDING isWabaDefault y attach al evento más reciente", async () => {
   const createMessageTemplate = jest.fn(async () => ({ id: "meta_1" }));
-  const ensurePlatformCanManageWaba = jest.fn(async () => ({ shared: true, assigned: true }));
+  const ensurePlatformCanManageWaba = jest.fn(async () => ({ shared: false, assigned: false }));
+  const resolveTemplateCrudToken = jest.fn((token) => token);
   const event = fakeEvent({ id: "evt_old", ownerId: "usr_1" });
   const { mod, models } = await loadWithMocks("src/services/whatsapp-templates.service.js", {
     extraMocks: {
       "src/services/meta-graph.client.js": () => ({
-        resolveTemplateCrudToken: () => "sys_tok",
+        resolveTemplateCrudToken,
         ensurePlatformCanManageWaba,
         createMessageTemplate,
         updateMessageTemplate: jest.fn(),
@@ -51,11 +52,10 @@ test("wizard crea una HSM PENDING isWabaDefault y attach al evento más reciente
     }],
   });
 
+  expect(resolveTemplateCrudToken).toHaveBeenCalledWith("planner");
   expect(createMessageTemplate).toHaveBeenCalledTimes(1);
-  expect(ensurePlatformCanManageWaba).toHaveBeenCalledWith({
-    wabaId: "waba_1",
-    plannerAccessToken: "planner",
-  });
+  expect(createMessageTemplate).toHaveBeenCalledWith(expect.objectContaining({ token: "planner" }));
+  expect(ensurePlatformCanManageWaba).not.toHaveBeenCalled();
   const payload = createMessageTemplate.mock.calls[0][0].payload;
   expect(payload.language).toBe("es_MX");
   expect(payload.category).toBe("MARKETING");
@@ -74,6 +74,54 @@ test("wizard crea una HSM PENDING isWabaDefault y attach al evento más reciente
     expect.objectContaining({ eventId: "evt_old", slot: 1, isCampaign: true }),
   );
   expect(out).toHaveLength(1);
+});
+
+test("wizard no vuelve a crear en Meta si ya hay default PENDING del mismo slot", async () => {
+  const createMessageTemplate = jest.fn(async () => ({ id: "meta_new" }));
+  const uploadResumableHeader = jest.fn();
+  const { mod, models } = await loadWithMocks("src/services/whatsapp-templates.service.js", {
+    extraMocks: {
+      "src/services/meta-graph.client.js": () => ({
+        resolveTemplateCrudToken: (token) => token,
+        ensurePlatformCanManageWaba: jest.fn(),
+        createMessageTemplate,
+        updateMessageTemplate: jest.fn(),
+        uploadResumableHeader,
+      }),
+    },
+  });
+  const existing = {
+    id: "tpl_existing",
+    name: "alanna_pc_aaaa1111_1",
+    status: "PENDING",
+    isWabaDefault: true,
+  };
+  models.WhatsappMessageTemplate.findAll.mockResolvedValue([existing]);
+  models.Event.findOne.mockResolvedValue(fakeEvent({ id: "evt_1", ownerId: "usr_1" }));
+  models.EventWhatsappTemplate.findOne.mockResolvedValue({ id: "link_1" });
+
+  const out = await mod.createWizardTemplates({
+    ownerUserId: "usr_1",
+    wabaId: "waba_1",
+    plannerAccessToken: "planner",
+    templates: [{
+      slot: 1,
+      headerType: "document",
+      headerFile: {
+        buffer: Buffer.from("pdf"),
+        fileName: "invitacion.pdf",
+        mime: "application/pdf",
+        size: 3,
+      },
+      body: "Hola {{1}}, pases {{2}}",
+      isCampaign: true,
+    }],
+  });
+
+  expect(createMessageTemplate).not.toHaveBeenCalled();
+  expect(uploadResumableHeader).not.toHaveBeenCalled();
+  expect(models.WhatsappMessageTemplate.create).not.toHaveBeenCalled();
+  expect(out).toEqual([existing]);
 });
 
 test("wizard ignora headerFile cuando headerType es none", async () => {
@@ -540,8 +588,9 @@ test("submit edita en Graph una plantilla usada por un solo pivot", async () => 
   const createMessageTemplate = jest.fn();
   const { mod, models } = await loadWithMocks("src/services/whatsapp-templates.service.js", {
     extraMocks: {
+      ...ownerMetaMocks(),
       "src/services/meta-graph.client.js": () => ({
-        resolveTemplateCrudToken: () => "sys_tok",
+        resolveTemplateCrudToken: (token) => token || "sys_tok",
         ensurePlatformCanManageWaba: jest.fn(async () => ({ shared: true, assigned: true })),
         createMessageTemplate,
         updateMessageTemplate,
@@ -592,7 +641,7 @@ test("submit edita en Graph una plantilla usada por un solo pivot", async () => 
 
   expect(updateMessageTemplate).toHaveBeenCalledWith({
     templateId: "meta_1",
-    token: "sys_tok",
+    token: "tok",
     payload: expect.objectContaining({
       language: "es_MX",
       category: "MARKETING",
@@ -612,6 +661,7 @@ test("submit recrea en Graph el draft del slot 2 sin metaTemplateId", async () =
   const updateMessageTemplate = jest.fn();
   const { mod, models } = await loadWithMocks("src/services/whatsapp-templates.service.js", {
     extraMocks: {
+      ...ownerMetaMocks(),
       "src/services/meta-graph.client.js": () => ({
         resolveTemplateCrudToken: () => "sys_tok",
         ensurePlatformCanManageWaba: jest.fn(async () => ({ shared: true, assigned: true })),
@@ -682,6 +732,7 @@ test("submit hace copy-on-write cuando dos pivots comparten plantilla", async ()
   const updateMessageTemplate = jest.fn();
   const { mod, models } = await loadWithMocks("src/services/whatsapp-templates.service.js", {
     extraMocks: {
+      ...ownerMetaMocks(),
       "src/services/meta-graph.client.js": () => ({
         resolveTemplateCrudToken: () => "sys_tok",
         ensurePlatformCanManageWaba: jest.fn(async () => ({ shared: true, assigned: true })),
@@ -783,6 +834,7 @@ test("submit conserva el status previo cuando Graph falla", async () => {
   const updateMessageTemplate = jest.fn().mockRejectedValue(graphError);
   const { mod, models } = await loadWithMocks("src/services/whatsapp-templates.service.js", {
     extraMocks: {
+      ...ownerMetaMocks(),
       "src/services/meta-graph.client.js": () => ({
         resolveTemplateCrudToken: () => "sys_tok",
         ensurePlatformCanManageWaba: jest.fn(async () => ({ shared: true, assigned: true })),

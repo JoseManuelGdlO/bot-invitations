@@ -40,12 +40,29 @@ describe("meta-graph.client", () => {
     expect(err.message).not.toContain("EAAJBSECRET");
   });
 
-  test("resolveTemplateCrudToken prefiere META_ACCESS_TOKEN", async () => {
+  test("resolveTemplateCrudToken prefiere el token del planner", async () => {
     await jest.unstable_mockModule("../../src/config/env.js", () => ({
       env: { meta: { accessToken: "sys_tok", appId: "app_1", graphVersion: "v21.0" } },
     }));
     const { resolveTemplateCrudToken } = await import("../../src/services/meta-graph.client.js");
-    expect(resolveTemplateCrudToken("planner_tok")).toBe("sys_tok");
+    expect(resolveTemplateCrudToken("planner_tok")).toBe("planner_tok");
+  });
+
+  test("resolveTemplateCrudToken usa META_ACCESS_TOKEN si no hay token del planner", async () => {
+    await jest.unstable_mockModule("../../src/config/env.js", () => ({
+      env: { meta: { accessToken: "sys_tok", appId: "app_1", graphVersion: "v21.0" } },
+    }));
+    const { resolveTemplateCrudToken } = await import("../../src/services/meta-graph.client.js");
+    expect(resolveTemplateCrudToken()).toBe("sys_tok");
+    expect(resolveTemplateCrudToken("")).toBe("sys_tok");
+  });
+
+  test("resolveTemplateCrudToken 400 si no hay token de planner ni de plataforma", async () => {
+    await jest.unstable_mockModule("../../src/config/env.js", () => ({
+      env: { meta: { accessToken: "", appId: "app_1", graphVersion: "v21.0" } },
+    }));
+    const { resolveTemplateCrudToken } = await import("../../src/services/meta-graph.client.js");
+    expect(() => resolveTemplateCrudToken()).toThrow(/token de WhatsApp/i);
   });
 
   test("describeGraphToken distingue token de plataforma y token del planner", async () => {
@@ -126,6 +143,8 @@ describe("meta-graph.client", () => {
     const urls = fetch.mock.calls.map(([url]) => String(url));
     expect(urls.some((url) => url.includes("/bm_1/client_whatsapp_business_accounts") && url.includes("waba_id=waba_1"))).toBe(true);
     expect(urls.some((url) => url.includes("/waba_1/assigned_users") && url.includes("user=sys_user_1"))).toBe(true);
+    const shareCall = fetch.mock.calls.find(([url]) => String(url).includes("client_whatsapp_business_accounts"));
+    expect(shareCall[1].headers.Authorization).toBe("Bearer planner_tok");
     const assignCall = fetch.mock.calls.find(([url]) => String(url).includes("/assigned_users"));
     expect(assignCall[1].headers.Authorization).toBe("Bearer planner_tok");
   });
@@ -150,15 +169,11 @@ describe("meta-graph.client", () => {
       env: { meta: { accessToken: "sys_tok", businessId: "bm_1", appId: "app_1", graphVersion: "v21.0" } },
     }));
     const { ensurePlatformCanManageWaba } = await import("../../src/services/meta-graph.client.js");
-    await expect(
-      ensurePlatformCanManageWaba({
-        wabaId: "waba_1",
-        plannerAccessToken: "planner_tok",
-      }),
-    ).rejects.toMatchObject({
-      status: 400,
-      message: expect.stringMatching(/no tiene acceso a este WABA/i),
+    const out = await ensurePlatformCanManageWaba({
+      wabaId: "waba_1",
+      plannerAccessToken: "planner_tok",
     });
+    expect(out).toEqual(expect.objectContaining({ shared: false, assigned: false }));
   });
 
   test("ensurePlatformCanManageWaba sí ignora errores de WABA ya vinculado", async () => {

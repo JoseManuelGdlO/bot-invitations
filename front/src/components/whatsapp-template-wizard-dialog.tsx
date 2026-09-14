@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Loader2, Plus, Trash2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -73,6 +73,7 @@ export function WhatsAppTemplateWizardDialog({
     emptyDraft(1, true),
   ]);
   const [submitting, setSubmitting] = useState(false);
+  const submitInFlight = useRef(false);
 
   const campaignSlot = String(
     drafts.find((draft) => draft.isCampaign)?.slot ?? drafts[0]?.slot ?? 1,
@@ -128,7 +129,8 @@ export function WhatsAppTemplateWizardDialog({
 
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!canSubmitWizard(drafts) || submitting) return;
+    if (!canSubmitWizard(drafts) || submitting || submitInFlight.current) return;
+    submitInFlight.current = true;
     setSubmitting(true);
     try {
       await integrationsApi.createWizardTemplates(buildWizardFormData(drafts));
@@ -143,6 +145,7 @@ export function WhatsAppTemplateWizardDialog({
           : "No se pudieron enviar las plantillas",
       );
     } finally {
+      submitInFlight.current = false;
       setSubmitting(false);
     }
   };

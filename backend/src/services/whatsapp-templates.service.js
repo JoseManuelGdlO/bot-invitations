@@ -9,7 +9,6 @@ import { eventGuestVars } from "../utils/defaults.js";
 import { httpError } from "../utils/http-error.js";
 import {
   createMessageTemplate,
-  ensurePlatformCanManageWaba,
   resolveTemplateCrudToken,
   updateMessageTemplate,
   uploadResumableHeader,
@@ -181,6 +180,19 @@ async function persistHeaderFile({ ownerUserId, template, headerFile }) {
   return relativePath;
 }
 
+function reusableWizardDefault(row, slot) {
+  const status = String(row?.status || "").toUpperCase();
+  if (status === "REJECTED") return false;
+  return String(row?.name || "").endsWith(`_${slot}`);
+}
+
+async function findReusableWizardDefault({ ownerUserId, wabaId, slot }) {
+  const defaults = await WhatsappMessageTemplate.findAll({
+    where: { ownerUserId, wabaId, isWabaDefault: true },
+  });
+  return defaults.find((row) => reusableWizardDefault(row, slot)) || null;
+}
+
 export async function createWizardTemplates({
   ownerUserId,
   wabaId,
@@ -189,10 +201,18 @@ export async function createWizardTemplates({
 }) {
   const validated = validateWizardTemplates(templates);
   const token = resolveTemplateCrudToken(plannerAccessToken);
-  await ensurePlatformCanManageWaba({ wabaId, plannerAccessToken });
   const created = [];
 
   for (const templateInput of validated) {
+    const existing = await findReusableWizardDefault({
+      ownerUserId,
+      wabaId,
+      slot: templateInput.slot,
+    });
+    if (existing) {
+      created.push({ row: existing, input: templateInput, reused: true });
+      continue;
+    }
     const headerFile = templateInput.headerType === "none"
       ? null
       : templateInput.headerFile || null;
@@ -235,7 +255,7 @@ export async function createWizardTemplates({
       isWabaDefault: true,
     });
     await persistHeaderFile({ ownerUserId, template: row, headerFile });
-    created.push({ row, input: templateInput });
+    created.push({ row, input: templateInput, reused: false });
   }
 
   const event = await Event.findOne({
@@ -244,6 +264,13 @@ export async function createWizardTemplates({
   });
   if (event) {
     for (const item of created) {
+      const existingLink = await EventWhatsappTemplate.findOne({
+        where: {
+          eventId: event.id,
+          slot: item.input.slot,
+        },
+      });
+      if (existingLink) continue;
       await EventWhatsappTemplate.create({
         eventId: event.id,
         whatsappMessageTemplateId: item.row.id,
@@ -352,12 +379,8 @@ async function cloneHeader(origin, token) {
 }
 
 async function resolveOwnerTemplateToken(ownerUserId) {
-  try {
-    return resolveTemplateCrudToken();
-  } catch {
-    const { credentials } = await resolveActiveWhatsappMetaByOwner(ownerUserId);
-    return resolveTemplateCrudToken(credentials.accessToken);
-  }
+  const { credentials } = await resolveActiveWhatsappMetaByOwner(ownerUserId);
+  return resolveTemplateCrudToken(credentials.accessToken);
 }
 
 export async function ensureEventWhatsappTemplates(event) {
