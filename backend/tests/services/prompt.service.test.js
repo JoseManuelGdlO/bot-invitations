@@ -62,7 +62,9 @@ describe("prompt.service", () => {
     expect(text).toContain("[Seguimiento] Recontacto");
     expect(text).toContain("¿Pueden ir niños?");
     expect(text).toContain("faq | asistira | no_asistira | seguimiento | desconocido");
-    expect(text).toContain("INMEDIATAMENTE a actualizar_confirmacion");
+    expect(text).toContain("llama actualizar_confirmacion");
+    expect(text).toContain("PROHIBIDO llamar a 'actualizar_confirmacion'");
+    expect(text).toContain("confírmalo de inmediato");
     expect(text).toContain("marcar_seguimiento");
     expect(text).toContain("{{nombre}}");
     expect(text).toMatch(/Si NO hay una regla así/);
