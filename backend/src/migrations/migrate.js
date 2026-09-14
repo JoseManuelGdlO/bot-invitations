@@ -1,4 +1,4 @@
-import { Plan, User, sequelize, syncModels, ensureEventMemberRemovedAt, ensureInboundEventDedupTable, ensureWhatsappMetaTables, ensureWhatsappTemplateTables, ensureCampaignColumns, ensureTemplateGreetingVar, ensureTemplateBodyVars, ensureTemplateDocumentColumns, ensureMessageProviderId, ensureMessageKind, ensureGuestCustomData, ensureEventTimezone, ensureGuestStatusCleanup, ensureChannelIntegrationMetaColumns, ensureAiConfigToggles } from "../models/index.js";
+import { Plan, User, sequelize, syncModels, ensureEventMemberRemovedAt, ensureInboundEventDedupTable, ensureWhatsappMetaTables, ensureWhatsappTemplateTables, ensureCampaignColumns, ensureTemplateGreetingVar, ensureTemplateBodyVars, ensureTemplateDocumentColumns, ensureMessageProviderId, ensureMessageKind, ensureGuestCustomData, ensureEventTimezone, ensureGuestStatusCleanup, ensureGuestPhoneDigits, ensureChannelIntegrationMetaColumns, ensureAiConfigToggles } from "../models/index.js";
 import { ensurePlans } from "../services/plans.service.js";
 import { ensureAdmin } from "../controllers/admin.controller.js";
 import { syncStripePlans } from "../services/stripe.service.js";
@@ -23,6 +23,7 @@ try {
   await ensureGuestCustomData();
   await ensureEventTimezone();
   await ensureGuestStatusCleanup();
+  await ensureGuestPhoneDigits();
   await ensureChannelIntegrationMetaColumns();
   await ensureAiConfigToggles();
   await ensurePlans();

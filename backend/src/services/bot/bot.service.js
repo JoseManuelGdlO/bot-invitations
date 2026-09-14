@@ -1,9 +1,10 @@
 import { AiConfig, Conversation, Event, Guest, Message } from "../../models/index.js";
+import { Op } from "sequelize";
 import { env } from "../../config/env.js";
 import { formatClock } from "../../utils/time.js";
 import { httpError } from "../../utils/http-error.js";
 import { enqueueJob } from "../outbound.worker.js";
-import { resolveWhatsappTo, shouldPersistWhatsappChatId } from "../../utils/whatsapp-identity.js";
+import { normalizeWaIdTo10, resolveWhatsappTo, shouldPersistWhatsappChatId } from "../../utils/whatsapp-identity.js";
 import { buildInstructions, loadEventBotContext } from "./prompt.service.js";
 import { processTurn } from "./openai.service.js";
 import { executeBotTool } from "./tools.js";
@@ -14,7 +15,6 @@ import {
   asItems,
   getOrCreateBotSession,
   liveUserId,
-  phonesMatch,
   refreshBotSessionLock,
   saveSessionItems,
   tryLockBotSession,
@@ -84,27 +84,31 @@ async function pickGuestFromMatches(matches, eventById) {
 }
 
 export async function resolveGuestForInbound({ ownerUserId, chatId, displayPhone }) {
-  const events = ownerUserId
-    ? await Event.findAll({ where: { ownerId: ownerUserId } })
-    : await Event.findAll();
-  if (!events.length) return null;
-  const eventById = new Map(events.map((event) => [event.id, event]));
-  const guests = await Guest.findAll({ where: { eventId: events.map((event) => event.id) } });
   const inboundChatId = String(chatId || "").trim();
+  const digits = normalizeWaIdTo10(displayPhone || inboundChatId);
+  if (!digits && !inboundChatId.includes("@")) return null;
 
-  if (inboundChatId.includes("@")) {
-    const byChatId = guests.filter((guest) => String(guest.whatsappChatId || "").trim() === inboundChatId);
-    const matched = await pickGuestFromMatches(byChatId, eventById);
-    if (matched) return matched;
-  }
+  const where = inboundChatId.includes("@")
+    ? { [Op.or]: [{ phoneDigits: digits }, { whatsappChatId: inboundChatId }] }
+    : { phoneDigits: digits };
 
-  const phone = displayPhone || inboundChatId;
-  if (phone) {
-    const byPhone = guests.filter((guest) => phonesMatch(guest.phone, phone));
-    return pickGuestFromMatches(byPhone, eventById);
-  }
+  const rows = await Guest.findAll({
+    where,
+    include: [{
+      model: Event,
+      required: true,
+      where: {
+        status: "activo",
+        ...(ownerUserId ? { ownerId: ownerUserId } : {}),
+      },
+    }],
+  });
+  if (!rows.length) return null;
 
-  return null;
+  const eventById = new Map(
+    rows.map((guest) => [guest.eventId, guest.Event || guest.event]),
+  );
+  return pickGuestFromMatches(rows, eventById);
 }
 
 export async function rememberWhatsappChatId(guest, chatId) {

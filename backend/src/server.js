@@ -1,5 +1,5 @@
 import { env } from "./config/env.js";
-import { sequelize, ensureEventMemberRemovedAt, ensureInboundEventDedupTable, ensureCampaignColumns, ensureTemplateGreetingVar, ensureTemplateBodyVars, ensureTemplateDocumentColumns, ensureWhatsappMetaTables, ensureWhatsappTemplateTables, ensureMessageProviderId, ensureMessageKind, ensureGuestCustomData, ensureEventTimezone, ensureChannelIntegrationMetaColumns, ensureAiConfigToggles } from "./models/index.js";
+import { sequelize, ensureEventMemberRemovedAt, ensureInboundEventDedupTable, ensureCampaignColumns, ensureTemplateGreetingVar, ensureTemplateBodyVars, ensureTemplateDocumentColumns, ensureWhatsappMetaTables, ensureWhatsappTemplateTables, ensureMessageProviderId, ensureMessageKind, ensureGuestCustomData, ensureEventTimezone, ensureChannelIntegrationMetaColumns, ensureAiConfigToggles, ensureGuestPhoneDigits } from "./models/index.js";
 import { createApp } from "./app.js";
 import { startOutboundWorker } from "./services/outbound.worker.js";
 import { startFollowUpScheduler } from "./services/follow-up.scheduler.js";
@@ -21,6 +21,7 @@ try {
   await ensureMessageKind();
   await ensureGuestCustomData();
   await ensureEventTimezone();
+  await ensureGuestPhoneDigits();
   await ensureChannelIntegrationMetaColumns();
   await ensureAiConfigToggles();
   console.log("[db] conectado a MySQL");

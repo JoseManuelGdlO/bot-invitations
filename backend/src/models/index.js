@@ -1,6 +1,7 @@
-import { DataTypes } from "sequelize";
+import { DataTypes, Op } from "sequelize";
 import { sequelize } from "../config/database.js";
 import { pruneDuplicateIndexes } from "../utils/prune-duplicate-indexes.js";
+import { normalizeWaIdTo10 } from "../utils/whatsapp-identity.js";
 
 const uuid = {
   type: DataTypes.CHAR(36),
@@ -110,47 +111,59 @@ export const EventRolePermission = sequelize.define("event_role_permissions", {
   enabled: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: true },
 });
 
-export const Guest = sequelize.define("guests", {
-  id: uuid,
-  eventId: { type: DataTypes.CHAR(36), allowNull: false },
-  rep: { type: DataTypes.STRING(160), allowNull: false },
-  phone: { type: DataTypes.STRING(40), allowNull: false },
-  whatsappChatId: { type: DataTypes.STRING(120), allowNull: true },
-  invited: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 1 },
-  confirmed: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
-  table: { type: DataTypes.STRING(80), allowNull: true, defaultValue: "" },
-  family: { type: DataTypes.STRING(120), allowNull: true, defaultValue: "" },
-  guestType: { type: DataTypes.STRING(80), allowNull: true, defaultValue: "" },
-  notes: { type: DataTypes.TEXT, allowNull: true },
-  tag: { type: DataTypes.STRING(80), allowNull: true, defaultValue: "Sin etiqueta" },
-  customData: { type: DataTypes.JSON, allowNull: true },
-  status: {
-    type: DataTypes.ENUM(
-      "sin_contactar",
-      "enviado",
-      "entregado",
-      "en_conversacion",
-      "confirmado",
-      "parcial",
-      "no_asistira",
-      "seguimiento",
-    ),
-    allowNull: false,
-    defaultValue: "sin_contactar",
+export const Guest = sequelize.define(
+  "guests",
+  {
+    id: uuid,
+    eventId: { type: DataTypes.CHAR(36), allowNull: false },
+    rep: { type: DataTypes.STRING(160), allowNull: false },
+    phone: { type: DataTypes.STRING(40), allowNull: false },
+    phoneDigits: { type: DataTypes.STRING(10), allowNull: true },
+    whatsappChatId: { type: DataTypes.STRING(120), allowNull: true },
+    invited: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 1 },
+    confirmed: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
+    table: { type: DataTypes.STRING(80), allowNull: true, defaultValue: "" },
+    family: { type: DataTypes.STRING(120), allowNull: true, defaultValue: "" },
+    guestType: { type: DataTypes.STRING(80), allowNull: true, defaultValue: "" },
+    notes: { type: DataTypes.TEXT, allowNull: true },
+    tag: { type: DataTypes.STRING(80), allowNull: true, defaultValue: "Sin etiqueta" },
+    customData: { type: DataTypes.JSON, allowNull: true },
+    status: {
+      type: DataTypes.ENUM(
+        "sin_contactar",
+        "enviado",
+        "entregado",
+        "en_conversacion",
+        "confirmado",
+        "parcial",
+        "no_asistira",
+        "seguimiento",
+      ),
+      allowNull: false,
+      defaultValue: "sin_contactar",
+    },
+    whatsapp: {
+      type: DataTypes.ENUM("pendiente", "enviado", "entregado", "leido", "respondido"),
+      allowNull: false,
+      defaultValue: "pendiente",
+    },
+    lastMessage: { type: DataTypes.STRING(240), allowNull: true, defaultValue: "" },
+    lastReply: { type: DataTypes.TEXT, allowNull: true },
+    lastReplyAt: { type: DataTypes.STRING(80), allowNull: true, defaultValue: "" },
+    followUp: { type: DataTypes.STRING(80), allowNull: true, defaultValue: "" },
+    followUpsSent: { type: DataTypes.JSON, allowNull: false, defaultValue: [] },
+    confirmedAt: { type: DataTypes.DATE, allowNull: true },
+    contactedAt: { type: DataTypes.DATE, allowNull: true },
   },
-  whatsapp: {
-    type: DataTypes.ENUM("pendiente", "enviado", "entregado", "leido", "respondido"),
-    allowNull: false,
-    defaultValue: "pendiente",
+  {
+    indexes: [{ fields: ["phoneDigits"] }],
+    hooks: {
+      beforeValidate(guest) {
+        guest.phoneDigits = normalizeWaIdTo10(guest.phone) || null;
+      },
+    },
   },
-  lastMessage: { type: DataTypes.STRING(240), allowNull: true, defaultValue: "" },
-  lastReply: { type: DataTypes.TEXT, allowNull: true },
-  lastReplyAt: { type: DataTypes.STRING(80), allowNull: true, defaultValue: "" },
-  followUp: { type: DataTypes.STRING(80), allowNull: true, defaultValue: "" },
-  followUpsSent: { type: DataTypes.JSON, allowNull: false, defaultValue: [] },
-  confirmedAt: { type: DataTypes.DATE, allowNull: true },
-  contactedAt: { type: DataTypes.DATE, allowNull: true },
-});
+);
 
 export const Conversation = sequelize.define("conversations", {
   id: uuid,
@@ -849,6 +862,62 @@ export async function ensureGuestStatusCleanup() {
     `ALTER TABLE guests MODIFY COLUMN status ENUM(${enumSql}) NOT NULL DEFAULT 'sin_contactar'`,
   );
   console.log("[db] guests.status ENUM sin valores legacy");
+}
+
+export async function ensureGuestPhoneDigits() {
+  const qi = sequelize.getQueryInterface();
+  let table;
+  try {
+    table = await qi.describeTable("guests");
+  } catch (err) {
+    console.error("[db] no se pudo describir guests para phoneDigits", err?.message || err);
+    return;
+  }
+  if (!table.phoneDigits) {
+    try {
+      await qi.addColumn("guests", "phoneDigits", {
+        type: DataTypes.STRING(10),
+        allowNull: true,
+      });
+      console.log("[db] columna guests.phoneDigits creada");
+    } catch (err) {
+      console.error("[db] no se pudo crear guests.phoneDigits", err?.message || err);
+      return;
+    }
+  }
+
+  const pending = await Guest.findAll({
+    where: { phoneDigits: { [Op.is]: null } },
+    attributes: ["id", "phone"],
+  });
+  let updated = 0;
+  for (const guest of pending) {
+    const digits = normalizeWaIdTo10(guest.phone) || null;
+    if (!digits) continue;
+    await Guest.update({ phoneDigits: digits }, { where: { id: guest.id } });
+    updated += 1;
+  }
+  if (updated) console.log(`[db] backfill guests.phoneDigits: ${updated} filas`);
+
+  let indexRows = [];
+  try {
+    [indexRows] = await sequelize.query("SHOW INDEX FROM `guests`");
+  } catch (err) {
+    console.error("[db] no se pudo listar índices de guests", err?.message || err);
+    return;
+  }
+  const hasIndex = (indexRows || []).some((row) => {
+    const column = String(row.Column_name || row.column_name || "");
+    return column === "phoneDigits";
+  });
+  if (!hasIndex) {
+    try {
+      await qi.addIndex("guests", ["phoneDigits"], { name: "guests_phone_digits" });
+      console.log("[db] índice guests_phone_digits creado");
+    } catch (err) {
+      console.error("[db] no se pudo crear índice guests_phone_digits", err?.message || err);
+    }
+  }
 }
 
 export async function ensureChannelIntegrationMetaColumns() {

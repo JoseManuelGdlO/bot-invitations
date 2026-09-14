@@ -4,7 +4,7 @@ import { processGuestMessage, rememberWhatsappChatId, resolveGuestForInbound } f
 import { botLog, botWarn } from "../services/bot/bot-logger.js";
 import { claimInboundEvent, inboundDedupeKey } from "../services/inbound-dedupe.service.js";
 import { normalizePhone } from "../services/bot/session.service.js";
-import { extractInboundIdentity, resolveWhatsappTo } from "../utils/whatsapp-identity.js";
+import { extractInboundIdentity, normalizeWaIdTo10, resolveWhatsappTo } from "../utils/whatsapp-identity.js";
 
 export function extractInboundMessage(payload = {}) {
   const type = String(payload.type || payload.event || "").trim();
@@ -65,6 +65,7 @@ export async function handleInboundWhatsapp({ payload, integration, rawBody = ""
     botWarn("inbound ignorado: invitado no encontrado", {
       chatId: inbound.chatId,
       displayPhone: inbound.displayPhone,
+      phoneDigits: normalizeWaIdTo10(inbound.displayPhone || inbound.chatId) || null,
       ownerUserId: integration?.ownerUserId || null,
     });
     return { processed: true, reason: "guest_not_found" };
