@@ -141,10 +141,18 @@ function validateWizardTemplate(input) {
   };
 }
 
-function wizardContentUnchanged(existing, { body, headerType, headerFile }) {
+function bodyExampleValuesFromComponents(components) {
+  const body = (components || []).find((c) => String(c?.type || "").toUpperCase() === "BODY");
+  return body?.example?.body_text?.[0] ?? null;
+}
+
+function wizardContentUnchanged(existing, { body, headerType, headerFile, slotMappings }) {
   if (bodyTextFromComponents(existing?.components) !== body) return false;
   if (String(existing?.headerType || "none").toLowerCase() !== headerType) return false;
   if (headerType !== "none" && headerFile) return false;
+  const existingExamples = bodyExampleValuesFromComponents(existing?.components);
+  const nextExamples = exampleValuesFromMappings(slotMappings);
+  if (JSON.stringify(existingExamples) !== JSON.stringify(nextExamples)) return false;
   return true;
 }
 

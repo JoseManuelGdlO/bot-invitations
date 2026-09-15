@@ -106,7 +106,11 @@ function existingDefault(overrides = {}) {
     language: "es_MX",
     category: "MARKETING",
     wabaId: "waba_1",
-    components: [{ type: "BODY", text: WIZARD_BODY }],
+    components: [{
+      type: "BODY",
+      text: WIZARD_BODY,
+      example: { body_text: [["María", "2"]] },
+    }],
     update: jest.fn(async function update(patch) {
       Object.assign(this, patch);
       return this;
@@ -259,6 +263,45 @@ test("wizard no llama a Graph si ya hay default con el mismo body y header", asy
   expect(existing.update).not.toHaveBeenCalled();
   expect(models.EventWhatsappTemplate.create).toHaveBeenCalledTimes(2);
   expect(out.template).toBe(existing);
+});
+
+test("wizard actualiza en Meta si el body es igual pero cambian los slotMappings", async () => {
+  const updateMessageTemplate = jest.fn(async () => ({}));
+  const { mod, models, createMessageTemplate } = await loadWizardService({
+    updateMessageTemplate,
+  });
+  const extraMappings = {
+    ...LOCKED_MAPPINGS,
+    "3": { type: "field", key: "evento" },
+    "4": { type: "field", key: "fecha" },
+    "5": { type: "field", key: "lugar" },
+  };
+  const existing = existingDefault({
+    components: [{
+      type: "BODY",
+      text: WIZARD_BODY_EXTRA,
+      example: { body_text: [["María", "2", "evento", "fecha", "lugar"]] },
+    }],
+  });
+  models.WhatsappMessageTemplate.findAll.mockResolvedValue([existing]);
+  models.Event.findAll.mockResolvedValue([fakeEvent({ id: "evt_1", ownerId: "usr_1" })]);
+  models.EventWhatsappTemplate.findAll.mockResolvedValue([]);
+
+  await mod.createWizardTemplates({
+    ownerUserId: "usr_1",
+    wabaId: "waba_1",
+    plannerAccessToken: "planner",
+    headerType: "none",
+    body: WIZARD_BODY_EXTRA,
+    slotMappings: {
+      ...extraMappings,
+      "3": { type: "field", key: "planner" },
+    },
+  });
+
+  expect(createMessageTemplate).not.toHaveBeenCalled();
+  expect(updateMessageTemplate).toHaveBeenCalled();
+  expect(existing.update).toHaveBeenCalled();
 });
 
 test("wizard adjunta el default a 3 eventos sin campaña con una sola HSM", async () => {
