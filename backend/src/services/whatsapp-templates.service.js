@@ -1160,6 +1160,7 @@ export async function submitEventTemplate({
         bodyStatus: "DRAFT",
       }),
       isWabaDefault: false,
+      displayName: persistableDisplayName(displayName, null),
     });
     pivot = await EventWhatsappTemplate.create({
       eventId,
@@ -1196,20 +1197,21 @@ export async function submitEventTemplate({
         category: template.category || TEMPLATE_CATEGORY,
         initialName: template.name,
       });
-      await template.update({
-        ...localTemplateFields({
-          headerType: normalizedHeaderType,
-          header,
-          components,
-        }),
-        metaTemplateId: meta.metaTemplateId,
-        name: meta.name,
-      });
-      if (header.headerFile) {
-        await persistHeaderFile({ ownerUserId, template, headerFile: header.headerFile });
-      }
-      await pivot.update({ slotMappings: mappings });
-    } else if (
+    await template.update({
+      ...localTemplateFields({
+        headerType: normalizedHeaderType,
+        header,
+        components,
+      }),
+      metaTemplateId: meta.metaTemplateId,
+      name: meta.name,
+      displayName: persistableDisplayName(displayName, template.displayName),
+    });
+    if (header.headerFile) {
+      await persistHeaderFile({ ownerUserId, template, headerFile: header.headerFile });
+    }
+    await pivot.update({ slotMappings: mappings });
+  } else if (
       await EventWhatsappTemplate.count({
         where: { whatsappMessageTemplateId: template.id },
       }) === 1 && !template.isWabaDefault
@@ -1223,11 +1225,14 @@ export async function submitEventTemplate({
           category: template.category || TEMPLATE_CATEGORY,
         },
       });
-      await template.update(localTemplateFields({
-        headerType: normalizedHeaderType,
-        header,
-        components,
-      }));
+      await template.update({
+        ...localTemplateFields({
+          headerType: normalizedHeaderType,
+          header,
+          components,
+        }),
+        displayName: persistableDisplayName(displayName, template.displayName),
+      });
       if (header.headerFile) {
         await persistHeaderFile({ ownerUserId, template, headerFile: header.headerFile });
       }

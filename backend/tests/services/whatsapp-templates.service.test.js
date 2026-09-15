@@ -1298,6 +1298,72 @@ test("submit edita en Graph una plantilla usada por un solo pivot", async () => 
   expect(result).toBe(template);
 });
 
+test("submit persiste displayName en update in-place de personalizada", async () => {
+  const updateMessageTemplate = jest.fn(async () => ({ id: "meta_1" }));
+  const { mod, models } = await loadWithMocks("src/services/whatsapp-templates.service.js", {
+    extraMocks: {
+      ...ownerMetaMocks(),
+      "src/services/meta-graph.client.js": () => ({
+        resolveTemplateCrudToken: (token) => token || "sys_tok",
+        ensurePlatformCanManageWaba: jest.fn(async () => ({ shared: true, assigned: true })),
+        createMessageTemplate: jest.fn(),
+        updateMessageTemplate,
+        uploadResumableHeader: jest.fn(),
+        deleteMessageTemplate: jest.fn(),
+      }),
+    },
+  });
+  const event = fakeEvent({ id: "evt_1", ownerId: "usr_1" });
+  const template = {
+    id: "tpl_1",
+    metaTemplateId: "meta_1",
+    wabaId: "waba_1",
+    name: "alanna_pc_1",
+    language: "es_MX",
+    category: "MARKETING",
+    headerType: "none",
+    status: "APPROVED",
+    isWabaDefault: false,
+    displayName: "Viejo",
+    update: jest.fn(async function update(patch) {
+      Object.assign(this, patch);
+      return this;
+    }),
+  };
+  const pivot = {
+    eventId: event.id,
+    slot: 1,
+    whatsappMessageTemplateId: template.id,
+    template,
+    update: jest.fn(async function update(patch) {
+      Object.assign(this, patch);
+      return this;
+    }),
+  };
+  models.Event.findOne.mockResolvedValue(event);
+  models.EventWhatsappTemplate.findAll.mockResolvedValue([pivot]);
+  models.WhatsappMessageTemplate.findAll.mockResolvedValue([]);
+  models.EventWhatsappTemplate.findOne.mockResolvedValue(pivot);
+  models.EventWhatsappTemplate.count.mockResolvedValue(1);
+
+  await mod.submitEventTemplate({
+    eventId: event.id,
+    ownerUserId: "usr_1",
+    slot: 1,
+    body: WIZARD_BODY,
+    headerType: "none",
+    slotMappings: {},
+    isCampaign: false,
+    displayName: "  Invitación con mesa  ",
+  });
+
+  expect(updateMessageTemplate).toHaveBeenCalledTimes(1);
+  expect(template.update).toHaveBeenCalledWith(expect.objectContaining({
+    displayName: "Invitación con mesa",
+  }));
+  expect(updateMessageTemplate.mock.calls[0][0].payload).not.toHaveProperty("displayName");
+});
+
 test("submit recrea en Graph el draft del slot 2 sin metaTemplateId", async () => {
   const createMessageTemplate = jest.fn(async () => ({ id: "meta_2" }));
   const updateMessageTemplate = jest.fn();

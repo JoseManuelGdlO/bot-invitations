@@ -1,18 +1,34 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Copy, Plus } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { RadioGroup } from "@/components/ui/radio-group";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { TemplateBodyEditor } from "@/components/template-body-editor";
 import { TemplatePreview } from "@/components/template-preview";
-import {
-  WhatsappTemplateCard,
-  type EventTemplateCardDraft,
-} from "@/components/whatsapp-template-card";
+import { WhatsappEventTemplateCreateDialog } from "@/components/whatsapp-event-template-create-dialog";
+import { WhatsappTemplateCard } from "@/components/whatsapp-template-card";
 import { useEvent, useStore } from "@/lib/mock/store";
 import type { EventItem, Guest, Template } from "@/lib/mock/types";
 import { availableTemplateKeys } from "@/lib/template-vars";
@@ -20,13 +36,22 @@ import { toast } from "sonner";
 import { ApiError } from "@/lib/api/client";
 import {
   integrationsApi,
-  type EventWhatsappTemplateDto,
+  type AccountWhatsappTemplateDto,
 } from "@/lib/api/integrations";
 import {
+  buildPrimerContactoSelectorOptions,
+  canCreateEventCustomTemplate,
+  DEFAULT_ACCOUNT_TEMPLATE_BANNER,
+  draftsFromEventTemplates,
+  parsePrimerContactoSelectorValue,
+  selectorValueForDraft,
+  shouldConfirmEventTemplateFork,
+  shouldShowDefaultTemplateBanner,
+  type EventTemplateCardDraft,
+} from "@/lib/whatsapp-event-templates";
+import {
   buildEventTemplateFormData,
-  mergeEventSlotMappings,
   shouldShowEventTemplateCards,
-  type WizardHeaderType,
 } from "@/lib/whatsapp-templates";
 
 export const Route = createFileRoute("/eventos/$eventId/mensajes")({
@@ -65,65 +90,17 @@ const localCategories = [
 const PRIMER_CONTACTO_HINT =
   "Campaña inicial de WhatsApp. Editas el cuerpo de cada plantilla de Meta y eliges cuál usar en el envío masivo.";
 
-function headerTypeOf(value: string | null | undefined): WizardHeaderType {
-  return value === "document" || value === "image" ? value : "none";
-}
-
-function blankEventTemplateDraft(
-  slot: 1 | 2,
-  isCampaign: boolean,
-): EventTemplateCardDraft {
-  return {
-    slot,
-    body: "",
-    headerType: "none",
-    headerFile: null,
-    headerFileName: null,
-    savedHeaderType: "none",
-    savedHeaderFileName: null,
-    isCampaign,
-    status: "DRAFT",
-    rejectedReason: null,
-    slotMappings: mergeEventSlotMappings("", {}),
-    persisted: false,
-  };
-}
-
-function dtoToEventTemplateDraft(
-  dto: EventWhatsappTemplateDto,
-): EventTemplateCardDraft {
-  const headerType = headerTypeOf(dto.template.headerType);
-  const slot: 1 | 2 = dto.slot === 2 ? 2 : 1;
-  return {
-    slot,
-    body: dto.template.body || "",
-    headerType,
-    headerFile: null,
-    headerFileName: dto.template.headerFileName,
-    savedHeaderType: headerType,
-    savedHeaderFileName: dto.template.headerFileName,
-    isCampaign: dto.isCampaign,
-    status: dto.template.status,
-    rejectedReason: dto.template.rejectedReason,
-    slotMappings: mergeEventSlotMappings(
-      dto.template.body || "",
-      dto.slotMappings || {},
-    ),
-    persisted: true,
-  };
-}
-
-function draftsFromTemplates(templates: EventWhatsappTemplateDto[]) {
-  const slot1 = templates.find((item) => item.slot === 1);
-  const slot2 = templates.find((item) => item.slot === 2);
-  const first = slot1
-    ? dtoToEventTemplateDraft(slot1)
-    : blankEventTemplateDraft(1, slot2 ? !slot2.isCampaign : true);
-  if (!slot2) return { drafts: [first], showSecond: false };
-  return {
-    drafts: [first, dtoToEventTemplateDraft(slot2)],
-    showSecond: true,
-  };
+function mergeSavedDraft(
+  prev: EventTemplateCardDraft[],
+  next: EventTemplateCardDraft,
+): EventTemplateCardDraft[] {
+  const others = prev.filter((item) => item.slot !== next.slot);
+  const merged = [...others, next].sort((a, b) => a.slot - b.slot);
+  if (!next.isCampaign) return merged;
+  return merged.map((item) => ({
+    ...item,
+    isCampaign: item.slot === next.slot,
+  }));
 }
 
 function PrimerContactoTemplates({
@@ -137,20 +114,51 @@ function PrimerContactoTemplates({
 }) {
   const extraKeys = availableTemplateKeys(guests, event);
   const [drafts, setDrafts] = useState<EventTemplateCardDraft[]>([]);
-  const [showSecond, setShowSecond] = useState(false);
+  const [accountTemplates, setAccountTemplates] = useState<
+    AccountWhatsappTemplateDto[]
+  >([]);
+  const [focusedSlot, setFocusedSlot] = useState<number | null>(null);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [forkDraft, setForkDraft] = useState<EventTemplateCardDraft | null>(
+    null,
+  );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [reloadKey, setReloadKey] = useState(0);
-  const [savingSlot, setSavingSlot] = useState<1 | 2 | null>(null);
+  const [savingSlot, setSavingSlot] = useState<number | null>(null);
+  const [attaching, setAttaching] = useState(false);
 
-  const visibleDrafts = showSecond ? drafts.slice(0, 2) : drafts.slice(0, 1);
-  const campaignSlot = String(
-    visibleDrafts.find((draft) => draft.isCampaign)?.slot ??
-      visibleDrafts[0]?.slot ??
-      1,
-  );
+  const campaignDraft =
+    drafts.find((draft) => draft.isCampaign) ?? drafts[0] ?? null;
+  const focusedDraft =
+    drafts.find((draft) => draft.slot === focusedSlot) ?? campaignDraft;
+  const selectorOptions = buildPrimerContactoSelectorOptions({
+    accountTemplates,
+    linkedTemplates: drafts.map((draft) => ({
+      slot: draft.slot,
+      template: {
+        id: draft.templateId,
+        displayName: draft.displayName,
+        body: draft.body,
+        isWabaDefault: draft.isWabaDefault,
+      },
+    })),
+  });
+  const selectorValue = focusedDraft
+    ? selectorValueForDraft(focusedDraft)
+    : "";
+  const campaignSlot = String(campaignDraft?.slot ?? "");
+  const canCreate = canCreateEventCustomTemplate(drafts.length);
+  const nextSlot =
+    drafts.length === 0 ? 1 : Math.max(...drafts.map((item) => item.slot)) + 1;
+  const showBanner =
+    shouldShowDefaultTemplateBanner(focusedDraft || {}) ||
+    shouldShowDefaultTemplateBanner(campaignDraft || {});
 
-  const updateDraft = (slot: 1 | 2, patch: Partial<EventTemplateCardDraft>) => {
+  const updateDraft = (
+    slot: number,
+    patch: Partial<EventTemplateCardDraft>,
+  ) => {
     setDrafts((prev) =>
       prev.map((draft) =>
         draft.slot === slot ? { ...draft, ...patch } : draft,
@@ -162,18 +170,25 @@ function PrimerContactoTemplates({
     let cancelled = false;
     setLoading(true);
     setError("");
-    void integrationsApi
-      .listEventWhatsappTemplates(eventId)
-      .then((data) => {
+    void Promise.all([
+      integrationsApi.listEventWhatsappTemplates(eventId),
+      integrationsApi.listAccountWhatsappTemplates().catch(() => ({
+        templates: [] as AccountWhatsappTemplateDto[],
+      })),
+    ])
+      .then(([eventData, accountData]) => {
         if (cancelled) return;
-        const next = draftsFromTemplates(data.templates || []);
-        setDrafts(next.drafts);
-        setShowSecond(next.showSecond);
+        const next = draftsFromEventTemplates(eventData.templates || []);
+        setDrafts(next);
+        setAccountTemplates(accountData.templates || []);
+        const campaign = next.find((item) => item.isCampaign) ?? next[0];
+        setFocusedSlot(campaign?.slot ?? null);
       })
       .catch((err) => {
         if (cancelled) return;
         setDrafts([]);
-        setShowSecond(false);
+        setAccountTemplates([]);
+        setFocusedSlot(null);
         setError(
           err instanceof ApiError
             ? err.message
@@ -196,6 +211,7 @@ function PrimerContactoTemplates({
         eventId,
         draft.slot,
         buildEventTemplateFormData({
+          displayName: draft.displayName,
           body: draft.body,
           headerType: draft.headerType,
           slotMappings: draft.slotMappings,
@@ -203,16 +219,10 @@ function PrimerContactoTemplates({
           headerFile: draft.headerFile,
         }),
       );
-      const next = dtoToEventTemplateDraft(template);
-      setDrafts((prev) => {
-        const others = prev.filter((item) => item.slot !== next.slot);
-        const merged = [...others, next].sort((a, b) => a.slot - b.slot);
-        if (!next.isCampaign) return merged;
-        return merged.map((item) => ({
-          ...item,
-          isCampaign: item.slot === next.slot,
-        }));
-      });
+      const next = draftsFromEventTemplates([template])[0];
+      if (!next) return;
+      setDrafts((prev) => mergeSavedDraft(prev, next));
+      setFocusedSlot(next.slot);
       toast.success("Plantilla enviada a revisión");
     } catch (err) {
       toast.error(
@@ -225,12 +235,22 @@ function PrimerContactoTemplates({
     }
   };
 
+  const requestSave = (draft: EventTemplateCardDraft) => {
+    if (shouldConfirmEventTemplateFork(draft)) {
+      setForkDraft(draft);
+      return;
+    }
+    void saveDraft(draft);
+  };
+
   const selectCampaign = async (value: string) => {
-    const slot: 1 | 2 = Number(value) === 2 ? 2 : 1;
+    const slot = Number(value);
+    if (!Number.isInteger(slot) || slot < 1) return;
     const previous = drafts;
     setDrafts((prev) =>
       prev.map((draft) => ({ ...draft, isCampaign: draft.slot === slot })),
     );
+    setFocusedSlot(slot);
     const target = drafts.find((draft) => draft.slot === slot);
     if (!target?.persisted) return;
     try {
@@ -243,6 +263,44 @@ function PrimerContactoTemplates({
           : "No se pudo marcar la plantilla de campaña",
       );
     }
+  };
+
+  const attachLibraryTemplate = async (templateId: string) => {
+    if (attaching || !canCreate) return;
+    setAttaching(true);
+    try {
+      const { template } = await integrationsApi.attachEventWhatsappTemplate(
+        eventId,
+        templateId,
+      );
+      const next = draftsFromEventTemplates([template])[0];
+      if (!next) return;
+      setDrafts((prev) => mergeSavedDraft(prev, next));
+      setFocusedSlot(next.slot);
+      toast.success("Plantilla vinculada a este evento");
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError
+          ? err.message
+          : "No se pudo vincular la plantilla",
+      );
+    } finally {
+      setAttaching(false);
+    }
+  };
+
+  const onSelectorChange = (value: string) => {
+    const action = parsePrimerContactoSelectorValue(value);
+    if (!action) return;
+    if (action.type === "create") {
+      if (canCreate) setCreateOpen(true);
+      return;
+    }
+    if (action.type === "select-linked") {
+      setFocusedSlot(action.slot);
+      return;
+    }
+    void attachLibraryTemplate(action.templateId);
   };
 
   return (
@@ -271,42 +329,108 @@ function PrimerContactoTemplates({
         </div>
       ) : null}
       {shouldShowEventTemplateCards(loading, Boolean(error)) ? (
-        <RadioGroup
-          value={campaignSlot}
-          onValueChange={(value) => void selectCampaign(value)}
-          className="mt-3 grid gap-4 md:grid-cols-2"
-        >
-          {visibleDrafts.map((draft) => (
-            <WhatsappTemplateCard
-              key={draft.slot}
-              draft={draft}
-              extraKeys={extraKeys}
-              submitting={savingSlot === draft.slot}
-              onChange={(patch) => updateDraft(draft.slot, patch)}
-              onSave={() => void saveDraft(draft)}
-            />
-          ))}
-          {!showSecond ? (
-            <button
-              type="button"
-              className="flex min-h-48 flex-col items-center justify-center gap-2 rounded-2xl border border-dashed border-border bg-card p-5 text-sm font-medium text-muted-foreground shadow-soft hover:border-primary hover:text-foreground"
+        <div className="mt-3 space-y-4">
+          {selectorOptions.length > 0 ? (
+            <div className="space-y-2">
+              <Label htmlFor="primer-contacto-selector">Plantilla</Label>
+              <Select
+                value={selectorValue || undefined}
+                onValueChange={onSelectorChange}
+                disabled={attaching}
+              >
+                <SelectTrigger id="primer-contacto-selector">
+                  <SelectValue placeholder="Elige una plantilla" />
+                </SelectTrigger>
+                <SelectContent>
+                  {selectorOptions.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : null}
+          {showBanner ? (
+            <Alert>
+              <AlertDescription>
+                {DEFAULT_ACCOUNT_TEMPLATE_BANNER}
+              </AlertDescription>
+            </Alert>
+          ) : null}
+          <RadioGroup
+            value={campaignSlot || undefined}
+            onValueChange={(value) => void selectCampaign(value)}
+            className="grid gap-4 md:grid-cols-2"
+          >
+            {drafts.map((draft) => (
+              <WhatsappTemplateCard
+                key={draft.slot}
+                draft={draft}
+                extraKeys={extraKeys}
+                submitting={savingSlot === draft.slot}
+                highlighted={focusedDraft?.slot === draft.slot}
+                onChange={(patch) => updateDraft(draft.slot, patch)}
+                onSave={() => requestSave(draft)}
+              />
+            ))}
+          </RadioGroup>
+          <Button
+            type="button"
+            variant="outline"
+            disabled={!canCreate}
+            title={
+              canCreate
+                ? undefined
+                : "Este evento ya tiene el máximo de 10 plantillas."
+            }
+            onClick={() => setCreateOpen(true)}
+          >
+            <Plus className="size-4" />
+            Crear plantilla personalizada
+          </Button>
+        </div>
+      ) : null}
+      <WhatsappEventTemplateCreateDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        eventId={eventId}
+        slot={nextSlot}
+        extraKeys={extraKeys}
+        accountTemplates={accountTemplates}
+        onCreated={(template) => {
+          const next = draftsFromEventTemplates([template])[0];
+          if (!next) return;
+          setDrafts((prev) => mergeSavedDraft(prev, next));
+          setFocusedSlot(next.slot);
+        }}
+      />
+      <AlertDialog
+        open={forkDraft !== null}
+        onOpenChange={(next) => {
+          if (!next) setForkDraft(null);
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Crear una copia para este evento?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {DEFAULT_ACCOUNT_TEMPLATE_BANNER}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
               onClick={() => {
-                setDrafts((prev) => {
-                  const withoutSecond = prev.filter((item) => item.slot !== 2);
-                  return [
-                    ...withoutSecond,
-                    blankEventTemplateDraft(2, false),
-                  ].sort((a, b) => a.slot - b.slot);
-                });
-                setShowSecond(true);
+                if (forkDraft) void saveDraft(forkDraft);
+                setForkDraft(null);
               }}
             >
-              <Plus className="size-5" />
-              Crear segunda plantilla
-            </button>
-          ) : null}
-        </RadioGroup>
-      ) : null}
+              Crear copia y guardar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </section>
   );
 }

@@ -363,6 +363,7 @@ export function isEventTemplateCardReady(draft: {
 }
 
 export function buildEventTemplateFormData(input: {
+  displayName?: string | null;
   body: string;
   headerType: string;
   slotMappings: Record<string, EventSlotMapping>;
@@ -377,6 +378,9 @@ export function buildEventTemplateFormData(input: {
       headerType: input.headerType,
       slotMappings: mergeEventSlotMappings(input.body, input.slotMappings),
       isCampaign: input.isCampaign,
+      ...(input.displayName !== undefined
+        ? { displayName: input.displayName }
+        : {}),
     }),
   );
   if (input.headerFile && needsHeaderFile(input.headerType)) {

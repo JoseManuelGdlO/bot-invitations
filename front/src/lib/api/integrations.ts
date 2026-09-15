@@ -204,6 +204,19 @@ export const integrationsApi = {
     api<{ templates: AccountWhatsappTemplateDto[] }>(
       "/integrations/whatsapp/meta/templates",
     ),
+  createEventWhatsappTemplate: (eventId: string, form: FormData) =>
+    api<{ template: EventWhatsappTemplateDto }>(
+      `/events/${eventId}/whatsapp-templates`,
+      { method: "POST", body: form },
+    ),
+  attachEventWhatsappTemplate: (eventId: string, templateId: string) =>
+    api<{ template: EventWhatsappTemplateDto }>(
+      `/events/${eventId}/whatsapp-templates/attach`,
+      {
+        method: "POST",
+        body: JSON.stringify({ templateId }),
+      },
+    ),
   listEventWhatsappTemplates: (eventId: string) =>
     api<{ templates: EventWhatsappTemplateDto[] }>(
       `/events/${eventId}/whatsapp-templates`,

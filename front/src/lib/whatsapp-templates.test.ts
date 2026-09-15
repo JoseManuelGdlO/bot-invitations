@@ -371,6 +371,18 @@ test("buildEventTemplateFormData manda payload JSON y header", () => {
   assert.equal(form.get("header"), file);
 });
 
+test("buildEventTemplateFormData incluye displayName en el payload", () => {
+  const form = buildEventTemplateFormData({
+    displayName: "  Invitación con mesa  ",
+    body: OK_BODY,
+    headerType: "none",
+    isCampaign: false,
+    slotMappings: mergeEventSlotMappings(OK_BODY, {}),
+  });
+  const payload = JSON.parse(String(form.get("payload")));
+  assert.equal(payload.displayName, "  Invitación con mesa  ");
+});
+
 test("campaignTemplateStatus usa la fila isCampaign", () => {
   assert.equal(
     campaignTemplateStatus([
