@@ -40,6 +40,121 @@ describe("meta-graph.client", () => {
     expect(err.message).not.toContain("EAAJBSECRET");
   });
 
+  const DENSITY =
+    "Esta plantilla tiene demasiadas variables en relación con su longitud. Reduce el número de variables o aumenta la longitud del mensaje.";
+  const START = "Las variables no pueden ir al principio del mensaje.";
+  const END = "Las variables no pueden ir al final del mensaje.";
+
+  test("graphErrorFromResponse traduce too many variables al copy de densidad", async () => {
+    const { graphErrorFromResponse } = await import("../../src/services/meta-graph.client.js");
+    const err = graphErrorFromResponse(400, {
+      error: {
+        message: "Param text cannot have too many variables relative to length",
+        code: 100,
+      },
+    });
+    expect(err.message).toBe(DENSITY);
+    expect(err.meta.message).toContain("too many variables");
+  });
+
+  test("graphErrorFromResponse traduce too many variable parameters al copy de densidad", async () => {
+    const { graphErrorFromResponse } = await import("../../src/services/meta-graph.client.js");
+    const err = graphErrorFromResponse(400, {
+      error: {
+        message: "Param body cannot have too many variable parameters",
+        code: 100,
+      },
+    });
+    expect(err.message).toBe(DENSITY);
+  });
+
+  test("graphErrorFromResponse traduce cannot be at the start or end a inicio y fin", async () => {
+    const { graphErrorFromResponse } = await import("../../src/services/meta-graph.client.js");
+    const err = graphErrorFromResponse(400, {
+      error: {
+        message: "Variables cannot be at the start or end of the message",
+        code: 100,
+      },
+    });
+    expect(err.message).toBe(`${START} ${END}`);
+  });
+
+  test("graphErrorFromResponse traduce cannot be at the start al copy de inicio", async () => {
+    const { graphErrorFromResponse } = await import("../../src/services/meta-graph.client.js");
+    const err = graphErrorFromResponse(400, {
+      error: { message: "A variable cannot be at the start of the template body", code: 132000 },
+    });
+    expect(err.message).toBe(START);
+  });
+
+  test("graphErrorFromResponse traduce cannot be at the end al copy de fin", async () => {
+    const { graphErrorFromResponse } = await import("../../src/services/meta-graph.client.js");
+    const err = graphErrorFromResponse(400, {
+      error: { message: "A variable cannot be at the end of the template body", code: 132000 },
+    });
+    expect(err.message).toBe(END);
+  });
+
+  test("graphErrorFromResponse concatena densidad e inicio/fin si el texto trae ambos", async () => {
+    const { graphErrorFromResponse } = await import("../../src/services/meta-graph.client.js");
+    const err = graphErrorFromResponse(400, {
+      error: {
+        message:
+          "The template has too many variables and they cannot be at the start or end",
+        code: 100,
+      },
+    });
+    expect(err.message).toBe(`${DENSITY} ${START} ${END}`);
+  });
+
+  test("graphErrorFromResponse detecta too many variables en el subcode", async () => {
+    const { graphErrorFromResponse } = await import("../../src/services/meta-graph.client.js");
+    const err = graphErrorFromResponse(400, {
+      error: {
+        message: "Invalid parameter",
+        code: 100,
+        error_subcode: "too many variables",
+      },
+    });
+    expect(err.message).toBe(DENSITY);
+    expect(err.meta.subcode).toBe("too many variables");
+  });
+
+  test("graphErrorFromResponse detecta start or end en el subcode", async () => {
+    const { graphErrorFromResponse } = await import("../../src/services/meta-graph.client.js");
+    const err = graphErrorFromResponse(400, {
+      error: {
+        message: "Invalid parameter",
+        code: 100,
+        error_subcode: "cannot be at the start or end",
+      },
+    });
+    expect(err.message).toBe(`${START} ${END}`);
+  });
+
+  test("graphErrorFromResponse usa error_user_msg si message es genérico", async () => {
+    const { graphErrorFromResponse } = await import("../../src/services/meta-graph.client.js");
+    const err = graphErrorFromResponse(400, {
+      error: {
+        message: "(#100) Invalid parameter",
+        code: 100,
+        error_subcode: 2388023,
+        error_user_msg: "The parameter text cannot have too many variables",
+      },
+    });
+    expect(err.message).toBe(DENSITY);
+    expect(err.meta.message).toBe("(#100) Invalid parameter");
+    expect(err.meta.subcode).toBe(2388023);
+  });
+
+  test("graphErrorFromResponse no cambia el mapeo 190 si el message no habla de variables", async () => {
+    const { graphErrorFromResponse } = await import("../../src/services/meta-graph.client.js");
+    const err = graphErrorFromResponse(401, {
+      error: { message: "Invalid OAuth access token", code: 190 },
+    });
+    expect(err.message).toBe("El token de WhatsApp ya no es válido. Vuelve a conectar la cuenta.");
+  });
+
   test("resolveTemplateCrudToken prefiere el token del planner", async () => {
     await jest.unstable_mockModule("../../src/config/env.js", () => ({
       env: { meta: { accessToken: "sys_tok", appId: "app_1", graphVersion: "v21.0" } },

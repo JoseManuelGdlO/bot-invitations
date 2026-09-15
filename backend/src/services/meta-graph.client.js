@@ -20,7 +20,29 @@ export function attachMetaError(err, details = {}) {
   return err;
 }
 
-function userFacingMetaMessage(code, fallback) {
+const META_VAR_ERROR_DENSITY =
+  "Esta plantilla tiene demasiadas variables en relación con su longitud. Reduce el número de variables o aumenta la longitud del mensaje.";
+const META_VAR_ERROR_START = "Las variables no pueden ir al principio del mensaje.";
+const META_VAR_ERROR_END = "Las variables no pueden ir al final del mensaje.";
+
+function variablePolicyCopy(subcode, message) {
+  const haystack = [message, subcode]
+    .filter((value) => value != null && String(value).trim())
+    .map((value) => String(value).toLowerCase())
+    .join(" ");
+  if (!haystack) return null;
+  const parts = [];
+  if (haystack.includes("too many variable")) parts.push(META_VAR_ERROR_DENSITY);
+  const mentionsStart = haystack.includes("cannot be at the start") || haystack.includes("start or end");
+  const mentionsEnd = haystack.includes("cannot be at the end") || haystack.includes("start or end");
+  if (mentionsStart) parts.push(META_VAR_ERROR_START);
+  if (mentionsEnd) parts.push(META_VAR_ERROR_END);
+  return parts.length ? parts.join(" ") : null;
+}
+
+function userFacingMetaMessage(code, fallback, subcode, searchText) {
+  const variableCopy = variablePolicyCopy(subcode, searchText || fallback);
+  if (variableCopy) return variableCopy;
   const known = {
     190: "El token de WhatsApp ya no es válido. Vuelve a conectar la cuenta.",
     100: "La solicitud a Meta fue rechazada. Revisa la configuración de la app.",
@@ -48,7 +70,14 @@ export function parseGraphErrorPayload(payload = {}, httpStatus = 500) {
 
 export function graphErrorFromResponse(httpStatus, payload) {
   const details = parseGraphErrorPayload(payload, httpStatus);
-  const err = httpError(httpStatus >= 400 && httpStatus < 600 ? httpStatus : 502, userFacingMetaMessage(details.code, details.message));
+  const error = payload?.error && typeof payload.error === "object" ? payload.error : {};
+  const searchText = [details.message, error.error_user_msg, error.error_user_title]
+    .filter((value) => value != null && String(value).trim())
+    .join(" ");
+  const err = httpError(
+    httpStatus >= 400 && httpStatus < 600 ? httpStatus : 502,
+    userFacingMetaMessage(details.code, details.message, details.subcode, searchText),
+  );
   return attachMetaError(err, details);
 }
 
