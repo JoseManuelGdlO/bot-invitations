@@ -7,6 +7,8 @@ import {
 import { requireEvent, requirePermission, PERMS } from "../services/access.service.js";
 import { resolveActiveWhatsappMetaByOwner } from "../services/whatsapp-meta.service.js";
 import {
+  attachEventTemplate,
+  createEventCustomTemplate,
   createWizardTemplates,
   deleteOwnerTemplate,
   ensureEventWhatsappTemplates,
@@ -165,6 +167,35 @@ export const deleteOwnerWhatsappTemplate = asyncHandler(async (req, res) => {
   res.status(204).send();
 });
 
+export const postEventWhatsappTemplate = asyncHandler(async (req, res) => {
+  const event = await authorizedEvent(req, res);
+  if (!event) return;
+  const payload = parsePayload(req);
+  const result = await createEventCustomTemplate({
+    eventId: event.id,
+    ownerUserId: event.ownerId,
+    source: payload.source,
+    templateId: payload.templateId,
+    displayName: payload.displayName,
+    body: payload.body,
+    headerType: payload.headerType,
+    headerFile: uploadedFile(fieldFile(req, "header")),
+    slotMappings: payload.slotMappings,
+  });
+  res.status(201).json({ template: serializeLink(result.link) });
+});
+
+export const attachEventWhatsappTemplate = asyncHandler(async (req, res) => {
+  const event = await authorizedEvent(req, res);
+  if (!event) return;
+  const result = await attachEventTemplate({
+    eventId: event.id,
+    ownerUserId: event.ownerId,
+    templateId: req.body?.templateId,
+  });
+  res.status(201).json({ template: serializeLink(result.link) });
+});
+
 export const getEventWhatsappTemplates = asyncHandler(async (req, res) => {
   const event = await authorizedEvent(req, res);
   if (!event) return;
@@ -203,7 +234,7 @@ export const patchEventWhatsappTemplate = asyncHandler(async (req, res) => {
     throw httpError(400, "isCampaign debe ser true.");
   }
   const slot = Number(req.params.slot);
-  if (![1, 2].includes(slot)) {
+  if (!Number.isInteger(slot) || slot < 1) {
     throw httpError(400, "El slot de plantilla no es válido.");
   }
   const link = await EventWhatsappTemplate.findOne({

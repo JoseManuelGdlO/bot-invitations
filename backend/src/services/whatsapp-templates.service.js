@@ -17,6 +17,7 @@ import {
   uploadResumableHeader,
 } from "./meta-graph.client.js";
 import {
+  assertMetaTemplateBody,
   assertSlotMappingsComplete,
   assertWizardBody,
   bodyTextFromComponents,
@@ -32,6 +33,7 @@ import { Logger } from "../utils/logger.js";
 const log = new Logger("WhatsAppTemplates");
 const TEMPLATE_LANGUAGE = "es_MX";
 const TEMPLATE_CATEGORY = "MARKETING";
+const EVENT_TEMPLATE_CAP = 10;
 const HEADER_TYPES = new Set(["none", "document", "image"]);
 const WIZARD_UNIVERSAL_FIELDS = new Set([
   "nombre",
@@ -846,6 +848,231 @@ function localTemplateFields({
   };
 }
 
+function assertValidEventSlot(slot) {
+  const numericSlot = Number(slot);
+  if (!Number.isInteger(numericSlot) || numericSlot < 1) {
+    throw httpError(400, "El slot de plantilla no es válido.");
+  }
+  return numericSlot;
+}
+
+async function requireOwnedEvent(eventId, ownerUserId) {
+  const event = await Event.findOne({
+    where: { id: eventId, ownerId: ownerUserId },
+  });
+  if (!event) throw httpError(404, "Evento no encontrado.");
+  return event;
+}
+
+function nextEventSlot(links = []) {
+  const slots = links
+    .map((link) => Number(link.slot))
+    .filter((slot) => Number.isInteger(slot) && slot >= 1);
+  return slots.length === 0 ? 1 : Math.max(...slots) + 1;
+}
+
+async function loadEventTemplateLinks(eventId) {
+  const links = await EventWhatsappTemplate.findAll({ where: { eventId } });
+  if (links.length >= EVENT_TEMPLATE_CAP) {
+    throw httpError(400, "El evento ya tiene el máximo de 10 plantillas.");
+  }
+  return links;
+}
+
+async function resolveCustomOrigin({ source, templateId, ownerUserId, wabaId }) {
+  const normalized = String(source || "").trim().toLowerCase();
+  if (normalized === "blank") return null;
+  if (normalized === "default") {
+    const origin = await findReusableWizardDefault({ ownerUserId, wabaId });
+    if (!origin) throw httpError(404, "No hay plantilla default en este WABA.");
+    return origin;
+  }
+  if (normalized === "library") {
+    const id = String(templateId || "").trim();
+    if (!id) throw httpError(400, "Falta templateId.");
+    const origin = await WhatsappMessageTemplate.findOne({
+      where: { id, ownerUserId, wabaId },
+    });
+    if (!origin) throw httpError(404, "Plantilla no encontrada.");
+    return origin;
+  }
+  throw httpError(400, "El origen de la plantilla no es válido.");
+}
+
+async function headerForCustomClone({ origin, headerType, headerFile, token }) {
+  if (headerFile) {
+    return editableHeader({ template: origin, headerType, headerFile, token });
+  }
+  if (origin && headerType !== "none") {
+    const cloned = await cloneHeader(origin, token);
+    return {
+      headerHandle: cloned.headerHandle,
+      headerFile: cloned.headerFile,
+      headerMediaPath: origin.headerMediaPath || null,
+      headerFileName: origin.headerFileName || null,
+      headerMime: origin.headerMime || null,
+      headerSize: origin.headerSize ?? null,
+    };
+  }
+  return editableHeader({ template: origin, headerType, headerFile: null, token });
+}
+
+async function originSlotMappings(origin) {
+  if (!origin?.id) return {};
+  const originLink = await EventWhatsappTemplate.findOne({
+    where: { whatsappMessageTemplateId: origin.id },
+  });
+  return originLink?.slotMappings || {};
+}
+
+function linkResult(link, template) {
+  return {
+    template,
+    link: {
+      id: link.id,
+      eventId: link.eventId,
+      slot: link.slot,
+      isCampaign: Boolean(link.isCampaign),
+      slotMappings: link.slotMappings,
+      whatsappMessageTemplateId: link.whatsappMessageTemplateId,
+      template,
+    },
+  };
+}
+
+export async function createEventCustomTemplate({
+  eventId,
+  ownerUserId,
+  source,
+  templateId,
+  body,
+  headerType,
+  headerFile,
+  slotMappings,
+}) {
+  await requireOwnedEvent(eventId, ownerUserId);
+  const { credentials } = await resolveActiveWhatsappMetaByOwner(ownerUserId);
+  const wabaId = String(credentials?.wabaId || "").trim();
+  if (!wabaId) throw httpError(400, "WhatsApp (Meta) no está configurado.");
+  const token = resolveTemplateCrudToken(credentials.accessToken);
+
+  const links = await loadEventTemplateLinks(eventId);
+  const origin = await resolveCustomOrigin({
+    source,
+    templateId,
+    ownerUserId,
+    wabaId,
+  });
+
+  const resolvedBody = String(body || "").trim()
+    ? String(body)
+    : bodyTextFromComponents(origin?.components);
+  const resolvedHeaderType = String(
+    headerType != null && String(headerType).trim() !== ""
+      ? headerType
+      : origin?.headerType || "none",
+  ).toLowerCase();
+  if (!HEADER_TYPES.has(resolvedHeaderType)) {
+    throw httpError(400, "El tipo de encabezado no es válido.");
+  }
+
+  assertMetaTemplateBody(resolvedBody);
+  const mappings = assertSlotMappingsComplete(
+    resolvedBody,
+    mergeSlotMappings(
+      resolvedBody,
+      slotMappings ?? await originSlotMappings(origin),
+    ),
+  );
+
+  const header = await headerForCustomClone({
+    origin,
+    headerType: resolvedHeaderType,
+    headerFile,
+    token,
+  });
+  const components = buildTemplateComponents({
+    headerType: resolvedHeaderType,
+    headerHandle: header.headerHandle,
+    bodyText: resolvedBody,
+    exampleValues: exampleValuesFromMappings(mappings),
+  });
+  const slot = nextEventSlot(links);
+  const meta = await createOnMeta({
+    wabaId,
+    token,
+    slot,
+    components,
+  });
+  const template = await WhatsappMessageTemplate.create({
+    ownerUserId,
+    wabaId,
+    metaTemplateId: meta.metaTemplateId,
+    name: meta.name,
+    language: TEMPLATE_LANGUAGE,
+    category: TEMPLATE_CATEGORY,
+    ...localTemplateFields({
+      headerType: resolvedHeaderType,
+      header,
+      components,
+    }),
+    isWabaDefault: false,
+    clonedFromId: origin?.id || null,
+  });
+  if (header.headerFile) {
+    await persistHeaderFile({ ownerUserId, template, headerFile: header.headerFile });
+  }
+  const link = await EventWhatsappTemplate.create({
+    eventId,
+    whatsappMessageTemplateId: template.id,
+    ownerUserId,
+    slot,
+    isCampaign: false,
+    slotMappings: mappings,
+  });
+  return linkResult(link, template);
+}
+
+export async function attachEventTemplate({ eventId, ownerUserId, templateId }) {
+  await requireOwnedEvent(eventId, ownerUserId);
+  const { credentials } = await resolveActiveWhatsappMetaByOwner(ownerUserId);
+  const wabaId = String(credentials?.wabaId || "").trim();
+  if (!wabaId) throw httpError(400, "WhatsApp (Meta) no está configurado.");
+
+  const id = String(templateId || "").trim();
+  if (!id) throw httpError(400, "Falta templateId.");
+  const template = await WhatsappMessageTemplate.findOne({
+    where: { id, ownerUserId, wabaId },
+  });
+  if (!template) throw httpError(404, "Plantilla no encontrada.");
+
+  const duplicate = await EventWhatsappTemplate.findOne({
+    where: { eventId, whatsappMessageTemplateId: template.id },
+  });
+  if (duplicate) {
+    throw httpError(409, "Esta plantilla ya está vinculada al evento.");
+  }
+
+  const links = await loadEventTemplateLinks(eventId);
+  const sourceLink = await EventWhatsappTemplate.findOne({
+    where: { whatsappMessageTemplateId: template.id },
+  });
+  const bodyText = bodyTextFromComponents(template.components);
+  const mappings = assertSlotMappingsComplete(
+    bodyText,
+    mergeSlotMappings(bodyText, sourceLink?.slotMappings || {}),
+  );
+  const link = await EventWhatsappTemplate.create({
+    eventId,
+    whatsappMessageTemplateId: template.id,
+    ownerUserId,
+    slot: nextEventSlot(links),
+    isCampaign: false,
+    slotMappings: mappings,
+  });
+  return linkResult(link, template);
+}
+
 export async function submitEventTemplate({
   eventId,
   ownerUserId,
@@ -856,11 +1083,8 @@ export async function submitEventTemplate({
   slotMappings,
   isCampaign,
 }) {
-  const numericSlot = Number(slot);
+  const numericSlot = assertValidEventSlot(slot);
   const normalizedHeaderType = String(headerType || "none").toLowerCase();
-  if (![1, 2].includes(numericSlot)) {
-    throw httpError(400, "El slot de plantilla no es válido.");
-  }
   if (!HEADER_TYPES.has(normalizedHeaderType)) {
     throw httpError(400, "El tipo de encabezado no es válido.");
   }
@@ -963,9 +1187,11 @@ export async function submitEventTemplate({
         await persistHeaderFile({ ownerUserId, template, headerFile: header.headerFile });
       }
       await pivot.update({ slotMappings: mappings });
-    } else if (await EventWhatsappTemplate.count({
-      where: { whatsappMessageTemplateId: template.id },
-    }) === 1) {
+    } else if (
+      await EventWhatsappTemplate.count({
+        where: { whatsappMessageTemplateId: template.id },
+      }) === 1 && !template.isWabaDefault
+    ) {
       await updateMessageTemplate({
         templateId: template.metaTemplateId,
         token,

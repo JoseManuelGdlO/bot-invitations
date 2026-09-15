@@ -132,6 +132,15 @@ router.get(
   "/events/:eventId/whatsapp-templates",
   whatsappTemplates.getEventWhatsappTemplates,
 );
+router.post(
+  "/events/:eventId/whatsapp-templates",
+  handleTemplateHeaderUpload([{ name: "header", maxCount: 1 }]),
+  whatsappTemplates.postEventWhatsappTemplate,
+);
+router.post(
+  "/events/:eventId/whatsapp-templates/attach",
+  whatsappTemplates.attachEventWhatsappTemplate,
+);
 router.put(
   "/events/:eventId/whatsapp-templates/:slot",
   handleTemplateHeaderUpload([{ name: "header", maxCount: 1 }]),

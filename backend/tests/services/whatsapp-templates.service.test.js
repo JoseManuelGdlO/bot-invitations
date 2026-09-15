@@ -99,6 +99,47 @@ async function loadWizardService(graph = {}) {
   };
 }
 
+async function loadEventCustomService(graph = {}) {
+  const createMessageTemplate = graph.createMessageTemplate
+    || jest.fn(async () => ({ id: "meta_custom" }));
+  const updateMessageTemplate = graph.updateMessageTemplate || jest.fn();
+  const uploadResumableHeader = graph.uploadResumableHeader || jest.fn();
+  const { mod, models } = await loadWithMocks("src/services/whatsapp-templates.service.js", {
+    extraMocks: {
+      ...ownerMetaMocks(),
+      "src/services/meta-graph.client.js": () => ({
+        resolveTemplateCrudToken: graph.resolveTemplateCrudToken || ((token) => token || "tok"),
+        ensurePlatformCanManageWaba: jest.fn(),
+        createMessageTemplate,
+        updateMessageTemplate,
+        uploadResumableHeader,
+        deleteMessageTemplate: jest.fn(),
+      }),
+    },
+  });
+  models.Event.findOne.mockResolvedValue(fakeEvent({ id: "evt_1", ownerId: "usr_1" }));
+  models.WhatsappMessageTemplate.create.mockImplementation(async (row) => ({
+    ...row,
+    id: "tpl_custom",
+    update: jest.fn(async function update(patch) {
+      Object.assign(this, patch);
+      return this;
+    }),
+  }));
+  models.EventWhatsappTemplate.create.mockImplementation(async (row) => ({
+    ...row,
+    id: "link_custom",
+  }));
+  return { mod, models, createMessageTemplate, updateMessageTemplate, uploadResumableHeader };
+}
+
+const CUSTOM_EXTRA_BODY =
+  "Hola {{1}}, tienes {{2}} pases reservados. Tu mesa es la {{3}}. Confirma por este chat, por favor.";
+const CUSTOM_EXTRA_MAPPINGS = {
+  ...LOCKED_MAPPINGS,
+  "3": { type: "field", key: "mesa" },
+};
+
 async function loadLibraryService(graph = {}) {
   const deleteMessageTemplate = graph.deleteMessageTemplate
     || jest.fn(async () => ({ success: true }));
@@ -1949,4 +1990,345 @@ test("deleteOwnerTemplate reattach del default tras borrar una personalizada de 
       isCampaign: true,
     }),
   );
+});
+
+test("createEventCustomTemplate blank crea HSM propia en el siguiente slot", async () => {
+  const { mod, models, createMessageTemplate } = await loadEventCustomService();
+  models.EventWhatsappTemplate.findAll.mockResolvedValue([{ slot: 1 }, { slot: 2 }]);
+  models.EventWhatsappTemplate.count.mockResolvedValue(2);
+
+  const result = await mod.createEventCustomTemplate({
+    eventId: "evt_1",
+    ownerUserId: "usr_1",
+    source: "blank",
+    displayName: "Invitación con mesa",
+    body: CUSTOM_EXTRA_BODY,
+    headerType: "none",
+    slotMappings: CUSTOM_EXTRA_MAPPINGS,
+  });
+
+  expect(createMessageTemplate).toHaveBeenCalledTimes(1);
+  expect(models.WhatsappMessageTemplate.create.mock.calls[0][0]).not.toHaveProperty("displayName");
+  expect(models.WhatsappMessageTemplate.create).toHaveBeenCalledWith(
+    expect.objectContaining({
+      isWabaDefault: false,
+      clonedFromId: null,
+      language: "es_MX",
+      category: "MARKETING",
+      status: "PENDING",
+    }),
+  );
+  expect(models.EventWhatsappTemplate.create).toHaveBeenCalledWith(
+    expect.objectContaining({
+      eventId: "evt_1",
+      whatsappMessageTemplateId: "tpl_custom",
+      slot: 3,
+      isCampaign: false,
+      slotMappings: expect.objectContaining({
+        1: { type: "field", key: "nombre" },
+        2: { type: "field", key: "numero_invitados" },
+        3: { type: "field", key: "mesa" },
+      }),
+    }),
+  );
+  expect(result.link.slot).toBe(3);
+  expect(result.template.isWabaDefault).toBe(false);
+});
+
+test("createEventCustomTemplate default clona el HSM del WABA con clonedFromId", async () => {
+  const { mod, models, createMessageTemplate } = await loadEventCustomService();
+  const origin = existingDefault({
+    id: "tpl_default",
+    wabaId: "waba_1",
+    ownerUserId: "usr_1",
+    headerType: "none",
+  });
+  models.WhatsappMessageTemplate.findAll.mockResolvedValue([origin]);
+  models.EventWhatsappTemplate.findAll.mockResolvedValue([{ slot: 1 }]);
+  models.EventWhatsappTemplate.count.mockResolvedValue(1);
+
+  const result = await mod.createEventCustomTemplate({
+    eventId: "evt_1",
+    ownerUserId: "usr_1",
+    source: "default",
+    displayName: "Copia del default",
+  });
+
+  expect(createMessageTemplate).toHaveBeenCalledTimes(1);
+  expect(createMessageTemplate).toHaveBeenCalledWith(expect.objectContaining({
+    payload: expect.objectContaining({
+      language: "es_MX",
+      category: "MARKETING",
+      components: expect.arrayContaining([
+        expect.objectContaining({ type: "BODY", text: WIZARD_BODY }),
+      ]),
+    }),
+  }));
+  expect(models.WhatsappMessageTemplate.create).toHaveBeenCalledWith(
+    expect.objectContaining({
+      isWabaDefault: false,
+      clonedFromId: "tpl_default",
+      status: "PENDING",
+    }),
+  );
+  expect(models.EventWhatsappTemplate.create).toHaveBeenCalledWith(
+    expect.objectContaining({
+      slot: 2,
+      isCampaign: false,
+      whatsappMessageTemplateId: "tpl_custom",
+    }),
+  );
+  expect(result.template.clonedFromId).toBe("tpl_default");
+});
+
+test("createEventCustomTemplate default copia slotMappings extra del origin si no se envían", async () => {
+  const { mod, models } = await loadEventCustomService();
+  const origin = existingDefault({
+    id: "tpl_default",
+    wabaId: "waba_1",
+    ownerUserId: "usr_1",
+    components: [{
+      type: "BODY",
+      text: WIZARD_BODY_EXTRA,
+      example: { body_text: [["María", "2", "evento", "fecha", "lugar"]] },
+    }],
+  });
+  models.WhatsappMessageTemplate.findAll.mockResolvedValue([origin]);
+  models.EventWhatsappTemplate.findAll.mockResolvedValue([{ slot: 1 }]);
+  models.EventWhatsappTemplate.findOne.mockResolvedValue({
+    whatsappMessageTemplateId: "tpl_default",
+    slotMappings: {
+      ...LOCKED_MAPPINGS,
+      "3": { type: "field", key: "evento" },
+      "4": { type: "field", key: "fecha" },
+      "5": { type: "field", key: "lugar" },
+    },
+  });
+
+  await mod.createEventCustomTemplate({
+    eventId: "evt_1",
+    ownerUserId: "usr_1",
+    source: "default",
+  });
+
+  expect(models.EventWhatsappTemplate.create).toHaveBeenCalledWith(
+    expect.objectContaining({
+      slotMappings: expect.objectContaining({
+        3: { type: "field", key: "evento" },
+        4: { type: "field", key: "fecha" },
+        5: { type: "field", key: "lugar" },
+      }),
+    }),
+  );
+});
+
+test("createEventCustomTemplate rechaza el tope de 10 vínculos", async () => {
+  const { mod, models, createMessageTemplate } = await loadEventCustomService();
+  models.EventWhatsappTemplate.count.mockResolvedValue(10);
+  models.EventWhatsappTemplate.findAll.mockResolvedValue(
+    Array.from({ length: 10 }, (_, index) => ({ slot: index + 1 })),
+  );
+
+  await expect(mod.createEventCustomTemplate({
+    eventId: "evt_1",
+    ownerUserId: "usr_1",
+    source: "blank",
+    body: WIZARD_BODY,
+    headerType: "none",
+    slotMappings: LOCKED_MAPPINGS,
+  })).rejects.toMatchObject({ status: 400 });
+
+  expect(createMessageTemplate).not.toHaveBeenCalled();
+  expect(models.WhatsappMessageTemplate.create).not.toHaveBeenCalled();
+  expect(models.EventWhatsappTemplate.create).not.toHaveBeenCalled();
+});
+
+test("attachEventTemplate vincula sin clonar y rechaza el mismo templateId", async () => {
+  const { mod, models, createMessageTemplate } = await loadEventCustomService();
+  const library = libraryTemplate({
+    id: "tpl_lib",
+    ownerUserId: "usr_1",
+    wabaId: "waba_1",
+    isWabaDefault: false,
+  });
+  models.WhatsappMessageTemplate.findOne.mockResolvedValue(library);
+  models.EventWhatsappTemplate.findAll.mockResolvedValue([{ slot: 1 }]);
+  models.EventWhatsappTemplate.count.mockResolvedValue(1);
+  models.EventWhatsappTemplate.findOne.mockResolvedValue(null);
+
+  const result = await mod.attachEventTemplate({
+    eventId: "evt_1",
+    ownerUserId: "usr_1",
+    templateId: "tpl_lib",
+  });
+
+  expect(createMessageTemplate).not.toHaveBeenCalled();
+  expect(models.WhatsappMessageTemplate.create).not.toHaveBeenCalled();
+  expect(models.EventWhatsappTemplate.create).toHaveBeenCalledWith(
+    expect.objectContaining({
+      eventId: "evt_1",
+      whatsappMessageTemplateId: "tpl_lib",
+      slot: 2,
+      isCampaign: false,
+    }),
+  );
+  expect(result.link.whatsappMessageTemplateId).toBe("tpl_lib");
+
+  models.EventWhatsappTemplate.findOne.mockResolvedValue({
+    id: "link_dup",
+    eventId: "evt_1",
+    whatsappMessageTemplateId: "tpl_lib",
+  });
+
+  await expect(mod.attachEventTemplate({
+    eventId: "evt_1",
+    ownerUserId: "usr_1",
+    templateId: "tpl_lib",
+  })).rejects.toMatchObject({ status: 409 });
+});
+
+test("submit acepta slot 3 y rechaza slot 0", async () => {
+  const updateMessageTemplate = jest.fn(async () => ({ id: "meta_3" }));
+  const { mod, models } = await loadWithMocks("src/services/whatsapp-templates.service.js", {
+    extraMocks: {
+      ...ownerMetaMocks(),
+      "src/services/meta-graph.client.js": () => ({
+        resolveTemplateCrudToken: (token) => token || "sys_tok",
+        ensurePlatformCanManageWaba: jest.fn(async () => ({ shared: true, assigned: true })),
+        createMessageTemplate: jest.fn(),
+        updateMessageTemplate,
+        uploadResumableHeader: jest.fn(),
+        deleteMessageTemplate: jest.fn(),
+      }),
+    },
+  });
+  const event = fakeEvent({ id: "evt_1", ownerId: "usr_1" });
+  const template = {
+    id: "tpl_3",
+    metaTemplateId: "meta_3",
+    wabaId: "waba_1",
+    name: "alanna_pc_3",
+    language: "es_MX",
+    category: "MARKETING",
+    headerType: "none",
+    status: "APPROVED",
+    isWabaDefault: false,
+    update: jest.fn(async function update(patch) {
+      Object.assign(this, patch);
+      return this;
+    }),
+  };
+  const pivot = {
+    eventId: event.id,
+    slot: 3,
+    whatsappMessageTemplateId: template.id,
+    template,
+    update: jest.fn(async function update(patch) {
+      Object.assign(this, patch);
+      return this;
+    }),
+  };
+  models.Event.findOne.mockResolvedValue(event);
+  models.EventWhatsappTemplate.findAll.mockResolvedValue([pivot]);
+  models.WhatsappMessageTemplate.findAll.mockResolvedValue([]);
+  models.EventWhatsappTemplate.findOne.mockResolvedValue(pivot);
+  models.EventWhatsappTemplate.count.mockResolvedValue(1);
+
+  const result = await mod.submitEventTemplate({
+    eventId: event.id,
+    ownerUserId: "usr_1",
+    slot: 3,
+    body: WIZARD_BODY,
+    headerType: "none",
+    slotMappings: {},
+    isCampaign: false,
+  });
+
+  expect(updateMessageTemplate).toHaveBeenCalledTimes(1);
+  expect(result).toBe(template);
+
+  await expect(mod.submitEventTemplate({
+    eventId: event.id,
+    ownerUserId: "usr_1",
+    slot: 0,
+    body: WIZARD_BODY,
+    headerType: "none",
+    slotMappings: {},
+    isCampaign: false,
+  })).rejects.toMatchObject({
+    status: 400,
+    message: "El slot de plantilla no es válido.",
+  });
+});
+
+test("submit hace fork cuando la HSM es default aunque solo tenga un pivot", async () => {
+  const createMessageTemplate = jest.fn(async () => ({ id: "meta_fork" }));
+  const updateMessageTemplate = jest.fn();
+  const { mod, models } = await loadWithMocks("src/services/whatsapp-templates.service.js", {
+    extraMocks: {
+      ...ownerMetaMocks(),
+      "src/services/meta-graph.client.js": () => ({
+        resolveTemplateCrudToken: () => "sys_tok",
+        ensurePlatformCanManageWaba: jest.fn(async () => ({ shared: true, assigned: true })),
+        createMessageTemplate,
+        updateMessageTemplate,
+        uploadResumableHeader: jest.fn(),
+        deleteMessageTemplate: jest.fn(),
+      }),
+    },
+  });
+  const event = fakeEvent({ id: "evt_1", ownerId: "usr_1" });
+  const template = {
+    id: "tpl_default",
+    metaTemplateId: "meta_default",
+    wabaId: "waba_1",
+    name: "alanna_pc_default",
+    language: "es_MX",
+    category: "MARKETING",
+    headerType: "none",
+    status: "APPROVED",
+    isWabaDefault: true,
+  };
+  const pivot = {
+    eventId: event.id,
+    slot: 1,
+    whatsappMessageTemplateId: template.id,
+    template,
+    update: jest.fn(async function update(patch) {
+      Object.assign(this, patch);
+      return this;
+    }),
+  };
+  models.Event.findOne.mockResolvedValue(event);
+  models.EventWhatsappTemplate.findAll.mockResolvedValue([pivot]);
+  models.WhatsappMessageTemplate.findAll.mockResolvedValue([]);
+  models.EventWhatsappTemplate.findOne.mockResolvedValue(pivot);
+  models.EventWhatsappTemplate.count.mockResolvedValue(1);
+  models.WhatsappMessageTemplate.create.mockImplementation(async (row) => ({
+    ...row,
+    id: "tpl_fork",
+    update: jest.fn(),
+  }));
+
+  const result = await mod.submitEventTemplate({
+    eventId: event.id,
+    ownerUserId: "usr_1",
+    slot: 1,
+    body: WIZARD_BODY,
+    headerType: "none",
+    slotMappings: {},
+    isCampaign: false,
+  });
+
+  expect(updateMessageTemplate).not.toHaveBeenCalled();
+  expect(createMessageTemplate).toHaveBeenCalledTimes(1);
+  expect(models.WhatsappMessageTemplate.create).toHaveBeenCalledWith(
+    expect.objectContaining({
+      metaTemplateId: "meta_fork",
+      clonedFromId: "tpl_default",
+      isWabaDefault: false,
+      status: "PENDING",
+    }),
+  );
+  expect(result.id).toBe("tpl_fork");
 });

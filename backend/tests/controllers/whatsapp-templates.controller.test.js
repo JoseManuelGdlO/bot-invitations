@@ -46,6 +46,8 @@ describe("whatsapp-templates.controller", () => {
   let listOwnerTemplates;
   let deleteOwnerTemplate;
   let submitEventTemplate;
+  let createEventCustomTemplate;
+  let attachEventTemplate;
   let setCampaignSlot;
   let resolveActiveWhatsappMetaByOwner;
   let requireEvent;
@@ -64,6 +66,14 @@ describe("whatsapp-templates.controller", () => {
     listOwnerTemplates = jest.fn(async () => []);
     deleteOwnerTemplate = jest.fn(async () => undefined);
     submitEventTemplate = jest.fn(async () => template());
+    createEventCustomTemplate = jest.fn(async () => ({
+      template: template({ isWabaDefault: false }),
+      link: link({ slot: 2, isCampaign: false }),
+    }));
+    attachEventTemplate = jest.fn(async () => ({
+      template: template({ isWabaDefault: false }),
+      link: link({ slot: 2, isCampaign: false, template: template({ id: "tpl_lib" }) }),
+    }));
     setCampaignSlot = jest.fn(async () => undefined);
     resolveActiveWhatsappMetaByOwner = jest.fn(async () => ({
       credentials: { wabaId: "waba_1", accessToken: "owner-token" },
@@ -88,6 +98,8 @@ describe("whatsapp-templates.controller", () => {
           listOwnerTemplates,
           deleteOwnerTemplate,
           submitEventTemplate,
+          createEventCustomTemplate,
+          attachEventTemplate,
           setCampaignSlot,
         }),
       },
@@ -339,10 +351,25 @@ describe("whatsapp-templates.controller", () => {
     expect(res.json).toHaveBeenCalledWith({ ok: true });
   });
 
+  test("PATCH acepta slot 3 si el pivot existe", async () => {
+    models.EventWhatsappTemplate.findOne.mockResolvedValue(link({ slot: 3 }));
+    const { res } = await callHandler(controller.patchEventWhatsappTemplate, {
+      req: createMockReq({
+        params: { eventId: "evt_1", slot: "3" },
+        body: { isCampaign: true },
+      }),
+    });
+    expect(models.EventWhatsappTemplate.findOne).toHaveBeenCalledWith({
+      where: { eventId: "evt_1", slot: 3 },
+    });
+    expect(setCampaignSlot).toHaveBeenCalledWith({ eventId: "evt_1", slot: 3 });
+    expect(res.json).toHaveBeenCalledWith({ ok: true });
+  });
+
   test("PATCH rechaza un slot inválido antes de cambiar la campaña", async () => {
     const { next } = await callHandler(controller.patchEventWhatsappTemplate, {
       req: createMockReq({
-        params: { eventId: "evt_1", slot: "3" },
+        params: { eventId: "evt_1", slot: "0" },
         body: { isCampaign: true },
       }),
     });
@@ -350,6 +377,93 @@ describe("whatsapp-templates.controller", () => {
     expect(next).toHaveBeenCalledWith(expect.objectContaining({ status: 400 }));
     expect(models.EventWhatsappTemplate.findOne).not.toHaveBeenCalled();
     expect(setCampaignSlot).not.toHaveBeenCalled();
+  });
+
+  test("POST evento crea personalizada con header multipart y CONFIG_AI", async () => {
+    const uploaded = {
+      buffer: Buffer.from("image"),
+      originalname: "portada.jpg",
+      mimetype: "image/jpeg",
+      size: 5,
+    };
+    const payload = {
+      source: "blank",
+      displayName: "Invitación con mesa",
+      body: "Hola {{1}}, tienes {{2}} pases reservados. Tu mesa es la {{3}}. Confirma por este chat, por favor.",
+      headerType: "image",
+      slotMappings: {
+        "1": { type: "field", key: "nombre" },
+        "2": { type: "field", key: "numero_invitados" },
+        "3": { type: "field", key: "mesa" },
+      },
+    };
+
+    const { res } = await callHandler(controller.postEventWhatsappTemplate, {
+      req: createMockReq({
+        params: { eventId: "evt_1" },
+        body: { payload: JSON.stringify(payload) },
+        files: { header: [uploaded] },
+      }),
+    });
+
+    expect(requirePermission).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.any(Object),
+      expect.objectContaining({ id: "evt_1" }),
+      PERMS.CONFIG_AI,
+    );
+    expect(createEventCustomTemplate).toHaveBeenCalledWith({
+      eventId: "evt_1",
+      ownerUserId: "usr_owner_1",
+      source: "blank",
+      templateId: undefined,
+      displayName: "Invitación con mesa",
+      body: payload.body,
+      headerType: "image",
+      slotMappings: payload.slotMappings,
+      headerFile: {
+        buffer: uploaded.buffer,
+        fileName: "portada.jpg",
+        mime: "image/jpeg",
+        size: 5,
+      },
+    });
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.json).toHaveBeenCalledWith({
+      template: expect.objectContaining({
+        slot: 2,
+        isCampaign: false,
+        template: expect.objectContaining({ id: "tpl_1" }),
+      }),
+    });
+  });
+
+  test("POST attach vincula una HSM de biblioteca sin clonar", async () => {
+    const { res } = await callHandler(controller.attachEventWhatsappTemplate, {
+      req: createMockReq({
+        params: { eventId: "evt_1" },
+        body: { templateId: "tpl_lib" },
+      }),
+    });
+
+    expect(requirePermission).toHaveBeenCalledWith(
+      expect.any(Object),
+      expect.any(Object),
+      expect.objectContaining({ id: "evt_1" }),
+      PERMS.CONFIG_AI,
+    );
+    expect(attachEventTemplate).toHaveBeenCalledWith({
+      eventId: "evt_1",
+      ownerUserId: "usr_owner_1",
+      templateId: "tpl_lib",
+    });
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.json).toHaveBeenCalledWith({
+      template: expect.objectContaining({
+        slot: 2,
+        template: expect.objectContaining({ id: "tpl_lib" }),
+      }),
+    });
   });
 
   test("PATCH responde 404 si el slot no tiene pivot", async () => {
