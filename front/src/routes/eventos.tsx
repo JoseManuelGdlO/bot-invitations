@@ -9,6 +9,7 @@ import { useEffect, useState } from "react";
 import {
   CalendarHeart,
   CreditCard,
+  FileStack,
   Headset,
   LayoutDashboard,
   LogOut,
@@ -39,6 +40,7 @@ function AppShell() {
   const reservedShell = new Set([
     "nuevo",
     "whatsapp",
+    "plantillas",
     "suscripcion",
     "soporte",
   ]);
@@ -125,6 +127,16 @@ function AppShell() {
             }}
           >
             <Smartphone className="size-4" /> WhatsApp
+          </Link>
+          <Link
+            to="/eventos/plantillas"
+            className="flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent"
+            activeProps={{
+              className:
+                "bg-sidebar-accent font-medium text-sidebar-foreground",
+            }}
+          >
+            <FileStack className="size-4" /> Plantillas
           </Link>
           {session.plan ? (
             <Link

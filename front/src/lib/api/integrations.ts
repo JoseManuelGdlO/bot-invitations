@@ -204,6 +204,11 @@ export const integrationsApi = {
     api<{ templates: AccountWhatsappTemplateDto[] }>(
       "/integrations/whatsapp/meta/templates",
     ),
+  deleteAccountWhatsappTemplate: (id: string) =>
+    api<void>(
+      `/integrations/whatsapp/meta/templates/${encodeURIComponent(id)}`,
+      { method: "DELETE" },
+    ),
   createEventWhatsappTemplate: (eventId: string, form: FormData) =>
     api<{ template: EventWhatsappTemplateDto }>(
       `/events/${eventId}/whatsapp-templates`,

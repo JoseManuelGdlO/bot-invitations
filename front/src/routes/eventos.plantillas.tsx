@@ -1,0 +1,366 @@
+import { Link, createFileRoute } from "@tanstack/react-router";
+import { useCallback, useEffect, useState } from "react";
+import { FileStack, Loader2, Pencil, Trash2 } from "lucide-react";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { WhatsAppTemplateWizardDialog } from "@/components/whatsapp-template-wizard-dialog";
+import { ApiError } from "@/lib/api/client";
+import {
+  integrationsApi,
+  type AccountWhatsappTemplateDto,
+} from "@/lib/api/integrations";
+import {
+  LAST_WABA_DEFAULT_DELETE_HINT,
+  accountTemplateDeleteWarning,
+  accountWhatsappTemplatesEmptyCopy,
+  canDeleteAccountWhatsappTemplate,
+  customAccountTemplateEditWarning,
+} from "@/lib/whatsapp-account-templates";
+import { displayNameOrPreview } from "@/lib/whatsapp-event-templates";
+import {
+  statusBadgeClassName,
+  statusBadgeLabel,
+} from "@/lib/whatsapp-templates";
+import { cn } from "@/lib/utils";
+import { toast } from "sonner";
+
+export const Route = createFileRoute("/eventos/plantillas")({
+  head: () => ({
+    meta: [
+      { title: "Plantillas de WhatsApp · Alanna Confirmaciones" },
+      {
+        name: "description",
+        content:
+          "Biblioteca de plantillas HSM de la cuenta: estado Meta, uso en eventos y borrado.",
+      },
+      {
+        property: "og:title",
+        content: "Plantillas de WhatsApp · Alanna Confirmaciones",
+      },
+      { name: "robots", content: "noindex, nofollow" },
+    ],
+  }),
+  component: AccountWhatsappTemplatesPage,
+});
+
+function AccountWhatsappTemplatesPage() {
+  const [loading, setLoading] = useState(true);
+  const [deleting, setDeleting] = useState(false);
+  const [loadError, setLoadError] = useState(false);
+  const [whatsappConfigured, setWhatsappConfigured] = useState(false);
+  const [templates, setTemplates] = useState<AccountWhatsappTemplateDto[]>([]);
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const [toDelete, setToDelete] = useState<AccountWhatsappTemplateDto | null>(
+    null,
+  );
+  const [customEdit, setCustomEdit] =
+    useState<AccountWhatsappTemplateDto | null>(null);
+
+  const load = useCallback(async () => {
+    const [statusResult, listResult] = await Promise.allSettled([
+      integrationsApi.getWhatsAppStatus(),
+      integrationsApi.listAccountWhatsappTemplates(),
+    ]);
+    const configured =
+      statusResult.status === "fulfilled" &&
+      Boolean(statusResult.value.configured);
+    if (listResult.status === "fulfilled") {
+      setLoadError(false);
+      setTemplates(listResult.value.templates);
+      setWhatsappConfigured(true);
+      return;
+    }
+    setTemplates([]);
+    const err = listResult.reason;
+    if (err instanceof ApiError && err.status === 400) {
+      setLoadError(false);
+      setWhatsappConfigured(configured);
+      return;
+    }
+    setLoadError(true);
+    setWhatsappConfigured(configured);
+    toast.error(
+      err instanceof ApiError
+        ? err.message
+        : "No se pudieron cargar las plantillas",
+    );
+  }, []);
+
+  useEffect(() => {
+    load().finally(() => setLoading(false));
+  }, [load]);
+
+  const openEdit = (row: AccountWhatsappTemplateDto) => {
+    if (row.isWabaDefault) {
+      setWizardOpen(true);
+      return;
+    }
+    setCustomEdit(row);
+  };
+
+  const confirmDelete = async () => {
+    if (!toDelete?.id) return;
+    const id = toDelete.id;
+    setDeleting(true);
+    try {
+      await integrationsApi.deleteAccountWhatsappTemplate(id);
+      setTemplates((prev) => prev.filter((row) => row.id !== id));
+      setToDelete(null);
+      toast.success("Plantilla eliminada");
+    } catch (err) {
+      toast.error(
+        err instanceof ApiError
+          ? err.message
+          : "No se pudo eliminar la plantilla",
+      );
+      return;
+    } finally {
+      setDeleting(false);
+    }
+    await load();
+  };
+
+  if (loading) {
+    return (
+      <main className="mx-auto flex w-full max-w-3xl flex-1 items-center justify-center px-5 py-16">
+        <Loader2 className="size-6 animate-spin text-muted-foreground" />
+      </main>
+    );
+  }
+
+  const emptyCopy = accountWhatsappTemplatesEmptyCopy(whatsappConfigured);
+
+  return (
+    <main className="mx-auto w-full max-w-3xl flex-1 space-y-6 px-5 py-8 md:px-8 md:py-10">
+      <div>
+        <p className="text-xs font-medium uppercase tracking-[0.14em] text-gold">
+          Cuenta
+        </p>
+        <h1 className="mt-1 font-display text-4xl">Plantillas de WhatsApp</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          HSMs de esta cuenta. Borrarlas también las quita en Meta.
+        </p>
+      </div>
+
+      {templates.length === 0 ? (
+        <section className="rounded-2xl border border-border bg-card p-6 shadow-soft">
+          <div className="flex items-start gap-3">
+            <span className="flex size-10 items-center justify-center rounded-xl bg-gold-soft text-gold-foreground">
+              <FileStack className="size-5" />
+            </span>
+            <div className="space-y-3">
+              <p className="text-sm">
+                {loadError
+                  ? "No se pudieron cargar las plantillas."
+                  : emptyCopy}
+              </p>
+              {loadError ? (
+                <Button type="button" size="sm" onClick={() => void load()}>
+                  Reintentar
+                </Button>
+              ) : whatsappConfigured ? (
+                <Button type="button" size="sm" onClick={() => setWizardOpen(true)}>
+                  Crear plantilla
+                </Button>
+              ) : (
+                <Button type="button" size="sm" asChild>
+                  <Link to="/eventos/whatsapp">Ir a WhatsApp</Link>
+                </Button>
+              )}
+            </div>
+          </div>
+        </section>
+      ) : (
+        <ul className="space-y-3">
+          {templates.map((row) => {
+            const canDelete = canDeleteAccountWhatsappTemplate(row, templates);
+            const title =
+              displayNameOrPreview(row) || row.name || "Plantilla";
+            const usage = row.usage;
+            const eventNames = (usage?.events ?? [])
+              .map((event) => event.name)
+              .filter(Boolean);
+            const deleteButton = (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={!canDelete || !row.id}
+                onClick={() => setToDelete(row)}
+              >
+                <Trash2 className="size-3.5" />
+                Eliminar
+              </Button>
+            );
+            return (
+              <li
+                key={row.id || row.name || title}
+                className="rounded-2xl border border-border bg-card p-5 shadow-soft"
+              >
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div className="min-w-0 space-y-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h2 className="font-display text-xl">{title}</h2>
+                      <Badge
+                        variant="outline"
+                        className={cn(
+                          "rounded-full px-2.5 py-0.5 text-[11px] font-medium",
+                          statusBadgeClassName(row.status),
+                        )}
+                      >
+                        {statusBadgeLabel(row.status || "")}
+                      </Badge>
+                      {row.isWabaDefault ? (
+                        <Badge className="rounded-full bg-gold-soft text-gold-foreground">
+                          Default
+                        </Badge>
+                      ) : null}
+                    </div>
+                    <p className="line-clamp-3 whitespace-pre-wrap text-sm text-muted-foreground">
+                      {row.body || "Sin cuerpo"}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {usage?.eventCount
+                        ? `${usage.eventCount} ${
+                            usage.eventCount === 1 ? "evento" : "eventos"
+                          }${eventNames.length ? `: ${eventNames.join(", ")}` : ""}`
+                        : "Ningún evento la usa"}
+                      {(usage?.campaignEventCount ?? 0) > 0
+                        ? ` · campaña en ${usage?.campaignEventCount}`
+                        : ""}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      onClick={() => openEdit(row)}
+                    >
+                      <Pencil className="size-3.5" />
+                      Ver/editar
+                    </Button>
+                    {canDelete ? (
+                      deleteButton
+                    ) : (
+                      <TooltipProvider>
+                        <Tooltip>
+                          <TooltipTrigger asChild>
+                            <span className="inline-flex">{deleteButton}</span>
+                          </TooltipTrigger>
+                          <TooltipContent className="max-w-xs">
+                            {LAST_WABA_DEFAULT_DELETE_HINT}
+                          </TooltipContent>
+                        </Tooltip>
+                      </TooltipProvider>
+                    )}
+                  </div>
+                </div>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      <WhatsAppTemplateWizardDialog
+        open={wizardOpen}
+        onOpenChange={setWizardOpen}
+        onCreated={async () => {
+          await load();
+        }}
+      />
+
+      <Dialog
+        open={!!customEdit}
+        onOpenChange={(open) => !open && setCustomEdit(null)}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>
+              {displayNameOrPreview(customEdit || {}) || "Plantilla"}
+            </DialogTitle>
+            <DialogDescription>
+              {customAccountTemplateEditWarning(
+                customEdit?.usage?.eventCount ?? 0,
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          {(customEdit?.usage?.events ?? []).length > 0 ? (
+            <ul className="space-y-1 text-sm">
+              {(customEdit?.usage?.events ?? []).map((event) => (
+                <li key={event.id}>
+                  <Link
+                    to="/eventos/$eventId/mensajes"
+                    params={{ eventId: event.id }}
+                    className="text-gold hover:underline"
+                  >
+                    {event.name}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setCustomEdit(null)}>
+              Cerrar
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog
+        open={!!toDelete}
+        onOpenChange={(open) => !open && !deleting && setToDelete(null)}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              ¿Eliminar{" "}
+              {displayNameOrPreview(toDelete || {}) || "esta plantilla"}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {accountTemplateDeleteWarning(toDelete?.usage)}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={deleting}>Cancelar</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={deleting || !toDelete?.id}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={async (e) => {
+                e.preventDefault();
+                await confirmDelete();
+              }}
+            >
+              {deleting ? "Eliminando…" : "Eliminar"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </main>
+  );
+}

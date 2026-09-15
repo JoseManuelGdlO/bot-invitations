@@ -34,6 +34,7 @@ import { Route as BlogSlugRouteImport } from './routes/blog.$slug'
 import { Route as EventosIndexRouteImport } from './routes/eventos.index'
 import { Route as EventosEventIdRouteImport } from './routes/eventos.$eventId'
 import { Route as EventosNuevoRouteImport } from './routes/eventos.nuevo'
+import { Route as EventosPlantillasRouteImport } from './routes/eventos.plantillas'
 import { Route as EventosSoporteRouteImport } from './routes/eventos.soporte'
 import { Route as EventosSuscripcionRouteImport } from './routes/eventos.suscripcion'
 import { Route as EventosWhatsappRouteImport } from './routes/eventos.whatsapp'
@@ -180,6 +181,11 @@ const EventosNuevoRoute = EventosNuevoRouteImport.update({
   path: '/nuevo',
   getParentRoute: () => EventosRoute,
 } as any)
+const EventosPlantillasRoute = EventosPlantillasRouteImport.update({
+  id: '/plantillas',
+  path: '/plantillas',
+  getParentRoute: () => EventosRoute,
+} as any)
 const EventosSoporteRoute = EventosSoporteRouteImport.update({
   id: '/soporte',
   path: '/soporte',
@@ -304,6 +310,7 @@ export interface FileRoutesByFullPath {
   '/blog/$slug': typeof BlogSlugRoute
   '/eventos/$eventId': typeof EventosEventIdRouteWithChildren
   '/eventos/nuevo': typeof EventosNuevoRoute
+  '/eventos/plantillas': typeof EventosPlantillasRoute
   '/eventos/soporte': typeof EventosSoporteRouteWithChildren
   '/eventos/suscripcion': typeof EventosSuscripcionRoute
   '/eventos/whatsapp': typeof EventosWhatsappRoute
@@ -345,6 +352,7 @@ export interface FileRoutesByTo {
   '/admin/planes': typeof AdminPlanesRoute
   '/blog/$slug': typeof BlogSlugRoute
   '/eventos/nuevo': typeof EventosNuevoRoute
+  '/eventos/plantillas': typeof EventosPlantillasRoute
   '/eventos/suscripcion': typeof EventosSuscripcionRoute
   '/eventos/whatsapp': typeof EventosWhatsappRoute
   '/pago/exito': typeof PagoExitoRoute
@@ -391,6 +399,7 @@ export interface FileRoutesById {
   '/blog/$slug': typeof BlogSlugRoute
   '/eventos/$eventId': typeof EventosEventIdRouteWithChildren
   '/eventos/nuevo': typeof EventosNuevoRoute
+  '/eventos/plantillas': typeof EventosPlantillasRoute
   '/eventos/soporte': typeof EventosSoporteRouteWithChildren
   '/eventos/suscripcion': typeof EventosSuscripcionRoute
   '/eventos/whatsapp': typeof EventosWhatsappRoute
@@ -439,6 +448,7 @@ export interface FileRouteTypes {
     | '/blog/$slug'
     | '/eventos/$eventId'
     | '/eventos/nuevo'
+    | '/eventos/plantillas'
     | '/eventos/soporte'
     | '/eventos/suscripcion'
     | '/eventos/whatsapp'
@@ -480,6 +490,7 @@ export interface FileRouteTypes {
     | '/admin/planes'
     | '/blog/$slug'
     | '/eventos/nuevo'
+    | '/eventos/plantillas'
     | '/eventos/suscripcion'
     | '/eventos/whatsapp'
     | '/pago/exito'
@@ -525,6 +536,7 @@ export interface FileRouteTypes {
     | '/blog/$slug'
     | '/eventos/$eventId'
     | '/eventos/nuevo'
+    | '/eventos/plantillas'
     | '/eventos/soporte'
     | '/eventos/suscripcion'
     | '/eventos/whatsapp'
@@ -742,6 +754,13 @@ declare module '@tanstack/react-router' {
       path: '/nuevo'
       fullPath: '/eventos/nuevo'
       preLoaderRoute: typeof EventosNuevoRouteImport
+      parentRoute: typeof EventosRoute
+    }
+    '/eventos/plantillas': {
+      id: '/eventos/plantillas'
+      path: '/plantillas'
+      fullPath: '/eventos/plantillas'
+      preLoaderRoute: typeof EventosPlantillasRouteImport
       parentRoute: typeof EventosRoute
     }
     '/eventos/soporte': {
@@ -973,6 +992,7 @@ const EventosSoporteRouteWithChildren = EventosSoporteRoute._addFileChildren(
 interface EventosRouteChildren {
   EventosEventIdRoute: typeof EventosEventIdRouteWithChildren
   EventosNuevoRoute: typeof EventosNuevoRoute
+  EventosPlantillasRoute: typeof EventosPlantillasRoute
   EventosSoporteRoute: typeof EventosSoporteRouteWithChildren
   EventosSuscripcionRoute: typeof EventosSuscripcionRoute
   EventosWhatsappRoute: typeof EventosWhatsappRoute
@@ -982,6 +1002,7 @@ interface EventosRouteChildren {
 const EventosRouteChildren: EventosRouteChildren = {
   EventosEventIdRoute: EventosEventIdRouteWithChildren,
   EventosNuevoRoute: EventosNuevoRoute,
+  EventosPlantillasRoute: EventosPlantillasRoute,
   EventosSoporteRoute: EventosSoporteRouteWithChildren,
   EventosSuscripcionRoute: EventosSuscripcionRoute,
   EventosWhatsappRoute: EventosWhatsappRoute,
