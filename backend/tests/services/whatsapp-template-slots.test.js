@@ -19,6 +19,8 @@ const ERROR_ADJACENT =
   "No pongas dos variables seguidas. Separa {{1}} y {{2}} con texto.";
 const ERROR_DENSITY =
   "Esta plantilla tiene demasiadas variables en relación con su longitud. Reduce el número de variables o aumenta la longitud del mensaje.";
+const ERROR_REQUIRED =
+  "Incluye {{1}} (nombre) y {{2}} (número de pases). Las dos son obligatorias.";
 const ERROR_SEQUENCE =
   "Usa {{1}}, {{2}}, {{3}}… en orden, sin saltos. {{1}} es el nombre y {{2}} el número de pases.";
 const ERROR_LENGTH = "El cuerpo no puede superar 1024 caracteres.";
@@ -82,7 +84,7 @@ describe("whatsapp-template-slots", () => {
     ).toEqual(["1", "2", "3"]);
   });
 
-  test("assertMetaTemplateBody rechaza Hola {{1}} por final y secuencia", () => {
+  test("assertMetaTemplateBody rechaza Hola {{1}} por final y variables incompletas", () => {
     expect(() => assertMetaTemplateBody("Hola {{1}}")).toThrow(ERROR_END);
   });
 

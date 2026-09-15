@@ -31,6 +31,8 @@ const ERROR_ADJACENT =
   "No pongas dos variables seguidas. Separa {{1}} y {{2}} con texto.";
 const ERROR_DENSITY =
   "Esta plantilla tiene demasiadas variables en relación con su longitud. Reduce el número de variables o aumenta la longitud del mensaje.";
+const ERROR_REQUIRED =
+  "Incluye {{1}} (nombre) y {{2}} (número de pases). Las dos son obligatorias.";
 const ERROR_SEQUENCE =
   "Usa {{1}}, {{2}}, {{3}}… en orden, sin saltos. {{1}} es el nombre y {{2}} el número de pases.";
 const ERROR_LENGTH = "El cuerpo no puede superar 1024 caracteres.";
@@ -102,10 +104,10 @@ test("metaTemplateBodyErrors acepta cuerpos cortos ya aprobados por Meta", () =>
   assert.deepEqual(metaTemplateBodyErrors(withExtra), []);
 });
 
-test("metaTemplateBodyErrors rechaza Hola {{1}} por final y secuencia", () => {
+test("metaTemplateBodyErrors rechaza Hola {{1}} por final y variables incompletas", () => {
   const errors = metaTemplateBodyErrors("Hola {{1}}");
   assert.ok(errors.includes(ERROR_END));
-  assert.ok(errors.includes(ERROR_SEQUENCE));
+  assert.ok(errors.includes(ERROR_REQUIRED));
 });
 
 test("metaTemplateBodyErrors acepta presets Formal / Cercano / Con evento", () => {
@@ -129,7 +131,7 @@ test("metaTemplateBodyErrors rechaza vacío, hueco y longitud", () => {
 
 test("wizardBodyError exige {{1}} y {{2}}", () => {
   assert.equal(typeof wizardBodyError("hola"), "string");
-  assert.equal(wizardBodyError("hola"), ERROR_SEQUENCE);
+  assert.equal(wizardBodyError("hola"), ERROR_REQUIRED);
   assert.equal(wizardBodyError(OK_BODY), null);
 });
 

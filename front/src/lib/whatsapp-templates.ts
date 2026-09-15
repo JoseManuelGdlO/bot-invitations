@@ -13,9 +13,15 @@ const META_BODY_ERROR_ADJACENT =
   "No pongas dos variables seguidas. Separa {{1}} y {{2}} con texto.";
 const META_BODY_ERROR_DENSITY =
   "Esta plantilla tiene demasiadas variables en relación con su longitud. Reduce el número de variables o aumenta la longitud del mensaje.";
+const META_BODY_ERROR_REQUIRED =
+  "Incluye {{1}} (nombre) y {{2}} (número de pases). Las dos son obligatorias.";
 const META_BODY_ERROR_SEQUENCE =
   "Usa {{1}}, {{2}}, {{3}}… en orden, sin saltos. {{1}} es el nombre y {{2}} el número de pases.";
 const META_BODY_ERROR_LENGTH = "El cuerpo no puede superar 1024 caracteres.";
+const META_BODY_ERROR_HEADER_IMAGE =
+  "Falta el archivo de encabezado (JPEG o PNG de hasta 5 MB).";
+const META_BODY_ERROR_HEADER_DOCUMENT =
+  "Falta el archivo de encabezado (PDF o Word de hasta 10 MB).";
 
 const STATUS_BADGE_LABELS: Record<string, string> = {
   DRAFT: "Borrador",
@@ -82,12 +88,13 @@ export function metaTemplateBodyErrors(body: string): string[] {
     if (match[1]) ids.push(match[1]);
   }
   const uniqueSorted = [...new Set(ids)].sort((a, b) => Number(a) - Number(b));
-  const sequenceInvalid =
+  if (uniqueSorted.length < 2) {
+    errors.push(META_BODY_ERROR_REQUIRED);
+  } else if (
     ids.some((id) => !CANONICAL_PLACEHOLDER_ID.test(id)) ||
     uniqueSorted.length !== ids.length ||
-    uniqueSorted.length < 2 ||
-    uniqueSorted.some((id, index) => id !== String(index + 1));
-  if (sequenceInvalid) {
+    uniqueSorted.some((id, index) => id !== String(index + 1))
+  ) {
     errors.push(META_BODY_ERROR_SEQUENCE);
   }
 
@@ -120,6 +127,30 @@ export function needsHeaderFile(headerType: string): boolean {
   return headerType === "document" || headerType === "image";
 }
 
+export function wizardCardBlockReason(draft: {
+  body: string;
+  headerType: string;
+  headerFile?: File | null;
+  headerFileName?: string | null;
+  slotMappings?: Record<string, EventSlotMapping>;
+}): string | null {
+  const bodyError = metaTemplateBodyErrors(draft.body)[0];
+  if (bodyError) return bodyError;
+  const mappings = mergeEventSlotMappings(draft.body, draft.slotMappings || {});
+  const mappingNotice = unmappedExtraNotices(draft.body, mappings)[0];
+  if (mappingNotice) return mappingNotice;
+  if (
+    needsHeaderFile(draft.headerType) &&
+    !draft.headerFile &&
+    !draft.headerFileName
+  ) {
+    return draft.headerType === "image"
+      ? META_BODY_ERROR_HEADER_IMAGE
+      : META_BODY_ERROR_HEADER_DOCUMENT;
+  }
+  return null;
+}
+
 export function isWizardCardReady(draft: {
   body: string;
   headerType: string;
@@ -127,17 +158,7 @@ export function isWizardCardReady(draft: {
   headerFileName?: string | null;
   slotMappings?: Record<string, EventSlotMapping>;
 }): boolean {
-  if (metaTemplateBodyErrors(draft.body).length > 0) return false;
-  const mappings = mergeEventSlotMappings(draft.body, draft.slotMappings || {});
-  if (!extraMappingsComplete(draft.body, mappings)) return false;
-  if (
-    needsHeaderFile(draft.headerType) &&
-    !draft.headerFile &&
-    !draft.headerFileName
-  ) {
-    return false;
-  }
-  return true;
+  return wizardCardBlockReason(draft) === null;
 }
 
 export const LITERAL_SLOT_OPTION = "__literal__";

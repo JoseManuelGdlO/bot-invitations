@@ -21,6 +21,8 @@ const META_BODY_ERROR_ADJACENT =
   "No pongas dos variables seguidas. Separa {{1}} y {{2}} con texto.";
 const META_BODY_ERROR_DENSITY =
   "Esta plantilla tiene demasiadas variables en relación con su longitud. Reduce el número de variables o aumenta la longitud del mensaje.";
+const META_BODY_ERROR_REQUIRED =
+  "Incluye {{1}} (nombre) y {{2}} (número de pases). Las dos son obligatorias.";
 const META_BODY_ERROR_SEQUENCE =
   "Usa {{1}}, {{2}}, {{3}}… en orden, sin saltos. {{1}} es el nombre y {{2}} el número de pases.";
 const META_BODY_ERROR_LENGTH = "El cuerpo no puede superar 1024 caracteres.";
@@ -70,12 +72,13 @@ function metaTemplateBodyErrors(bodyText) {
     ids.push(match[1]);
   }
   const uniqueSorted = [...new Set(ids)].sort((a, b) => Number(a) - Number(b));
-  const sequenceInvalid =
+  if (uniqueSorted.length < 2) {
+    errors.push(META_BODY_ERROR_REQUIRED);
+  } else if (
     ids.some((id) => !CANONICAL_PLACEHOLDER_ID.test(id)) ||
     uniqueSorted.length !== ids.length ||
-    uniqueSorted.length < 2 ||
-    uniqueSorted.some((id, index) => id !== String(index + 1));
-  if (sequenceInvalid) {
+    uniqueSorted.some((id, index) => id !== String(index + 1))
+  ) {
     errors.push(META_BODY_ERROR_SEQUENCE);
   }
 
