@@ -346,6 +346,10 @@ test("wizard no llama a Graph si ya hay default con el mismo body y header", asy
   expect(models.WhatsappMessageTemplate.create).not.toHaveBeenCalled();
   expect(existing.update).not.toHaveBeenCalled();
   expect(models.EventWhatsappTemplate.create).toHaveBeenCalledTimes(2);
+  expect(models.EventWhatsappTemplate.update).toHaveBeenCalledWith(
+    { slotMappings: LOCKED_MAPPINGS },
+    { where: { whatsappMessageTemplateId: existing.id } },
+  );
   expect(out.template).toBe(existing);
 });
 
@@ -563,6 +567,157 @@ test("wizard no pisa un vínculo de campaña personalizado y sí adjunta a los d
   expect(models.EventWhatsappTemplate.create).not.toHaveBeenCalledWith(
     expect.objectContaining({ eventId: "evt_custom" }),
   );
+});
+
+test("wizard refresca slotMappings de pivots del default y no toca forks", async () => {
+  const extraMappings = {
+    ...LOCKED_MAPPINGS,
+    "3": { type: "field", key: "evento" },
+    "4": { type: "field", key: "fecha" },
+    "5": { type: "field", key: "lugar" },
+  };
+  const updateMessageTemplate = jest.fn(async () => ({ success: true }));
+  const { mod, models } = await loadWizardService({ updateMessageTemplate });
+  const existing = existingDefault({ status: "APPROVED" });
+  const campaignPivot = {
+    eventId: "evt_campaign",
+    slot: 1,
+    isCampaign: true,
+    whatsappMessageTemplateId: existing.id,
+    slotMappings: LOCKED_MAPPINGS,
+  };
+  const forkPivot = {
+    eventId: "evt_fork",
+    slot: 1,
+    isCampaign: true,
+    whatsappMessageTemplateId: "tpl_fork",
+    slotMappings: LOCKED_MAPPINGS,
+    update: jest.fn(),
+  };
+  models.WhatsappMessageTemplate.findAll.mockResolvedValue([existing]);
+  models.Event.findAll.mockResolvedValue([
+    fakeEvent({ id: "evt_campaign", ownerId: "usr_1" }),
+    fakeEvent({ id: "evt_fork", ownerId: "usr_1" }),
+    fakeEvent({ id: "evt_bare", ownerId: "usr_1" }),
+  ]);
+  models.EventWhatsappTemplate.findAll.mockResolvedValue([campaignPivot, forkPivot]);
+
+  const out = await mod.createWizardTemplates({
+    ownerUserId: "usr_1",
+    wabaId: "waba_1",
+    plannerAccessToken: "planner",
+    headerType: "none",
+    body: WIZARD_BODY_EXTRA,
+    slotMappings: extraMappings,
+  });
+
+  expect(out.template.id).toBe(existing.id);
+  expect(models.EventWhatsappTemplate.update).toHaveBeenCalledWith(
+    { slotMappings: extraMappings },
+    { where: { whatsappMessageTemplateId: existing.id } },
+  );
+  expect(models.EventWhatsappTemplate.update).not.toHaveBeenCalledWith(
+    expect.anything(),
+    expect.objectContaining({ where: { whatsappMessageTemplateId: "tpl_fork" } }),
+  );
+  expect(forkPivot.update).not.toHaveBeenCalled();
+  expect(models.EventWhatsappTemplate.create).toHaveBeenCalledTimes(1);
+  expect(models.EventWhatsappTemplate.create).toHaveBeenCalledWith(
+    expect.objectContaining({
+      eventId: "evt_bare",
+      whatsappMessageTemplateId: existing.id,
+      isCampaign: true,
+      slot: 1,
+      slotMappings: extraMappings,
+    }),
+  );
+  expect(models.EventWhatsappTemplate.create).not.toHaveBeenCalledWith(
+    expect.objectContaining({ eventId: "evt_campaign" }),
+  );
+  expect(models.EventWhatsappTemplate.create).not.toHaveBeenCalledWith(
+    expect.objectContaining({ eventId: "evt_fork" }),
+  );
+});
+
+test("wizard edita el default con más pivots de campaña aunque sea más nuevo", async () => {
+  const updateMessageTemplate = jest.fn(async () => ({ success: true }));
+  const { mod, models, createMessageTemplate } = await loadWizardService({
+    updateMessageTemplate,
+  });
+  const older = existingDefault({
+    id: "tpl_old",
+    metaTemplateId: "meta_old",
+    name: "alanna_pc_aaaa1111_1",
+    status: "APPROVED",
+    createdAt: new Date("2026-01-01"),
+  });
+  const newer = existingDefault({
+    id: "tpl_new",
+    metaTemplateId: "meta_new",
+    name: "alanna_pc_bbbb2222_2",
+    status: "APPROVED",
+    createdAt: new Date("2026-06-01"),
+  });
+  models.WhatsappMessageTemplate.findAll.mockResolvedValue([older, newer]);
+  models.EventWhatsappTemplate.count.mockImplementation(async ({ where } = {}) => {
+    if (where?.whatsappMessageTemplateId === "tpl_new") return 3;
+    if (where?.whatsappMessageTemplateId === "tpl_old") return 1;
+    return 0;
+  });
+  models.Event.findAll.mockResolvedValue([]);
+
+  await mod.createWizardTemplates({
+    ownerUserId: "usr_1",
+    wabaId: "waba_1",
+    plannerAccessToken: "planner",
+    headerType: "none",
+    body: WIZARD_BODY_UPDATED,
+    slotMappings: LOCKED_MAPPINGS,
+  });
+
+  expect(createMessageTemplate).not.toHaveBeenCalled();
+  expect(updateMessageTemplate).toHaveBeenCalledWith(
+    expect.objectContaining({ templateId: "meta_new" }),
+  );
+  expect(newer.update).toHaveBeenCalled();
+  expect(older.update).not.toHaveBeenCalled();
+});
+
+test("wizard desempata defaults con el mismo uso de campaña eligiendo el más antiguo", async () => {
+  const updateMessageTemplate = jest.fn(async () => ({ success: true }));
+  const { mod, models } = await loadWizardService({ updateMessageTemplate });
+  const older = existingDefault({
+    id: "tpl_old",
+    metaTemplateId: "meta_old",
+    name: "alanna_pc_aaaa1111_1",
+    status: "APPROVED",
+    createdAt: new Date("2026-01-01"),
+  });
+  const newer = existingDefault({
+    id: "tpl_new",
+    metaTemplateId: "meta_new",
+    name: "alanna_pc_bbbb2222_2",
+    status: "APPROVED",
+    createdAt: new Date("2026-06-01"),
+  });
+  models.WhatsappMessageTemplate.findAll.mockResolvedValue([older, newer]);
+  models.EventWhatsappTemplate.count.mockResolvedValue(2);
+  models.Event.findAll.mockResolvedValue([]);
+
+  await mod.createWizardTemplates({
+    ownerUserId: "usr_1",
+    wabaId: "waba_1",
+    plannerAccessToken: "planner",
+    headerType: "none",
+    body: WIZARD_BODY_UPDATED,
+    slotMappings: LOCKED_MAPPINGS,
+  });
+
+  expect(updateMessageTemplate).toHaveBeenCalledWith(
+    expect.objectContaining({ templateId: "meta_old" }),
+  );
+  expect(older.update).toHaveBeenCalled();
+  expect(newer.update).not.toHaveBeenCalled();
 });
 
 test("wizard admite variables extra mapeadas a campos universales", async () => {
@@ -2037,6 +2192,33 @@ test("deleteOwnerTemplate no destruye local si Graph throw", async () => {
   expect(deleteMessageTemplate).toHaveBeenCalled();
   expect(models.EventWhatsappTemplate.destroy).not.toHaveBeenCalled();
   expect(template.destroy).not.toHaveBeenCalled();
+});
+
+test("deleteOwnerTemplate loguea y relanza si Graph OK y falla el destroy local", async () => {
+  const { mod, models, deleteMessageTemplate } = await loadLibraryService();
+  const template = libraryTemplate();
+  models.WhatsappMessageTemplate.findOne.mockResolvedValue(template);
+  models.Campaign.findAll.mockResolvedValue([]);
+  models.Event.findAll.mockResolvedValue([]);
+  models.EventWhatsappTemplate.findAll.mockResolvedValue([]);
+  models.WhatsappMessageTemplate.findAll.mockResolvedValue([]);
+  models.EventWhatsappTemplate.destroy.mockRejectedValue(new Error("Deadlock"));
+  const spy = jest.spyOn(console, "error").mockImplementation(() => {});
+  try {
+    await expect(mod.deleteOwnerTemplate({
+      ownerUserId: "usr_1",
+      templateId: "tpl_1",
+    })).rejects.toThrow("Deadlock");
+
+    expect(deleteMessageTemplate).toHaveBeenCalled();
+    expect(template.destroy).not.toHaveBeenCalled();
+    expect(spy).toHaveBeenCalled();
+    const logged = spy.mock.calls.map((args) => String(args[0] || "")).join("\n");
+    expect(logged).toMatch(/Graph ya borró/);
+    expect(logged).toMatch(/tpl_1/);
+  } finally {
+    spy.mockRestore();
+  }
 });
 
 test("deleteOwnerTemplate 409 si hay campaña queued que usa la HSM", async () => {

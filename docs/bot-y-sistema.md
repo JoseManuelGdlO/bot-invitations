@@ -229,7 +229,14 @@ Salida compartida: `deliverAiMessage` en `backend/src/services/guest-message.ser
 
 ## 7. WhatsApp
 
-Proveedor: **WhatsApp Connect** (cuenta del planner).
+El wizard crea **una** HSM default de cuenta (`isWabaDefault`); los eventos **comparten** el vínculo. Editar desde Mensajes **bifurca**. La biblioteca está en `/eventos/plantillas`. El primer contacto masivo usa la HSM APPROVED de campaña; Recordatorio y Seguimiento **no** son HSM. En el cuerpo HSM los placeholders son posicionales: `{{1}}` nombre y `{{2}}` pases.
+
+| Tipo | `isWabaDefault` | Quién edita sin clonar | Efecto |
+|------|-----------------|------------------------|--------|
+| Default de cuenta | `true` | Wizard / Plantillas | Todos los eventos vinculados ven el mismo status/cuerpo |
+| Personalizada | `false` | Solo ese vínculo (count = 1) | Otros eventos no se enteran |
+
+Proveedor de envío: **WhatsApp Connect** (cuenta del planner).
 
 - Conexión: `/eventos/whatsapp` — QR, device, test.
 - Envío: worker → `WhatsAppConnectProvider.sendMessage` → `POST {WC_API_URL}/devices/{deviceId}/messages/send`.

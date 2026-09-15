@@ -222,7 +222,20 @@ async function findReusableWizardDefault({ ownerUserId, wabaId }) {
     where: { ownerUserId, wabaId, isWabaDefault: true },
     order: [["createdAt", "ASC"]],
   });
-  return defaults.find((row) => String(row?.status || "").toUpperCase() !== "REJECTED") || null;
+  const candidates = defaults.filter(
+    (row) => String(row?.status || "").toUpperCase() !== "REJECTED",
+  );
+  if (!candidates.length) return null;
+  if (candidates.length === 1) return candidates[0];
+
+  const ranked = await Promise.all(candidates.map(async (row) => ({
+    row,
+    campaignCount: await EventWhatsappTemplate.count({
+      where: { whatsappMessageTemplateId: row.id, isCampaign: true },
+    }),
+  })));
+  ranked.sort((a, b) => b.campaignCount - a.campaignCount);
+  return ranked[0].row;
 }
 
 export async function attachDefaultToOwnerEvents(ownerUserId, templateId, slotMappings) {
@@ -255,6 +268,14 @@ export async function attachDefaultToOwnerEvents(ownerUserId, templateId, slotMa
   }
 }
 
+async function attachAndSyncWizardDefault(ownerUserId, templateId, slotMappings) {
+  await attachDefaultToOwnerEvents(ownerUserId, templateId, slotMappings);
+  await EventWhatsappTemplate.update(
+    { slotMappings },
+    { where: { whatsappMessageTemplateId: templateId } },
+  );
+}
+
 export async function createWizardTemplates(input) {
   const normalized = normalizeWizardInput(input);
   const validated = validateWizardTemplate(normalized);
@@ -272,7 +293,7 @@ export async function createWizardTemplates(input) {
     ) {
       await existing.update(displayNamePatch);
     }
-    await attachDefaultToOwnerEvents(ownerUserId, existing.id, validated.slotMappings);
+    await attachAndSyncWizardDefault(ownerUserId, existing.id, validated.slotMappings);
     return { template: existing, slotMappings: validated.slotMappings };
   }
 
@@ -314,7 +335,7 @@ export async function createWizardTemplates(input) {
         headerFile: header.headerFile,
       });
     }
-    await attachDefaultToOwnerEvents(ownerUserId, existing.id, validated.slotMappings);
+    await attachAndSyncWizardDefault(ownerUserId, existing.id, validated.slotMappings);
     return { template: existing, slotMappings: validated.slotMappings };
   }
 
@@ -345,7 +366,7 @@ export async function createWizardTemplates(input) {
   if (header.headerFile) {
     await persistHeaderFile({ ownerUserId, template: row, headerFile: header.headerFile });
   }
-  await attachDefaultToOwnerEvents(ownerUserId, row.id, validated.slotMappings);
+  await attachAndSyncWizardDefault(ownerUserId, row.id, validated.slotMappings);
   return { template: row, slotMappings: validated.slotMappings };
 }
 
@@ -543,10 +564,21 @@ export async function deleteOwnerTemplate({ ownerUserId, templateId } = {}) {
     metaTemplateId: template.metaTemplateId,
   });
 
-  await EventWhatsappTemplate.destroy({
-    where: { whatsappMessageTemplateId: template.id },
-  });
-  await template.destroy();
+  try {
+    await EventWhatsappTemplate.destroy({
+      where: { whatsappMessageTemplateId: template.id },
+    });
+    await template.destroy();
+  } catch (error) {
+    log.error("Graph ya borró la plantilla; falló el destroy local", {
+      templateId: template.id,
+      metaTemplateId: template.metaTemplateId,
+      name: template.name,
+      wabaId,
+      message: error?.message,
+    });
+    throw error;
+  }
 
   if (!template.isWabaDefault) {
     await reattachDefaultAfterCustomDelete(ownerUserId, wabaId);
