@@ -19,6 +19,7 @@ import {
   metaTemplateBodyErrors,
   shouldShowEventTemplateCards,
   statusBadgeLabel,
+  unmappedExtraNotices,
   wizardBodyError,
   type WizardTemplateDraft,
 } from "./whatsapp-templates.ts";
@@ -91,6 +92,14 @@ test("metaTemplateBodyErrors rechaza densidad baja", () => {
     metaTemplateBodyErrors("Hola {{1}} y {{2}} y {{3}} y {{4}} ok."),
     [ERROR_DENSITY],
   );
+});
+
+test("metaTemplateBodyErrors acepta cuerpos cortos ya aprobados por Meta", () => {
+  const approved = "Hola {{1}} tienes {{2}} pases de invitado.";
+  const withExtra =
+    "Hola {{1}} tienes {{2}} pases de invitado. {{3}} texto extra.";
+  assert.deepEqual(metaTemplateBodyErrors(approved), []);
+  assert.deepEqual(metaTemplateBodyErrors(withExtra), []);
 });
 
 test("metaTemplateBodyErrors rechaza Hola {{1}} por final y secuencia", () => {
@@ -301,6 +310,39 @@ test("mergeEventSlotMappings bloquea 1 y 2 y conserva extras", () => {
   assert.deepEqual(mappings["3"], { type: "field", key: "fecha" });
 });
 
+test("unmappedExtraNotices pide elegir el significado de cada extra", () => {
+  assert.deepEqual(
+    unmappedExtraNotices(EXTRA_OK, mergeEventSlotMappings(EXTRA_OK, {})),
+    ["Elige qué significa {{3}}."],
+  );
+  assert.deepEqual(
+    unmappedExtraNotices(
+      EXTRA_OK,
+      mergeEventSlotMappings(EXTRA_OK, {
+        "3": { type: "field", key: "lugar" },
+      }),
+    ),
+    [],
+  );
+  const twoExtras =
+    "Hola {{1}}, tienes {{2}} pases reservados para {{3}} el {{4}}. Confirma por este chat cuando puedas, por favor.";
+  assert.deepEqual(
+    unmappedExtraNotices(twoExtras, mergeEventSlotMappings(twoExtras, {})),
+    ["Elige qué significa {{3}}.", "Elige qué significa {{4}}."],
+  );
+  assert.deepEqual(
+    unmappedExtraNotices(
+      twoExtras,
+      mergeEventSlotMappings(twoExtras, {
+        "3": { type: "field", key: "lugar" },
+        "4": { type: "literal", value: "   " },
+      }),
+    ),
+    ["Elige qué significa {{4}}."],
+  );
+  assert.deepEqual(unmappedExtraNotices(OK_BODY, mergeEventSlotMappings(OK_BODY, {})), []);
+});
+
 test("isEventTemplateCardReady exige mapeo de extras y archivo si aplica", () => {
   const body = EXTRA_OK;
   assert.equal(
@@ -339,6 +381,21 @@ test("isEventTemplateCardReady exige mapeo de extras y archivo si aplica", () =>
       slotMappings: mergeEventSlotMappings(OK_BODY, {}),
     }),
     true,
+  );
+});
+
+test("isEventTemplateCardReady usa la misma puerta que el wizard", () => {
+  const withMetaErrors = {
+    body: "Hola {{1}}",
+    headerType: "none" as const,
+    slotMappings: mergeEventSlotMappings("Hola {{1}}", {}),
+  };
+  assert.ok(metaTemplateBodyErrors(withMetaErrors.body).length > 1);
+  assert.equal(isEventTemplateCardReady(withMetaErrors), false);
+  assert.equal(isWizardCardReady(withMetaErrors), false);
+  assert.equal(
+    isEventTemplateCardReady(draft({ body: EXTRA_OK })),
+    isWizardCardReady(draft({ body: EXTRA_OK })),
   );
 });
 
@@ -437,19 +494,23 @@ test("insertWizardVariable aplica preset si el cuerpo está vacío", () => {
   assert.deepEqual(result.slotMappings, formal.slotMappings);
 });
 
-test("insertWizardVariable bloquea variable al final y no duplica nombre", () => {
-  const formal = wizardPresetById("formal");
+test("insertWizardVariable al final inserta antes del cierre y no duplica nombre", () => {
+  const approved = "Hola {{1}} tienes {{2}} pases de invitado.";
   const atEnd = insertWizardVariable({
-    body: formal.body,
-    cursorStart: formal.body.length,
-    cursorEnd: formal.body.length,
+    body: approved,
+    cursorStart: approved.length,
+    cursorEnd: approved.length,
     fieldKey: "lugar",
-    slotMappings: formal.slotMappings,
+    slotMappings: mergeEventSlotMappings(approved, {}),
   });
-  assert.equal(atEnd.body, formal.body);
-  assert.equal(atEnd.error, ERROR_END);
-  assert.equal(atEnd.usedFallback, false);
+  assert.equal(atEnd.error, null);
+  assert.ok(atEnd.body.includes("{{3}}"));
+  assert.ok(!/^\{\{\d+\}\}/.test(atEnd.body.trim()));
+  assert.ok(!/\{\{\d+\}\}$/.test(atEnd.body.trim()));
+  assert.deepEqual(atEnd.slotMappings["3"], { type: "field", key: "lugar" });
+  assert.deepEqual(metaTemplateBodyErrors(atEnd.body), []);
 
+  const formal = wizardPresetById("formal");
   const dup = insertWizardVariable({
     body: formal.body,
     cursorStart: 20,
@@ -460,6 +521,22 @@ test("insertWizardVariable bloquea variable al final y no duplica nombre", () =>
   assert.equal(dup.body, formal.body);
   assert.equal(dup.alreadyPresent, true);
   assert.ok(dup.body.includes("{{1}}"));
+});
+
+test("insertWizardVariable al inicio inserta en un hueco interior válido", () => {
+  const approved = "Hola {{1}} tienes {{2}} pases de invitado.";
+  const atStart = insertWizardVariable({
+    body: approved,
+    cursorStart: 0,
+    cursorEnd: 0,
+    fieldKey: "fecha",
+    slotMappings: mergeEventSlotMappings(approved, {}),
+  });
+  assert.equal(atStart.error, null);
+  assert.ok(atStart.body.includes("{{3}}"));
+  assert.ok(!/^\{\{\d+\}\}/.test(atStart.body.trim()));
+  assert.ok(!/\{\{\d+\}\}$/.test(atStart.body.trim()));
+  assert.deepEqual(atStart.slotMappings["3"], { type: "field", key: "fecha" });
 });
 
 test("insertWizardVariable inserta {{3}} lugar en medio del preset Formal", () => {

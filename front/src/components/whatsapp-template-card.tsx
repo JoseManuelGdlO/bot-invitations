@@ -49,6 +49,7 @@ import {
   needsHeaderFile,
   statusBadgeClassName,
   statusBadgeLabel,
+  unmappedExtraNotices,
   type EventSlotMapping,
   type WizardHeaderType,
 } from "@/lib/whatsapp-templates";
@@ -116,11 +117,26 @@ export function WhatsappTemplateCard({
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const caretRef = useRef({ start: 0, end: 0 });
+  const rememberCaret = (el?: HTMLTextAreaElement | null) => {
+    const target = el ?? textareaRef.current;
+    if (!target) return;
+    caretRef.current = {
+      start: target.selectionStart,
+      end: target.selectionEnd,
+    };
+  };
   const [insertHint, setInsertHint] = useState<string | null>(null);
   const bodyErrors = metaTemplateBodyErrors(draft.body);
+  const mappingNotices = unmappedExtraNotices(draft.body, draft.slotMappings);
   const notices = [
     ...bodyErrors,
-    ...(insertHint && !bodyErrors.includes(insertHint) ? [insertHint] : []),
+    ...mappingNotices,
+    ...(insertHint &&
+    !bodyErrors.includes(insertHint) &&
+    !mappingNotices.includes(insertHint)
+      ? [insertHint]
+      : []),
   ];
   const extras = extraPlaceholderIds(draft.body);
   const extrasEditable = canEditEventExtraMappings(draft);
@@ -215,8 +231,9 @@ export function WhatsappTemplateCard({
 
   const insertField = (fieldKey: string) => {
     const el = textareaRef.current;
-    const start = el?.selectionStart ?? draft.body.length;
-    const end = el?.selectionEnd ?? draft.body.length;
+    if (el && document.activeElement === el) rememberCaret(el);
+    const start = caretRef.current.start;
+    const end = caretRef.current.end;
     const formal = wizardPresetById("formal");
     const result = insertWizardVariable({
       body: draft.body,
@@ -412,6 +429,10 @@ export function WhatsappTemplateCard({
             ref={textareaRef}
             value={draft.body}
             onChange={(e) => setBody(e.target.value)}
+            onSelect={(e) => rememberCaret(e.currentTarget)}
+            onClick={(e) => rememberCaret(e.currentTarget)}
+            onKeyUp={(e) => rememberCaret(e.currentTarget)}
+            onBlur={(e) => rememberCaret(e.currentTarget)}
             onKeyDown={(e) => {
               if (!(e.metaKey || e.ctrlKey)) return;
               if (e.key === "b" || e.key === "B") {

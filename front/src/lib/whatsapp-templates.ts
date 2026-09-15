@@ -5,7 +5,6 @@ const ADJACENT_PLACEHOLDERS = /\{\{\d+\}\}\s*\{\{\d+\}\}/;
 const CANONICAL_PLACEHOLDER_ID = /^[1-9]\d*$/;
 const META_BODY_MAX_LENGTH = 1024;
 const META_MIN_WORDS_PER_VAR = 2;
-const META_MIN_CHARS_PER_VAR = 20;
 const META_BODY_ERROR_EMPTY = "El cuerpo no puede estar vacío.";
 const META_BODY_ERROR_START =
   "Las variables no pueden ir al principio del mensaje.";
@@ -98,11 +97,7 @@ export function metaTemplateBodyErrors(body: string): string[] {
     .trim();
   const palabras = collapsed.match(/\S+/g) || [];
   const variables = uniqueSorted.length;
-  if (
-    variables > 0 &&
-    (palabras.length < variables * META_MIN_WORDS_PER_VAR ||
-      collapsed.length < variables * META_MIN_CHARS_PER_VAR)
-  ) {
+  if (variables > 0 && palabras.length < variables * META_MIN_WORDS_PER_VAR) {
     errors.push(META_BODY_ERROR_DENSITY);
   }
 
@@ -192,6 +187,15 @@ export function extraMappingsComplete(
   );
 }
 
+export function unmappedExtraNotices(
+  body: string,
+  mappings: Record<string, EventSlotMapping>,
+): string[] {
+  return extraPlaceholderIds(body)
+    .filter((id) => !isCompleteMapping(mappings[id]))
+    .map((id) => `Elige qué significa {{${id}}}.`);
+}
+
 export function mergeEventSlotMappings(
   body: string,
   incoming: Record<string, EventSlotMapping> = {},
@@ -260,6 +264,86 @@ function cursorAtEnd(body: string, start: number): boolean {
   return start >= body.trimEnd().length;
 }
 
+function insidePlaceholder(body: string, index: number): boolean {
+  const regex = new RegExp(PLACEHOLDER_REGEX.source, "g");
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(body)) !== null) {
+    if (index > match.index && index < match.index + match[0].length) {
+      return true;
+    }
+  }
+  return false;
+}
+
+function wouldBeAdjacent(body: string, index: number): boolean {
+  return (
+    /\{\{\d+\}\}\s*$/.test(body.slice(0, index)) ||
+    /^\s*\{\{\d+\}\}/.test(body.slice(index))
+  );
+}
+
+function isWordBoundary(body: string, index: number): boolean {
+  if (index <= 0 || index >= body.length) return false;
+  return (
+    /[\s.,;:!?…]/.test(body[index - 1] ?? "") ||
+    /[\s.,;:!?…]/.test(body[index] ?? "")
+  );
+}
+
+function isValidInsertIndex(body: string, index: number): boolean {
+  if (index < 0 || index > body.length) return false;
+  if (cursorAtStart(body, index) || cursorAtEnd(body, index)) return false;
+  if (insidePlaceholder(body, index)) return false;
+  if (wouldBeAdjacent(body, index)) return false;
+  return true;
+}
+
+function pickInsertIndex(
+  body: string,
+  candidates: Array<number | null | undefined>,
+  preferBoundary = false,
+): number | null {
+  for (const index of candidates) {
+    if (index == null) continue;
+    if (!isValidInsertIndex(body, index)) continue;
+    if (preferBoundary && !isWordBoundary(body, index)) continue;
+    return index;
+  }
+  return null;
+}
+
+function nudgeWizardInsertCursor(body: string, start: number): number | null {
+  const clamped = Math.max(0, Math.min(start, body.length));
+  const exact = pickInsertIndex(body, [clamped]);
+  if (exact != null) return exact;
+
+  if (cursorAtEnd(body, clamped) || clamped >= body.trimEnd().length) {
+    const trimmed = body.trimEnd();
+    const punct = trimmed.match(/[.!?…]+$/)?.[0].length ?? 0;
+    const beforePunct = trimmed.length - punct;
+    const atEnd = pickInsertIndex(
+      body,
+      [beforePunct, trimmed.lastIndexOf(" ")],
+      true,
+    ) ?? pickInsertIndex(body, [beforePunct, trimmed.lastIndexOf(" ")]);
+    if (atEnd != null) return atEnd;
+  }
+
+  for (let distance = 1; distance <= body.length; distance++) {
+    const hit = pickInsertIndex(
+      body,
+      [clamped - distance, clamped + distance],
+      true,
+    );
+    if (hit != null) return hit;
+  }
+  for (let distance = 1; distance <= body.length; distance++) {
+    const hit = pickInsertIndex(body, [clamped - distance, clamped + distance]);
+    if (hit != null) return hit;
+  }
+  return null;
+}
+
 export function insertWizardVariable(
   input: InsertWizardVariableInput,
 ): InsertWizardVariableResult {
@@ -280,7 +364,7 @@ export function insertWizardVariable(
 
   if (!body.trim()) {
     if (input.emptyFallback) {
-      return {
+      const result: InsertWizardVariableResult = {
         body: input.emptyFallback.body,
         slotMappings: input.emptyFallback.slotMappings,
         selectionStart: input.emptyFallback.body.length,
@@ -288,9 +372,14 @@ export function insertWizardVariable(
         error: null,
         usedFallback: true,
         alreadyPresent: false,
-        displayName: input.emptyFallback.displayName,
-        headerType: input.emptyFallback.headerType,
       };
+      if (input.emptyFallback.displayName) {
+        result.displayName = input.emptyFallback.displayName;
+      }
+      if (input.emptyFallback.headerType) {
+        result.headerType = input.emptyFallback.headerType;
+      }
+      return result;
     }
     return unchanged({ error: META_BODY_ERROR_EMPTY });
   }
@@ -306,21 +395,27 @@ export function insertWizardVariable(
     });
   }
 
-  const from = Math.max(
+  const requested = Math.max(
     0,
     Math.min(input.cursorStart, input.cursorEnd, body.length),
   );
-  const to = Math.max(
-    from,
-    Math.min(Math.max(input.cursorStart, input.cursorEnd), body.length),
-  );
-
-  if (cursorAtStart(body, from)) {
-    return unchanged({ error: META_BODY_ERROR_START });
+  const from = nudgeWizardInsertCursor(body, requested);
+  if (from == null) {
+    if (cursorAtStart(body, requested)) {
+      return unchanged({ error: META_BODY_ERROR_START });
+    }
+    if (cursorAtEnd(body, requested)) {
+      return unchanged({ error: META_BODY_ERROR_END });
+    }
+    return unchanged({ error: META_BODY_ERROR_ADJACENT });
   }
-  if (cursorAtEnd(body, from)) {
-    return unchanged({ error: META_BODY_ERROR_END });
-  }
+  const to =
+    requested === from
+      ? Math.max(
+          from,
+          Math.min(Math.max(input.cursorStart, input.cursorEnd), body.length),
+        )
+      : from;
 
   const leftPad = from > 0 && !/\s$/.test(body.slice(0, from)) ? " " : "";
   const rightPad = to < body.length && !/^\s/.test(body.slice(to)) ? " " : "";
@@ -349,17 +444,7 @@ export function isEventTemplateCardReady(draft: {
   headerFileName?: string | null;
   slotMappings: Record<string, EventSlotMapping>;
 }): boolean {
-  if (eventTemplateBodyError(draft.body) !== null) return false;
-  const mappings = mergeEventSlotMappings(draft.body, draft.slotMappings);
-  if (!extraMappingsComplete(draft.body, mappings)) return false;
-  if (
-    needsHeaderFile(draft.headerType) &&
-    !draft.headerFile &&
-    !draft.headerFileName
-  ) {
-    return false;
-  }
-  return true;
+  return isWizardCardReady(draft);
 }
 
 export function buildEventTemplateFormData(input: {

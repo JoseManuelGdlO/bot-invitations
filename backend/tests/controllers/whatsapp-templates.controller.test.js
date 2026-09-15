@@ -549,12 +549,49 @@ describe("whatsapp-templates.controller", () => {
         isWabaDefault: true,
         rejectedReason: null,
         createdAt,
+        slotMappings: {},
         usage: {
           eventCount: 3,
           campaignEventCount: 2,
           events: [{ id: "evt_1", name: "Boda Ana" }],
         },
       }],
+    });
+  });
+
+  test("GET biblioteca serializa slotMappings del default", async () => {
+    const slotMappings = {
+      "1": { type: "field", key: "nombre" },
+      "2": { type: "field", key: "numero_invitados" },
+      "3": { type: "field", key: "evento" },
+    };
+    listOwnerTemplates.mockResolvedValue([{
+      id: "tpl_1",
+      displayName: "Invitación con fecha",
+      name: "alanna_pc_ab12cd34_1",
+      status: "APPROVED",
+      headerType: "none",
+      components: [{ type: "BODY", text: "Hola {{1}}, te invitamos a {{3}} con {{2}} pases." }],
+      isWabaDefault: true,
+      rejectedReason: null,
+      createdAt: new Date("2026-01-02T00:00:00.000Z"),
+      slotMappings,
+      usage: {
+        eventCount: 1,
+        campaignEventCount: 1,
+        events: [{ id: "evt_1", name: "Boda Ana" }],
+      },
+    }]);
+
+    const { res } = await callHandler(controller.getOwnerWhatsappTemplates, {
+      req: createMockReq(),
+    });
+
+    expect(res.json).toHaveBeenCalledWith({
+      templates: [expect.objectContaining({
+        isWabaDefault: true,
+        slotMappings,
+      })],
     });
   });
 

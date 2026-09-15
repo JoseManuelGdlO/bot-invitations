@@ -25,7 +25,7 @@ export function TemplateVariableMenu({
   const empty = variables.length === 0;
   return (
     <div className="mt-3">
-      <DropdownMenu>
+      <DropdownMenu modal={false}>
         <DropdownMenuTrigger asChild>
           <Button
             type="button"
@@ -37,7 +37,11 @@ export function TemplateVariableMenu({
             <ChevronDown className="size-4" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="start" className="max-h-72 overflow-y-auto">
+        <DropdownMenuContent
+          align="start"
+          className="z-[80] max-h-72 overflow-y-auto"
+          onCloseAutoFocus={(event) => event.preventDefault()}
+        >
           {variables.map((key) => (
             <DropdownMenuItem
               key={key}

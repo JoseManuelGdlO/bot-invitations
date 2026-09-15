@@ -1,5 +1,6 @@
 import {
   LOCKED_SLOT_MAPPINGS,
+  mergeEventSlotMappings,
   type EventSlotMapping,
   type WizardHeaderType,
 } from "./whatsapp-templates.ts";
@@ -86,4 +87,17 @@ export function isWizardBodyDirty(
 ): boolean {
   if (!preset) return Boolean(String(body || "").trim());
   return String(body || "") !== preset.body;
+}
+
+export function mappingsFromAccountTemplate(
+  body: string,
+  incoming?: Record<string, EventSlotMapping> | null,
+): Record<string, EventSlotMapping> {
+  const fromApi =
+    incoming && Object.keys(incoming).length > 0 ? incoming : null;
+  const matched = matchWizardPreset(body);
+  return mergeEventSlotMappings(
+    body,
+    fromApi || matched?.slotMappings || {},
+  );
 }

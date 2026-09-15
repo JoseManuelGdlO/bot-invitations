@@ -436,6 +436,16 @@ function serializeUsage(entry) {
   };
 }
 
+function slotMappingsByTemplateId(links = []) {
+  const mappings = new Map();
+  for (const link of links) {
+    const templateId = link.whatsappMessageTemplateId;
+    if (!templateId || mappings.has(templateId)) continue;
+    mappings.set(templateId, link.slotMappings || {});
+  }
+  return mappings;
+}
+
 export async function listOwnerTemplates(ownerUserId) {
   const { credentials } = await resolveActiveWhatsappMetaByOwner(ownerUserId);
   const wabaId = String(credentials?.wabaId || "").trim();
@@ -459,8 +469,10 @@ export async function listOwnerTemplates(ownerUserId) {
     })
     : [];
   const usage = usageByTemplateId(links);
+  const slotMappings = slotMappingsByTemplateId(links);
   return templates.map((row) => Object.assign(row, {
     usage: serializeUsage(usage.get(row.id)),
+    slotMappings: slotMappings.get(row.id) || {},
   }));
 }
 

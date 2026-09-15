@@ -32,13 +32,13 @@ import {
 import {
   WIZARD_PRESETS,
   isWizardBodyDirty,
+  mappingsFromAccountTemplate,
   matchWizardPreset,
   wizardPresetById,
   type WizardPreset,
   type WizardPresetId,
 } from "@/lib/whatsapp-template-presets";
 import {
-  mergeEventSlotMappings,
   needsHeaderFile,
   type WizardHeaderType,
 } from "@/lib/whatsapp-templates";
@@ -134,9 +134,10 @@ export function WhatsappEventTemplateCreateDialog({
       body: accountDefault.body || "",
       headerFile: null,
       headerFileName: needsHeaderFile(headerType) ? EXISTING_HEADER_FILE : null,
-      slotMappings: matched
-        ? matched.slotMappings
-        : mergeEventSlotMappings(accountDefault.body || "", {}),
+      slotMappings: mappingsFromAccountTemplate(
+        accountDefault.body || "",
+        accountDefault.slotMappings,
+      ),
     }));
     setSelectedPresetId(matched?.id ?? null);
     setSource("default");

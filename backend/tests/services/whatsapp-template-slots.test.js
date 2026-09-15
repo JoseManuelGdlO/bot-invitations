@@ -71,6 +71,17 @@ describe("whatsapp-template-slots", () => {
     ).toThrow(ERROR_DENSITY);
   });
 
+  test("assertMetaTemplateBody acepta cuerpos cortos ya aprobados por Meta", () => {
+    expect(
+      assertMetaTemplateBody("Hola {{1}} tienes {{2}} pases de invitado."),
+    ).toEqual(["1", "2"]);
+    expect(
+      assertMetaTemplateBody(
+        "Hola {{1}} tienes {{2}} pases de invitado. {{3}} texto extra.",
+      ),
+    ).toEqual(["1", "2", "3"]);
+  });
+
   test("assertMetaTemplateBody rechaza Hola {{1}} por final y secuencia", () => {
     expect(() => assertMetaTemplateBody("Hola {{1}}")).toThrow(ERROR_END);
   });

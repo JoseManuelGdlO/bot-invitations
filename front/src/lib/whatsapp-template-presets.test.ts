@@ -4,10 +4,11 @@ import {
   WIZARD_PRESETS,
   WIZARD_UNIVERSAL_FIELDS,
   isWizardBodyDirty,
+  mappingsFromAccountTemplate,
   matchWizardPreset,
   wizardPresetById,
 } from "./whatsapp-template-presets.ts";
-import { metaTemplateBodyErrors } from "./whatsapp-templates.ts";
+import { mergeEventSlotMappings, metaTemplateBodyErrors } from "./whatsapp-templates.ts";
 
 const FORMAL_BODY =
   "Hola {{1}}, te escribimos para invitarte con mucho gusto a nuestra celebración. Reservamos {{2}} pases a tu nombre. Confírmanos tu asistencia por este chat cuando puedas, por favor.";
@@ -71,6 +72,31 @@ test("cada preset pasa metaTemplateBodyErrors vacío", () => {
   for (const preset of WIZARD_PRESETS) {
     assert.deepEqual(metaTemplateBodyErrors(preset.body), []);
   }
+});
+
+test("mappingsFromAccountTemplate usa slotMappings de la API en cuerpos custom", () => {
+  const custom =
+    "Hola {{1}}, tienes {{2}} pases reservados para {{3}}. Confirma por este chat cuando puedas, por favor.";
+  const fromApi = {
+    "1": { type: "field" as const, key: "nombre" },
+    "2": { type: "field" as const, key: "numero_invitados" },
+    "3": { type: "field" as const, key: "lugar" },
+  };
+  assert.deepEqual(mappingsFromAccountTemplate(custom, fromApi), fromApi);
+  assert.deepEqual(
+    mappingsFromAccountTemplate(custom, {}),
+    mergeEventSlotMappings(custom, {}),
+  );
+  assert.equal(mappingsFromAccountTemplate(custom, {})["3"], null);
+});
+
+test("mappingsFromAccountTemplate cae al preset si el GET no trae mappings", () => {
+  const evento = wizardPresetById("evento");
+  assert.deepEqual(mappingsFromAccountTemplate(evento.body, {}), evento.slotMappings);
+  assert.deepEqual(
+    mappingsFromAccountTemplate(evento.body, evento.slotMappings),
+    evento.slotMappings,
+  );
 });
 
 test("matchWizardPreset reconoce el cuerpo exacto y isWizardBodyDirty", () => {

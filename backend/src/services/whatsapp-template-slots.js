@@ -14,7 +14,6 @@ const ADJACENT_PLACEHOLDERS = /\{\{\d+\}\}\s*\{\{\d+\}\}/;
 const CANONICAL_PLACEHOLDER_ID = /^[1-9]\d*$/;
 const META_BODY_MAX_LENGTH = 1024;
 const META_MIN_WORDS_PER_VAR = 2;
-const META_MIN_CHARS_PER_VAR = 20;
 const META_BODY_ERROR_EMPTY = "El cuerpo no puede estar vacío.";
 const META_BODY_ERROR_START = "Las variables no pueden ir al principio del mensaje.";
 const META_BODY_ERROR_END = "Las variables no pueden ir al final del mensaje.";
@@ -86,11 +85,7 @@ function metaTemplateBodyErrors(bodyText) {
     .trim();
   const palabras = collapsed.match(/\S+/g) || [];
   const variables = uniqueSorted.length;
-  if (
-    variables > 0 &&
-    (palabras.length < variables * META_MIN_WORDS_PER_VAR ||
-      collapsed.length < variables * META_MIN_CHARS_PER_VAR)
-  ) {
+  if (variables > 0 && palabras.length < variables * META_MIN_WORDS_PER_VAR) {
     errors.push(META_BODY_ERROR_DENSITY);
   }
 

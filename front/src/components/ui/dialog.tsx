@@ -29,10 +29,19 @@ const DialogOverlay = React.forwardRef<
 ));
 DialogOverlay.displayName = DialogPrimitive.Overlay.displayName;
 
+function isPortaledMenuTarget(target: EventTarget | null) {
+  if (!(target instanceof Element)) return false;
+  return Boolean(
+    target.closest(
+      "[data-radix-menu-content], [data-radix-popper-content-wrapper], [data-radix-select-content]",
+    ),
+  );
+}
+
 const DialogContent = React.forwardRef<
   React.ElementRef<typeof DialogPrimitive.Content>,
   React.ComponentPropsWithoutRef<typeof DialogPrimitive.Content>
->(({ className, children, ...props }, ref) => (
+>(({ className, children, onPointerDownOutside, onFocusOutside, onInteractOutside, ...props }, ref) => (
   <DialogPortal>
     <DialogOverlay />
     <DialogPrimitive.Content
@@ -41,6 +50,18 @@ const DialogContent = React.forwardRef<
         "fixed left-[50%] top-[50%] z-50 grid max-h-[calc(100dvh-2rem)] w-[calc(100%-2rem)] max-w-lg translate-x-[-50%] translate-y-[-50%] gap-4 overflow-y-auto rounded-lg border bg-background p-6 shadow-lg duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95",
         className,
       )}
+      onPointerDownOutside={(event) => {
+        if (isPortaledMenuTarget(event.target)) event.preventDefault();
+        onPointerDownOutside?.(event);
+      }}
+      onFocusOutside={(event) => {
+        if (isPortaledMenuTarget(event.target)) event.preventDefault();
+        onFocusOutside?.(event);
+      }}
+      onInteractOutside={(event) => {
+        if (isPortaledMenuTarget(event.target)) event.preventDefault();
+        onInteractOutside?.(event);
+      }}
       {...props}
     >
       {children}

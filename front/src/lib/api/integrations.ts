@@ -100,6 +100,7 @@ export type AccountWhatsappTemplateDto = {
   isWabaDefault: boolean;
   rejectedReason: string | null;
   createdAt: string | null;
+  slotMappings?: Record<string, WhatsappSlotMappingDto>;
   usage?: {
     eventCount: number;
     campaignEventCount: number;

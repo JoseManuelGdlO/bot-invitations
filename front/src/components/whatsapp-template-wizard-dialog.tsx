@@ -39,6 +39,7 @@ import {
   WIZARD_PRESETS,
   WIZARD_UNIVERSAL_FIELDS,
   isWizardBodyDirty,
+  mappingsFromAccountTemplate,
   matchWizardPreset,
   wizardPresetById,
   type WizardPreset,
@@ -52,6 +53,7 @@ import {
   mergeEventSlotMappings,
   metaTemplateBodyErrors,
   needsHeaderFile,
+  unmappedExtraNotices,
   type EventSlotMapping,
   type WizardHeaderType,
   type WizardTemplateDraft,
@@ -119,6 +121,16 @@ export function WhatsAppTemplateWizardDialog({
   const [submitting, setSubmitting] = useState(false);
   const submitInFlight = useRef(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const caretRef = useRef({ start: 0, end: 0 });
+
+  const rememberCaret = (el?: HTMLTextAreaElement | null) => {
+    const target = el ?? textareaRef.current;
+    if (!target) return;
+    caretRef.current = {
+      start: target.selectionStart,
+      end: target.selectionEnd,
+    };
+  };
 
   const selectedPreset = selectedPresetId
     ? wizardPresetById(selectedPresetId)
@@ -151,9 +163,10 @@ export function WhatsAppTemplateWizardDialog({
             headerFileName: needsHeaderFile(headerType)
               ? EXISTING_HEADER_FILE
               : null,
-            slotMappings: matched
-              ? matched.slotMappings
-              : mergeEventSlotMappings(def.body || "", {}),
+            slotMappings: mappingsFromAccountTemplate(
+              def.body || "",
+              def.slotMappings,
+            ),
           };
         });
         if (appliedPreload) setSelectedPresetId(matched?.id ?? null);
@@ -182,6 +195,10 @@ export function WhatsAppTemplateWizardDialog({
     }));
     setSelectedPresetId(preset.id);
     setInsertHint(null);
+    caretRef.current = {
+      start: preset.body.length,
+      end: preset.body.length,
+    };
   };
 
   const requestPreset = (preset: WizardPreset) => {
@@ -266,8 +283,9 @@ export function WhatsAppTemplateWizardDialog({
 
   const insertField = (fieldKey: string) => {
     const el = textareaRef.current;
-    const start = el?.selectionStart ?? draft.body.length;
-    const end = el?.selectionEnd ?? draft.body.length;
+    if (el && document.activeElement === el) rememberCaret(el);
+    const start = caretRef.current.start;
+    const end = caretRef.current.end;
     const formal = wizardPresetById("formal");
     const result = insertWizardVariable({
       body: draft.body,
@@ -337,9 +355,15 @@ export function WhatsAppTemplateWizardDialog({
   };
 
   const bodyErrors = metaTemplateBodyErrors(draft.body);
+  const mappingNotices = unmappedExtraNotices(draft.body, draft.slotMappings);
   const notices = [
     ...bodyErrors,
-    ...(insertHint && !bodyErrors.includes(insertHint) ? [insertHint] : []),
+    ...mappingNotices,
+    ...(insertHint &&
+    !bodyErrors.includes(insertHint) &&
+    !mappingNotices.includes(insertHint)
+      ? [insertHint]
+      : []),
   ];
   const extras = extraPlaceholderIds(draft.body);
   const showFile = needsHeaderFile(draft.headerType);
@@ -509,6 +533,10 @@ export function WhatsAppTemplateWizardDialog({
                 ref={textareaRef}
                 value={draft.body}
                 onChange={(e) => setBody(e.target.value)}
+                onSelect={(e) => rememberCaret(e.currentTarget)}
+                onClick={(e) => rememberCaret(e.currentTarget)}
+                onKeyUp={(e) => rememberCaret(e.currentTarget)}
+                onBlur={(e) => rememberCaret(e.currentTarget)}
                 onKeyDown={(e) => {
                   if (!(e.metaKey || e.ctrlKey)) return;
                   if (e.key === "b" || e.key === "B") {

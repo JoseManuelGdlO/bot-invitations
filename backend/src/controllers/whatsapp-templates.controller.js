@@ -98,6 +98,7 @@ function serializeOwnerTemplate(template) {
     isWabaDefault: Boolean(template?.isWabaDefault),
     rejectedReason: template?.rejectedReason ?? null,
     createdAt: template?.createdAt ?? null,
+    slotMappings: template?.slotMappings || {},
     usage: template?.usage || {
       eventCount: 0,
       campaignEventCount: 0,

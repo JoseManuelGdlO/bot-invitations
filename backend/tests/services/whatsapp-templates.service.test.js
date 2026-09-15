@@ -2105,6 +2105,7 @@ test("listOwnerTemplates serializa usage del WABA actual", async () => {
     status: "APPROVED",
     headerType: "none",
     isWabaDefault: true,
+    slotMappings: {},
     usage: {
       eventCount: 3,
       campaignEventCount: 2,
@@ -2115,6 +2116,36 @@ test("listOwnerTemplates serializa usage del WABA actual", async () => {
       ],
     },
   });
+});
+
+test("listOwnerTemplates incluye slotMappings de cualquier pivot", async () => {
+  const { mod, models } = await loadLibraryService();
+  const row = libraryTemplate({ isWabaDefault: true });
+  const extraMappings = {
+    ...LOCKED_MAPPINGS,
+    "3": { type: "field", key: "evento" },
+    "4": { type: "field", key: "fecha" },
+    "5": { type: "field", key: "lugar" },
+  };
+  models.WhatsappMessageTemplate.findAll.mockResolvedValue([row]);
+  models.EventWhatsappTemplate.findAll.mockResolvedValue([
+    {
+      whatsappMessageTemplateId: "tpl_1",
+      isCampaign: true,
+      slotMappings: extraMappings,
+      Event: { id: "evt_1", name: "Boda Ana" },
+    },
+    {
+      whatsappMessageTemplateId: "tpl_1",
+      isCampaign: false,
+      slotMappings: extraMappings,
+      Event: { id: "evt_2", name: "Boda Bea" },
+    },
+  ]);
+
+  const listed = await mod.listOwnerTemplates("usr_1");
+
+  expect(listed[0].slotMappings).toEqual(extraMappings);
 });
 
 test("listOwnerTemplates promueve la APPROVED más antigua si no hay isWabaDefault", async () => {
