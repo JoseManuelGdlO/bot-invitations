@@ -388,6 +388,7 @@ export const WhatsappMessageTemplate = sequelize.define(
     wabaId: { type: DataTypes.STRING(40), allowNull: false },
     metaTemplateId: { type: DataTypes.STRING(40), allowNull: true },
     name: { type: DataTypes.STRING(512), allowNull: false },
+    displayName: { type: DataTypes.STRING(120), allowNull: true, defaultValue: null },
     language: { type: DataTypes.STRING(10), allowNull: false, defaultValue: "es_MX" },
     category: { type: DataTypes.STRING(40), allowNull: false, defaultValue: "MARKETING" },
     headerType: {
@@ -602,9 +603,27 @@ export async function ensureWhatsappMetaTables() {
   await WhatsappCredential.sync();
 }
 
+export async function ensureWhatsappTemplateDisplayName() {
+  const qi = sequelize.getQueryInterface();
+  let table;
+  try {
+    table = await qi.describeTable("whatsapp_message_templates");
+  } catch {
+    return;
+  }
+  if (table.displayName) return;
+  await qi.addColumn("whatsapp_message_templates", "displayName", {
+    type: DataTypes.STRING(120),
+    allowNull: true,
+    defaultValue: null,
+  });
+  console.log("[db] columna whatsapp_message_templates.displayName creada");
+}
+
 export async function ensureWhatsappTemplateTables() {
   await WhatsappMessageTemplate.sync();
   await EventWhatsappTemplate.sync();
+  await ensureWhatsappTemplateDisplayName();
 }
 
 export async function ensureCampaignColumns() {

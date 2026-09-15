@@ -25,6 +25,7 @@ import {
   exampleValuesFromMappings,
   generateTemplateName,
   mergeSlotMappings,
+  normalizeDisplayName,
   resolveSlotParamValues,
 } from "./whatsapp-template-slots.js";
 import { resolveActiveWhatsappMetaByOwner } from "./whatsapp-meta.service.js";
@@ -260,8 +261,17 @@ export async function createWizardTemplates(input) {
   const { ownerUserId, wabaId, plannerAccessToken } = normalized;
   const token = resolveTemplateCrudToken(plannerAccessToken);
   const existing = await findReusableWizardDefault({ ownerUserId, wabaId });
+  const displayNamePatch = normalized.displayName !== undefined
+    ? { displayName: normalizeDisplayName(normalized.displayName) }
+    : {};
 
   if (existing && wizardContentUnchanged(existing, validated)) {
+    if (
+      displayNamePatch.displayName !== undefined
+      && existing.displayName !== displayNamePatch.displayName
+    ) {
+      await existing.update(displayNamePatch);
+    }
     await attachDefaultToOwnerEvents(ownerUserId, existing.id, validated.slotMappings);
     return { template: existing, slotMappings: validated.slotMappings };
   }
@@ -289,11 +299,14 @@ export async function createWizardTemplates(input) {
         category: existing.category || TEMPLATE_CATEGORY,
       },
     });
-    await existing.update(localTemplateFields({
-      headerType: validated.headerType,
-      header,
-      components,
-    }));
+    await existing.update({
+      ...localTemplateFields({
+        headerType: validated.headerType,
+        header,
+        components,
+      }),
+      ...displayNamePatch,
+    });
     if (header.headerFile) {
       await persistHeaderFile({
         ownerUserId,
@@ -327,6 +340,7 @@ export async function createWizardTemplates(input) {
     components,
     status: "PENDING",
     isWabaDefault: true,
+    displayName: normalizeDisplayName(normalized.displayName),
   });
   if (header.headerFile) {
     await persistHeaderFile({ ownerUserId, template: row, headerFile: header.headerFile });
@@ -848,6 +862,11 @@ function localTemplateFields({
   };
 }
 
+function persistableDisplayName(payloadName, fallbackName) {
+  if (payloadName !== undefined) return normalizeDisplayName(payloadName);
+  return normalizeDisplayName(fallbackName);
+}
+
 function assertValidEventSlot(slot) {
   const numericSlot = Number(slot);
   if (!Number.isInteger(numericSlot) || numericSlot < 1) {
@@ -945,6 +964,7 @@ export async function createEventCustomTemplate({
   ownerUserId,
   source,
   templateId,
+  displayName,
   body,
   headerType,
   headerFile,
@@ -1018,6 +1038,7 @@ export async function createEventCustomTemplate({
     }),
     isWabaDefault: false,
     clonedFromId: origin?.id || null,
+    displayName: persistableDisplayName(displayName, origin?.displayName),
   });
   if (header.headerFile) {
     await persistHeaderFile({ ownerUserId, template, headerFile: header.headerFile });
@@ -1082,6 +1103,7 @@ export async function submitEventTemplate({
   headerFile,
   slotMappings,
   isCampaign,
+  displayName,
 }) {
   const numericSlot = assertValidEventSlot(slot);
   const normalizedHeaderType = String(headerType || "none").toLowerCase();
@@ -1233,6 +1255,7 @@ export async function submitEventTemplate({
         }),
         isWabaDefault: false,
         clonedFromId: template.id,
+        displayName: persistableDisplayName(displayName, template.displayName),
       });
       if (header.headerFile) {
         await persistHeaderFile({ ownerUserId, template: clone, headerFile: header.headerFile });

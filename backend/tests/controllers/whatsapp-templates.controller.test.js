@@ -289,7 +289,11 @@ describe("whatsapp-templates.controller", () => {
       templates: [expect.objectContaining({
         id: "link_1",
         slot: 1,
-        template: expect.objectContaining({ body: "Hola {{1}}, tienes {{2}} pases." }),
+        template: expect.objectContaining({
+          body: "Hola {{1}}, tienes {{2}} pases.",
+          displayName: null,
+          isWabaDefault: false,
+        }),
       })],
     });
   });
@@ -305,6 +309,7 @@ describe("whatsapp-templates.controller", () => {
       body: "Hola {{1}}, tienes {{2}} pases.",
       headerType: "image",
       slotMappings: link().slotMappings,
+      displayName: "Nombre en evento",
     };
     models.EventWhatsappTemplate.findOne.mockResolvedValue(
       link({ id: "link_2", slot: 2, isCampaign: true }),
@@ -476,6 +481,37 @@ describe("whatsapp-templates.controller", () => {
 
     expect(next).toHaveBeenCalledWith(expect.objectContaining({ status: 404 }));
     expect(setCampaignSlot).not.toHaveBeenCalled();
+  });
+
+  test("GET biblioteca serializa usage y displayName persistido", async () => {
+    const createdAt = new Date("2026-01-02T00:00:00.000Z");
+    listOwnerTemplates.mockResolvedValue([{
+      id: "tpl_1",
+      displayName: "Invitación formal",
+      name: "alanna_pc_ab12cd34_1",
+      status: "APPROVED",
+      headerType: "none",
+      components: [{ type: "BODY", text: "Hola {{1}}, tienes {{2}} pases." }],
+      isWabaDefault: true,
+      rejectedReason: null,
+      createdAt,
+      usage: {
+        eventCount: 3,
+        campaignEventCount: 2,
+        events: [{ id: "evt_1", name: "Boda Ana" }],
+      },
+    }]);
+
+    const { res } = await callHandler(controller.getOwnerWhatsappTemplates, {
+      req: createMockReq(),
+    });
+
+    expect(res.json).toHaveBeenCalledWith({
+      templates: [expect.objectContaining({
+        displayName: "Invitación formal",
+        isWabaDefault: true,
+      })],
+    });
   });
 
   test("GET biblioteca serializa usage y displayName null", async () => {

@@ -82,13 +82,15 @@ function serializeTemplate(template) {
     status: template?.status ?? null,
     rejectedReason: template?.rejectedReason ?? null,
     body: bodyTextFromComponents(template?.components),
+    displayName: template?.displayName ?? null,
+    isWabaDefault: Boolean(template?.isWabaDefault),
   };
 }
 
 function serializeOwnerTemplate(template) {
   return {
     id: template?.id ?? null,
-    displayName: null,
+    displayName: template?.displayName ?? null,
     name: template?.name ?? null,
     status: template?.status ?? null,
     headerType: template?.headerType ?? "none",
@@ -218,6 +220,7 @@ export const putEventWhatsappTemplate = asyncHandler(async (req, res) => {
     headerFile: uploadedFile(fieldFile(req, "header")),
     slotMappings: payload.slotMappings,
     isCampaign: payload.isCampaign,
+    displayName: payload.displayName,
   });
   const link = await EventWhatsappTemplate.findOne({
     where: { eventId: event.id, slot: Number(slot) },

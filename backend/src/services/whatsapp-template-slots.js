@@ -235,6 +235,30 @@ export function bodyTextFromComponents(components) {
   return body?.text ?? "";
 }
 
+const DISPLAY_NAME_MAX = 120;
+const DISPLAY_NAME_PREVIEW_MAX = 80;
+
+export function normalizeDisplayName(value) {
+  if (value == null) return null;
+  const trimmed = String(value).trim();
+  if (!trimmed) return null;
+  return trimmed.slice(0, DISPLAY_NAME_MAX);
+}
+
+export function displayNameOrPreview(template) {
+  const named = normalizeDisplayName(template?.displayName);
+  if (named) return named;
+  const rawBody = typeof template?.body === "string" ? template.body : "";
+  const body = rawBody || bodyTextFromComponents(template?.components);
+  const preview = String(body || "")
+    .replace(/\{\{\d+\}\}/g, "")
+    .replace(/\s+/g, " ")
+    .replace(/\s+([,.;:!?])/g, "$1")
+    .trim();
+  if (!preview) return null;
+  return preview.slice(0, DISPLAY_NAME_PREVIEW_MAX);
+}
+
 export function resolveSlotParamValues(mappings, vars) {
   const ids = Object.keys(mappings).sort((a, b) => Number(a) - Number(b));
   return ids.map((id) => {
