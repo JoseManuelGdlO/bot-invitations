@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { wizardPresetById } from "./whatsapp-template-presets.ts";
 import {
   buildEventTemplateFormData,
   buildWizardFormData,
@@ -10,6 +11,7 @@ import {
   extraSlotOptionLabel,
   extraSlotOptions,
   extractBodyPlaceholders,
+  insertWizardVariable,
   isCampaignLaunchBlocked,
   isEventTemplateCardReady,
   isWizardCardReady,
@@ -48,12 +50,14 @@ const SEQUENCE_GAP =
 function draft(
   overrides: Partial<WizardTemplateDraft> = {},
 ): WizardTemplateDraft {
+  const body = overrides.body ?? OK_BODY;
   return {
-    slot: 1,
+    displayName: "Invitación formal",
     headerType: "none",
-    body: OK_BODY,
-    isCampaign: true,
+    body,
     headerFile: null,
+    headerFileName: null,
+    slotMappings: mergeEventSlotMappings(body, {}),
     ...overrides,
   };
 }
@@ -176,56 +180,102 @@ test("isWizardCardReady exige archivo si el encabezado no es texto", () => {
   );
 });
 
-test("canSubmitWizard exige que todas las tarjetas visibles estén listas", () => {
-  assert.equal(canSubmitWizard([draft({ body: "hola" })]), false);
-  assert.equal(canSubmitWizard([draft()]), true);
-  assert.equal(canSubmitWizard([draft(), draft({ slot: 2, body: "" })]), false);
+test("canSubmitWizard exige un draft listo y deshabilita con variable al final", () => {
+  assert.equal(canSubmitWizard(draft({ body: "hola" })), false);
+  assert.equal(canSubmitWizard(draft()), true);
+  const trailing = `${OK_BODY} {{3}}`;
+  assert.ok(metaTemplateBodyErrors(trailing).includes(ERROR_END));
+  assert.equal(canSubmitWizard(draft({ body: trailing })), false);
+  const formal = wizardPresetById("formal");
   assert.equal(
-    canSubmitWizard([draft(), draft({ slot: 2, isCampaign: false })]),
+    canSubmitWizard(
+      draft({
+        displayName: formal.displayName,
+        body: `${formal.body} {{3}}`,
+        slotMappings: {
+          ...formal.slotMappings,
+          "3": { type: "field", key: "lugar" },
+        },
+      }),
+    ),
+    false,
+  );
+});
+
+test("isWizardCardReady exige mappings extra completos", () => {
+  assert.equal(
+    isWizardCardReady(
+      draft({
+        body: EXTRA_OK,
+        slotMappings: mergeEventSlotMappings(EXTRA_OK, {}),
+      }),
+    ),
+    false,
+  );
+  assert.equal(
+    isWizardCardReady(
+      draft({
+        body: EXTRA_OK,
+        slotMappings: mergeEventSlotMappings(EXTRA_OK, {
+          "3": { type: "field", key: "lugar" },
+        }),
+      }),
+    ),
+    true,
+  );
+  assert.equal(
+    isWizardCardReady(
+      draft({
+        headerType: "document",
+        headerFile: null,
+        headerFileName: "invitacion.pdf",
+      }),
+    ),
     true,
   );
 });
 
-test("buildWizardFormData manda payload JSON y header_1", () => {
+test("buildWizardFormData manda payload plano y header_1", () => {
   const file = new File(["pdf"], "invitacion.pdf", { type: "application/pdf" });
-  const form = buildWizardFormData([
+  const form = buildWizardFormData(
     draft({ headerType: "document", headerFile: file }),
-  ]);
+  );
   assert.equal(form instanceof FormData, true);
   assert.equal(
     form.get("payload"),
     JSON.stringify({
-      templates: [
-        {
-          slot: 1,
-          headerType: "document",
-          body: OK_BODY,
-          isCampaign: true,
-        },
-      ],
+      displayName: "Invitación formal",
+      headerType: "document",
+      body: OK_BODY,
+      slotMappings: {
+        "1": { type: "field", key: "nombre" },
+        "2": { type: "field", key: "numero_invitados" },
+      },
     }),
   );
   assert.equal(form.get("header_1"), file);
   assert.equal(form.get("header_2"), null);
+  const payload = JSON.parse(String(form.get("payload")));
+  assert.equal(payload.templates, undefined);
 });
 
-test("buildWizardFormData fuerza campaña con una sola tarjeta válida", () => {
-  const form = buildWizardFormData([draft({ isCampaign: false })]);
+test("buildWizardFormData incluye extras del preset con fecha y lugar", () => {
+  const evento = wizardPresetById("evento");
+  const form = buildWizardFormData(
+    draft({
+      displayName: evento.displayName,
+      body: evento.body,
+      slotMappings: evento.slotMappings,
+    }),
+  );
   const payload = JSON.parse(String(form.get("payload")));
-  assert.equal(payload.templates.length, 1);
-  assert.equal(payload.templates[0].isCampaign, true);
-  assert.equal(payload.templates[0].slot, 1);
-});
-
-test("buildWizardFormData incluye todas las tarjetas visibles listas", () => {
-  const form = buildWizardFormData([
-    draft({ isCampaign: true }),
-    draft({ slot: 2, isCampaign: false }),
-  ]);
-  const payload = JSON.parse(String(form.get("payload")));
-  assert.equal(payload.templates.length, 2);
-  assert.equal(payload.templates[0].slot, 1);
-  assert.equal(payload.templates[1].slot, 2);
+  assert.deepEqual(payload, {
+    displayName: "Invitación con fecha y lugar",
+    headerType: "none",
+    body: evento.body,
+    slotMappings: evento.slotMappings,
+  });
+  assert.equal(form.get("header_1"), null);
 });
 
 test("extraPlaceholderIds ignora {{1}} y {{2}}", () => {
@@ -353,4 +403,78 @@ test("shouldShowEventTemplateCards oculta el editor si el GET falló", () => {
   assert.equal(shouldShowEventTemplateCards(false, true), false);
   assert.equal(shouldShowEventTemplateCards(true, true), false);
   assert.equal(shouldShowEventTemplateCards(false, false), true);
+});
+
+test("insertWizardVariable aplica preset si el cuerpo está vacío", () => {
+  const formal = wizardPresetById("formal");
+  const result = insertWizardVariable({
+    body: "",
+    cursorStart: 0,
+    cursorEnd: 0,
+    fieldKey: "lugar",
+    slotMappings: {},
+    emptyFallback: {
+      body: formal.body,
+      slotMappings: formal.slotMappings,
+      displayName: formal.displayName,
+    },
+  });
+  assert.equal(result.body, formal.body);
+  assert.equal(result.usedFallback, true);
+  assert.equal(result.error, null);
+  assert.deepEqual(result.slotMappings, formal.slotMappings);
+});
+
+test("insertWizardVariable bloquea variable al final y no duplica nombre", () => {
+  const formal = wizardPresetById("formal");
+  const atEnd = insertWizardVariable({
+    body: formal.body,
+    cursorStart: formal.body.length,
+    cursorEnd: formal.body.length,
+    fieldKey: "lugar",
+    slotMappings: formal.slotMappings,
+  });
+  assert.equal(atEnd.body, formal.body);
+  assert.equal(atEnd.error, ERROR_END);
+  assert.equal(atEnd.usedFallback, false);
+
+  const dup = insertWizardVariable({
+    body: formal.body,
+    cursorStart: 20,
+    cursorEnd: 20,
+    fieldKey: "nombre",
+    slotMappings: formal.slotMappings,
+  });
+  assert.equal(dup.body, formal.body);
+  assert.equal(dup.alreadyPresent, true);
+  assert.ok(dup.body.includes("{{1}}"));
+});
+
+test("insertWizardVariable inserta {{3}} lugar en medio del preset Formal", () => {
+  const formal = wizardPresetById("formal");
+  const at = formal.body.indexOf("nuestra celebración");
+  assert.ok(at > 0);
+  const result = insertWizardVariable({
+    body: formal.body,
+    cursorStart: at,
+    cursorEnd: at,
+    fieldKey: "lugar",
+    slotMappings: formal.slotMappings,
+  });
+  assert.equal(result.error, null);
+  assert.equal(result.usedFallback, false);
+  assert.ok(result.body.includes("{{3}}"));
+  assert.ok(!result.body.includes("{{lugar}}"));
+  assert.deepEqual(result.slotMappings["3"], { type: "field", key: "lugar" });
+  assert.deepEqual(metaTemplateBodyErrors(result.body), []);
+  assert.equal(
+    canSubmitWizard(
+      draft({
+        displayName: formal.displayName,
+        body: result.body,
+        slotMappings: result.slotMappings,
+      }),
+    ),
+    true,
+  );
 });

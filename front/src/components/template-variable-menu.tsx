@@ -11,12 +11,16 @@ type Props = {
   variables: string[];
   disabled?: boolean;
   onInsert: (token: string) => void;
+  formatToken?: (key: string) => string;
+  labelFor?: (key: string) => string;
 };
 
 export function TemplateVariableMenu({
   variables,
   disabled = false,
   onInsert,
+  formatToken = (key) => `{{${key}}}`,
+  labelFor,
 }: Props) {
   const empty = variables.length === 0;
   return (
@@ -37,9 +41,9 @@ export function TemplateVariableMenu({
           {variables.map((key) => (
             <DropdownMenuItem
               key={key}
-              onSelect={() => onInsert(`{{${key}}}`)}
+              onSelect={() => onInsert(formatToken(key))}
             >
-              {`{{${key}}}`}
+              {labelFor ? labelFor(key) : `{{${key}}}`}
             </DropdownMenuItem>
           ))}
         </DropdownMenuContent>

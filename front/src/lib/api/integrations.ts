@@ -85,6 +85,25 @@ export type EventWhatsappTemplateDto = {
     status: string | null;
     rejectedReason: string | null;
     body: string;
+    displayName: string | null;
+    isWabaDefault: boolean;
+  };
+};
+
+export type AccountWhatsappTemplateDto = {
+  id: string | null;
+  displayName: string | null;
+  name: string | null;
+  status: string | null;
+  headerType: string;
+  body: string;
+  isWabaDefault: boolean;
+  rejectedReason: string | null;
+  createdAt: string | null;
+  usage?: {
+    eventCount: number;
+    campaignEventCount: number;
+    events: Array<{ id: string; name: string }>;
   };
 };
 
@@ -138,10 +157,13 @@ export const integrationsApi = {
       `/internal/whatsapp/template?templateName=${encodeURIComponent(templateName)}`,
     ),
   saveWhatsAppCredentials: (body: WhatsAppMetaCredentialsInput) =>
-    api<WhatsAppMetaStatusDto & { ok: boolean }>("/internal/whatsapp/credentials", {
-      method: "POST",
-      body: JSON.stringify(body),
-    }),
+    api<WhatsAppMetaStatusDto & { ok: boolean }>(
+      "/internal/whatsapp/credentials",
+      {
+        method: "POST",
+        body: JSON.stringify(body),
+      },
+    ),
   sendWhatsAppTest: (body: {
     to: string;
     type: WhatsAppSendTestType;
@@ -177,6 +199,10 @@ export const integrationsApi = {
     api<{ templates: EventWhatsappTemplateDto[] }>(
       "/integrations/whatsapp/meta/templates",
       { method: "POST", body: form },
+    ),
+  listAccountWhatsappTemplates: () =>
+    api<{ templates: AccountWhatsappTemplateDto[] }>(
+      "/integrations/whatsapp/meta/templates",
     ),
   listEventWhatsappTemplates: (eventId: string) =>
     api<{ templates: EventWhatsappTemplateDto[] }>(

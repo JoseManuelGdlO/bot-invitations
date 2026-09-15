@@ -9,8 +9,7 @@ const META_MIN_CHARS_PER_VAR = 20;
 const META_BODY_ERROR_EMPTY = "El cuerpo no puede estar vacío.";
 const META_BODY_ERROR_START =
   "Las variables no pueden ir al principio del mensaje.";
-const META_BODY_ERROR_END =
-  "Las variables no pueden ir al final del mensaje.";
+const META_BODY_ERROR_END = "Las variables no pueden ir al final del mensaje.";
 const META_BODY_ERROR_ADJACENT =
   "No pongas dos variables seguidas. Separa {{1}} y {{2}} con texto.";
 const META_BODY_ERROR_DENSITY =
@@ -31,11 +30,12 @@ const STATUS_BADGE_LABELS: Record<string, string> = {
 export type WizardHeaderType = "none" | "document" | "image";
 
 export type WizardTemplateDraft = {
-  slot: 1 | 2;
+  displayName: string;
   headerType: WizardHeaderType;
   body: string;
-  isCampaign: boolean;
   headerFile: File | null;
+  headerFileName?: string | null;
+  slotMappings: Record<string, EventSlotMapping>;
 };
 
 export function extractBodyPlaceholders(body: string): string[] {
@@ -129,24 +129,20 @@ export function isWizardCardReady(draft: {
   body: string;
   headerType: string;
   headerFile?: File | null;
+  headerFileName?: string | null;
+  slotMappings?: Record<string, EventSlotMapping>;
 }): boolean {
-  if (wizardBodyError(draft.body) !== null) return false;
-  if (needsHeaderFile(draft.headerType) && !draft.headerFile) return false;
-  return true;
-}
-
-export function wizardDraftsToSubmit(
-  drafts: WizardTemplateDraft[],
-): WizardTemplateDraft[] {
-  if (drafts.length === 0 || !drafts.every(isWizardCardReady)) return [];
-  const templates = drafts.slice(0, 2);
-  if (templates.length === 1 || !templates.some((draft) => draft.isCampaign)) {
-    return templates.map((draft, index) => ({
-      ...draft,
-      isCampaign: index === 0,
-    }));
+  if (metaTemplateBodyErrors(draft.body).length > 0) return false;
+  const mappings = mergeEventSlotMappings(draft.body, draft.slotMappings || {});
+  if (!extraMappingsComplete(draft.body, mappings)) return false;
+  if (
+    needsHeaderFile(draft.headerType) &&
+    !draft.headerFile &&
+    !draft.headerFileName
+  ) {
+    return false;
   }
-  return templates;
+  return true;
 }
 
 export const LITERAL_SLOT_OPTION = "__literal__";
@@ -207,6 +203,143 @@ export function mergeEventSlotMappings(
     else mappings[id] = incoming[id] ?? null;
   }
   return mappings;
+}
+
+export type InsertWizardVariableInput = {
+  body: string;
+  cursorStart: number;
+  cursorEnd: number;
+  fieldKey: string;
+  slotMappings?: Record<string, EventSlotMapping>;
+  emptyFallback?: {
+    body: string;
+    slotMappings: Record<string, EventSlotMapping>;
+    displayName?: string;
+    headerType?: WizardHeaderType;
+  };
+};
+
+export type InsertWizardVariableResult = {
+  body: string;
+  slotMappings: Record<string, EventSlotMapping>;
+  selectionStart: number;
+  selectionEnd: number;
+  error: string | null;
+  usedFallback: boolean;
+  alreadyPresent: boolean;
+  displayName?: string;
+  headerType?: WizardHeaderType;
+};
+
+function placeholderIdForField(
+  fieldKey: string,
+  body: string,
+  mappings: Record<string, EventSlotMapping>,
+): string {
+  if (fieldKey === "nombre") return "1";
+  if (fieldKey === "numero_invitados") return "2";
+  for (const [id, mapping] of Object.entries(mappings)) {
+    if (id === "1" || id === "2") continue;
+    if (mapping?.type === "field" && mapping.key === fieldKey) return id;
+  }
+  const ids = extractBodyPlaceholders(body).map(Number);
+  const next = Math.max(2, 0, ...ids) + 1;
+  return String(Math.max(next, 3));
+}
+
+function bodyHasPlaceholder(body: string, id: string): boolean {
+  return body.includes(`{{${id}}}`);
+}
+
+function cursorAtStart(body: string, start: number): boolean {
+  const lead = body.length - body.trimStart().length;
+  return start <= lead;
+}
+
+function cursorAtEnd(body: string, start: number): boolean {
+  return start >= body.trimEnd().length;
+}
+
+export function insertWizardVariable(
+  input: InsertWizardVariableInput,
+): InsertWizardVariableResult {
+  const body = String(input.body || "");
+  const mappings = mergeEventSlotMappings(body, input.slotMappings || {});
+  const unchanged = (
+    patch: Partial<InsertWizardVariableResult> = {},
+  ): InsertWizardVariableResult => ({
+    body,
+    slotMappings: mappings,
+    selectionStart: input.cursorStart,
+    selectionEnd: input.cursorEnd,
+    error: null,
+    usedFallback: false,
+    alreadyPresent: false,
+    ...patch,
+  });
+
+  if (!body.trim()) {
+    if (input.emptyFallback) {
+      return {
+        body: input.emptyFallback.body,
+        slotMappings: input.emptyFallback.slotMappings,
+        selectionStart: input.emptyFallback.body.length,
+        selectionEnd: input.emptyFallback.body.length,
+        error: null,
+        usedFallback: true,
+        alreadyPresent: false,
+        displayName: input.emptyFallback.displayName,
+        headerType: input.emptyFallback.headerType,
+      };
+    }
+    return unchanged({ error: META_BODY_ERROR_EMPTY });
+  }
+
+  const id = placeholderIdForField(input.fieldKey, body, mappings);
+  const token = `{{${id}}}`;
+  if (bodyHasPlaceholder(body, id)) {
+    const index = body.indexOf(token);
+    return unchanged({
+      alreadyPresent: true,
+      selectionStart: index < 0 ? input.cursorStart : index,
+      selectionEnd: index < 0 ? input.cursorEnd : index + token.length,
+    });
+  }
+
+  const from = Math.max(
+    0,
+    Math.min(input.cursorStart, input.cursorEnd, body.length),
+  );
+  const to = Math.max(
+    from,
+    Math.min(Math.max(input.cursorStart, input.cursorEnd), body.length),
+  );
+
+  if (cursorAtStart(body, from)) {
+    return unchanged({ error: META_BODY_ERROR_START });
+  }
+  if (cursorAtEnd(body, from)) {
+    return unchanged({ error: META_BODY_ERROR_END });
+  }
+
+  const leftPad = from > 0 && !/\s$/.test(body.slice(0, from)) ? " " : "";
+  const rightPad = to < body.length && !/^\s/.test(body.slice(to)) ? " " : "";
+  const insert = `${leftPad}${token}${rightPad}`;
+  const nextBody = `${body.slice(0, from)}${insert}${body.slice(to)}`;
+  const pos = from + insert.length;
+
+  return {
+    body: nextBody,
+    slotMappings: mergeEventSlotMappings(nextBody, {
+      ...mappings,
+      [id]: { type: "field", key: input.fieldKey },
+    }),
+    selectionStart: pos,
+    selectionEnd: pos,
+    error: null,
+    usedFallback: false,
+    alreadyPresent: false,
+  };
 }
 
 export function isEventTemplateCardReady(draft: {
@@ -291,28 +424,23 @@ export function statusBadgeClassName(
   }
 }
 
-export function canSubmitWizard(drafts: WizardTemplateDraft[]): boolean {
-  return drafts.length >= 1 && drafts.every(isWizardCardReady);
+export function canSubmitWizard(draft: WizardTemplateDraft): boolean {
+  return isWizardCardReady(draft);
 }
 
-export function buildWizardFormData(drafts: WizardTemplateDraft[]): FormData {
-  const templates = wizardDraftsToSubmit(drafts);
+export function buildWizardFormData(draft: WizardTemplateDraft): FormData {
   const form = new FormData();
   form.append(
     "payload",
     JSON.stringify({
-      templates: templates.map((draft) => ({
-        slot: draft.slot,
-        headerType: draft.headerType,
-        body: draft.body,
-        isCampaign: draft.isCampaign,
-      })),
+      displayName: draft.displayName,
+      headerType: draft.headerType,
+      body: draft.body,
+      slotMappings: mergeEventSlotMappings(draft.body, draft.slotMappings),
     }),
   );
-  for (const draft of templates) {
-    if (draft.headerFile && needsHeaderFile(draft.headerType)) {
-      form.append(`header_${draft.slot}`, draft.headerFile);
-    }
+  if (draft.headerFile && needsHeaderFile(draft.headerType)) {
+    form.append("header_1", draft.headerFile);
   }
   return form;
 }

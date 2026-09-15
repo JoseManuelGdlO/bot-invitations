@@ -396,11 +396,11 @@ function WhatsAppMetaPage() {
         ) : !status?.hasTemplate ? (
           <div className="mt-3 flex flex-col gap-3 rounded-lg border border-gold/40 bg-gold-soft/50 px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm">
-              Faltan plantillas de invitación. Meta debe aprobarlas antes de
+              Falta la plantilla de invitación. Meta debe aprobarla antes de
               lanzar la campaña.
             </p>
             <Button type="button" size="sm" onClick={() => setWizardOpen(true)}>
-              Crear plantillas
+              Crear plantilla
             </Button>
           </div>
         ) : null}
