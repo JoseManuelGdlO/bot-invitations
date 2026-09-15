@@ -8,6 +8,23 @@ export const LOCKED_SLOT_MAPPINGS = {
 
 const PLACEHOLDER_REGEX = /\{\{(\d+)\}\}/g;
 const FIELD_KEY_REGEX = /^\w+$/;
+const STARTS_WITH_PLACEHOLDER = /^\{\{\d+\}\}/;
+const ENDS_WITH_PLACEHOLDER = /\{\{\d+\}\}$/;
+const ADJACENT_PLACEHOLDERS = /\{\{\d+\}\}\s*\{\{\d+\}\}/;
+const CANONICAL_PLACEHOLDER_ID = /^[1-9]\d*$/;
+const META_BODY_MAX_LENGTH = 1024;
+const META_MIN_WORDS_PER_VAR = 2;
+const META_MIN_CHARS_PER_VAR = 20;
+const META_BODY_ERROR_EMPTY = "El cuerpo no puede estar vacío.";
+const META_BODY_ERROR_START = "Las variables no pueden ir al principio del mensaje.";
+const META_BODY_ERROR_END = "Las variables no pueden ir al final del mensaje.";
+const META_BODY_ERROR_ADJACENT =
+  "No pongas dos variables seguidas. Separa {{1}} y {{2}} con texto.";
+const META_BODY_ERROR_DENSITY =
+  "Esta plantilla tiene demasiadas variables en relación con su longitud. Reduce el número de variables o aumenta la longitud del mensaje.";
+const META_BODY_ERROR_SEQUENCE =
+  "Usa {{1}}, {{2}}, {{3}}… en orden, sin saltos. {{1}} es el nombre y {{2}} el número de pases.";
+const META_BODY_ERROR_LENGTH = "El cuerpo no puede superar 1024 caracteres.";
 
 export function extractBodyPlaceholders(bodyText) {
   const ids = [];
@@ -24,14 +41,76 @@ export function extractBodyPlaceholders(bodyText) {
   return ids.sort((a, b) => Number(a) - Number(b));
 }
 
-export function assertWizardBody(bodyText) {
-  const ids = extractBodyPlaceholders(bodyText);
-  const hasCanonicalSequence =
-    ids.length >= 2 && ids.every((id, index) => id === String(index + 1));
-  if (!hasCanonicalSequence) {
-    throw httpError(400, "La plantilla debe incluir {{1}} (nombre) y {{2}} (pases) consecutivos.");
+function metaTemplateBodyErrors(bodyText) {
+  const body = String(bodyText || "");
+  const trimmed = body.trim();
+  const errors = [];
+
+  if (!trimmed) {
+    errors.push(META_BODY_ERROR_EMPTY);
+    if (body.length > META_BODY_MAX_LENGTH) {
+      errors.push(META_BODY_ERROR_LENGTH);
+    }
+    return errors;
   }
-  return ids;
+
+  if (STARTS_WITH_PLACEHOLDER.test(trimmed)) {
+    errors.push(META_BODY_ERROR_START);
+  }
+  if (ENDS_WITH_PLACEHOLDER.test(trimmed)) {
+    errors.push(META_BODY_ERROR_END);
+  }
+  if (ADJACENT_PLACEHOLDERS.test(body)) {
+    errors.push(META_BODY_ERROR_ADJACENT);
+  }
+
+  const ids = [];
+  const regex = new RegExp(PLACEHOLDER_REGEX.source, "g");
+  let match;
+  while ((match = regex.exec(body)) !== null) {
+    ids.push(match[1]);
+  }
+  const uniqueSorted = [...new Set(ids)].sort((a, b) => Number(a) - Number(b));
+  const sequenceInvalid =
+    ids.some((id) => !CANONICAL_PLACEHOLDER_ID.test(id)) ||
+    uniqueSorted.length !== ids.length ||
+    uniqueSorted.length < 2 ||
+    uniqueSorted.some((id, index) => id !== String(index + 1));
+  if (sequenceInvalid) {
+    errors.push(META_BODY_ERROR_SEQUENCE);
+  }
+
+  const collapsed = body
+    .replace(new RegExp(PLACEHOLDER_REGEX.source, "g"), "")
+    .replace(/\s+/g, " ")
+    .trim();
+  const palabras = collapsed.match(/\S+/g) || [];
+  const variables = uniqueSorted.length;
+  if (
+    variables > 0 &&
+    (palabras.length < variables * META_MIN_WORDS_PER_VAR ||
+      collapsed.length < variables * META_MIN_CHARS_PER_VAR)
+  ) {
+    errors.push(META_BODY_ERROR_DENSITY);
+  }
+
+  if (body.length > META_BODY_MAX_LENGTH) {
+    errors.push(META_BODY_ERROR_LENGTH);
+  }
+
+  return errors;
+}
+
+export function assertMetaTemplateBody(bodyText) {
+  const errors = metaTemplateBodyErrors(bodyText);
+  if (errors.length > 0) {
+    throw httpError(400, errors[0]);
+  }
+  return extractBodyPlaceholders(bodyText);
+}
+
+export function assertWizardBody(bodyText) {
+  return assertMetaTemplateBody(bodyText);
 }
 
 function isSameMapping(a, b) {

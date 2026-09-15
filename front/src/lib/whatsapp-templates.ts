@@ -1,6 +1,23 @@
 const PLACEHOLDER_REGEX = /\{\{(\d+)\}\}/g;
-
-const WIZARD_BODY_ERROR = "Incluye {{1}} (nombre) y {{2}} (número de pases).";
+const STARTS_WITH_PLACEHOLDER = /^\{\{\d+\}\}/;
+const ENDS_WITH_PLACEHOLDER = /\{\{\d+\}\}$/;
+const ADJACENT_PLACEHOLDERS = /\{\{\d+\}\}\s*\{\{\d+\}\}/;
+const CANONICAL_PLACEHOLDER_ID = /^[1-9]\d*$/;
+const META_BODY_MAX_LENGTH = 1024;
+const META_MIN_WORDS_PER_VAR = 2;
+const META_MIN_CHARS_PER_VAR = 20;
+const META_BODY_ERROR_EMPTY = "El cuerpo no puede estar vacío.";
+const META_BODY_ERROR_START =
+  "Las variables no pueden ir al principio del mensaje.";
+const META_BODY_ERROR_END =
+  "Las variables no pueden ir al final del mensaje.";
+const META_BODY_ERROR_ADJACENT =
+  "No pongas dos variables seguidas. Separa {{1}} y {{2}} con texto.";
+const META_BODY_ERROR_DENSITY =
+  "Esta plantilla tiene demasiadas variables en relación con su longitud. Reduce el número de variables o aumenta la longitud del mensaje.";
+const META_BODY_ERROR_SEQUENCE =
+  "Usa {{1}}, {{2}}, {{3}}… en orden, sin saltos. {{1}} es el nombre y {{2}} el número de pases.";
+const META_BODY_ERROR_LENGTH = "El cuerpo no puede superar 1024 caracteres.";
 
 const STATUS_BADGE_LABELS: Record<string, string> = {
   DRAFT: "Borrador",
@@ -36,10 +53,68 @@ export function extractBodyPlaceholders(body: string): string[] {
   return ids.sort((a, b) => Number(a) - Number(b));
 }
 
+export function metaTemplateBodyErrors(body: string): string[] {
+  const text = String(body || "");
+  const trimmed = text.trim();
+  const errors: string[] = [];
+
+  if (!trimmed) {
+    errors.push(META_BODY_ERROR_EMPTY);
+    if (text.length > META_BODY_MAX_LENGTH) {
+      errors.push(META_BODY_ERROR_LENGTH);
+    }
+    return errors;
+  }
+
+  if (STARTS_WITH_PLACEHOLDER.test(trimmed)) {
+    errors.push(META_BODY_ERROR_START);
+  }
+  if (ENDS_WITH_PLACEHOLDER.test(trimmed)) {
+    errors.push(META_BODY_ERROR_END);
+  }
+  if (ADJACENT_PLACEHOLDERS.test(text)) {
+    errors.push(META_BODY_ERROR_ADJACENT);
+  }
+
+  const ids: string[] = [];
+  const regex = new RegExp(PLACEHOLDER_REGEX.source, "g");
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(text)) !== null) {
+    if (match[1]) ids.push(match[1]);
+  }
+  const uniqueSorted = [...new Set(ids)].sort((a, b) => Number(a) - Number(b));
+  const sequenceInvalid =
+    ids.some((id) => !CANONICAL_PLACEHOLDER_ID.test(id)) ||
+    uniqueSorted.length !== ids.length ||
+    uniqueSorted.length < 2 ||
+    uniqueSorted.some((id, index) => id !== String(index + 1));
+  if (sequenceInvalid) {
+    errors.push(META_BODY_ERROR_SEQUENCE);
+  }
+
+  const collapsed = text
+    .replace(new RegExp(PLACEHOLDER_REGEX.source, "g"), "")
+    .replace(/\s+/g, " ")
+    .trim();
+  const palabras = collapsed.match(/\S+/g) || [];
+  const variables = uniqueSorted.length;
+  if (
+    variables > 0 &&
+    (palabras.length < variables * META_MIN_WORDS_PER_VAR ||
+      collapsed.length < variables * META_MIN_CHARS_PER_VAR)
+  ) {
+    errors.push(META_BODY_ERROR_DENSITY);
+  }
+
+  if (text.length > META_BODY_MAX_LENGTH) {
+    errors.push(META_BODY_ERROR_LENGTH);
+  }
+
+  return errors;
+}
+
 export function wizardBodyError(body: string): string | null {
-  const ids = extractBodyPlaceholders(body);
-  if (ids.length === 2 && ids[0] === "1" && ids[1] === "2") return null;
-  return WIZARD_BODY_ERROR;
+  return metaTemplateBodyErrors(body)[0] ?? null;
 }
 
 export function statusBadgeLabel(status: string): string {
@@ -97,11 +172,7 @@ export function extraPlaceholderIds(body: string): string[] {
 }
 
 export function eventTemplateBodyError(body: string): string | null {
-  const ids = extractBodyPlaceholders(body);
-  const consecutive =
-    ids.length >= 2 && ids.every((id, index) => id === String(index + 1));
-  if (consecutive) return null;
-  return WIZARD_BODY_ERROR;
+  return wizardBodyError(body);
 }
 
 function isCompleteMapping(
