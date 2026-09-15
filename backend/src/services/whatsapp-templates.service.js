@@ -294,48 +294,47 @@ async function currentOwnerWabaId(ownerUserId) {
   }
 }
 
+function isTemplateStatus(row, status) {
+  return String(row?.status || "").toUpperCase() === status;
+}
+
+async function promoteCurrentWabaDefault({ ownerUserId, wabaId }) {
+  const hsms = await WhatsappMessageTemplate.findAll({
+    where: { ownerUserId, wabaId },
+    order: [["createdAt", "ASC"]],
+  });
+  const pick = hsms.find((row) => isTemplateStatus(row, "APPROVED"))
+    || hsms.find((row) => isTemplateStatus(row, "PENDING"))
+    || null;
+  if (!pick) return null;
+  await pick.update({ isWabaDefault: true });
+  return pick;
+}
+
 async function sourceTemplatesFor(event) {
   const wabaId = await currentOwnerWabaId(event.ownerId);
   if (!wabaId) return { templates: [], links: [] };
 
-  const defaults = await WhatsappMessageTemplate.findAll({
+  let defaults = await WhatsappMessageTemplate.findAll({
     where: { ownerUserId: event.ownerId, isWabaDefault: true, wabaId },
     order: [["createdAt", "ASC"]],
   });
-  if (defaults.length) {
-    const links = await EventWhatsappTemplate.findAll({
-      where: {
-        whatsappMessageTemplateId: defaults.map((template) => template.id),
-      },
-      order: [["slot", "ASC"]],
+  if (!defaults.length) {
+    const promoted = await promoteCurrentWabaDefault({
+      ownerUserId: event.ownerId,
+      wabaId,
     });
-    return { templates: defaults, links };
+    defaults = promoted ? [promoted] : [];
   }
+  if (!defaults.length) return { templates: [], links: [] };
 
-  const ownerEvents = await Event.findAll({
-    where: { ownerId: event.ownerId },
-    order: [["createdAt", "ASC"]],
+  const links = await EventWhatsappTemplate.findAll({
+    where: {
+      whatsappMessageTemplateId: defaults.map((template) => template.id),
+    },
+    order: [["slot", "ASC"]],
   });
-  for (const ownerEvent of ownerEvents) {
-    if (ownerEvent.id === event.id) continue;
-    const links = await EventWhatsappTemplate.findAll({
-      where: { eventId: ownerEvent.id },
-      include: [{
-        model: WhatsappMessageTemplate,
-        as: "template",
-        required: true,
-        where: { wabaId },
-      }],
-      order: [["slot", "ASC"]],
-    });
-    if (links.length) {
-      return {
-        templates: links.map((link) => link.template).filter(Boolean),
-        links,
-      };
-    }
-  }
-  return { templates: [], links: [] };
+  return { templates: defaults, links };
 }
 
 function sourceLinkFor(template, links) {
@@ -410,71 +409,17 @@ export async function ensureEventWhatsappTemplates(event) {
   }
 
   const links = [...existing];
-  let token;
-  let attached = false;
-  let cloned = false;
   for (const { template: origin, sourceLink, slot, index } of missing) {
-    const usedByAnotherEvent = source.links.some(
-      (link) => link.whatsappMessageTemplateId === origin.id
-        && link.eventId !== event.id,
-    );
-    if (!usedByAnotherEvent) {
-      links.push(await EventWhatsappTemplate.create({
-        eventId: event.id,
-        whatsappMessageTemplateId: origin.id,
-        ownerUserId: event.ownerId,
-        slot,
-        isCampaign: sourceLink?.isCampaign ?? index === 0,
-        slotMappings: sourceLink?.slotMappings || {},
-      }));
-      attached = true;
-      continue;
-    }
-
-    token ??= await resolveOwnerTemplateToken(event.ownerId);
-    const header = await cloneHeader(origin, token);
-    const meta = await createOnMeta({
-      wabaId: origin.wabaId,
-      token,
-      slot,
-      components: header.components,
-      language: origin.language,
-      category: origin.category,
-    });
-    const clone = await WhatsappMessageTemplate.create({
-      ownerUserId: event.ownerId,
-      wabaId: origin.wabaId,
-      metaTemplateId: meta.metaTemplateId,
-      name: meta.name,
-      language: origin.language,
-      category: origin.category,
-      headerType: origin.headerType,
-      headerMediaPath: null,
-      headerFileName: origin.headerFileName || null,
-      headerMime: origin.headerMime || null,
-      headerSize: origin.headerSize ?? null,
-      headerHandle: header.headerHandle,
-      components: header.components,
-      status: "PENDING",
-      isWabaDefault: false,
-      clonedFromId: origin.id,
-    });
-    await persistHeaderFile({
-      ownerUserId: event.ownerId,
-      template: clone,
-      headerFile: header.headerFile,
-    });
     links.push(await EventWhatsappTemplate.create({
       eventId: event.id,
-      whatsappMessageTemplateId: clone.id,
+      whatsappMessageTemplateId: origin.id,
       ownerUserId: event.ownerId,
       slot,
       isCampaign: sourceLink?.isCampaign ?? index === 0,
       slotMappings: sourceLink?.slotMappings || {},
     }));
-    cloned = true;
   }
-  return { attached, cloned, links };
+  return { attached: true, cloned: false, links };
 }
 
 function missingCampaignTemplateError() {
