@@ -53,6 +53,8 @@ async function loadWizardService(graph = {}) {
     || jest.fn((token) => token);
   const ensurePlatformCanManageWaba = graph.ensurePlatformCanManageWaba
     || jest.fn();
+  const deleteMessageTemplate = graph.deleteMessageTemplate
+    || jest.fn(async () => ({ success: true }));
   const extraMocks = {
     "src/services/meta-graph.client.js": () => ({
       resolveTemplateCrudToken,
@@ -60,6 +62,7 @@ async function loadWizardService(graph = {}) {
       createMessageTemplate,
       updateMessageTemplate,
       uploadResumableHeader,
+      deleteMessageTemplate,
     }),
   };
   if (graph.mockFs) {
@@ -90,9 +93,48 @@ async function loadWizardService(graph = {}) {
     createMessageTemplate,
     updateMessageTemplate,
     uploadResumableHeader,
+    deleteMessageTemplate,
     resolveTemplateCrudToken,
     ensurePlatformCanManageWaba,
   };
+}
+
+async function loadLibraryService(graph = {}) {
+  const deleteMessageTemplate = graph.deleteMessageTemplate
+    || jest.fn(async () => ({ success: true }));
+  const resolveTemplateCrudToken = graph.resolveTemplateCrudToken
+    || jest.fn((token) => token || "tok");
+  const { mod, models } = await loadWithMocks("src/services/whatsapp-templates.service.js", {
+    extraMocks: {
+      "src/services/meta-graph.client.js": () => ({
+        resolveTemplateCrudToken,
+        ensurePlatformCanManageWaba: jest.fn(),
+        createMessageTemplate: graph.createMessageTemplate || jest.fn(),
+        updateMessageTemplate: graph.updateMessageTemplate || jest.fn(),
+        uploadResumableHeader: graph.uploadResumableHeader || jest.fn(),
+        deleteMessageTemplate,
+      }),
+      ...ownerMetaMocks(),
+    },
+  });
+  return { mod, models, deleteMessageTemplate, resolveTemplateCrudToken };
+}
+
+function libraryTemplate(overrides = {}) {
+  return hsmRow({
+    id: "tpl_1",
+    name: "alanna_pc_ab12cd34_1",
+    metaTemplateId: "meta_tpl_1",
+    status: "APPROVED",
+    headerType: "none",
+    isWabaDefault: false,
+    components: [{ type: "BODY", text: WIZARD_BODY }],
+    createdAt: new Date("2026-01-02"),
+    destroy: jest.fn(async function destroy() {
+      return this;
+    }),
+    ...overrides,
+  });
 }
 
 function existingDefault(overrides = {}) {
@@ -609,6 +651,7 @@ test("primer evento adjunta defaults sin crear otra plantilla en Graph", async (
         createMessageTemplate,
         updateMessageTemplate: jest.fn(),
         uploadResumableHeader: jest.fn(),
+        deleteMessageTemplate: jest.fn(),
       }),
       ...ownerMetaMocks(),
     },
@@ -648,6 +691,7 @@ test("evento con attach parcial completa sólo el slot faltante sin llamar a Gra
         createMessageTemplate,
         updateMessageTemplate: jest.fn(),
         uploadResumableHeader: jest.fn(),
+        deleteMessageTemplate: jest.fn(),
       }),
       ...ownerMetaMocks(),
     },
@@ -700,6 +744,7 @@ test("evento con sólo default 2 en slot 2 adjunta default 1 en slot 1 sin llama
         createMessageTemplate,
         updateMessageTemplate: jest.fn(),
         uploadResumableHeader: jest.fn(),
+        deleteMessageTemplate: jest.fn(),
       }),
       ...ownerMetaMocks(),
     },
@@ -755,6 +800,7 @@ test("segundo evento adjunta el mismo tpl_origin sin createMessageTemplate", asy
         createMessageTemplate,
         updateMessageTemplate: jest.fn(),
         uploadResumableHeader: jest.fn(),
+        deleteMessageTemplate: jest.fn(),
       }),
       ...ownerMetaMocks(),
     },
@@ -813,6 +859,7 @@ test("ensure no hereda defaults de un WABA anterior", async () => {
         createMessageTemplate,
         updateMessageTemplate: jest.fn(),
         uploadResumableHeader: jest.fn(),
+        deleteMessageTemplate: jest.fn(),
       }),
       "src/services/whatsapp-meta.service.js": () => ({
         resolveActiveWhatsappMetaByOwner,
@@ -855,6 +902,7 @@ test("segunda ensure del mismo evento no repite el POST a Graph", async () => {
         createMessageTemplate,
         updateMessageTemplate: jest.fn(),
         uploadResumableHeader: jest.fn(),
+        deleteMessageTemplate: jest.fn(),
       }),
       ...ownerMetaMocks(),
     },
@@ -907,6 +955,7 @@ test("ensure marca como default la APPROVED más antigua del WABA actual y la ad
         createMessageTemplate,
         updateMessageTemplate: jest.fn(),
         uploadResumableHeader: jest.fn(),
+        deleteMessageTemplate: jest.fn(),
       }),
       ...ownerMetaMocks(),
     },
@@ -963,6 +1012,7 @@ test("ensure marca como default la PENDING más antigua si no hay APPROVED", asy
         createMessageTemplate,
         updateMessageTemplate: jest.fn(),
         uploadResumableHeader: jest.fn(),
+        deleteMessageTemplate: jest.fn(),
       }),
       ...ownerMetaMocks(),
     },
@@ -1004,6 +1054,7 @@ test("ensure no inventa HSM si solo hay plantillas REJECTED", async () => {
         createMessageTemplate,
         updateMessageTemplate: jest.fn(),
         uploadResumableHeader: jest.fn(),
+        deleteMessageTemplate: jest.fn(),
       }),
       ...ownerMetaMocks(),
     },
@@ -1054,6 +1105,7 @@ test("submit edita en Graph una plantilla usada por un solo pivot", async () => 
         createMessageTemplate,
         updateMessageTemplate,
         uploadResumableHeader: jest.fn(),
+        deleteMessageTemplate: jest.fn(),
       }),
     },
   });
@@ -1127,6 +1179,7 @@ test("submit recrea en Graph el draft del slot 2 sin metaTemplateId", async () =
         createMessageTemplate,
         updateMessageTemplate,
         uploadResumableHeader: jest.fn(),
+        deleteMessageTemplate: jest.fn(),
       }),
     },
   });
@@ -1198,6 +1251,7 @@ test("submit hace copy-on-write cuando dos pivots comparten plantilla", async ()
         createMessageTemplate,
         updateMessageTemplate,
         uploadResumableHeader: jest.fn(),
+        deleteMessageTemplate: jest.fn(),
       }),
     },
   });
@@ -1268,6 +1322,7 @@ test("setCampaignSlot desmarca el slot anterior y marca el solicitado", async ()
         createMessageTemplate: jest.fn(),
         updateMessageTemplate: jest.fn(),
         uploadResumableHeader: jest.fn(),
+        deleteMessageTemplate: jest.fn(),
       }),
     },
   });
@@ -1300,6 +1355,7 @@ test("submit conserva el status previo cuando Graph falla", async () => {
         createMessageTemplate: jest.fn(),
         updateMessageTemplate,
         uploadResumableHeader: jest.fn(),
+        deleteMessageTemplate: jest.fn(),
       }),
     },
   });
@@ -1350,6 +1406,7 @@ test("submit crea la segunda plantilla y su pivot cuando el slot está vacío", 
         createMessageTemplate,
         updateMessageTemplate: jest.fn(),
         uploadResumableHeader: jest.fn(),
+        deleteMessageTemplate: jest.fn(),
       }),
       "src/services/whatsapp-meta.service.js": () => ({
         resolveActiveWhatsappMetaByOwner: jest.fn(async () => ({
@@ -1414,6 +1471,7 @@ test("submit conserva en DRAFT una segunda plantilla si Graph falla al crearla",
         createMessageTemplate,
         updateMessageTemplate: jest.fn(),
         uploadResumableHeader: jest.fn(),
+        deleteMessageTemplate: jest.fn(),
       }),
       "src/services/whatsapp-meta.service.js": () => ({
         resolveActiveWhatsappMetaByOwner: jest.fn(async () => ({
@@ -1654,4 +1712,241 @@ test("resolveOwnerCampaignSendContext 400 si la campaña del WABA no está APPRO
     status: 400,
     message: "Meta aún no aprueba la plantilla de campaña.",
   });
+});
+
+test("listOwnerTemplates serializa usage del WABA actual", async () => {
+  const { mod, models } = await loadLibraryService();
+  const row = libraryTemplate({
+    isWabaDefault: true,
+    createdAt: new Date("2026-01-02T00:00:00.000Z"),
+  });
+  models.WhatsappMessageTemplate.findAll.mockResolvedValue([row]);
+  models.EventWhatsappTemplate.findAll.mockResolvedValue([
+    {
+      whatsappMessageTemplateId: "tpl_1",
+      isCampaign: true,
+      Event: { id: "evt_1", name: "Boda Ana" },
+    },
+    {
+      whatsappMessageTemplateId: "tpl_1",
+      isCampaign: true,
+      Event: { id: "evt_2", name: "Boda Bea" },
+    },
+    {
+      whatsappMessageTemplateId: "tpl_1",
+      isCampaign: false,
+      Event: { id: "evt_3", name: "Boda Cal" },
+    },
+  ]);
+
+  const listed = await mod.listOwnerTemplates("usr_1");
+
+  expect(models.WhatsappMessageTemplate.findAll).toHaveBeenCalledWith(
+    expect.objectContaining({
+      where: { ownerUserId: "usr_1", wabaId: "waba_1" },
+    }),
+  );
+  expect(listed).toHaveLength(1);
+  expect(listed[0]).toMatchObject({
+    id: "tpl_1",
+    name: "alanna_pc_ab12cd34_1",
+    status: "APPROVED",
+    headerType: "none",
+    isWabaDefault: true,
+    usage: {
+      eventCount: 3,
+      campaignEventCount: 2,
+      events: [
+        { id: "evt_1", name: "Boda Ana" },
+        { id: "evt_2", name: "Boda Bea" },
+        { id: "evt_3", name: "Boda Cal" },
+      ],
+    },
+  });
+});
+
+test("listOwnerTemplates promueve la APPROVED más antigua si no hay isWabaDefault", async () => {
+  const { mod, models } = await loadLibraryService();
+  const oldestApproved = libraryTemplate({
+    id: "tpl_approved_old",
+    status: "APPROVED",
+    isWabaDefault: false,
+    createdAt: new Date("2026-01-02"),
+  });
+  const newerApproved = libraryTemplate({
+    id: "tpl_approved_new",
+    name: "alanna_pc_newer_1",
+    metaTemplateId: "meta_newer",
+    status: "APPROVED",
+    isWabaDefault: false,
+    createdAt: new Date("2026-01-03"),
+  });
+  models.WhatsappMessageTemplate.findAll.mockImplementation(async ({ where } = {}) => {
+    if (where?.isWabaDefault === true) return [];
+    return [oldestApproved, newerApproved];
+  });
+  models.EventWhatsappTemplate.findAll.mockResolvedValue([]);
+
+  const listed = await mod.listOwnerTemplates("usr_1");
+
+  expect(oldestApproved.update).toHaveBeenCalledWith({ isWabaDefault: true });
+  expect(newerApproved.update).not.toHaveBeenCalled();
+  expect(listed.map((row) => row.id)).toEqual(["tpl_approved_old", "tpl_approved_new"]);
+});
+
+test("deleteOwnerTemplate llama Graph y destruye pivots y HSM", async () => {
+  const { mod, models, deleteMessageTemplate, resolveTemplateCrudToken } = await loadLibraryService();
+  const template = libraryTemplate();
+  models.WhatsappMessageTemplate.findOne.mockResolvedValue(template);
+  models.Campaign.findAll.mockResolvedValue([]);
+  models.Event.findAll.mockResolvedValue([]);
+  models.EventWhatsappTemplate.findAll.mockResolvedValue([]);
+  models.WhatsappMessageTemplate.findAll.mockResolvedValue([]);
+
+  await mod.deleteOwnerTemplate({ ownerUserId: "usr_1", templateId: "tpl_1" });
+
+  expect(resolveTemplateCrudToken).toHaveBeenCalledWith("tok");
+  expect(deleteMessageTemplate).toHaveBeenCalledWith({
+    wabaId: "waba_1",
+    token: "tok",
+    name: "alanna_pc_ab12cd34_1",
+    metaTemplateId: "meta_tpl_1",
+  });
+  expect(models.EventWhatsappTemplate.destroy).toHaveBeenCalledWith({
+    where: { whatsappMessageTemplateId: "tpl_1" },
+  });
+  expect(template.destroy).toHaveBeenCalled();
+});
+
+test("deleteOwnerTemplate no destruye local si Graph throw", async () => {
+  const deleteMessageTemplate = jest.fn(async () => {
+    const err = new Error("No se pudo contactar la API de Meta.");
+    err.status = 502;
+    throw err;
+  });
+  const { mod, models } = await loadLibraryService({ deleteMessageTemplate });
+  const template = libraryTemplate();
+  models.WhatsappMessageTemplate.findOne.mockResolvedValue(template);
+  models.Campaign.findAll.mockResolvedValue([]);
+  models.Event.findAll.mockResolvedValue([]);
+  models.EventWhatsappTemplate.findAll.mockResolvedValue([]);
+  models.WhatsappMessageTemplate.findAll.mockResolvedValue([]);
+
+  await expect(mod.deleteOwnerTemplate({
+    ownerUserId: "usr_1",
+    templateId: "tpl_1",
+  })).rejects.toMatchObject({ status: 502 });
+
+  expect(deleteMessageTemplate).toHaveBeenCalled();
+  expect(models.EventWhatsappTemplate.destroy).not.toHaveBeenCalled();
+  expect(template.destroy).not.toHaveBeenCalled();
+});
+
+test("deleteOwnerTemplate 409 si hay campaña queued que usa la HSM", async () => {
+  const { mod, models, deleteMessageTemplate } = await loadLibraryService();
+  const template = libraryTemplate();
+  models.WhatsappMessageTemplate.findOne.mockResolvedValue(template);
+  models.Campaign.findAll.mockResolvedValue([{
+    id: "cmp_1",
+    status: "queued",
+    eventId: "evt_1",
+    Event: fakeEvent({ id: "evt_1", ownerId: "usr_1" }),
+  }]);
+  models.EventWhatsappTemplate.findAll.mockResolvedValue([{
+    eventId: "evt_1",
+    isCampaign: true,
+    whatsappMessageTemplateId: "tpl_1",
+    template: { id: "tpl_1", name: "alanna_pc_ab12cd34_1" },
+  }]);
+
+  await expect(mod.deleteOwnerTemplate({
+    ownerUserId: "usr_1",
+    templateId: "tpl_1",
+  })).rejects.toMatchObject({
+    status: 409,
+    message: expect.stringMatching(/campaña/i),
+  });
+  expect(deleteMessageTemplate).not.toHaveBeenCalled();
+  expect(models.EventWhatsappTemplate.destroy).not.toHaveBeenCalled();
+  expect(template.destroy).not.toHaveBeenCalled();
+});
+
+test("deleteOwnerTemplate 409 si es el último default descubierto", async () => {
+  const { mod, models, deleteMessageTemplate } = await loadLibraryService();
+  const template = libraryTemplate({
+    isWabaDefault: false,
+    status: "APPROVED",
+  });
+  models.WhatsappMessageTemplate.findOne.mockResolvedValue(template);
+  models.Campaign.findAll.mockResolvedValue([]);
+  models.WhatsappMessageTemplate.findAll.mockImplementation(async ({ where } = {}) => {
+    if (where?.isWabaDefault === true) return [];
+    return [template];
+  });
+  models.Event.findAll.mockResolvedValue([fakeEvent({ id: "evt_1", ownerId: "usr_1", name: "Boda Ana" })]);
+  models.EventWhatsappTemplate.findAll.mockResolvedValue([]);
+
+  await expect(mod.deleteOwnerTemplate({
+    ownerUserId: "usr_1",
+    templateId: "tpl_1",
+  })).rejects.toMatchObject({
+    status: 409,
+    message: "No se puede dejar eventos sin plantilla de primer contacto; primero crea otra o asígnala",
+  });
+  expect(deleteMessageTemplate).not.toHaveBeenCalled();
+  expect(models.EventWhatsappTemplate.destroy).not.toHaveBeenCalled();
+  expect(template.destroy).not.toHaveBeenCalled();
+});
+
+test("deleteOwnerTemplate 404 si la HSM no es del owner o es de otro WABA", async () => {
+  const { mod, models, deleteMessageTemplate } = await loadLibraryService();
+  models.WhatsappMessageTemplate.findOne.mockResolvedValue(null);
+
+  await expect(mod.deleteOwnerTemplate({
+    ownerUserId: "usr_1",
+    templateId: "tpl_foreign",
+  })).rejects.toMatchObject({ status: 404 });
+  expect(models.WhatsappMessageTemplate.findOne).toHaveBeenCalledWith({
+    where: { id: "tpl_foreign", ownerUserId: "usr_1", wabaId: "waba_1" },
+  });
+  expect(deleteMessageTemplate).not.toHaveBeenCalled();
+});
+
+test("deleteOwnerTemplate reattach del default tras borrar una personalizada de campaña", async () => {
+  const { mod, models, deleteMessageTemplate } = await loadLibraryService();
+  const custom = libraryTemplate({ isWabaDefault: false });
+  const accountDefault = libraryTemplate({
+    id: "tpl_default",
+    name: "alanna_pc_default_1",
+    metaTemplateId: "meta_default",
+    isWabaDefault: true,
+    status: "APPROVED",
+  });
+  models.WhatsappMessageTemplate.findOne.mockResolvedValue(custom);
+  models.Campaign.findAll.mockResolvedValue([]);
+  models.WhatsappMessageTemplate.findAll.mockImplementation(async ({ where } = {}) => {
+    if (where?.isWabaDefault === true) return [accountDefault];
+    if (where?.id && where.id !== custom.id) return [accountDefault];
+    return [accountDefault];
+  });
+  models.Event.findAll.mockResolvedValue([
+    fakeEvent({ id: "evt_1", ownerId: "usr_1" }),
+  ]);
+  models.EventWhatsappTemplate.findAll.mockResolvedValue([]);
+  models.EventWhatsappTemplate.create.mockImplementation(async (row) => row);
+
+  await mod.deleteOwnerTemplate({ ownerUserId: "usr_1", templateId: "tpl_1" });
+
+  expect(deleteMessageTemplate).toHaveBeenCalled();
+  expect(models.EventWhatsappTemplate.destroy).toHaveBeenCalledWith({
+    where: { whatsappMessageTemplateId: "tpl_1" },
+  });
+  expect(custom.destroy).toHaveBeenCalled();
+  expect(models.EventWhatsappTemplate.create).toHaveBeenCalledWith(
+    expect.objectContaining({
+      eventId: "evt_1",
+      whatsappMessageTemplateId: "tpl_default",
+      isCampaign: true,
+    }),
+  );
 });

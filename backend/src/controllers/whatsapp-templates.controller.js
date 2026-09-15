@@ -8,8 +8,10 @@ import { requireEvent, requirePermission, PERMS } from "../services/access.servi
 import { resolveActiveWhatsappMetaByOwner } from "../services/whatsapp-meta.service.js";
 import {
   createWizardTemplates,
+  deleteOwnerTemplate,
   ensureEventWhatsappTemplates,
   listEventWhatsappTemplates,
+  listOwnerTemplates,
   setCampaignSlot,
   submitEventTemplate,
 } from "../services/whatsapp-templates.service.js";
@@ -81,6 +83,25 @@ function serializeTemplate(template) {
   };
 }
 
+function serializeOwnerTemplate(template) {
+  return {
+    id: template?.id ?? null,
+    displayName: null,
+    name: template?.name ?? null,
+    status: template?.status ?? null,
+    headerType: template?.headerType ?? "none",
+    body: bodyTextFromComponents(template?.components),
+    isWabaDefault: Boolean(template?.isWabaDefault),
+    rejectedReason: template?.rejectedReason ?? null,
+    createdAt: template?.createdAt ?? null,
+    usage: template?.usage || {
+      eventCount: 0,
+      campaignEventCount: 0,
+      events: [],
+    },
+  };
+}
+
 function serializeLink(link) {
   return {
     id: link?.id ?? null,
@@ -129,6 +150,19 @@ export const postWizardTemplates = asyncHandler(async (req, res) => {
       template: result.template,
     })],
   });
+});
+
+export const getOwnerWhatsappTemplates = asyncHandler(async (req, res) => {
+  const templates = await listOwnerTemplates(req.user.id);
+  res.json({ templates: templates.map(serializeOwnerTemplate) });
+});
+
+export const deleteOwnerWhatsappTemplate = asyncHandler(async (req, res) => {
+  await deleteOwnerTemplate({
+    ownerUserId: req.user.id,
+    templateId: req.params.id,
+  });
+  res.status(204).send();
 });
 
 export const getEventWhatsappTemplates = asyncHandler(async (req, res) => {

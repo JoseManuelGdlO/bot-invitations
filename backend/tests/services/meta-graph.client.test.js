@@ -100,6 +100,54 @@ describe("meta-graph.client", () => {
     expect(init.headers.Authorization).toBe("Bearer sys_tok");
   });
 
+  test("deleteMessageTemplate DELETE al WABA con hsm_id", async () => {
+    global.fetch = jest.fn(async () => ({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ success: true }),
+    }));
+    await jest.unstable_mockModule("../../src/config/env.js", () => ({
+      env: { meta: { accessToken: "sys_tok", appId: "app_1", graphVersion: "v21.0" } },
+    }));
+    const { deleteMessageTemplate } = await import("../../src/services/meta-graph.client.js");
+    const out = await deleteMessageTemplate({
+      wabaId: "waba_1",
+      token: "sys_tok",
+      name: "alanna_pc_ab12cd34_1",
+      metaTemplateId: "meta_tpl_1",
+    });
+    expect(out.success).toBe(true);
+    const [url, init] = fetch.mock.calls[0];
+    expect(url).toContain("/waba_1/message_templates");
+    expect(url).toContain("hsm_id=meta_tpl_1");
+    expect(url).not.toMatch(/[?&]name=/);
+    expect(init.method).toBe("DELETE");
+    expect(init.headers.Authorization).toBe("Bearer sys_tok");
+  });
+
+  test("deleteMessageTemplate DELETE al WABA con name si no hay metaTemplateId", async () => {
+    global.fetch = jest.fn(async () => ({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ success: true }),
+    }));
+    await jest.unstable_mockModule("../../src/config/env.js", () => ({
+      env: { meta: { accessToken: "sys_tok", appId: "app_1", graphVersion: "v21.0" } },
+    }));
+    const { deleteMessageTemplate } = await import("../../src/services/meta-graph.client.js");
+    await deleteMessageTemplate({
+      wabaId: "waba_1",
+      token: "planner_tok",
+      name: "alanna_pc_ab12cd34_1",
+    });
+    const [url, init] = fetch.mock.calls[0];
+    expect(url).toContain("/waba_1/message_templates");
+    expect(url).toContain("name=alanna_pc_ab12cd34_1");
+    expect(url).not.toContain("hsm_id=");
+    expect(init.method).toBe("DELETE");
+    expect(init.headers.Authorization).toBe("Bearer planner_tok");
+  });
+
   test("shareClientWhatsappBusinessAccount POST OBO al portafolio con waba_id", async () => {
     global.fetch = jest.fn(async () => ({
       ok: true,

@@ -7,6 +7,7 @@ const graphClientMock = () => ({
   createMessageTemplate: jest.fn(),
   updateMessageTemplate: jest.fn(),
   uploadResumableHeader: jest.fn(),
+  deleteMessageTemplate: jest.fn(),
 });
 
 function templateStatusPayload(overrides = {}) {

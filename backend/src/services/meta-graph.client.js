@@ -293,6 +293,17 @@ export async function updateMessageTemplate({ templateId, token, payload }) {
   });
 }
 
+export async function deleteMessageTemplate({ wabaId, token, name, metaTemplateId }) {
+  const hsmId = String(metaTemplateId || "").trim();
+  const templateName = String(name || "").trim();
+  return graphRequest({
+    method: "DELETE",
+    path: `${wabaId}/message_templates`,
+    token,
+    query: hsmId ? { hsm_id: hsmId } : { name: templateName },
+  });
+}
+
 export async function uploadResumableHeader({ token, fileName, fileLength, fileType, buffer }) {
   const session = await graphRequest({
     method: "POST",

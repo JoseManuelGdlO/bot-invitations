@@ -43,6 +43,8 @@ describe("whatsapp-templates.controller", () => {
   let createWizardTemplates;
   let ensureEventWhatsappTemplates;
   let listEventWhatsappTemplates;
+  let listOwnerTemplates;
+  let deleteOwnerTemplate;
   let submitEventTemplate;
   let setCampaignSlot;
   let resolveActiveWhatsappMetaByOwner;
@@ -59,6 +61,8 @@ describe("whatsapp-templates.controller", () => {
     }));
     ensureEventWhatsappTemplates = jest.fn(async () => ({ links: [] }));
     listEventWhatsappTemplates = jest.fn(async () => [link()]);
+    listOwnerTemplates = jest.fn(async () => []);
+    deleteOwnerTemplate = jest.fn(async () => undefined);
     submitEventTemplate = jest.fn(async () => template());
     setCampaignSlot = jest.fn(async () => undefined);
     resolveActiveWhatsappMetaByOwner = jest.fn(async () => ({
@@ -81,6 +85,8 @@ describe("whatsapp-templates.controller", () => {
           createWizardTemplates,
           ensureEventWhatsappTemplates,
           listEventWhatsappTemplates,
+          listOwnerTemplates,
+          deleteOwnerTemplate,
           submitEventTemplate,
           setCampaignSlot,
         }),
@@ -356,5 +362,73 @@ describe("whatsapp-templates.controller", () => {
 
     expect(next).toHaveBeenCalledWith(expect.objectContaining({ status: 404 }));
     expect(setCampaignSlot).not.toHaveBeenCalled();
+  });
+
+  test("GET biblioteca serializa usage y displayName null", async () => {
+    const createdAt = new Date("2026-01-02T00:00:00.000Z");
+    listOwnerTemplates.mockResolvedValue([{
+      id: "tpl_1",
+      name: "alanna_pc_ab12cd34_1",
+      status: "APPROVED",
+      headerType: "none",
+      components: [{ type: "BODY", text: "Hola {{1}}, tienes {{2}} pases." }],
+      isWabaDefault: true,
+      rejectedReason: null,
+      createdAt,
+      usage: {
+        eventCount: 3,
+        campaignEventCount: 2,
+        events: [{ id: "evt_1", name: "Boda Ana" }],
+      },
+    }]);
+
+    const { res } = await callHandler(controller.getOwnerWhatsappTemplates, {
+      req: createMockReq(),
+    });
+
+    expect(requireEvent).not.toHaveBeenCalled();
+    expect(listOwnerTemplates).toHaveBeenCalledWith("usr_test_1");
+    expect(res.json).toHaveBeenCalledWith({
+      templates: [{
+        id: "tpl_1",
+        displayName: null,
+        name: "alanna_pc_ab12cd34_1",
+        status: "APPROVED",
+        headerType: "none",
+        body: "Hola {{1}}, tienes {{2}} pases.",
+        isWabaDefault: true,
+        rejectedReason: null,
+        createdAt,
+        usage: {
+          eventCount: 3,
+          campaignEventCount: 2,
+          events: [{ id: "evt_1", name: "Boda Ana" }],
+        },
+      }],
+    });
+  });
+
+  test("DELETE biblioteca llama al servicio y responde 204", async () => {
+    const { res } = await callHandler(controller.deleteOwnerWhatsappTemplate, {
+      req: createMockReq({ params: { id: "tpl_1" } }),
+    });
+
+    expect(requireEvent).not.toHaveBeenCalled();
+    expect(deleteOwnerTemplate).toHaveBeenCalledWith({
+      ownerUserId: "usr_test_1",
+      templateId: "tpl_1",
+    });
+    expect(res.status).toHaveBeenCalledWith(204);
+  });
+
+  test("DELETE biblioteca propaga 409 de campaña activa", async () => {
+    const err = Object.assign(new Error("campaña en curso"), { status: 409 });
+    deleteOwnerTemplate.mockRejectedValue(err);
+
+    const { next } = await callHandler(controller.deleteOwnerWhatsappTemplate, {
+      req: createMockReq({ params: { id: "tpl_1" } }),
+    });
+
+    expect(next).toHaveBeenCalledWith(expect.objectContaining({ status: 409 }));
   });
 });

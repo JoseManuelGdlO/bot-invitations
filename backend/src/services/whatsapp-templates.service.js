@@ -1,6 +1,8 @@
 import fs from "node:fs";
 import path from "node:path";
+import { Op } from "sequelize";
 import {
+  Campaign,
   Event,
   EventWhatsappTemplate,
   WhatsappMessageTemplate,
@@ -9,6 +11,7 @@ import { eventGuestVars } from "../utils/defaults.js";
 import { httpError } from "../utils/http-error.js";
 import {
   createMessageTemplate,
+  deleteMessageTemplate,
   resolveTemplateCrudToken,
   updateMessageTemplate,
   uploadResumableHeader,
@@ -354,6 +357,184 @@ async function promoteCurrentWabaDefault({ ownerUserId, wabaId }) {
   if (!pick) return null;
   await pick.update({ isWabaDefault: true });
   return pick;
+}
+
+function emptyUsage() {
+  return { eventCount: 0, campaignEventCount: 0, events: [] };
+}
+
+function eventFromTemplateLink(link) {
+  return link?.Event || link?.event || null;
+}
+
+function usageByTemplateId(links = []) {
+  const usage = new Map();
+  for (const link of links) {
+    const templateId = link.whatsappMessageTemplateId;
+    if (!templateId) continue;
+    const current = usage.get(templateId) || {
+      eventIds: new Set(),
+      campaignEventIds: new Set(),
+      events: [],
+    };
+    const event = eventFromTemplateLink(link);
+    if (event?.id && !current.eventIds.has(event.id)) {
+      current.eventIds.add(event.id);
+      current.events.push({ id: event.id, name: event.name });
+    }
+    if (link.isCampaign && event?.id) {
+      current.campaignEventIds.add(event.id);
+    }
+    usage.set(templateId, current);
+  }
+  return usage;
+}
+
+function serializeUsage(entry) {
+  if (!entry) return emptyUsage();
+  return {
+    eventCount: entry.eventIds.size,
+    campaignEventCount: entry.campaignEventIds.size,
+    events: entry.events,
+  };
+}
+
+export async function listOwnerTemplates(ownerUserId) {
+  const { credentials } = await resolveActiveWhatsappMetaByOwner(ownerUserId);
+  const wabaId = String(credentials?.wabaId || "").trim();
+  if (!wabaId) throw httpError(400, "WhatsApp (Meta) no está configurado.");
+
+  const defaults = await WhatsappMessageTemplate.findAll({
+    where: { ownerUserId, wabaId, isWabaDefault: true },
+  });
+  if (!defaults.length) {
+    await promoteCurrentWabaDefault({ ownerUserId, wabaId });
+  }
+
+  const templates = await WhatsappMessageTemplate.findAll({
+    where: { ownerUserId, wabaId },
+    order: [["createdAt", "ASC"]],
+  });
+  const links = templates.length
+    ? await EventWhatsappTemplate.findAll({
+      where: { whatsappMessageTemplateId: templates.map((row) => row.id) },
+      include: [{ model: Event }],
+    })
+    : [];
+  const usage = usageByTemplateId(links);
+  return templates.map((row) => Object.assign(row, {
+    usage: serializeUsage(usage.get(row.id)),
+  }));
+}
+
+function campaignUsesTemplate(link, template) {
+  return link.whatsappMessageTemplateId === template.id
+    || link.template?.id === template.id
+    || link.template?.name === template.name;
+}
+
+async function assertNoActiveCampaignUsingTemplate({ ownerUserId, template }) {
+  const campaigns = await Campaign.findAll({
+    where: { status: { [Op.in]: ["queued", "running"] } },
+    include: [{
+      model: Event,
+      required: true,
+      where: { ownerId: ownerUserId },
+    }],
+  });
+  const eventIds = [...new Set(campaigns.map((row) => row.eventId).filter(Boolean))];
+  if (!eventIds.length) return;
+
+  const links = await EventWhatsappTemplate.findAll({
+    where: { eventId: eventIds, isCampaign: true },
+    include: [{ model: WhatsappMessageTemplate, as: "template", required: true }],
+  });
+  if (links.some((link) => campaignUsesTemplate(link, template))) {
+    throw httpError(
+      409,
+      "No se puede borrar la plantilla mientras hay una campaña en cola o en curso que la usa.",
+    );
+  }
+}
+
+function isCampaignCapableStatus(row) {
+  return isTemplateStatus(row, "APPROVED") || isTemplateStatus(row, "PENDING");
+}
+
+async function assertNotLastDiscoveredDefault({ ownerUserId, wabaId, template }) {
+  let defaults = await WhatsappMessageTemplate.findAll({
+    where: { ownerUserId, wabaId, isWabaDefault: true },
+  });
+  if (!defaults.length) {
+    const promoted = await promoteCurrentWabaDefault({ ownerUserId, wabaId });
+    defaults = promoted ? [promoted] : [];
+  }
+  const isOnlyDefault = defaults.length === 1 && defaults[0].id === template.id;
+  if (!isOnlyDefault) return;
+
+  const events = await Event.findAll({ where: { ownerId: ownerUserId } });
+  if (!events.length) return;
+
+  const otherLinks = await EventWhatsappTemplate.findAll({
+    where: {
+      eventId: events.map((event) => event.id),
+      whatsappMessageTemplateId: { [Op.ne]: template.id },
+    },
+    include: [{ model: WhatsappMessageTemplate, as: "template", required: true }],
+  });
+  const covered = new Set();
+  for (const link of otherLinks) {
+    if (isCampaignCapableStatus(link.template)) covered.add(link.eventId);
+  }
+  if (events.some((event) => !covered.has(event.id))) {
+    throw httpError(
+      409,
+      "No se puede dejar eventos sin plantilla de primer contacto; primero crea otra o asígnala",
+    );
+  }
+}
+
+async function reattachDefaultAfterCustomDelete(ownerUserId, wabaId) {
+  const accountDefault = await findReusableWizardDefault({ ownerUserId, wabaId });
+  if (!accountDefault || !isCampaignCapableStatus(accountDefault)) return;
+
+  const existingLink = await EventWhatsappTemplate.findOne({
+    where: { whatsappMessageTemplateId: accountDefault.id },
+  });
+  const slotMappings = existingLink?.slotMappings
+    || mergeSlotMappings(bodyTextFromComponents(accountDefault.components), {});
+  await attachDefaultToOwnerEvents(ownerUserId, accountDefault.id, slotMappings);
+}
+
+export async function deleteOwnerTemplate({ ownerUserId, templateId } = {}) {
+  const { credentials } = await resolveActiveWhatsappMetaByOwner(ownerUserId);
+  const wabaId = String(credentials?.wabaId || "").trim();
+  if (!wabaId) throw httpError(400, "WhatsApp (Meta) no está configurado.");
+  const token = resolveTemplateCrudToken(credentials.accessToken);
+
+  const template = await WhatsappMessageTemplate.findOne({
+    where: { id: templateId, ownerUserId, wabaId },
+  });
+  if (!template) throw httpError(404, "Plantilla no encontrada.");
+
+  await assertNoActiveCampaignUsingTemplate({ ownerUserId, template });
+  await assertNotLastDiscoveredDefault({ ownerUserId, wabaId, template });
+
+  await deleteMessageTemplate({
+    wabaId,
+    token,
+    name: template.name,
+    metaTemplateId: template.metaTemplateId,
+  });
+
+  await EventWhatsappTemplate.destroy({
+    where: { whatsappMessageTemplateId: template.id },
+  });
+  await template.destroy();
+
+  if (!template.isWabaDefault) {
+    await reattachDefaultAfterCustomDelete(ownerUserId, wabaId);
+  }
 }
 
 async function sourceTemplatesFor(event) {

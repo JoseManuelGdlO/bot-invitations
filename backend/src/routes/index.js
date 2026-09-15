@@ -106,6 +106,10 @@ router.post("/internal/whatsapp/send-test", whatsappMeta.postWhatsappMetaSendTes
 router.get("/integrations/whatsapp/meta/config", metaWhatsapp.getMetaSignupConfig);
 router.post("/integrations/whatsapp/meta/signup", metaWhatsapp.postMetaEmbeddedSignup);
 router.post("/integrations/whatsapp/meta/disconnect", metaWhatsapp.postMetaDisconnect);
+router.get(
+  "/integrations/whatsapp/meta/templates",
+  whatsappTemplates.getOwnerWhatsappTemplates,
+);
 router.post(
   "/integrations/whatsapp/meta/templates",
   handleTemplateHeaderUpload([
@@ -113,6 +117,10 @@ router.post(
     { name: "header_2", maxCount: 1 },
   ]),
   whatsappTemplates.postWizardTemplates,
+);
+router.delete(
+  "/integrations/whatsapp/meta/templates/:id",
+  whatsappTemplates.deleteOwnerWhatsappTemplate,
 );
 
 router.get("/events", events.listEvents);
