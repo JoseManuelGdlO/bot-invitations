@@ -9,6 +9,7 @@ import { META_WHATSAPP_PROVIDER, WHATSAPP_CHANNEL } from "./integration-resolver
 import { decryptCredentialsPayload } from "../utils/credentials-crypto.js";
 import { httpError } from "../utils/http-error.js";
 import { Logger } from "../utils/logger.js";
+import { describeGraphToken } from "./meta-graph.client.js";
 
 const log = new Logger("AdminWhatsApp");
 
@@ -26,6 +27,7 @@ function decryptAccessToken(cipherText) {
 }
 
 function tokenPayload({ integration, accessToken, source }) {
+  const described = describeGraphToken(accessToken);
   return {
     wabaId: integration.wabaId,
     ownerUserId: integration.ownerUserId,
@@ -33,6 +35,9 @@ function tokenPayload({ integration, accessToken, source }) {
     displayPhoneNumber: integration.displayPhoneNumber || null,
     accessToken,
     source,
+    tokenSource: described.source,
+    tokenPreview: described.preview,
+    equalsPlatform: described.equalsPlatform,
   };
 }
 

@@ -11,8 +11,10 @@ import {
   normalizeMetaCredentials,
 } from "./integration-resolver.service.js";
 import {
+  describeGraphToken,
   exchangeEmbeddedSignupCode,
   ensurePlatformCanManageWaba,
+  inspectGraphToken,
   getPhoneNumberDetails,
   initiateCoexistenceSync,
   listWabaPhoneNumbers,
@@ -113,6 +115,36 @@ export async function completeEmbeddedSignup({
   });
 
   const { accessToken } = await exchangeEmbeddedSignupCode(exchangeCode);
+  const described = describeGraphToken(accessToken);
+  log.info("embedded signup: token intercambiado", {
+    ownerUserId,
+    tokenSource: described.source,
+    tokenPreview: described.preview,
+    equalsPlatform: described.equalsPlatform,
+  });
+  try {
+    const inspection = await inspectGraphToken(accessToken);
+    log.info("embedded signup: token inspeccionado", {
+      ownerUserId,
+      type: inspection.type,
+      isValid: inspection.isValid,
+      expiresAt: inspection.expiresAt,
+      dataAccessExpiresAt: inspection.dataAccessExpiresAt,
+      targetIds: inspection.targetIds,
+    });
+    if (described.equalsPlatform || String(inspection.type || "").toUpperCase() === "SYSTEM_USER") {
+      log.warn("embedded signup: el token intercambiado no parece User Access Token del cliente", {
+        ownerUserId,
+        type: inspection.type,
+        equalsPlatform: described.equalsPlatform,
+      });
+    }
+  } catch (error) {
+    log.warn("embedded signup: no se pudo inspeccionar el token", {
+      ownerUserId,
+      message: error.message,
+    });
+  }
   let resolvedWabaId = String(wabaId || "").trim();
   if (!resolvedWabaId) throw httpError(400, "Meta no devolvió el WABA ID. Completa de nuevo el flujo.");
 

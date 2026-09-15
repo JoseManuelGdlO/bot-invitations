@@ -241,8 +241,11 @@ async function findReusableWizardDefault({ ownerUserId, wabaId }) {
 export async function attachDefaultToOwnerEvents(ownerUserId, templateId, slotMappings) {
   const events = await Event.findAll({ where: { ownerId: ownerUserId } });
   if (!events.length) return;
+  const incoming = await WhatsappMessageTemplate.findByPk(templateId);
+  const incomingWaba = String(incoming?.wabaId || "").trim();
   const links = await EventWhatsappTemplate.findAll({
     where: { eventId: events.map((event) => event.id) },
+    include: [{ model: WhatsappMessageTemplate, as: "template" }],
   });
   const linksByEvent = new Map();
   for (const link of links) {
@@ -252,7 +255,17 @@ export async function attachDefaultToOwnerEvents(ownerUserId, templateId, slotMa
   }
   for (const event of events) {
     const eventLinks = linksByEvent.get(event.id) || [];
-    if (eventLinks.some((link) => Boolean(link.isCampaign))) continue;
+    const campaign = eventLinks.find((link) => Boolean(link.isCampaign));
+    if (campaign) {
+      const campaignWaba = String(campaign.template?.wabaId || "").trim();
+      if (incomingWaba && campaignWaba && campaignWaba !== incomingWaba) {
+        await campaign.update({
+          whatsappMessageTemplateId: templateId,
+          slotMappings,
+        });
+      }
+      continue;
+    }
     const slots = eventLinks
       .map((link) => Number(link.slot))
       .filter((slot) => Number.isFinite(slot));
@@ -629,6 +642,30 @@ function sourceLinkFor(template, links) {
   ) || null;
 }
 
+async function retargetStaleCampaignLinks({ existing, source }) {
+  const preferred = source.templates[0];
+  if (!preferred) return false;
+  const currentWabaId = String(preferred.wabaId || "").trim();
+  if (!currentWabaId) return false;
+  const preferredLink = sourceLinkFor(preferred, source.links);
+  let retargeted = false;
+  for (const link of existing) {
+    if (!link.isCampaign) continue;
+    const linkedWaba = String(link.template?.wabaId || "").trim();
+    if (!linkedWaba || linkedWaba === currentWabaId) continue;
+    const slotMappings = preferredLink?.slotMappings || link.slotMappings;
+    await link.update({
+      whatsappMessageTemplateId: preferred.id,
+      slotMappings,
+    });
+    link.whatsappMessageTemplateId = preferred.id;
+    link.template = preferred;
+    link.slotMappings = slotMappings;
+    retargeted = true;
+  }
+  return retargeted;
+}
+
 async function cloneHeader(origin, token) {
   if (origin.headerType === "none" || !origin.headerMediaPath) {
     return {
@@ -679,6 +716,7 @@ export async function ensureEventWhatsappTemplates(event) {
     return { attached: false, cloned: false, links: existing };
   }
 
+  const retargeted = await retargetStaleCampaignLinks({ existing, source });
   const candidates = source.templates.map((template, index) => {
     const sourceLink = sourceLinkFor(template, source.links);
     return {
@@ -691,7 +729,7 @@ export async function ensureEventWhatsappTemplates(event) {
   const existingSlots = new Set(existing.map((link) => link.slot));
   const missing = candidates.filter(({ slot }) => !existingSlots.has(slot));
   if (!missing.length) {
-    return { attached: false, cloned: false, links: existing };
+    return { attached: retargeted, cloned: false, links: existing };
   }
 
   const links = [...existing];
@@ -1173,7 +1211,10 @@ export async function submitEventTemplate({
     bodyText,
     mergeSlotMappings(bodyText, slotMappings || {}),
   );
-  const token = await resolveOwnerTemplateToken(ownerUserId);
+  const { credentials } = await resolveActiveWhatsappMetaByOwner(ownerUserId);
+  const wabaId = String(credentials?.wabaId || "").trim();
+  if (!wabaId) throw httpError(400, "WhatsApp (Meta) no está configurado.");
+  const token = resolveTemplateCrudToken(credentials.accessToken);
   const header = await editableHeader({
     template,
     headerType: normalizedHeaderType,
@@ -1188,11 +1229,10 @@ export async function submitEventTemplate({
   });
 
   if (!pivot) {
-    const { credentials } = await resolveActiveWhatsappMetaByOwner(ownerUserId);
     const name = generateTemplateName(numericSlot);
     template = await WhatsappMessageTemplate.create({
       ownerUserId,
-      wabaId: credentials.wabaId,
+      wabaId,
       metaTemplateId: null,
       name,
       language: TEMPLATE_LANGUAGE,
@@ -1215,7 +1255,7 @@ export async function submitEventTemplate({
       slotMappings: mappings,
     });
     const meta = await createOnMeta({
-      wabaId: credentials.wabaId,
+      wabaId,
       token,
       slot: numericSlot,
       components,
@@ -1233,7 +1273,7 @@ export async function submitEventTemplate({
   } else {
     if (!template.metaTemplateId) {
       const meta = await createOnMeta({
-        wabaId: template.wabaId,
+        wabaId,
         token,
         slot: numericSlot,
         components,
@@ -1249,6 +1289,7 @@ export async function submitEventTemplate({
       }),
       metaTemplateId: meta.metaTemplateId,
       name: meta.name,
+      wabaId,
       displayName: persistableDisplayName(displayName, template.displayName),
     });
     if (header.headerFile) {
@@ -1259,6 +1300,7 @@ export async function submitEventTemplate({
       await EventWhatsappTemplate.count({
         where: { whatsappMessageTemplateId: template.id },
       }) === 1 && !template.isWabaDefault
+      && String(template.wabaId || "").trim() === wabaId
     ) {
       await updateMessageTemplate({
         templateId: template.metaTemplateId,
@@ -1283,7 +1325,7 @@ export async function submitEventTemplate({
       await pivot.update({ slotMappings: mappings });
     } else {
       const meta = await createOnMeta({
-        wabaId: template.wabaId,
+        wabaId,
         token,
         slot: numericSlot,
         components,
@@ -1292,7 +1334,7 @@ export async function submitEventTemplate({
       });
       const clone = await WhatsappMessageTemplate.create({
         ownerUserId,
-        wabaId: template.wabaId,
+        wabaId,
         metaTemplateId: meta.metaTemplateId,
         name: meta.name,
         language: template.language || TEMPLATE_LANGUAGE,

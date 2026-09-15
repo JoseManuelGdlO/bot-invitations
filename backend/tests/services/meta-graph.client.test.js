@@ -163,21 +163,21 @@ describe("meta-graph.client", () => {
     expect(resolveTemplateCrudToken("planner_tok")).toBe("planner_tok");
   });
 
-  test("resolveTemplateCrudToken usa META_ACCESS_TOKEN si no hay token del planner", async () => {
+  test("resolveTemplateCrudToken no cae al token de plataforma si falta el del planner", async () => {
     await jest.unstable_mockModule("../../src/config/env.js", () => ({
       env: { meta: { accessToken: "sys_tok", appId: "app_1", graphVersion: "v21.0" } },
     }));
     const { resolveTemplateCrudToken } = await import("../../src/services/meta-graph.client.js");
-    expect(resolveTemplateCrudToken()).toBe("sys_tok");
-    expect(resolveTemplateCrudToken("")).toBe("sys_tok");
+    expect(() => resolveTemplateCrudToken()).toThrow(/token de WhatsApp/i);
+    expect(() => resolveTemplateCrudToken("")).toThrow(/token de WhatsApp/i);
   });
 
-  test("resolveTemplateCrudToken 400 si no hay token de planner ni de plataforma", async () => {
+  test("resolveTemplateCrudToken 400 si el token del planner es el de la plataforma", async () => {
     await jest.unstable_mockModule("../../src/config/env.js", () => ({
-      env: { meta: { accessToken: "", appId: "app_1", graphVersion: "v21.0" } },
+      env: { meta: { accessToken: "sys_tok", appId: "app_1", graphVersion: "v21.0" } },
     }));
     const { resolveTemplateCrudToken } = await import("../../src/services/meta-graph.client.js");
-    expect(() => resolveTemplateCrudToken()).toThrow(/token de WhatsApp/i);
+    expect(() => resolveTemplateCrudToken("sys_tok")).toThrow(/token de la plataforma/i);
   });
 
   test("describeGraphToken distingue token de plataforma y token del planner", async () => {
@@ -187,10 +187,46 @@ describe("meta-graph.client", () => {
     const { describeGraphToken } = await import("../../src/services/meta-graph.client.js");
     expect(describeGraphToken("sys_tok")).toEqual(expect.objectContaining({
       source: "META_ACCESS_TOKEN",
+      equalsPlatform: true,
     }));
     expect(describeGraphToken("planner_tok")).toEqual(expect.objectContaining({
       source: "plannerAccessToken",
+      equalsPlatform: false,
     }));
+  });
+
+  test("inspectGraphToken resume tipo, caducidad y WABAs del debug_token", async () => {
+    global.fetch = jest.fn(async () => ({
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({
+        data: {
+          type: "USER",
+          is_valid: true,
+          expires_at: 1789000000,
+          data_access_expires_at: 1789000000,
+          scopes: ["whatsapp_business_management"],
+          granular_scopes: [
+            { scope: "whatsapp_business_management", target_ids: ["2187850965126759"] },
+          ],
+        },
+      }),
+    }));
+    await jest.unstable_mockModule("../../src/config/env.js", () => ({
+      env: { meta: { accessToken: "sys_tok", appId: "app_1", appSecret: "secret", graphVersion: "v21.0" } },
+    }));
+    const { inspectGraphToken } = await import("../../src/services/meta-graph.client.js");
+    await expect(inspectGraphToken("EAA_USER")).resolves.toEqual({
+      type: "USER",
+      isValid: true,
+      expiresAt: 1789000000,
+      dataAccessExpiresAt: 1789000000,
+      scopes: ["whatsapp_business_management"],
+      targetIds: ["2187850965126759"],
+    });
+    const [url] = fetch.mock.calls[0];
+    expect(url).toContain("/debug_token");
+    expect(url).toContain("input_token=EAA_USER");
   });
 
   test("createMessageTemplate POST al WABA con Bearer del token recibido", async () => {

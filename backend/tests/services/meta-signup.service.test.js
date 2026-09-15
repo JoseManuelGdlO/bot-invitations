@@ -6,6 +6,7 @@ describe("meta-signup.service", () => {
   let service;
   let models;
   let exchangeEmbeddedSignupCode;
+  let inspectGraphToken;
   let subscribeWabaApp;
   let listWabaPhoneNumbers;
   let getPhoneNumberDetails;
@@ -15,6 +16,14 @@ describe("meta-signup.service", () => {
 
   beforeEach(async () => {
     exchangeEmbeddedSignupCode = jest.fn(async () => ({ accessToken: "EAA_TOKEN" }));
+    inspectGraphToken = jest.fn(async () => ({
+      type: "USER",
+      isValid: true,
+      expiresAt: 1789000000,
+      dataAccessExpiresAt: 1789000000,
+      scopes: ["whatsapp_business_management"],
+      targetIds: ["waba_1"],
+    }));
     subscribeWabaApp = jest.fn(async () => ({ success: true }));
     ensurePlatformCanManageWaba = jest.fn(async () => ({ shared: true, assigned: true }));
     listWabaPhoneNumbers = jest.fn(async () => [
@@ -36,8 +45,14 @@ describe("meta-signup.service", () => {
       extraMocks: {
         "src/services/meta-graph.client.js": () => ({
           exchangeEmbeddedSignupCode,
+          inspectGraphToken,
           subscribeWabaApp,
           ensurePlatformCanManageWaba,
+          describeGraphToken: (token) => ({
+            source: "plannerAccessToken",
+            preview: `${String(token || "").slice(0, 8)}…len=${String(token || "").length}`,
+            equalsPlatform: false,
+          }),
           unsubscribeWabaApp: jest.fn(),
           listWabaPhoneNumbers,
           getPhoneNumberDetails,
@@ -87,6 +102,7 @@ describe("meta-signup.service", () => {
       event: "FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING",
     });
     expect(exchangeEmbeddedSignupCode).toHaveBeenCalledWith("AUTH_CODE");
+    expect(inspectGraphToken).toHaveBeenCalledWith("EAA_TOKEN");
     expect(subscribeWabaApp).toHaveBeenCalledWith("waba_1", "EAA_TOKEN");
     expect(ensurePlatformCanManageWaba).toHaveBeenCalledWith({
       wabaId: "waba_1",

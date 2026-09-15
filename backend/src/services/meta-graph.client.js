@@ -116,6 +116,7 @@ export async function graphRequest({
     method,
     tokenSource: described.source,
     tokenPreview: described.preview,
+    equalsPlatform: described.equalsPlatform,
   });
   if (env.meta.debugGraphToken) {
     console.log(`[MetaGraph] Authorization Bearer source=${described.source} preview=${described.preview}`);
@@ -173,12 +174,20 @@ export function describeGraphToken(token) {
   return {
     source,
     preview: `${value.slice(0, 8)}…len=${value.length}`,
+    equalsPlatform: Boolean(platform && value === platform),
   };
 }
 
 export function resolveTemplateCrudToken(plannerAccessToken) {
-  const token = String(plannerAccessToken || env.meta.accessToken || "").trim();
+  const token = String(plannerAccessToken || "").trim();
   if (!token) throw httpError(400, "Falta el token de WhatsApp de la cuenta.");
+  const platform = String(env.meta.accessToken || "").trim();
+  if (platform && token === platform) {
+    throw httpError(
+      400,
+      "Esta cuenta está usando el token de la plataforma. Vuelve a conectar WhatsApp con Embedded Signup.",
+    );
+  }
   return token;
 }
 
@@ -375,6 +384,33 @@ export async function uploadResumableHeader({ token, fileName, fileLength, fileT
   const handle = payload.h || payload.handle;
   if (!handle) throw httpError(502, "Meta no devolvió header_handle.");
   return handle;
+}
+
+export async function inspectGraphToken(inputToken) {
+  const appId = String(env.meta.appId || "").trim();
+  const appSecret = String(env.meta.appSecret || "").trim();
+  if (!appId || !appSecret) {
+    throw httpError(500, "Faltan META_APP_ID o META_APP_SECRET en el servidor.");
+  }
+  const payload = await graphRequest({
+    method: "GET",
+    path: "debug_token",
+    token: `${appId}|${appSecret}`,
+    query: { input_token: String(inputToken || "").trim() },
+  });
+  const data = payload?.data && typeof payload.data === "object" ? payload.data : payload;
+  const granular = Array.isArray(data?.granular_scopes) ? data.granular_scopes : [];
+  const targetIds = [...new Set(
+    granular.flatMap((row) => (Array.isArray(row?.target_ids) ? row.target_ids : [])).map(String),
+  )];
+  return {
+    type: data?.type || null,
+    isValid: data?.is_valid !== false,
+    expiresAt: data?.expires_at ?? null,
+    dataAccessExpiresAt: data?.data_access_expires_at ?? null,
+    scopes: Array.isArray(data?.scopes) ? data.scopes : [],
+    targetIds,
+  };
 }
 
 export async function exchangeEmbeddedSignupCode(code) {

@@ -32,6 +32,9 @@ describe("admin-whatsapp.service", () => {
       displayPhoneNumber: "+52 618 123 4567",
       accessToken: "EAA_USER_TOKEN",
       source: "channel_credentials",
+      tokenSource: expect.any(String),
+      tokenPreview: expect.any(String),
+      equalsPlatform: expect.any(Boolean),
     });
   });
 
@@ -58,6 +61,9 @@ describe("admin-whatsapp.service", () => {
       displayPhoneNumber: "5512345678",
       accessToken: "EAA_LEGACY",
       source: "whatsapp_credentials",
+      tokenSource: expect.any(String),
+      tokenPreview: expect.any(String),
+      equalsPlatform: expect.any(Boolean),
     });
   });
 
