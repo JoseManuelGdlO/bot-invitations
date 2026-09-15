@@ -16,8 +16,8 @@ import {
 import {
   assertSlotMappingsComplete,
   assertWizardBody,
+  bodyTextFromComponents,
   buildTemplateComponents,
-  defaultSlotMappings,
   exampleValuesFromMappings,
   generateTemplateName,
   mergeSlotMappings,
@@ -30,6 +30,17 @@ const log = new Logger("WhatsAppTemplates");
 const TEMPLATE_LANGUAGE = "es_MX";
 const TEMPLATE_CATEGORY = "MARKETING";
 const HEADER_TYPES = new Set(["none", "document", "image"]);
+const WIZARD_UNIVERSAL_FIELDS = new Set([
+  "nombre",
+  "numero_invitados",
+  "evento",
+  "fecha",
+  "lugar",
+  "direccion",
+  "hora",
+  "planner",
+  "nombre_completo",
+]);
 const TEMPLATE_STATUS_EVENTS = new Set([
   "PENDING",
   "APPROVED",
@@ -80,49 +91,61 @@ export async function applyTemplateStatusUpdate(update = {}) {
   };
 }
 
-function validateWizardTemplates(templates) {
-  if (!Array.isArray(templates) || templates.length < 1 || templates.length > 2) {
-    throw httpError(400, "Debes crear una o dos plantillas.");
-  }
-
-  const slots = new Set();
-  const validated = templates.map((template) => {
-    const slot = Number(template?.slot);
-    const headerType = String(template?.headerType || "none").toLowerCase();
-    if (![1, 2].includes(slot) || slots.has(slot)) {
-      throw httpError(400, "Los slots deben ser 1 y/o 2, sin duplicados.");
+function normalizeWizardInput(input = {}) {
+  if (Array.isArray(input.templates)) {
+    if (input.templates.length !== 1) {
+      throw httpError(400, "Debes crear una plantilla.");
     }
-    if (!HEADER_TYPES.has(headerType)) {
-      throw httpError(400, "El tipo de encabezado no es válido.");
-    }
-    slots.add(slot);
-
-    const body = String(template?.body || "");
-    assertWizardBody(body);
-    const slotMappings = defaultSlotMappings(body);
-    if (Object.values(slotMappings).some((mapping) => mapping == null)) {
-      throw httpError(400, "El wizard sólo admite las variables {{1}} y {{2}}.");
-    }
-    if (headerType !== "none" && !template?.headerFile) {
-      throw httpError(400, "La plantilla requiere un archivo de encabezado.");
-    }
-
+    const item = input.templates[0] || {};
     return {
-      ...template,
-      slot,
-      headerType,
-      body,
-      slotMappings,
-      isCampaign: Boolean(template?.isCampaign),
+      ownerUserId: input.ownerUserId,
+      wabaId: input.wabaId,
+      plannerAccessToken: input.plannerAccessToken,
+      displayName: item.displayName ?? input.displayName,
+      headerType: item.headerType ?? input.headerType,
+      body: item.body ?? input.body,
+      slotMappings: item.slotMappings ?? input.slotMappings,
+      headerFile: item.headerFile ?? input.headerFile,
     };
-  });
-
-  if (validated.length === 1) {
-    validated[0].isCampaign = true;
-  } else if (!validated.some((template) => template.isCampaign)) {
-    throw httpError(400, "Al menos una plantilla debe usarse para campaña.");
   }
-  return validated;
+  return input;
+}
+
+function validateWizardTemplate(input) {
+  const headerType = String(input?.headerType || "none").toLowerCase();
+  if (!HEADER_TYPES.has(headerType)) {
+    throw httpError(400, "El tipo de encabezado no es válido.");
+  }
+
+  const body = String(input?.body || "");
+  assertWizardBody(body);
+  const slotMappings = assertSlotMappingsComplete(
+    body,
+    mergeSlotMappings(body, input?.slotMappings || {}),
+  );
+  for (const [id, mapping] of Object.entries(slotMappings)) {
+    if (id === "1" || id === "2") continue;
+    if (mapping?.type !== "field" || !WIZARD_UNIVERSAL_FIELDS.has(String(mapping.key || ""))) {
+      throw httpError(
+        400,
+        "Las variables extra del default solo pueden mapear a campos universales.",
+      );
+    }
+  }
+
+  return {
+    headerType,
+    body,
+    slotMappings,
+    headerFile: headerType === "none" ? null : input?.headerFile || null,
+  };
+}
+
+function wizardContentUnchanged(existing, { body, headerType, headerFile }) {
+  if (bodyTextFromComponents(existing?.components) !== body) return false;
+  if (String(existing?.headerType || "none").toLowerCase() !== headerType) return false;
+  if (headerType !== "none" && headerFile) return false;
+  return true;
 }
 
 function isDuplicateNameError(error) {
@@ -180,109 +203,123 @@ async function persistHeaderFile({ ownerUserId, template, headerFile }) {
   return relativePath;
 }
 
-function reusableWizardDefault(row, slot) {
-  const status = String(row?.status || "").toUpperCase();
-  if (status === "REJECTED") return false;
-  return String(row?.name || "").endsWith(`_${slot}`);
-}
-
-async function findReusableWizardDefault({ ownerUserId, wabaId, slot }) {
+async function findReusableWizardDefault({ ownerUserId, wabaId }) {
   const defaults = await WhatsappMessageTemplate.findAll({
     where: { ownerUserId, wabaId, isWabaDefault: true },
+    order: [["createdAt", "ASC"]],
   });
-  return defaults.find((row) => reusableWizardDefault(row, slot)) || null;
+  return defaults.find((row) => String(row?.status || "").toUpperCase() !== "REJECTED") || null;
 }
 
-export async function createWizardTemplates({
-  ownerUserId,
-  wabaId,
-  plannerAccessToken,
-  templates,
-}) {
-  const validated = validateWizardTemplates(templates);
-  const token = resolveTemplateCrudToken(plannerAccessToken);
-  const created = [];
-
-  for (const templateInput of validated) {
-    const existing = await findReusableWizardDefault({
-      ownerUserId,
-      wabaId,
-      slot: templateInput.slot,
-    });
-    if (existing) {
-      created.push({ row: existing, input: templateInput, reused: true });
-      continue;
-    }
-    const headerFile = templateInput.headerType === "none"
-      ? null
-      : templateInput.headerFile || null;
-    const headerHandle = headerFile
-      ? await uploadResumableHeader({
-        token,
-        fileName: headerFile.fileName,
-        fileLength: headerFile.size,
-        fileType: headerFile.mime,
-        buffer: headerFile.buffer,
-      })
-      : null;
-    const components = buildTemplateComponents({
-      headerType: templateInput.headerType,
-      headerHandle,
-      bodyText: templateInput.body,
-      exampleValues: exampleValuesFromMappings(templateInput.slotMappings),
-    });
-    const meta = await createOnMeta({
-      wabaId,
-      token,
-      slot: templateInput.slot,
-      components,
-    });
-    const row = await WhatsappMessageTemplate.create({
-      ownerUserId,
-      wabaId,
-      metaTemplateId: meta.metaTemplateId,
-      name: meta.name,
-      language: TEMPLATE_LANGUAGE,
-      category: TEMPLATE_CATEGORY,
-      headerType: templateInput.headerType,
-      headerMediaPath: null,
-      headerFileName: headerFile?.fileName || null,
-      headerMime: headerFile?.mime || null,
-      headerSize: headerFile?.size ?? null,
-      headerHandle,
-      components,
-      status: "PENDING",
-      isWabaDefault: true,
-    });
-    await persistHeaderFile({ ownerUserId, template: row, headerFile });
-    created.push({ row, input: templateInput, reused: false });
-  }
-
-  const event = await Event.findOne({
-    where: { ownerId: ownerUserId },
-    order: [["createdAt", "DESC"]],
+export async function attachDefaultToOwnerEvents(ownerUserId, templateId, slotMappings) {
+  const events = await Event.findAll({ where: { ownerId: ownerUserId } });
+  if (!events.length) return;
+  const links = await EventWhatsappTemplate.findAll({
+    where: { eventId: events.map((event) => event.id) },
   });
-  if (event) {
-    for (const item of created) {
-      const existingLink = await EventWhatsappTemplate.findOne({
-        where: {
-          eventId: event.id,
-          slot: item.input.slot,
-        },
-      });
-      if (existingLink) continue;
-      await EventWhatsappTemplate.create({
-        eventId: event.id,
-        whatsappMessageTemplateId: item.row.id,
-        ownerUserId,
-        slot: item.input.slot,
-        isCampaign: item.input.isCampaign,
-        slotMappings: item.input.slotMappings,
-      });
-    }
+  const linksByEvent = new Map();
+  for (const link of links) {
+    const list = linksByEvent.get(link.eventId) || [];
+    list.push(link);
+    linksByEvent.set(link.eventId, list);
+  }
+  for (const event of events) {
+    const eventLinks = linksByEvent.get(event.id) || [];
+    if (eventLinks.some((link) => Boolean(link.isCampaign))) continue;
+    const slots = eventLinks
+      .map((link) => Number(link.slot))
+      .filter((slot) => Number.isFinite(slot));
+    const slot = slots.length === 0 ? 1 : Math.max(...slots) + 1;
+    await EventWhatsappTemplate.create({
+      eventId: event.id,
+      whatsappMessageTemplateId: templateId,
+      ownerUserId,
+      slot,
+      isCampaign: true,
+      slotMappings,
+    });
+  }
+}
+
+export async function createWizardTemplates(input) {
+  const normalized = normalizeWizardInput(input);
+  const validated = validateWizardTemplate(normalized);
+  const { ownerUserId, wabaId, plannerAccessToken } = normalized;
+  const token = resolveTemplateCrudToken(plannerAccessToken);
+  const existing = await findReusableWizardDefault({ ownerUserId, wabaId });
+
+  if (existing && wizardContentUnchanged(existing, validated)) {
+    await attachDefaultToOwnerEvents(ownerUserId, existing.id, validated.slotMappings);
+    return { template: existing, slotMappings: validated.slotMappings };
   }
 
-  return created.map(({ row }) => row);
+  const header = await editableHeader({
+    template: existing,
+    headerType: validated.headerType,
+    headerFile: validated.headerFile,
+    token,
+  });
+  const components = buildTemplateComponents({
+    headerType: validated.headerType,
+    headerHandle: header.headerHandle,
+    bodyText: validated.body,
+    exampleValues: exampleValuesFromMappings(validated.slotMappings),
+  });
+
+  if (existing) {
+    await updateMessageTemplate({
+      templateId: existing.metaTemplateId,
+      token,
+      payload: {
+        components,
+        language: existing.language || TEMPLATE_LANGUAGE,
+        category: existing.category || TEMPLATE_CATEGORY,
+      },
+    });
+    await existing.update(localTemplateFields({
+      headerType: validated.headerType,
+      header,
+      components,
+    }));
+    if (header.headerFile) {
+      await persistHeaderFile({
+        ownerUserId,
+        template: existing,
+        headerFile: header.headerFile,
+      });
+    }
+    await attachDefaultToOwnerEvents(ownerUserId, existing.id, validated.slotMappings);
+    return { template: existing, slotMappings: validated.slotMappings };
+  }
+
+  const meta = await createOnMeta({
+    wabaId,
+    token,
+    slot: 1,
+    components,
+  });
+  const row = await WhatsappMessageTemplate.create({
+    ownerUserId,
+    wabaId,
+    metaTemplateId: meta.metaTemplateId,
+    name: meta.name,
+    language: TEMPLATE_LANGUAGE,
+    category: TEMPLATE_CATEGORY,
+    headerType: validated.headerType,
+    headerMediaPath: header.headerMediaPath,
+    headerFileName: header.headerFileName,
+    headerMime: header.headerMime,
+    headerSize: header.headerSize,
+    headerHandle: header.headerHandle,
+    components,
+    status: "PENDING",
+    isWabaDefault: true,
+  });
+  if (header.headerFile) {
+    await persistHeaderFile({ ownerUserId, template: row, headerFile: header.headerFile });
+  }
+  await attachDefaultToOwnerEvents(ownerUserId, row.id, validated.slotMappings);
+  return { template: row, slotMappings: validated.slotMappings };
 }
 
 async function currentOwnerWabaId(ownerUserId) {

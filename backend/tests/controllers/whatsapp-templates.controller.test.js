@@ -50,7 +50,13 @@ describe("whatsapp-templates.controller", () => {
   let requirePermission;
 
   beforeEach(async () => {
-    createWizardTemplates = jest.fn(async () => [template()]);
+    createWizardTemplates = jest.fn(async () => ({
+      template: template(),
+      slotMappings: {
+        "1": { type: "field", key: "nombre" },
+        "2": { type: "field", key: "numero_invitados" },
+      },
+    }));
     ensureEventWhatsappTemplates = jest.fn(async () => ({ links: [] }));
     listEventWhatsappTemplates = jest.fn(async () => [link()]);
     submitEventTemplate = jest.fn(async () => template());
@@ -84,12 +90,13 @@ describe("whatsapp-templates.controller", () => {
 
   test("POST wizard crea plantillas desde multipart y responde 201", async () => {
     const payload = {
-      templates: [{
-        slot: 1,
-        headerType: "document",
-        body: "Hola {{1}}, tienes {{2}} pases.",
-        isCampaign: true,
-      }],
+      displayName: "Invitación formal",
+      headerType: "document",
+      body: "Hola {{1}}, tienes {{2}} pases.",
+      slotMappings: {
+        "1": { type: "field", key: "nombre" },
+        "2": { type: "field", key: "numero_invitados" },
+      },
     };
     const uploaded = {
       buffer: Buffer.from("pdf"),
@@ -97,7 +104,6 @@ describe("whatsapp-templates.controller", () => {
       mimetype: "application/pdf",
       size: 3,
     };
-    models.Event.findOne.mockResolvedValue({ id: "evt_latest" });
 
     const { res } = await callHandler(controller.postWizardTemplates, {
       req: createMockReq({
@@ -111,29 +117,23 @@ describe("whatsapp-templates.controller", () => {
       ownerUserId: "usr_test_1",
       wabaId: "waba_1",
       plannerAccessToken: "owner-token",
-      templates: [{
-        ...payload.templates[0],
-        slotMappings: {
-          "1": { type: "field", key: "nombre" },
-          "2": { type: "field", key: "numero_invitados" },
-        },
-        headerFile: {
-          buffer: uploaded.buffer,
-          fileName: "invitacion.pdf",
-          mime: "application/pdf",
-          size: 3,
-        },
-      }],
+      displayName: "Invitación formal",
+      headerType: "document",
+      body: payload.body,
+      slotMappings: payload.slotMappings,
+      headerFile: {
+        buffer: uploaded.buffer,
+        fileName: "invitacion.pdf",
+        mime: "application/pdf",
+        size: 3,
+      },
     });
-    expect(models.Event.findOne).toHaveBeenCalledWith({
-      where: { ownerId: "usr_test_1" },
-      order: [["createdAt", "DESC"]],
-    });
-    expect(listEventWhatsappTemplates).toHaveBeenCalledWith("evt_latest");
+    expect(models.Event.findOne).not.toHaveBeenCalled();
+    expect(listEventWhatsappTemplates).not.toHaveBeenCalled();
     expect(res.status).toHaveBeenCalledWith(201);
     expect(res.json).toHaveBeenCalledWith({
       templates: [{
-        id: "link_1",
+        id: null,
         slot: 1,
         isCampaign: true,
         slotMappings: {
@@ -149,21 +149,29 @@ describe("whatsapp-templates.controller", () => {
     });
   });
 
-  test("POST wizard acepta JSON sin archivo", async () => {
-    const templates = [{
-      slot: 1,
+  test("POST wizard acepta JSON plano sin archivo", async () => {
+    const payload = {
+      displayName: "Invitación formal",
       headerType: "none",
       body: "Hola {{1}}, tienes {{2}} pases.",
-      isCampaign: true,
-    }];
+      slotMappings: {
+        "1": { type: "field", key: "nombre" },
+        "2": { type: "field", key: "numero_invitados" },
+      },
+    };
     const { res } = await callHandler(controller.postWizardTemplates, {
-      req: createMockReq({ body: { templates } }),
+      req: createMockReq({ body: payload }),
     });
-    expect(createWizardTemplates).toHaveBeenCalledWith(
-      expect.objectContaining({
-        templates: [expect.objectContaining({ ...templates[0], headerFile: undefined })],
-      }),
-    );
+    expect(createWizardTemplates).toHaveBeenCalledWith({
+      ownerUserId: "usr_test_1",
+      wabaId: "waba_1",
+      plannerAccessToken: "owner-token",
+      displayName: "Invitación formal",
+      headerType: "none",
+      body: payload.body,
+      slotMappings: payload.slotMappings,
+      headerFile: undefined,
+    });
     expect(listEventWhatsappTemplates).not.toHaveBeenCalled();
     expect(res.json).toHaveBeenCalledWith({
       templates: [expect.objectContaining({
@@ -175,42 +183,57 @@ describe("whatsapp-templates.controller", () => {
     });
   });
 
-  test("POST wizard sin evento ignora id falsificado en el JSON", async () => {
-    models.Event.findOne.mockResolvedValue(null);
-
+  test("POST wizard acepta templates[] de un item como compatibilidad", async () => {
     const templates = [{
-      id: "forged_link",
       slot: 1,
       headerType: "none",
-      body: "Hola {{1}}, pases {{2}}",
+      body: "Hola {{1}}, tienes {{2}} pases.",
       isCampaign: true,
     }];
-
     const { res } = await callHandler(controller.postWizardTemplates, {
       req: createMockReq({ body: { templates } }),
     });
+    expect(createWizardTemplates).toHaveBeenCalledWith(
+      expect.objectContaining({
+        headerType: "none",
+        body: templates[0].body,
+        headerFile: undefined,
+      }),
+    );
+    expect(createWizardTemplates.mock.calls[0][0]).not.toHaveProperty("templates");
+    expect(res.status).toHaveBeenCalledWith(201);
+  });
 
-    expect(models.Event.findOne).toHaveBeenCalled();
+  test("POST wizard ignora id falsificado en el JSON", async () => {
+    const { res } = await callHandler(controller.postWizardTemplates, {
+      req: createMockReq({
+        body: {
+          id: "forged_link",
+          headerType: "none",
+          body: "Hola {{1}}, pases {{2}}",
+        },
+      }),
+    });
+
+    expect(models.Event.findOne).not.toHaveBeenCalled();
     expect(listEventWhatsappTemplates).not.toHaveBeenCalled();
     expect(res.json).toHaveBeenCalledWith({
       templates: [expect.objectContaining({ id: null })],
     });
   });
 
-  test("POST wizard sin evento no expone mappings bloqueados falsificados", async () => {
-    const templates = [{
-      slot: 1,
-      headerType: "none",
-      body: "Hola {{1}}, tienes {{2}} pases.",
-      isCampaign: true,
-      slotMappings: {
-        "1": { type: "literal", value: "nombre falso" },
-        "2": { type: "field", key: "otro_campo" },
-      },
-    }];
-
+  test("POST wizard no expone mappings bloqueados falsificados", async () => {
     const { res } = await callHandler(controller.postWizardTemplates, {
-      req: createMockReq({ body: { templates } }),
+      req: createMockReq({
+        body: {
+          headerType: "none",
+          body: "Hola {{1}}, tienes {{2}} pases.",
+          slotMappings: {
+            "1": { type: "literal", value: "nombre falso" },
+            "2": { type: "field", key: "otro_campo" },
+          },
+        },
+      }),
     });
 
     expect(res.json).toHaveBeenCalledWith({

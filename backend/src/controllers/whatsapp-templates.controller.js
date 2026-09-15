@@ -1,7 +1,6 @@
 import { asyncHandler } from "../utils/async.js";
 import { httpError } from "../utils/http-error.js";
 import {
-  Event,
   EventWhatsappTemplate,
   WhatsappMessageTemplate,
 } from "../models/index.js";
@@ -16,7 +15,6 @@ import {
 } from "../services/whatsapp-templates.service.js";
 import {
   bodyTextFromComponents,
-  defaultSlotMappings,
 } from "../services/whatsapp-template-slots.js";
 
 function parsePayload(req) {
@@ -42,25 +40,30 @@ function fieldFile(req, name) {
   return req.files?.[name]?.[0] || (req.file?.fieldname === name ? req.file : undefined);
 }
 
-function normalizeWizardItems(payload, req) {
-  if (!Array.isArray(payload?.templates) || payload.templates.length === 0) {
-    throw httpError(400, "Debes crear una o dos plantillas.");
+function wizardItemFrom(item, req) {
+  const slot = Number(item?.slot) || 1;
+  return {
+    displayName: item?.displayName,
+    headerType: String(item?.headerType || "none").toLowerCase(),
+    body: String(item?.body || ""),
+    slotMappings: item?.slotMappings,
+    headerFile: uploadedFile(
+      fieldFile(req, "header_1") || fieldFile(req, `header_${slot}`),
+    ),
+  };
+}
+
+function normalizeWizardItem(payload, req) {
+  if (Array.isArray(payload?.templates)) {
+    if (payload.templates.length !== 1) {
+      throw httpError(400, "Debes crear una plantilla.");
+    }
+    return wizardItemFrom(payload.templates[0], req);
   }
-  const items = payload.templates.map((item) => {
-    const slot = Number(item?.slot);
-    const body = String(item?.body || "");
-    return {
-      ...item,
-      slot,
-      headerType: String(item?.headerType || "none").toLowerCase(),
-      body,
-      isCampaign: Boolean(item?.isCampaign),
-      slotMappings: item?.slotMappings || defaultSlotMappings(body),
-      headerFile: uploadedFile(fieldFile(req, `header_${slot}`)),
-    };
-  });
-  if (items.length === 1) items[0].isCampaign = true;
-  return items;
+  if (payload && Object.prototype.hasOwnProperty.call(payload, "body")) {
+    return wizardItemFrom(payload, req);
+  }
+  throw httpError(400, "Debes crear una plantilla.");
 }
 
 function serializeTemplate(template) {
@@ -97,31 +100,34 @@ async function authorizedEvent(req, res) {
 
 export const postWizardTemplates = asyncHandler(async (req, res) => {
   const payload = parsePayload(req);
-  if (!Array.isArray(payload?.templates) || payload.templates.length === 0) {
-    return res.status(400).json({ error: "Debes crear una o dos plantillas." });
+  let item;
+  try {
+    item = normalizeWizardItem(payload, req);
+  } catch (error) {
+    if (error.status === 400) {
+      return res.status(400).json({ error: error.message });
+    }
+    throw error;
   }
-  const templates = normalizeWizardItems(payload, req);
   const resolved = await resolveActiveWhatsappMetaByOwner(req.user.id);
-  const rows = await createWizardTemplates({
+  const result = await createWizardTemplates({
     ownerUserId: req.user.id,
     wabaId: resolved.credentials.wabaId,
     plannerAccessToken: resolved.credentials.accessToken,
-    templates,
+    displayName: item.displayName,
+    headerType: item.headerType,
+    body: item.body,
+    slotMappings: item.slotMappings,
+    headerFile: item.headerFile,
   });
-  const event = await Event.findOne({
-    where: { ownerId: req.user.id },
-    order: [["createdAt", "DESC"]],
-  });
-  const links = event
-    ? await listEventWhatsappTemplates(event.id)
-    : rows.map((row, index) => ({
-      ...templates[index],
-      id: null,
-      slotMappings: defaultSlotMappings(templates[index]?.body),
-      template: row,
-    }));
   res.status(201).json({
-    templates: links.map(serializeLink),
+    templates: [serializeLink({
+      id: null,
+      slot: 1,
+      isCampaign: true,
+      slotMappings: result.slotMappings,
+      template: result.template,
+    })],
   });
 });
 
