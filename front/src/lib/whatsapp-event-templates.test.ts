@@ -119,12 +119,14 @@ test("banner y confirm de fork solo si la plantilla es default de cuenta", () =>
   assert.equal(shouldConfirmEventTemplateFork({ isWabaDefault: false }), false);
 });
 
-test("extras editables y literales solo en personalizada; default usa universales", () => {
+test("extras del default se mapean con dropdown de universales; literales y mesa solo en personalizada", () => {
   assert.equal(canEditEventExtraMappings({ isWabaDefault: true }), false);
   assert.equal(canEditEventExtraMappings({ isWabaDefault: false }), true);
   assert.deepEqual(extraSlotOptionsForEventTemplate(true, ["mesa", "vip"]), [
     ...WIZARD_EXTRA_FIELDS,
   ]);
+  assert.ok(WIZARD_EXTRA_FIELDS.includes("evento"));
+  assert.ok(WIZARD_EXTRA_FIELDS.includes("fecha"));
   assert.ok(!extraSlotOptionsForEventTemplate(true, ["mesa"]).includes("mesa"));
   assert.ok(
     !extraSlotOptionsForEventTemplate(true, ["mesa"]).includes(

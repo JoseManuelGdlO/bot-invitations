@@ -86,16 +86,15 @@ function isHeaderImageFile(file: File) {
   return byExt && byMime;
 }
 
-function mappingSelectValue(mapping: EventSlotMapping): string | undefined {
+function mappingSelectValue(
+  mapping: EventSlotMapping,
+  allowLiteral: boolean,
+): string | undefined {
   if (!mapping) return undefined;
-  if (mapping.type === "literal") return LITERAL_SLOT_OPTION;
+  if (mapping.type === "literal") {
+    return allowLiteral ? LITERAL_SLOT_OPTION : undefined;
+  }
   return mapping.key || undefined;
-}
-
-function mappingSummary(mapping: EventSlotMapping): string {
-  if (!mapping) return "Sin mapear";
-  if (mapping.type === "literal") return mapping.value || "Texto fijo";
-  return mapping.key || "Sin mapear";
 }
 
 export function WhatsappTemplateCard({
@@ -194,7 +193,7 @@ export function WhatsappTemplateCard({
   };
 
   const setExtraMapping = (id: string, mapping: EventSlotMapping) => {
-    if (!extrasEditable) return;
+    if (!extrasEditable && mapping?.type === "literal") return;
     onChange({
       slotMappings: mergeEventSlotMappings(draft.body, {
         ...draft.slotMappings,
@@ -488,59 +487,57 @@ export function WhatsappTemplateCard({
             ) : null}
             {extras.map((id) => {
               const mapping = draft.slotMappings[id] ?? null;
-              const selected = mappingSelectValue(mapping);
+              const selected = mappingSelectValue(mapping, extrasEditable);
               return (
                 <div key={id} className="space-y-2">
                   <Label htmlFor={`event-template-slot-${draft.slot}-${id}`}>
                     {`{{${id}}}`}
                   </Label>
-                  {extrasEditable ? (
-                    <>
-                      <Select
-                        value={selected}
-                        onValueChange={(value) => {
-                          if (value === LITERAL_SLOT_OPTION) {
-                            setExtraMapping(id, {
-                              type: "literal",
-                              value:
-                                mapping?.type === "literal" ? mapping.value : "",
-                            });
-                            return;
-                          }
-                          setExtraMapping(id, { type: "field", key: value });
-                        }}
-                      >
-                        <SelectTrigger
-                          id={`event-template-slot-${draft.slot}-${id}`}
-                        >
-                          <SelectValue placeholder="Elige un dato o texto fijo" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {options.map((option) => (
-                            <SelectItem key={option} value={option}>
-                              {extraSlotOptionLabel(option)}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      {mapping?.type === "literal" ? (
-                        <Input
-                          value={mapping.value}
-                          onChange={(e) =>
-                            setExtraMapping(id, {
-                              type: "literal",
-                              value: e.target.value,
-                            })
-                          }
-                          placeholder="Texto fijo"
-                        />
-                      ) : null}
-                    </>
-                  ) : (
-                    <p className="text-sm text-muted-foreground">
-                      {mappingSummary(mapping)}
-                    </p>
-                  )}
+                  <Select
+                    {...(selected ? { value: selected } : {})}
+                    onValueChange={(value) => {
+                      if (value === LITERAL_SLOT_OPTION) {
+                        setExtraMapping(id, {
+                          type: "literal",
+                          value:
+                            mapping?.type === "literal" ? mapping.value : "",
+                        });
+                        return;
+                      }
+                      setExtraMapping(id, { type: "field", key: value });
+                    }}
+                  >
+                    <SelectTrigger
+                      id={`event-template-slot-${draft.slot}-${id}`}
+                    >
+                      <SelectValue
+                        placeholder={
+                          extrasEditable
+                            ? "Elige un dato o texto fijo"
+                            : "Elige un dato del evento"
+                        }
+                      />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {options.map((option) => (
+                        <SelectItem key={option} value={option}>
+                          {extraSlotOptionLabel(option)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {extrasEditable && mapping?.type === "literal" ? (
+                    <Input
+                      value={mapping.value}
+                      onChange={(e) =>
+                        setExtraMapping(id, {
+                          type: "literal",
+                          value: e.target.value,
+                        })
+                      }
+                      placeholder="Texto fijo"
+                    />
+                  ) : null}
                 </div>
               );
             })}
