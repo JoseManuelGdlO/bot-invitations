@@ -21,7 +21,7 @@ interface ChatLine {
 const STARTER: ChatLine = {
   id: "hi",
   from: "bot",
-  text: "Hola. Soy el asistente de Alanna. Pregúntame cómo crear un evento, importar tu Excel, enviar invitaciones, pagar o cancelar.",
+  text: "Hola. Soy el asistente de Alanna. Pregúntame cómo crear un evento, conectar WhatsApp, usar las plantillas de Meta o lanzar la campaña.",
 };
 
 export function HelpBot() {
@@ -38,8 +38,8 @@ export function HelpBot() {
       .catch(() =>
         setChips([
           "¿Cómo creo un evento?",
-          "¿Cómo importo mi Excel?",
-          "¿Cómo envío las invitaciones?",
+          "¿Cómo conecto WhatsApp?",
+          "¿Cómo funcionan las plantillas de Meta?",
         ]),
       );
   }, []);
@@ -68,10 +68,10 @@ export function HelpBot() {
           id: `bot-${Date.now()}`,
           from: "bot",
           text: res.reply,
-          href: res.href,
+          href: res.href ?? null,
         },
       ]);
-      if (res.suggestions?.length) setChips(res.suggestions);
+      setChips(res.suggestions ?? []);
     } catch {
       setLines((current) => [
         ...current,

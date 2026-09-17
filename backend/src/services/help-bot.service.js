@@ -3,7 +3,7 @@ function normalize(text) {
     .toLowerCase()
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9\s?¿]/g, " ")
+    .replace(/[^a-z0-9\s]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 }
@@ -52,22 +52,81 @@ Si el recuadro no reacciona, recarga la página e inténtalo otra vez.`,
 El teléfono debe ir con lada. Si tu plan se llenó, no podrás agregar más hasta mejorar o reactivar la suscripción.`,
   },
   {
+    id: "conectar-whatsapp",
+    title: "Conectar WhatsApp",
+    href: "/eventos/whatsapp",
+    keywords: [
+      "conectar whatsapp",
+      "whatsapp",
+      "whatsapp business",
+      "waba",
+      "facebook",
+      "pegar token",
+      "desconectar whatsapp",
+      "probar envio",
+    ],
+    answer: `Para conectar WhatsApp:
+
+1. En el menú izquierdo entra a WhatsApp.
+2. Pulsa conectar con Facebook y sigue el alta de tu cuenta de WhatsApp Business.
+3. Si el alta no termina, puedes pegar el token a mano (WABA y Phone number ID).
+4. Crea la plantilla de invitación con el asistente.
+5. Espera a que Meta la apruebe. Mientras esté en revisión no podrás lanzar la campaña.
+
+Puedes mandar una prueba a un número de 10 dígitos. Para desconectar, usa el botón de esa misma pantalla.`,
+  },
+  {
     id: "campana",
     title: "Enviar las invitaciones",
-    keywords: ["enviar", "campana", "lanzar", "whatsapp", "mensaje inicial", "invitar", "empezar envio"],
-    answer: `Para mandar las confirmaciones:
+    keywords: [
+      "enviar",
+      "campana",
+      "lanzar",
+      "invitar",
+      "invitaciones",
+      "mensaje inicial",
+      "empezar envio",
+      "primer contacto",
+    ],
+    answer: `Antes de lanzar:
 
-1. Abre el evento y entra a Conversaciones o Automatización.
-2. Revisa el mensaje de apertura (puedes editarlo).
-3. Lanza la campaña: se envía a los invitados en “sin contactar”.
-4. Las respuestas llegan en Conversaciones.
+1. Conecta WhatsApp.
+2. Ten la plantilla de invitación Aprobada por Meta (en Mensajes del evento).
+3. Abre el evento → Resumen y lanza o programa la campaña.
+4. Se envía a los invitados en “sin contactar”. Las respuestas llegan en Conversaciones.
 
-Si tu plan se venció o se canceló, los envíos de ese evento no se detienen. Lo que no podrás es crear otro evento o agregar más gente.`,
+Si WhatsApp no está conectado o la plantilla sigue en revisión, el lanzamiento queda bloqueado.`,
+  },
+  {
+    id: "plantillas-meta",
+    title: "Plantillas de WhatsApp (Meta)",
+    href: "/eventos/plantillas",
+    keywords: [
+      "plantilla",
+      "plantillas",
+      "meta",
+      "hsm",
+      "aprobada",
+      "en revision",
+      "rechazada",
+      "primer contacto",
+      "recordatorio whatsapp",
+    ],
+    answer: `Hay dos sitios:
+
+- Plantillas (menú izquierdo): las de tu cuenta en Meta. Ahí ves el estado, editas o borras (borrarlas también las quita en Meta).
+- Mensajes del evento: eliges o creas la plantilla de invitación, recordatorio y seguimiento de ese evento.
+
+Meta tiene que aprobar cada una (Borrador → En revisión → Aprobada). Si editas una Aprobada, vuelve a revisión. Una En revisión no se puede guardar otra vez.
+
+En el cuerpo usa {{1}} (nombre) y {{2}} (número de pases). No las pongas al inicio ni al final. Máximo 10 plantillas por evento.
+
+Sin WhatsApp conectado no puedes crear ni enviar plantillas.`,
   },
   {
     id: "conversaciones",
     title: "Ver y responder conversaciones",
-    keywords: ["conversacion", "chat", "responder", "mensajes invitados", "whatsapp chat"],
+    keywords: ["conversacion", "conversaciones", "chat", "responder", "mensajes invitados", "whatsapp chat"],
     answer: `En el evento, entra a Conversaciones:
 
 - Ahí ves cada chat con el invitado.
@@ -79,7 +138,7 @@ Si un invitado ya respondió, no lo vuelvas a meter en la campaña inicial: sigu
   {
     id: "invitados",
     title: "Gestionar la lista de invitados",
-    keywords: ["invitado", "lista", "mesa", "confirmar", "estatus", "recordatorio"],
+    keywords: ["invitado", "invitados", "lista", "mesa", "confirmar", "estatus", "recordatorio"],
     answer: `En el evento, pestaña Invitados:
 
 - Filtra por estado: sin contactar, enviado, confirmado, no asiste.
@@ -98,20 +157,19 @@ Para agregar gente nueva se cuenta contra el límite de tu plan.`,
 1. Poner el nombre del asistente (Sofía, Renata, etc.).
 2. Ajustar tono, formalidad y si usa emojis.
 3. Editar el mensaje de apertura.
-4. Definir reglas y seguimientos.
+4. Definir reglas y seguimientos. El recontacto usa la plantilla de seguimiento de Mensajes.
 
 Ese asistente habla con los invitados por WhatsApp. No es este chat de ayuda: este chat soy yo, para explicarte cómo usar Alanna.`,
   },
   {
-    id: "plantillas",
-    title: "Plantillas y respuestas frecuentes",
-    keywords: ["plantilla", "faq", "mensajes", "biblioteca", "dress code", "ubicacion"],
-    answer: `En el evento, entra a Mensajes:
+    id: "faq-evento",
+    title: "Respuestas frecuentes del evento",
+    keywords: ["faq", "respuestas frecuentes", "dress code", "ubicacion", "ninos", "estacionamiento"],
+    answer: `En el evento, pestaña Mensajes → Respuestas frecuentes:
 
-- Biblioteca: textos listos (primer contacto, recordatorio, ubicación, dress code).
-- Respuestas frecuentes: preguntas que el asistente puede usar con los invitados.
+Ahí pones las preguntas que el asistente del evento puede contestar a los invitados (niños, vestimenta, ubicación, estacionamiento).
 
-Cópialas o edítalas antes de lanzar la campaña.`,
+Eso no es una plantilla de Meta: las plantillas de WhatsApp se gestionan en Plantillas y en la pestaña de plantillas de Mensajes.`,
   },
   {
     id: "estadisticas",
@@ -136,33 +194,87 @@ Así otra planner o coordinadora entra al mismo evento sin usar tu cuenta.`,
     id: "planes",
     title: "Planes y límites",
     href: "/",
-    keywords: ["plan", "limite", "esencial", "estudio", "atelier", "cuantos eventos", "precio"],
-    answer: `Los planes definen cuántos eventos e invitados puedes tener al mes:
+    keywords: [
+      "plan",
+      "planes",
+      "limite",
+      "limites",
+      "esencial",
+      "estudio",
+      "atelier",
+      "cuantos eventos",
+      "precio",
+      "cuesta",
+      "incluye",
+      "mensual",
+      "anual",
+    ],
+    answer: `Los planes limitan eventos e invitados al mes. Precios en pesos mexicanos; el anual tiene 20% de descuento:
 
-- Esencial: 2 eventos / 300 invitados
-- Estudio: 6 eventos / 1,000 invitados
-- Atelier: 15 eventos / 3,000 invitados
+- Esencial: $500/mes o $4,800/año · 2 eventos · 300 invitados
+- Estudio: $1,200/mes o $11,520/año · 6 eventos · 1,000 invitados
+- Atelier: $2,400/mes o $23,040/año · 15 eventos · 3,000 invitados
 
-Si llegas al tope, Alanna te pide mejorar el plan. Elige mensual o anual (el anual tiene descuento).`,
+En el menú izquierdo ves cuántos eventos e invitados llevas (por ejemplo 1/2 eventos). Si llegas al tope, Alanna te pide mejorar el plan. Los envíos de WhatsApp de eventos actuales no se cortan.
+
+La tabla completa está en la página de inicio, sección Planes.`,
+  },
+  {
+    id: "cambiar-plan",
+    title: "Cambiar de plan",
+    href: "/",
+    keywords: [
+      "cambiar plan",
+      "cambiar de plan",
+      "cambio mi plan",
+      "plan de pago",
+      "mejorar plan",
+      "upgrade",
+      "bajar de plan",
+      "otro plan",
+    ],
+    answer: `Para cambiar de plan (subir, bajar o pasar de mensual a anual):
+
+1. En la página de inicio entra a Planes. Si ya te llenaste el cupo, también aparece “Mejorar plan con Stripe”.
+2. Elige Esencial, Estudio o Atelier y si pagas mes o año.
+3. Si tu suscripción ya está activa, el cambio se aplica en Stripe y se prorratea: no vuelves a dar de alta la tarjeta.
+4. El plan nuevo vale en cuanto Stripe confirma el cobro.
+
+“Actualizar método de pago” en Suscripción solo sirve para la tarjeta y las facturas. Ahí no se cambia el plan ni se cancela.`,
   },
   {
     id: "pago",
-    title: "Pagar o reactivar la suscripción",
+    title: "Suscripción, tarjeta y cobros",
     href: "/eventos/suscripcion",
-    keywords: ["pagar", "pago", "stripe", "reactivar", "renovar", "cobro", "tarjeta", "pendiente de pago"],
-    answer: `Para pagar o cambiar la tarjeta:
+    keywords: [
+      "pagar",
+      "pago",
+      "stripe",
+      "reactivar",
+      "renovar",
+      "cobro",
+      "tarjeta",
+      "pendiente de pago",
+      "suscripcion",
+      "factura",
+      "metodo de pago",
+      "portal",
+      "actualizar",
+    ],
+    answer: `En el menú izquierdo entra a Suscripción. Ahí ves el plan actual, si es mensual o anual, hasta cuándo está vigente y si está activa, pendiente de pago o ya no se renueva.
 
-1. Entra a Suscripción.
-2. Usa “Actualizar método de pago” para la tarjeta.
-3. Si tu cuenta no está activa, el botón de pagar te lleva a Stripe.
+Para cambiar la tarjeta o ver facturas:
 
-Si no se renovó, sigues viendo tus eventos y los envíos no se paran. Para crear otro evento o agregar invitados, hay que volver a pagar.`,
+1. En Suscripción pulsa “Actualizar método de pago”.
+2. Stripe abre el portal. No canceles desde ahí: en Alanna la baja se pide en esa misma pantalla y la acepta un administrador.
+
+Si el plan no se renovó o ya venció, el botón de pagar te lleva a Stripe. Sigues viendo tus eventos y los envíos no se paran. Para crear otro evento o agregar invitados hay que volver a pagar.`,
   },
   {
     id: "cancelar",
     title: "Cancelar la suscripción",
     href: "/eventos/suscripcion",
-    keywords: ["cancelar", "cancelo", "cancelas", "cancele", "baja", "cancelacion", "ya no quiero", "terminar plan"],
+    keywords: ["cancelar", "cancelo", "cancelas", "cancele", "baja", "cancelacion", "ya no quiero", "terminar plan", "cancelo mi plan"],
     answer: `La baja no es inmediata:
 
 1. En Suscripción escribe el motivo y envía la solicitud.
@@ -199,29 +311,75 @@ El registro pide negocio, teléfono, estado, correo, contraseña y un plan.`,
   },
 ];
 
-const SUGGESTIONS = [
-  "¿Cómo creo un evento?",
-  "¿Cómo importo mi Excel?",
-  "¿Cómo envío las invitaciones?",
-  "¿Cómo cancelo mi plan?",
-  "Quiero abrir un ticket",
-];
+const CHIP_CREAR = "¿Cómo creo un evento?";
+const CHIP_WHATSAPP = "¿Cómo conecto WhatsApp?";
+const CHIP_PLANTILLAS = "¿Cómo funcionan las plantillas de Meta?";
+const CHIP_ENVIAR = "¿Cómo envío las invitaciones?";
+const CHIP_TICKET = "Quiero abrir un ticket";
+const CHIP_IMPORTAR = "¿Cómo importo mi Excel?";
+const CHIP_CONVERSACIONES = "¿Cómo veo las conversaciones?";
+const CHIP_FAQ = "¿Qué son las respuestas frecuentes?";
+const CHIP_ASISTENTE = "¿Cómo configuro el asistente?";
+const CHIP_PLANES = "¿Qué incluye cada plan?";
+const CHIP_CAMBIAR = "¿Cómo cambio de plan?";
+const CHIP_PAGO = "¿Cómo actualizo mi tarjeta?";
+const CHIP_CANCELAR = "¿Cómo cancelo mi plan?";
+
+const SUGGESTIONS = [CHIP_CREAR, CHIP_WHATSAPP, CHIP_PLANTILLAS, CHIP_ENVIAR, CHIP_TICKET];
+
+const FOLLOW_UPS = {
+  "crear-evento": [CHIP_IMPORTAR, CHIP_WHATSAPP, CHIP_PLANTILLAS],
+  portada: [CHIP_CREAR, CHIP_IMPORTAR],
+  importar: [CHIP_ENVIAR, CHIP_WHATSAPP, CHIP_TICKET],
+  "conectar-whatsapp": [CHIP_PLANTILLAS, CHIP_ENVIAR, CHIP_TICKET],
+  campana: [CHIP_WHATSAPP, CHIP_PLANTILLAS, CHIP_CONVERSACIONES],
+  "plantillas-meta": [CHIP_WHATSAPP, CHIP_ENVIAR, CHIP_FAQ],
+  conversaciones: [CHIP_ENVIAR, CHIP_ASISTENTE, CHIP_TICKET],
+  invitados: [CHIP_IMPORTAR, CHIP_ENVIAR, CHIP_FAQ],
+  automatizacion: [CHIP_FAQ, CHIP_PLANTILLAS, CHIP_CONVERSACIONES],
+  "faq-evento": [CHIP_PLANTILLAS, CHIP_ASISTENTE, CHIP_ENVIAR],
+  estadisticas: [CHIP_ENVIAR, CHIP_TICKET],
+  equipo: [CHIP_CREAR, CHIP_TICKET],
+  planes: [CHIP_CAMBIAR, CHIP_PAGO, CHIP_CANCELAR],
+  "cambiar-plan": [CHIP_PLANES, CHIP_PAGO, CHIP_CANCELAR],
+  pago: [CHIP_CAMBIAR, CHIP_PLANES, CHIP_CANCELAR],
+  cancelar: [CHIP_PAGO, CHIP_PLANES, CHIP_TICKET],
+  soporte: [CHIP_WHATSAPP, CHIP_ENVIAR, CHIP_TICKET],
+  cuenta: [CHIP_TICKET],
+};
+
+function hasPhrase(words, phrase) {
+  const parts = String(phrase || "")
+    .split(" ")
+    .filter(Boolean);
+  if (!parts.length) return false;
+  for (let i = 0; i <= words.length - parts.length; i += 1) {
+    if (parts.every((part, j) => words[i + j] === part)) return true;
+  }
+  return false;
+}
 
 function scoreTopic(query, topic) {
+  const words = query.split(" ").filter(Boolean);
   let score = 0;
   for (const key of topic.keywords) {
-    if (query.includes(key)) score += key.split(" ").length + 2;
+    if (hasPhrase(words, key)) score += key.split(" ").length + 2;
   }
   for (const word of normalize(topic.title).split(" ")) {
-    if (word.length > 3 && query.includes(word)) score += 1;
+    if (word.length > 3 && words.includes(word)) score += 1;
   }
   return score;
+}
+
+function suggestionsFor(topicId, query) {
+  const list = FOLLOW_UPS[topicId] || SUGGESTIONS;
+  return list.filter((item) => normalize(item) !== query).slice(0, 4);
 }
 
 function greetingReply(name) {
   const who = name ? `, ${name.split(" ")[0]}` : "";
   return {
-    reply: `Hola${who}. Soy el asistente de Alanna. Pregúntame cómo hacer las cosas en la plataforma: crear un evento, importar invitados, enviar confirmaciones, pagar o cancelar.\n\nElige una duda o escríbela con tus palabras.`,
+    reply: `Hola${who}. Soy el asistente de Alanna. Pregúntame cómo crear un evento, conectar WhatsApp, usar las plantillas de Meta o lanzar la campaña.\n\nElige una duda o escríbela con tus palabras.`,
     suggestions: SUGGESTIONS,
   };
 }
@@ -242,7 +400,7 @@ export function answerHelp(message, user) {
     return {
       reply: "Cuando quieras, pregúntame otra cosa. Si algo no carga o falla, abre un ticket en Soporte.",
       href: "/eventos/soporte",
-      suggestions: SUGGESTIONS.slice(0, 3),
+      suggestions: SUGGESTIONS.filter((item) => normalize(item) !== query).slice(0, 4),
     };
   }
 
@@ -268,6 +426,6 @@ export function answerHelp(message, user) {
     reply: extras.length ? `${best.answer}\n\nTambién te puede servir: ${extras.join("; ")}.` : best.answer,
     title: best.title,
     href: best.href || null,
-    suggestions: SUGGESTIONS.filter((item) => normalize(item) !== query).slice(0, 4),
+    suggestions: suggestionsFor(best.id, query),
   };
 }
