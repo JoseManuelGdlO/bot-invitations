@@ -338,7 +338,7 @@ export async function deleteMessageTemplate({ wabaId, token, name, metaTemplateI
     method: "DELETE",
     path: `${wabaId}/message_templates`,
     token,
-    query: hsmId ? { hsm_id: hsmId } : { name: templateName },
+    query: hsmId ? { hsm_id: hsmId, name: templateName } : { name: templateName },
   });
 }
 

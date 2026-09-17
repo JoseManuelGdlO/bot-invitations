@@ -251,7 +251,7 @@ describe("meta-graph.client", () => {
     expect(init.headers.Authorization).toBe("Bearer sys_tok");
   });
 
-  test("deleteMessageTemplate DELETE al WABA con hsm_id", async () => {
+  test("deleteMessageTemplate DELETE al WABA con hsm_id y name", async () => {
     global.fetch = jest.fn(async () => ({
       ok: true,
       status: 200,
@@ -271,7 +271,7 @@ describe("meta-graph.client", () => {
     const [url, init] = fetch.mock.calls[0];
     expect(url).toContain("/waba_1/message_templates");
     expect(url).toContain("hsm_id=meta_tpl_1");
-    expect(url).not.toMatch(/[?&]name=/);
+    expect(url).toContain("name=alanna_pc_ab12cd34_1");
     expect(init.method).toBe("DELETE");
     expect(init.headers.Authorization).toBe("Bearer sys_tok");
   });
