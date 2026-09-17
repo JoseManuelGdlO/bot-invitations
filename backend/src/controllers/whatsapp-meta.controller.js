@@ -87,7 +87,7 @@ async function templateStatus(ownerUserId, wabaId) {
           model: WhatsappMessageTemplate,
           as: "template",
           required: true,
-          where: { ownerUserId, wabaId: currentWabaId },
+          where: { ownerUserId, wabaId: currentWabaId, purpose: "invitation" },
         },
       ],
     }),

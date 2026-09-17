@@ -40,8 +40,18 @@ import {
   statusBadgeClassName,
   statusBadgeLabel,
 } from "@/lib/whatsapp-templates";
-import { cn } from "@/lib/utils";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
+import {
+  DEFAULT_TEMPLATE_PURPOSE,
+  PURPOSE_HINT,
+  PURPOSE_TAB_LABEL,
+  TEMPLATE_PURPOSES,
+  normalizeTemplatePurpose,
+  templatesForPurpose,
+  type WhatsappTemplatePurpose,
+} from "@/lib/whatsapp-template-purpose";
 
 export const Route = createFileRoute("/eventos/plantillas")({
   head: () => ({
@@ -78,6 +88,9 @@ function AccountWhatsappTemplatesPage() {
   );
   const [customEdit, setCustomEdit] =
     useState<AccountWhatsappTemplateDto | null>(null);
+  const [purpose, setPurpose] = useState<WhatsappTemplatePurpose>(
+    DEFAULT_TEMPLATE_PURPOSE,
+  );
 
   const createEvent = events.find((item) => item.id === createEventId);
   const createGuests = guests.filter(
@@ -128,7 +141,10 @@ function AccountWhatsappTemplatesPage() {
   }, [load]);
 
   const openEdit = (row: AccountWhatsappTemplateDto) => {
-    if (row.isWabaDefault) {
+    if (
+      row.isWabaDefault &&
+      normalizeTemplatePurpose(row.purpose) === DEFAULT_TEMPLATE_PURPOSE
+    ) {
       setWizardOpen(true);
       return;
     }
@@ -165,7 +181,143 @@ function AccountWhatsappTemplatesPage() {
     );
   }
 
-  const emptyCopy = accountWhatsappTemplatesEmptyCopy(whatsappConfigured);
+  const visibleTemplates = templatesForPurpose(templates, purpose);
+  const emptyCopy = accountWhatsappTemplatesEmptyCopy(
+    whatsappConfigured,
+    purpose,
+  );
+
+  const renderTemplateList = (rows: AccountWhatsappTemplateDto[]) => {
+    if (rows.length === 0) {
+      return (
+        <section className="rounded-2xl border border-border bg-card p-6 shadow-soft">
+          <div className="flex items-start gap-3">
+            <span className="flex size-10 items-center justify-center rounded-xl bg-gold-soft text-gold-foreground">
+              <FileStack className="size-5" />
+            </span>
+            <div className="space-y-3">
+              <p className="text-sm">
+                {loadError
+                  ? "No se pudieron cargar las plantillas."
+                  : emptyCopy}
+              </p>
+              {loadError ? (
+                <Button type="button" size="sm" onClick={() => void load()}>
+                  Reintentar
+                </Button>
+              ) : whatsappConfigured && purpose === DEFAULT_TEMPLATE_PURPOSE ? (
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => setWizardOpen(true)}
+                >
+                  Crear plantilla default
+                </Button>
+              ) : whatsappConfigured ? (
+                <Button type="button" size="sm" onClick={() => void load()}>
+                  Reintentar
+                </Button>
+              ) : (
+                <Button type="button" size="sm" asChild>
+                  <Link to="/eventos/whatsapp">Ir a WhatsApp</Link>
+                </Button>
+              )}
+            </div>
+          </div>
+        </section>
+      );
+    }
+    return (
+      <ul className="space-y-3">
+        {rows.map((row) => {
+          const canDelete = canDeleteAccountWhatsappTemplate(row, templates);
+          const title = displayNameOrPreview(row) || row.name || "Plantilla";
+          const usage = row.usage;
+          const eventNames = (usage?.events ?? [])
+            .map((event) => event.name)
+            .filter(Boolean);
+          const deleteButton = (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={!canDelete || !row.id}
+              onClick={() => setToDelete(row)}
+            >
+              <Trash2 className="size-3.5" />
+              Eliminar
+            </Button>
+          );
+          return (
+            <li
+              key={row.id || row.name || title}
+              className="rounded-2xl border border-border bg-card p-5 shadow-soft"
+            >
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0 space-y-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <h2 className="font-display text-xl">{title}</h2>
+                    <Badge
+                      variant="outline"
+                      className={cn(
+                        "rounded-full px-2.5 py-0.5 text-[11px] font-medium",
+                        statusBadgeClassName(row.status),
+                      )}
+                    >
+                      {statusBadgeLabel(row.status || "")}
+                    </Badge>
+                    {row.isWabaDefault ? (
+                      <Badge className="rounded-full bg-gold-soft text-gold-foreground">
+                        Default
+                      </Badge>
+                    ) : null}
+                  </div>
+                  <p className="line-clamp-3 whitespace-pre-wrap text-sm text-muted-foreground">
+                    {row.body || "Sin cuerpo"}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    {usage?.eventCount
+                      ? `${usage.eventCount} ${
+                          usage.eventCount === 1 ? "evento" : "eventos"
+                        }${eventNames.length ? `: ${eventNames.join(", ")}` : ""}`
+                      : "Ningún evento la usa"}
+                    {(usage?.campaignEventCount ?? 0) > 0
+                      ? ` · campaña en ${usage?.campaignEventCount}`
+                      : ""}
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => openEdit(row)}
+                  >
+                    <Pencil className="size-3.5" />
+                    Ver/editar
+                  </Button>
+                  {canDelete ? (
+                    deleteButton
+                  ) : (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <span className="inline-flex">{deleteButton}</span>
+                        </TooltipTrigger>
+                        <TooltipContent className="max-w-xs">
+                          {LAST_WABA_DEFAULT_DELETE_HINT}
+                        </TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  )}
+                </div>
+              </div>
+            </li>
+          );
+        })}
+      </ul>
+    );
+  };
 
   return (
     <main className="mx-auto w-full max-w-3xl flex-1 space-y-6 px-5 py-8 md:px-8 md:py-10">
@@ -206,128 +358,26 @@ function AccountWhatsappTemplatesPage() {
         ) : null}
       </div>
 
-      {templates.length === 0 ? (
-        <section className="rounded-2xl border border-border bg-card p-6 shadow-soft">
-          <div className="flex items-start gap-3">
-            <span className="flex size-10 items-center justify-center rounded-xl bg-gold-soft text-gold-foreground">
-              <FileStack className="size-5" />
-            </span>
-            <div className="space-y-3">
-              <p className="text-sm">
-                {loadError
-                  ? "No se pudieron cargar las plantillas."
-                  : emptyCopy}
-              </p>
-              {loadError ? (
-                <Button type="button" size="sm" onClick={() => void load()}>
-                  Reintentar
-                </Button>
-              ) : whatsappConfigured ? (
-                <Button
-                  type="button"
-                  size="sm"
-                  onClick={() => setWizardOpen(true)}
-                >
-                  Crear plantilla default
-                </Button>
-              ) : (
-                <Button type="button" size="sm" asChild>
-                  <Link to="/eventos/whatsapp">Ir a WhatsApp</Link>
-                </Button>
-              )}
-            </div>
-          </div>
-        </section>
-      ) : (
-        <ul className="space-y-3">
-          {templates.map((row) => {
-            const canDelete = canDeleteAccountWhatsappTemplate(row, templates);
-            const title = displayNameOrPreview(row) || row.name || "Plantilla";
-            const usage = row.usage;
-            const eventNames = (usage?.events ?? [])
-              .map((event) => event.name)
-              .filter(Boolean);
-            const deleteButton = (
-              <Button
-                type="button"
-                variant="outline"
-                size="sm"
-                disabled={!canDelete || !row.id}
-                onClick={() => setToDelete(row)}
-              >
-                <Trash2 className="size-3.5" />
-                Eliminar
-              </Button>
-            );
-            return (
-              <li
-                key={row.id || row.name || title}
-                className="rounded-2xl border border-border bg-card p-5 shadow-soft"
-              >
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div className="min-w-0 space-y-2">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h2 className="font-display text-xl">{title}</h2>
-                      <Badge
-                        variant="outline"
-                        className={cn(
-                          "rounded-full px-2.5 py-0.5 text-[11px] font-medium",
-                          statusBadgeClassName(row.status),
-                        )}
-                      >
-                        {statusBadgeLabel(row.status || "")}
-                      </Badge>
-                      {row.isWabaDefault ? (
-                        <Badge className="rounded-full bg-gold-soft text-gold-foreground">
-                          Default
-                        </Badge>
-                      ) : null}
-                    </div>
-                    <p className="line-clamp-3 whitespace-pre-wrap text-sm text-muted-foreground">
-                      {row.body || "Sin cuerpo"}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {usage?.eventCount
-                        ? `${usage.eventCount} ${
-                            usage.eventCount === 1 ? "evento" : "eventos"
-                          }${eventNames.length ? `: ${eventNames.join(", ")}` : ""}`
-                        : "Ningún evento la usa"}
-                      {(usage?.campaignEventCount ?? 0) > 0
-                        ? ` · campaña en ${usage?.campaignEventCount}`
-                        : ""}
-                    </p>
-                  </div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <Button
-                      type="button"
-                      variant="outline"
-                      size="sm"
-                      onClick={() => openEdit(row)}
-                    >
-                      <Pencil className="size-3.5" />
-                      Ver/editar
-                    </Button>
-                    {canDelete ? (
-                      deleteButton
-                    ) : (
-                      <TooltipProvider>
-                        <Tooltip>
-                          <TooltipTrigger asChild>
-                            <span className="inline-flex">{deleteButton}</span>
-                          </TooltipTrigger>
-                          <TooltipContent className="max-w-xs">
-                            {LAST_WABA_DEFAULT_DELETE_HINT}
-                          </TooltipContent>
-                        </Tooltip>
-                      </TooltipProvider>
-                    )}
-                  </div>
-                </div>
-              </li>
-            );
-          })}
-        </ul>
-      )}
+      <Tabs
+        value={purpose}
+        onValueChange={(value) =>
+          setPurpose(normalizeTemplatePurpose(value))
+        }
+      >
+        <TabsList>
+          {TEMPLATE_PURPOSES.map((item) => (
+            <TabsTrigger key={item} value={item}>
+              {PURPOSE_TAB_LABEL[item]}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+        <p className="mt-2 text-sm text-muted-foreground">{PURPOSE_HINT[purpose]}</p>
+        {TEMPLATE_PURPOSES.map((item) => (
+          <TabsContent key={item} value={item} className="mt-4">
+            {item === purpose ? renderTemplateList(visibleTemplates) : null}
+          </TabsContent>
+        ))}
+      </Tabs>
 
       <WhatsAppTemplateWizardDialog
         open={wizardOpen}
@@ -348,7 +398,8 @@ function AccountWhatsappTemplatesPage() {
         guests={createGuests}
         event={createEvent}
         plannerName={plannerName}
-        accountTemplates={templates}
+        accountTemplates={templatesForPurpose(templates, purpose)}
+        purpose={purpose}
         onCreated={async () => {
           await load();
         }}

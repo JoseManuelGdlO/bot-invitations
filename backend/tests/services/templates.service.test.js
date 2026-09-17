@@ -161,7 +161,12 @@ describe("templates.service opening constructor", () => {
     );
     expect(models.EventWhatsappTemplate.findOne).toHaveBeenCalledWith({
       where: { eventId: "evt_1", isCampaign: true },
-      include: [{ model: models.WhatsappMessageTemplate, as: "template", required: true }],
+      include: [{
+        model: models.WhatsappMessageTemplate,
+        as: "template",
+        required: true,
+        where: { purpose: "invitation" },
+      }],
     });
     expect(getMessageTemplate).toHaveBeenCalledWith({
       accessToken: "tok",

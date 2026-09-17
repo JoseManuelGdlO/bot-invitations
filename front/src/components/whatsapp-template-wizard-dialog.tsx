@@ -47,6 +47,10 @@ import {
   type WizardPresetId,
 } from "@/lib/whatsapp-template-presets";
 import {
+  DEFAULT_TEMPLATE_PURPOSE,
+  normalizeTemplatePurpose,
+} from "@/lib/whatsapp-template-purpose";
+import {
   buildWizardFormData,
   canSubmitWizard,
   extraPlaceholderIds,
@@ -148,7 +152,11 @@ export function WhatsAppTemplateWizardDialog({
         const { templates } =
           await integrationsApi.listAccountWhatsappTemplates();
         if (cancelled) return;
-        const def = templates.find((row) => row.isWabaDefault);
+        const def = templates.find(
+          (row) =>
+            row.isWabaDefault &&
+            normalizeTemplatePurpose(row.purpose) === DEFAULT_TEMPLATE_PURPOSE,
+        );
         if (!def) return;
         const matched = matchWizardPreset(def.body || "");
         const headerType = asHeaderType(def.headerType);

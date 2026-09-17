@@ -46,6 +46,12 @@ import {
   type WizardPresetId,
 } from "@/lib/whatsapp-template-presets";
 import {
+  DEFAULT_TEMPLATE_PURPOSE,
+  normalizeTemplatePurpose,
+  showsInvitationPresets,
+  type WhatsappTemplatePurpose,
+} from "@/lib/whatsapp-template-purpose";
+import {
   needsHeaderFile,
   type WizardHeaderType,
 } from "@/lib/whatsapp-templates";
@@ -73,6 +79,7 @@ export function WhatsappEventTemplateCreateDialog({
   plannerName,
   accountTemplates,
   onCreated,
+  purpose = DEFAULT_TEMPLATE_PURPOSE,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -86,9 +93,10 @@ export function WhatsappEventTemplateCreateDialog({
   plannerName?: string | undefined;
   accountTemplates: AccountWhatsappTemplateDto[];
   onCreated: (template: EventWhatsappTemplateDto) => void;
+  purpose?: WhatsappTemplatePurpose;
 }) {
   const [draft, setDraft] = useState<EventTemplateCardDraft>(() =>
-    blankEventTemplateDraft(slot, false),
+    blankEventTemplateDraft(slot, false, purpose),
   );
   const [source, setSource] = useState<"blank" | "default">("blank");
   const [selectedPresetId, setSelectedPresetId] =
@@ -98,15 +106,20 @@ export function WhatsappEventTemplateCreateDialog({
   const selectedPreset = selectedPresetId
     ? wizardPresetById(selectedPresetId)
     : matchWizardPreset(draft.body);
-  const accountDefault = accountTemplates.find((item) => item.isWabaDefault);
+  const accountDefault = accountTemplates.find(
+    (item) =>
+      item.isWabaDefault &&
+      normalizeTemplatePurpose(item.purpose) === purpose,
+  );
+  const showInvitationPresets = showsInvitationPresets(purpose);
 
   useEffect(() => {
     if (!open) return;
-    setDraft(blankEventTemplateDraft(slot, false));
+    setDraft(blankEventTemplateDraft(slot, false, purpose));
     setSource("blank");
     setSelectedPresetId(null);
     setPendingPreset(null);
-  }, [open, slot]);
+  }, [open, slot, purpose]);
 
   const updateDraft = (patch: Partial<EventTemplateCardDraft>) => {
     setDraft((prev) => ({ ...prev, ...patch }));
@@ -178,6 +191,7 @@ export function WhatsappEventTemplateCreateDialog({
           headerType: draft.headerType,
           slotMappings: draft.slotMappings,
           headerFile: draft.headerFile,
+          purpose,
         }),
       );
       toast.success("Plantilla enviada a revisión");
@@ -230,21 +244,23 @@ export function WhatsappEventTemplateCreateDialog({
             <div className="space-y-2">
               <p className="text-sm font-medium">Preconfiguración</p>
               <div className="flex flex-wrap gap-2">
-                {WIZARD_PRESETS.map((preset) => (
-                  <Button
-                    key={preset.id}
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className={cn(
-                      "rounded-full",
-                      selectedPreset?.id === preset.id && "border-primary",
-                    )}
-                    onClick={() => requestPreset(preset)}
-                  >
-                    {preset.displayName}
-                  </Button>
-                ))}
+                {showInvitationPresets
+                  ? WIZARD_PRESETS.map((preset) => (
+                      <Button
+                        key={preset.id}
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className={cn(
+                          "rounded-full",
+                          selectedPreset?.id === preset.id && "border-primary",
+                        )}
+                        onClick={() => requestPreset(preset)}
+                      >
+                        {preset.displayName}
+                      </Button>
+                    ))
+                  : null}
                 {accountDefault ? (
                   <Button
                     type="button"

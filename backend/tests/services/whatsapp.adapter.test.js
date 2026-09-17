@@ -395,4 +395,22 @@ describe("whatsapp.adapter MetaCloudProvider", () => {
     expect(result.providerId).toBe("wamid.txt");
     expect(result.conversationStarted).toBe(false);
   });
+
+  test("reminder sin hsmTemplateName no cae a la campaña", async () => {
+    models.Event.findByPk.mockResolvedValue(fakeEvent());
+    models.Guest.findByPk.mockResolvedValue(fakeGuest({ status: "enviado" }));
+    models.Conversation.findOne.mockResolvedValue({ id: "conv_1", guestId: "gst_1" });
+    models.Message.findOne.mockResolvedValue({
+      from: "guest",
+      createdAt: new Date(Date.now() - 25 * 60 * 60 * 1000),
+    });
+    const provider = adapter.createWhatsAppProvider();
+    await expect(provider.sendMessage("6183218624", "Recordatorio", {
+      eventId: "evt_1",
+      guestId: "gst_1",
+      kind: "reminder",
+    })).rejects.toMatchObject({ status: 400 });
+    expect(resolveCampaignSendContext).not.toHaveBeenCalled();
+    expect(sendTemplateWithRetry).not.toHaveBeenCalled();
+  });
 });

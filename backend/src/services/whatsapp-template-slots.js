@@ -194,9 +194,17 @@ export function exampleValuesFromMappings(mappings) {
   });
 }
 
-export function generateTemplateName(slot) {
+const PURPOSE_NAME_PREFIX = {
+  invitation: "pc",
+  reminder: "rm",
+  followup: "sg",
+};
+
+export function generateTemplateName(slot, purpose = "invitation") {
   const hex = crypto.randomBytes(4).toString("hex");
-  return `alanna_pc_${hex}_${slot}`;
+  const key = String(purpose || "invitation").trim().toLowerCase();
+  const prefix = PURPOSE_NAME_PREFIX[key] || PURPOSE_NAME_PREFIX.invitation;
+  return `alanna_${prefix}_${hex}_${slot}`;
 }
 
 export function buildTemplateComponents({ headerType, headerHandle, bodyText, exampleValues }) {

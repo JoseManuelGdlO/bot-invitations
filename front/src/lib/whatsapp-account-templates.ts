@@ -1,9 +1,17 @@
+import {
+  DEFAULT_TEMPLATE_PURPOSE,
+  normalizeTemplatePurpose,
+  type WhatsappTemplatePurpose,
+} from "./whatsapp-template-purpose.ts";
+
 export const ACCOUNT_TEMPLATES_EMPTY_NEEDS_SETUP =
   "Conecta WhatsApp y completa el wizard";
 export const ACCOUNT_TEMPLATES_EMPTY_NONE = "Aún no hay plantillas";
+export const ACCOUNT_TEMPLATES_EMPTY_PURPOSE =
+  "Se crean al completar el wizard de invitación.";
 
 export const LAST_WABA_DEFAULT_DELETE_HINT =
-  "No se puede borrar la única plantilla default de la cuenta.";
+  "No se puede borrar la única plantilla default de esta categoría.";
 
 export const ACCOUNT_TEMPLATE_DELETE_META_COPY =
   "Se borra también en Meta y no se puede deshacer.";
@@ -11,6 +19,7 @@ export const ACCOUNT_TEMPLATE_DELETE_META_COPY =
 export type AccountTemplateLike = {
   id: string | null;
   isWabaDefault: boolean;
+  purpose?: string | null;
 };
 
 export type AccountTemplateUsage = {
@@ -24,7 +33,11 @@ export function isSoleWabaDefault(
   templates: AccountTemplateLike[],
 ): boolean {
   if (!template.isWabaDefault) return false;
-  const defaults = templates.filter((row) => row.isWabaDefault);
+  const purpose = normalizeTemplatePurpose(template.purpose);
+  const defaults = templates.filter(
+    (row) =>
+      row.isWabaDefault && normalizeTemplatePurpose(row.purpose) === purpose,
+  );
   if (defaults.length !== 1) return false;
   const only = defaults[0];
   if (!only) return false;
@@ -41,10 +54,11 @@ export function canDeleteAccountWhatsappTemplate(
 
 export function accountWhatsappTemplatesEmptyCopy(
   whatsappConfigured: boolean,
+  purpose: WhatsappTemplatePurpose = DEFAULT_TEMPLATE_PURPOSE,
 ): string {
-  return whatsappConfigured
-    ? ACCOUNT_TEMPLATES_EMPTY_NONE
-    : ACCOUNT_TEMPLATES_EMPTY_NEEDS_SETUP;
+  if (!whatsappConfigured) return ACCOUNT_TEMPLATES_EMPTY_NEEDS_SETUP;
+  if (purpose === DEFAULT_TEMPLATE_PURPOSE) return ACCOUNT_TEMPLATES_EMPTY_NONE;
+  return ACCOUNT_TEMPLATES_EMPTY_PURPOSE;
 }
 
 export function accountTemplateDeleteWarning(

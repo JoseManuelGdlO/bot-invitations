@@ -185,6 +185,11 @@ describe("whatsapp-template-slots", () => {
     expect(name).toMatch(/^alanna_pc_[a-f0-9]{8}_1$/);
   });
 
+  test("generateTemplateName usa prefijo por propósito", () => {
+    expect(generateTemplateName(1, "reminder")).toMatch(/^alanna_rm_[a-f0-9]{8}_1$/);
+    expect(generateTemplateName(2, "followup")).toMatch(/^alanna_sg_[a-f0-9]{8}_2$/);
+  });
+
   test("buildTemplateComponents BODY + header document", () => {
     const components = buildTemplateComponents({
       headerType: "document",

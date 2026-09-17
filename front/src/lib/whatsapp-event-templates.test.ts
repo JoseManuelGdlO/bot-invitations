@@ -313,6 +313,7 @@ test("buildCreateEventTemplateFormData manda source blank o default y header", (
         "1": { type: "field", key: "nombre" },
         "2": { type: "field", key: "numero_invitados" },
       },
+      purpose: "invitation",
     }),
   );
   assert.equal(blank.get("header"), null);
@@ -365,4 +366,47 @@ test("accountTemplateToDraft mapea biblioteca a tarjeta editable", () => {
   assert.equal(draft.isCampaign, false);
   assert.equal(draft.persisted, true);
   assert.equal(draft.body, OK_BODY);
+});
+
+test("draftsFromEventTemplates conserva purpose", () => {
+  const drafts = draftsFromEventTemplates([
+    {
+      id: "link_1",
+      slot: 1,
+      isCampaign: true,
+      slotMappings: {},
+      template: {
+        id: "tpl_rm",
+        name: "alanna_rm_1",
+        metaTemplateId: "meta_rm",
+        language: "es_MX",
+        category: "MARKETING",
+        headerType: "none",
+        headerFileName: null,
+        status: "PENDING",
+        rejectedReason: null,
+        body: OK_BODY,
+        displayName: "Recordatorio amable",
+        isWabaDefault: true,
+        purpose: "reminder",
+      },
+    },
+  ]);
+  assert.equal(drafts[0]?.purpose, "reminder");
+});
+
+test("buildCreateEventTemplateFormData incluye purpose", () => {
+  const form = buildCreateEventTemplateFormData({
+    source: "blank",
+    displayName: "Recordatorio amable",
+    body: OK_BODY,
+    headerType: "none",
+    slotMappings: {
+      "1": { type: "field", key: "nombre" },
+      "2": { type: "field", key: "numero_invitados" },
+    },
+    purpose: "reminder",
+  });
+  const payload = JSON.parse(String(form.get("payload")));
+  assert.equal(payload.purpose, "reminder");
 });

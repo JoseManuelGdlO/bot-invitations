@@ -43,6 +43,12 @@ const LOCKED_MAPPINGS = {
   "1": { type: "field", key: "nombre" },
   "2": { type: "field", key: "numero_invitados" },
 };
+const REMINDER_BODY =
+  "Hola {{1}}, ¿pudiste revisar la invitación? Reservamos {{2}} pases a tu nombre. Nos encantaría contar contigo el {{3}}, por favor.";
+const REMINDER_MAPPINGS = {
+  ...LOCKED_MAPPINGS,
+  "3": { type: "field", key: "fecha" },
+};
 
 async function loadWizardService(graph = {}) {
   const createMessageTemplate = graph.createMessageTemplate
@@ -78,14 +84,18 @@ async function loadWizardService(graph = {}) {
   const { mod, models } = await loadWithMocks("src/services/whatsapp-templates.service.js", {
     extraMocks,
   });
-  models.WhatsappMessageTemplate.create.mockImplementation(async (row) => ({
-    ...row,
-    id: "tpl_1",
-    update: jest.fn(async function update(patch) {
-      Object.assign(this, patch);
-      return this;
-    }),
-  }));
+  let createdTemplates = 0;
+  models.WhatsappMessageTemplate.create.mockImplementation(async (row) => {
+    createdTemplates += 1;
+    return {
+      ...row,
+      id: `tpl_${createdTemplates}`,
+      update: jest.fn(async function update(patch) {
+        Object.assign(this, patch);
+        return this;
+      }),
+    };
+  });
   models.EventWhatsappTemplate.create.mockImplementation(async (row) => row);
   return {
     mod,
@@ -150,7 +160,7 @@ async function loadLibraryService(graph = {}) {
       "src/services/meta-graph.client.js": () => ({
         resolveTemplateCrudToken,
         ensurePlatformCanManageWaba: jest.fn(),
-        createMessageTemplate: graph.createMessageTemplate || jest.fn(),
+        createMessageTemplate: graph.createMessageTemplate || jest.fn(async () => ({ id: "meta_purpose" })),
         updateMessageTemplate: graph.updateMessageTemplate || jest.fn(),
         uploadResumableHeader: graph.uploadResumableHeader || jest.fn(),
         deleteMessageTemplate,
@@ -185,6 +195,7 @@ function existingDefault(overrides = {}) {
     name: "alanna_pc_aaaa1111_1",
     status: "PENDING",
     isWabaDefault: true,
+    purpose: "invitation",
     headerType: "none",
     language: "es_MX",
     category: "MARKETING",
@@ -200,6 +211,29 @@ function existingDefault(overrides = {}) {
     }),
     ...overrides,
   };
+}
+
+function purposeDefaultExtras() {
+  return [
+    existingDefault({
+      id: "tpl_rm_default",
+      purpose: "reminder",
+      name: "alanna_rm_default_1",
+      metaTemplateId: "meta_rm_default",
+      displayName: "Recordatorio amable",
+    }),
+    existingDefault({
+      id: "tpl_sg_default",
+      purpose: "followup",
+      name: "alanna_sg_default_1",
+      metaTemplateId: "meta_sg_default",
+      displayName: "Recontacto a indecisos",
+    }),
+  ];
+}
+
+function withAccountPurposeDefaults(invitation = existingDefault()) {
+  return [invitation, ...purposeDefaultExtras()];
 }
 
 test("wizard crea una HSM PENDING isWabaDefault y attach a todos los eventos del owner", async () => {
@@ -229,7 +263,7 @@ test("wizard crea una HSM PENDING isWabaDefault y attach a todos los eventos del
   });
 
   expect(resolveTemplateCrudToken).toHaveBeenCalledWith("planner");
-  expect(createMessageTemplate).toHaveBeenCalledTimes(1);
+  expect(createMessageTemplate).toHaveBeenCalledTimes(3);
   expect(createMessageTemplate).toHaveBeenCalledWith(expect.objectContaining({ token: "planner" }));
   expect(ensurePlatformCanManageWaba).not.toHaveBeenCalled();
   const payload = createMessageTemplate.mock.calls[0][0].payload;
@@ -243,6 +277,7 @@ test("wizard crea una HSM PENDING isWabaDefault y attach a todos los eventos del
       metaTemplateId: "meta_1",
       status: "PENDING",
       isWabaDefault: true,
+      purpose: "invitation",
       headerType: "none",
     }),
   );
@@ -250,7 +285,7 @@ test("wizard crea una HSM PENDING isWabaDefault y attach a todos los eventos del
   expect(created.displayName).toBe("Invitación formal");
   expect(payload).not.toHaveProperty("displayName");
   expect(models.Event.findOne).not.toHaveBeenCalled();
-  expect(models.EventWhatsappTemplate.create).toHaveBeenCalledTimes(2);
+  expect(models.EventWhatsappTemplate.create).toHaveBeenCalledTimes(6);
   expect(models.EventWhatsappTemplate.create).toHaveBeenCalledWith(
     expect.objectContaining({
       eventId: "evt_old",
@@ -281,7 +316,7 @@ test("wizard actualiza en Meta si ya hay default y el body o header cambiaron", 
     mockFs: true,
   });
   const existing = existingDefault({ status: "APPROVED" });
-  models.WhatsappMessageTemplate.findAll.mockResolvedValue([existing]);
+  models.WhatsappMessageTemplate.findAll.mockResolvedValue(withAccountPurposeDefaults(existing));
   models.Event.findAll.mockResolvedValue([fakeEvent({ id: "evt_1", ownerId: "usr_1" })]);
   models.EventWhatsappTemplate.findAll.mockResolvedValue([]);
 
@@ -324,7 +359,7 @@ test("wizard no llama a Graph si ya hay default con el mismo body y header", asy
   const { mod, models, createMessageTemplate, updateMessageTemplate, uploadResumableHeader } =
     await loadWizardService();
   const existing = existingDefault();
-  models.WhatsappMessageTemplate.findAll.mockResolvedValue([existing]);
+  models.WhatsappMessageTemplate.findAll.mockResolvedValue(withAccountPurposeDefaults(existing));
   models.Event.findAll.mockResolvedValue([
     fakeEvent({ id: "evt_a", ownerId: "usr_1" }),
     fakeEvent({ id: "evt_b", ownerId: "usr_1" }),
@@ -345,7 +380,7 @@ test("wizard no llama a Graph si ya hay default con el mismo body y header", asy
   expect(uploadResumableHeader).not.toHaveBeenCalled();
   expect(models.WhatsappMessageTemplate.create).not.toHaveBeenCalled();
   expect(existing.update).not.toHaveBeenCalled();
-  expect(models.EventWhatsappTemplate.create).toHaveBeenCalledTimes(2);
+  expect(models.EventWhatsappTemplate.create).toHaveBeenCalledTimes(6);
   expect(models.EventWhatsappTemplate.update).toHaveBeenCalledWith(
     { slotMappings: LOCKED_MAPPINGS },
     { where: { whatsappMessageTemplateId: existing.id } },
@@ -359,7 +394,7 @@ test("wizard persiste displayName al actualizar el default en Meta", async () =>
     updateMessageTemplate,
   });
   const existing = existingDefault({ status: "APPROVED", displayName: "Viejo" });
-  models.WhatsappMessageTemplate.findAll.mockResolvedValue([existing]);
+  models.WhatsappMessageTemplate.findAll.mockResolvedValue(withAccountPurposeDefaults(existing));
   models.Event.findAll.mockResolvedValue([]);
   models.EventWhatsappTemplate.findAll.mockResolvedValue([]);
 
@@ -383,7 +418,7 @@ test("wizard persiste displayName al actualizar el default en Meta", async () =>
 test("wizard persiste displayName aunque el body y header no cambien", async () => {
   const { mod, models, createMessageTemplate, updateMessageTemplate } = await loadWizardService();
   const existing = existingDefault({ displayName: null });
-  models.WhatsappMessageTemplate.findAll.mockResolvedValue([existing]);
+  models.WhatsappMessageTemplate.findAll.mockResolvedValue(withAccountPurposeDefaults(existing));
   models.Event.findAll.mockResolvedValue([]);
   models.EventWhatsappTemplate.findAll.mockResolvedValue([]);
 
@@ -460,7 +495,7 @@ test("wizard actualiza en Meta si el body es igual pero cambian los slotMappings
       example: { body_text: [["María", "2", "evento", "fecha", "lugar"]] },
     }],
   });
-  models.WhatsappMessageTemplate.findAll.mockResolvedValue([existing]);
+  models.WhatsappMessageTemplate.findAll.mockResolvedValue(withAccountPurposeDefaults(existing));
   models.Event.findAll.mockResolvedValue([fakeEvent({ id: "evt_1", ownerId: "usr_1" })]);
   models.EventWhatsappTemplate.findAll.mockResolvedValue([]);
 
@@ -499,9 +534,9 @@ test("wizard adjunta el default a 3 eventos sin campaña con una sola HSM", asyn
     slotMappings: LOCKED_MAPPINGS,
   });
 
-  expect(createMessageTemplate).toHaveBeenCalledTimes(1);
-  expect(models.WhatsappMessageTemplate.create).toHaveBeenCalledTimes(1);
-  expect(models.EventWhatsappTemplate.create).toHaveBeenCalledTimes(3);
+  expect(createMessageTemplate).toHaveBeenCalledTimes(3);
+  expect(models.WhatsappMessageTemplate.create).toHaveBeenCalledTimes(3);
+  expect(models.EventWhatsappTemplate.create).toHaveBeenCalledTimes(9);
   for (const eventId of ["evt_1", "evt_2", "evt_3"]) {
     expect(models.EventWhatsappTemplate.create).toHaveBeenCalledWith(
       expect.objectContaining({
@@ -546,8 +581,8 @@ test("wizard no pisa un vínculo de campaña personalizado y sí adjunta a los d
     slotMappings: LOCKED_MAPPINGS,
   });
 
-  expect(createMessageTemplate).toHaveBeenCalledTimes(1);
-  expect(models.EventWhatsappTemplate.create).toHaveBeenCalledTimes(2);
+  expect(createMessageTemplate).toHaveBeenCalledTimes(3);
+  expect(models.EventWhatsappTemplate.create).toHaveBeenCalledTimes(8);
   expect(models.EventWhatsappTemplate.create).toHaveBeenCalledWith(
     expect.objectContaining({
       eventId: "evt_bare",
@@ -565,7 +600,10 @@ test("wizard no pisa un vínculo de campaña personalizado y sí adjunta a los d
     }),
   );
   expect(models.EventWhatsappTemplate.create).not.toHaveBeenCalledWith(
-    expect.objectContaining({ eventId: "evt_custom" }),
+    expect.objectContaining({
+      eventId: "evt_custom",
+      whatsappMessageTemplateId: "tpl_1",
+    }),
   );
 });
 
@@ -594,7 +632,7 @@ test("wizard refresca slotMappings de pivots del default y no toca forks", async
     slotMappings: LOCKED_MAPPINGS,
     update: jest.fn(),
   };
-  models.WhatsappMessageTemplate.findAll.mockResolvedValue([existing]);
+  models.WhatsappMessageTemplate.findAll.mockResolvedValue(withAccountPurposeDefaults(existing));
   models.Event.findAll.mockResolvedValue([
     fakeEvent({ id: "evt_campaign", ownerId: "usr_1" }),
     fakeEvent({ id: "evt_fork", ownerId: "usr_1" }),
@@ -621,7 +659,7 @@ test("wizard refresca slotMappings de pivots del default y no toca forks", async
     expect.objectContaining({ where: { whatsappMessageTemplateId: "tpl_fork" } }),
   );
   expect(forkPivot.update).not.toHaveBeenCalled();
-  expect(models.EventWhatsappTemplate.create).toHaveBeenCalledTimes(1);
+  expect(models.EventWhatsappTemplate.create).toHaveBeenCalledTimes(7);
   expect(models.EventWhatsappTemplate.create).toHaveBeenCalledWith(
     expect.objectContaining({
       eventId: "evt_bare",
@@ -632,10 +670,16 @@ test("wizard refresca slotMappings de pivots del default y no toca forks", async
     }),
   );
   expect(models.EventWhatsappTemplate.create).not.toHaveBeenCalledWith(
-    expect.objectContaining({ eventId: "evt_campaign" }),
+    expect.objectContaining({
+      eventId: "evt_campaign",
+      whatsappMessageTemplateId: existing.id,
+    }),
   );
   expect(models.EventWhatsappTemplate.create).not.toHaveBeenCalledWith(
-    expect.objectContaining({ eventId: "evt_fork" }),
+    expect.objectContaining({
+      eventId: "evt_fork",
+      whatsappMessageTemplateId: existing.id,
+    }),
   );
 });
 
@@ -658,7 +702,11 @@ test("wizard edita el default con más pivots de campaña aunque sea más nuevo"
     status: "APPROVED",
     createdAt: new Date("2026-06-01"),
   });
-  models.WhatsappMessageTemplate.findAll.mockResolvedValue([older, newer]);
+  models.WhatsappMessageTemplate.findAll.mockResolvedValue([
+    older,
+    newer,
+    ...purposeDefaultExtras(),
+  ]);
   models.EventWhatsappTemplate.count.mockImplementation(async ({ where } = {}) => {
     if (where?.whatsappMessageTemplateId === "tpl_new") return 3;
     if (where?.whatsappMessageTemplateId === "tpl_old") return 1;
@@ -700,7 +748,11 @@ test("wizard desempata defaults con el mismo uso de campaña eligiendo el más a
     status: "APPROVED",
     createdAt: new Date("2026-06-01"),
   });
-  models.WhatsappMessageTemplate.findAll.mockResolvedValue([older, newer]);
+  models.WhatsappMessageTemplate.findAll.mockResolvedValue([
+    older,
+    newer,
+    ...purposeDefaultExtras(),
+  ]);
   models.EventWhatsappTemplate.count.mockResolvedValue(2);
   models.Event.findAll.mockResolvedValue([]);
 
@@ -794,7 +846,7 @@ test("wizard conserva la fila local si Graph rechaza el update", async () => {
   const updateMessageTemplate = jest.fn().mockRejectedValue(graphError);
   const { mod, models } = await loadWizardService({ updateMessageTemplate });
   const existing = existingDefault({ status: "APPROVED" });
-  models.WhatsappMessageTemplate.findAll.mockResolvedValue([existing]);
+  models.WhatsappMessageTemplate.findAll.mockResolvedValue(withAccountPurposeDefaults(existing));
   models.Event.findAll.mockResolvedValue([fakeEvent({ id: "evt_1", ownerId: "usr_1" })]);
   models.EventWhatsappTemplate.findAll.mockResolvedValue([]);
 
@@ -833,11 +885,11 @@ test("wizard acepta templates[] de un item como payload de compatibilidad", asyn
     }],
   });
 
-  expect(createMessageTemplate).toHaveBeenCalledTimes(1);
+  expect(createMessageTemplate).toHaveBeenCalledTimes(3);
   expect(Array.isArray(out)).toBe(false);
   expect(out.template).toMatchObject({ id: "tpl_1", isWabaDefault: true });
   expect(models.Event.findOne).not.toHaveBeenCalled();
-  expect(models.EventWhatsappTemplate.create).toHaveBeenCalledTimes(2);
+  expect(models.EventWhatsappTemplate.create).toHaveBeenCalledTimes(6);
 });
 
 test("wizard ignora headerFile cuando headerType es none", async () => {
@@ -863,7 +915,7 @@ test("wizard ignora headerFile cuando headerType es none", async () => {
     slotMappings: LOCKED_MAPPINGS,
   });
 
-  expect(createMessageTemplate).toHaveBeenCalledTimes(1);
+  expect(createMessageTemplate).toHaveBeenCalledTimes(3);
   expect(uploadResumableHeader).not.toHaveBeenCalled();
   expect(models.WhatsappMessageTemplate.create).toHaveBeenCalledWith(
     expect.objectContaining({
@@ -878,7 +930,7 @@ test("wizard ignora headerFile cuando headerType es none", async () => {
 test("wizard reintenta una vez con un nombre nuevo cuando Graph reporta duplicado", async () => {
   const createMessageTemplate = jest.fn()
     .mockRejectedValueOnce(new Error("Template already exists"))
-    .mockResolvedValueOnce({ id: "meta_2" });
+    .mockResolvedValue({ id: "meta_2" });
   const { mod } = await loadWizardService({
     createMessageTemplate,
     resolveTemplateCrudToken: () => "sys_tok",
@@ -893,7 +945,7 @@ test("wizard reintenta una vez con un nombre nuevo cuando Graph reporta duplicad
     slotMappings: LOCKED_MAPPINGS,
   });
 
-  expect(createMessageTemplate).toHaveBeenCalledTimes(2);
+  expect(createMessageTemplate).toHaveBeenCalledTimes(4);
   expect(createMessageTemplate.mock.calls[1][0].payload.name)
     .not.toBe(createMessageTemplate.mock.calls[0][0].payload.name);
 });
@@ -1062,7 +1114,7 @@ test("evento con sólo default 2 en slot 2 adjunta default 1 en slot 1 sin llama
     eventId: "evt_first",
     whatsappMessageTemplateId: "tpl_default_1",
     ownerUserId: "usr_1",
-    slot: 1,
+    slot: 3,
     isCampaign: true,
     slotMappings: {},
   });
@@ -1071,7 +1123,7 @@ test("evento con sólo default 2 en slot 2 adjunta default 1 en slot 1 sin llama
     cloned: false,
     links: [existingLink, expect.objectContaining({
       whatsappMessageTemplateId: "tpl_default_1",
-      slot: 1,
+      slot: 3,
     })],
   });
 });
@@ -1124,7 +1176,7 @@ test("segundo evento adjunta el mismo tpl_origin sin createMessageTemplate", asy
     expect.objectContaining({
       eventId: "evt_second",
       whatsappMessageTemplateId: "tpl_origin",
-      slot: 2,
+      slot: 1,
       isCampaign: true,
       slotMappings: sourceLink.slotMappings,
     }),
@@ -1339,7 +1391,10 @@ test("ensure marca como default la APPROVED más antigua del WABA actual y la ad
   expect(createMessageTemplate).not.toHaveBeenCalled();
   expect(models.WhatsappMessageTemplate.create).not.toHaveBeenCalled();
   expect(models.WhatsappMessageTemplate.destroy).not.toHaveBeenCalled();
-  expect(oldestApproved.update).toHaveBeenCalledWith({ isWabaDefault: true });
+  expect(oldestApproved.update).toHaveBeenCalledWith({
+    isWabaDefault: true,
+    purpose: "invitation",
+  });
   expect(rejected.update).not.toHaveBeenCalled();
   expect(newerApproved.update).not.toHaveBeenCalled();
   expect(models.EventWhatsappTemplate.create).toHaveBeenCalledWith(
@@ -1383,7 +1438,10 @@ test("ensure marca como default la PENDING más antigua si no hay APPROVED", asy
   );
 
   expect(createMessageTemplate).not.toHaveBeenCalled();
-  expect(pending.update).toHaveBeenCalledWith({ isWabaDefault: true });
+  expect(pending.update).toHaveBeenCalledWith({
+    isWabaDefault: true,
+    purpose: "invitation",
+  });
   expect(models.EventWhatsappTemplate.create).toHaveBeenCalledWith(
     expect.objectContaining({
       eventId: "evt_new",
@@ -1728,7 +1786,7 @@ test("submit hace copy-on-write cuando dos pivots comparten plantilla", async ()
   expect(result.id).toBe("tpl_clone");
 });
 
-test("setCampaignSlot desmarca el slot anterior y marca el solicitado", async () => {
+test("setCampaignSlot desmarca el slot anterior del mismo propósito", async () => {
   const { mod, models } = await loadWithMocks("src/services/whatsapp-templates.service.js", {
     extraMocks: {
       "src/services/meta-graph.client.js": () => ({
@@ -1741,19 +1799,29 @@ test("setCampaignSlot desmarca el slot anterior y marca el solicitado", async ()
       }),
     },
   });
+  const target = {
+    id: "link_2",
+    slot: 2,
+    template: { purpose: "invitation" },
+    update: jest.fn(async function update(patch) {
+      Object.assign(this, patch);
+      return this;
+    }),
+  };
+  models.EventWhatsappTemplate.findOne.mockResolvedValue(target);
+  models.EventWhatsappTemplate.findAll.mockResolvedValue([
+    { id: "link_1", template: { purpose: "invitation" } },
+    target,
+    { id: "link_rm", template: { purpose: "reminder" } },
+  ]);
 
   await mod.setCampaignSlot({ eventId: "evt_1", slot: 2 });
 
-  expect(models.EventWhatsappTemplate.update).toHaveBeenNthCalledWith(
-    1,
+  expect(models.EventWhatsappTemplate.update).toHaveBeenCalledWith(
     { isCampaign: false },
-    { where: { eventId: "evt_1" } },
+    { where: { id: ["link_1", "link_2"] } },
   );
-  expect(models.EventWhatsappTemplate.update).toHaveBeenNthCalledWith(
-    2,
-    { isCampaign: true },
-    { where: { eventId: "evt_1", slot: 2 } },
-  );
+  expect(target.update).toHaveBeenCalledWith({ isCampaign: true });
 });
 
 test("submit conserva el status previo cuando Graph falla", async () => {
@@ -2075,7 +2143,7 @@ test("resolveOwnerCampaignSendContext usa la campaña más reciente del WABA act
         model: models.WhatsappMessageTemplate,
         as: "template",
         required: true,
-        where: { wabaId: "waba_new" },
+        where: { wabaId: "waba_new", purpose: "invitation" },
       },
     ],
     order: [[{ model: models.Event }, "createdAt", "DESC"]],
@@ -2135,7 +2203,10 @@ test("listOwnerTemplates serializa usage del WABA actual", async () => {
     isWabaDefault: true,
     createdAt: new Date("2026-01-02T00:00:00.000Z"),
   });
-  models.WhatsappMessageTemplate.findAll.mockResolvedValue([row]);
+  models.WhatsappMessageTemplate.findAll.mockImplementation(async ({ where } = {}) => {
+    if (where?.isWabaDefault === true) return withAccountPurposeDefaults(row);
+    return [row];
+  });
   models.EventWhatsappTemplate.findAll.mockResolvedValue([
     {
       whatsappMessageTemplateId: "tpl_1",
@@ -2190,7 +2261,10 @@ test("listOwnerTemplates incluye slotMappings de cualquier pivot", async () => {
     "4": { type: "field", key: "fecha" },
     "5": { type: "field", key: "lugar" },
   };
-  models.WhatsappMessageTemplate.findAll.mockResolvedValue([row]);
+  models.WhatsappMessageTemplate.findAll.mockImplementation(async ({ where } = {}) => {
+    if (where?.isWabaDefault === true) return withAccountPurposeDefaults(row);
+    return [row];
+  });
   models.EventWhatsappTemplate.findAll.mockResolvedValue([
     {
       whatsappMessageTemplateId: "tpl_1",
@@ -2235,7 +2309,10 @@ test("listOwnerTemplates promueve la APPROVED más antigua si no hay isWabaDefau
 
   const listed = await mod.listOwnerTemplates("usr_1");
 
-  expect(oldestApproved.update).toHaveBeenCalledWith({ isWabaDefault: true });
+  expect(oldestApproved.update).toHaveBeenCalledWith({
+    isWabaDefault: true,
+    purpose: "invitation",
+  });
   expect(newerApproved.update).not.toHaveBeenCalled();
   expect(listed.map((row) => row.id)).toEqual(["tpl_approved_old", "tpl_approved_new"]);
 });
@@ -2449,6 +2526,7 @@ test("createEventCustomTemplate blank crea HSM propia en el siguiente slot", asy
       language: "es_MX",
       category: "MARKETING",
       status: "PENDING",
+      purpose: "invitation",
     }),
   );
   expect(models.EventWhatsappTemplate.create).toHaveBeenCalledWith(
@@ -2575,6 +2653,72 @@ test("createEventCustomTemplate rechaza el tope de 10 vínculos", async () => {
   expect(createMessageTemplate).not.toHaveBeenCalled();
   expect(models.WhatsappMessageTemplate.create).not.toHaveBeenCalled();
   expect(models.EventWhatsappTemplate.create).not.toHaveBeenCalled();
+});
+
+test("createEventCustomTemplate cuenta el tope de 10 por propósito", async () => {
+  const { mod, models, createMessageTemplate } = await loadEventCustomService();
+  models.EventWhatsappTemplate.findAll.mockResolvedValue(
+    Array.from({ length: 10 }, (_, index) => ({
+      slot: index + 1,
+      template: { purpose: "invitation" },
+    })),
+  );
+
+  const result = await mod.createEventCustomTemplate({
+    eventId: "evt_1",
+    ownerUserId: "usr_1",
+    source: "blank",
+    purpose: "reminder",
+    body: REMINDER_BODY,
+    headerType: "none",
+    slotMappings: REMINDER_MAPPINGS,
+  });
+
+  expect(createMessageTemplate).toHaveBeenCalledTimes(1);
+  expect(models.WhatsappMessageTemplate.create).toHaveBeenCalledWith(
+    expect.objectContaining({ purpose: "reminder" }),
+  );
+  expect(models.EventWhatsappTemplate.create).toHaveBeenCalledWith(
+    expect.objectContaining({ slot: 11, isCampaign: false }),
+  );
+  expect(result.template.purpose).toBe("reminder");
+});
+
+test("createEventCustomTemplate default usa la HSM del mismo propósito", async () => {
+  const { mod, models } = await loadEventCustomService();
+  const origin = existingDefault({
+    id: "tpl_rm_origin",
+    purpose: "reminder",
+    displayName: "Recordatorio amable",
+    wabaId: "waba_1",
+    ownerUserId: "usr_1",
+    components: [{ type: "BODY", text: REMINDER_BODY }],
+  });
+  models.WhatsappMessageTemplate.findAll.mockResolvedValue([
+    existingDefault({ id: "tpl_inv", wabaId: "waba_1", ownerUserId: "usr_1" }),
+    origin,
+  ]);
+  models.EventWhatsappTemplate.findAll.mockResolvedValue([{ slot: 1 }]);
+  models.EventWhatsappTemplate.findOne.mockResolvedValue({
+    whatsappMessageTemplateId: "tpl_rm_origin",
+    slotMappings: REMINDER_MAPPINGS,
+  });
+
+  await mod.createEventCustomTemplate({
+    eventId: "evt_1",
+    ownerUserId: "usr_1",
+    source: "default",
+    purpose: "reminder",
+    displayName: "Copia recordatorio",
+  });
+
+  expect(models.WhatsappMessageTemplate.create).toHaveBeenCalledWith(
+    expect.objectContaining({
+      purpose: "reminder",
+      clonedFromId: "tpl_rm_origin",
+      displayName: "Copia recordatorio",
+    }),
+  );
 });
 
 test("attachEventTemplate vincula sin clonar y rechaza el mismo templateId", async () => {
@@ -3050,6 +3194,31 @@ test("submitOwnerCustomTemplate rechaza el default de cuenta", async () => {
   expect(updateMessageTemplate).not.toHaveBeenCalled();
 });
 
+test("submitOwnerCustomTemplate permite editar el default de reminder", async () => {
+  const { mod, models, updateMessageTemplate } = await loadOwnerCustomSubmitService();
+  const template = ownerCustomTemplate({
+    isWabaDefault: true,
+    purpose: "reminder",
+    displayName: "Recordatorio amable",
+    components: [{ type: "BODY", text: REMINDER_BODY }],
+  });
+  models.WhatsappMessageTemplate.findOne.mockResolvedValue(template);
+  models.EventWhatsappTemplate.findAll.mockResolvedValue([]);
+
+  await mod.submitOwnerCustomTemplate({
+    ownerUserId: "usr_1",
+    templateId: "tpl_custom",
+    body: REMINDER_BODY,
+    headerType: "none",
+    slotMappings: REMINDER_MAPPINGS,
+  });
+
+  expect(updateMessageTemplate).toHaveBeenCalled();
+  expect(template.update).toHaveBeenCalledWith(expect.objectContaining({
+    displayName: "Recordatorio amable",
+  }));
+});
+
 test("submitOwnerCustomTemplate 404 si la plantilla no es del owner/WABA", async () => {
   const { mod, models } = await loadOwnerCustomSubmitService();
   models.WhatsappMessageTemplate.findOne.mockResolvedValue(null);
@@ -3091,3 +3260,114 @@ test("submitOwnerCustomTemplate crea en Meta si aún no tiene metaTemplateId", a
     status: "PENDING",
   }));
 });
+
+test("wizard crea defaults de reminder y followup después de la invitación", async () => {
+  const { mod, models, createMessageTemplate } = await loadWizardService();
+  models.Event.findAll.mockResolvedValue([
+    fakeEvent({ id: "evt_1", ownerId: "usr_1" }),
+  ]);
+  models.EventWhatsappTemplate.findAll.mockResolvedValue([]);
+  let created = 0;
+  models.WhatsappMessageTemplate.create.mockImplementation(async (row) => {
+    created += 1;
+    return {
+      ...row,
+      id: `tpl_${created}`,
+      update: jest.fn(async function update(patch) {
+        Object.assign(this, patch);
+        return this;
+      }),
+    };
+  });
+
+  await mod.createWizardTemplates({
+    ownerUserId: "usr_1",
+    wabaId: "waba_1",
+    plannerAccessToken: "planner",
+    displayName: "Invitación formal",
+    headerType: "none",
+    body: WIZARD_BODY,
+    slotMappings: LOCKED_MAPPINGS,
+  });
+
+  expect(createMessageTemplate).toHaveBeenCalledTimes(3);
+  const purposes = models.WhatsappMessageTemplate.create.mock.calls.map(
+    (call) => call[0].purpose,
+  );
+  expect(purposes).toEqual(["invitation", "reminder", "followup"]);
+  expect(models.EventWhatsappTemplate.create).toHaveBeenCalledTimes(3);
+});
+
+test("ensurePurposeDefaults es idempotente si ya existen reminder y followup", async () => {
+  const { mod, models, createMessageTemplate } = await loadWizardService();
+  const reminder = existingDefault({
+    id: "tpl_rm",
+    purpose: "reminder",
+    displayName: "Recordatorio amable",
+    components: [{
+      type: "BODY",
+      text: "Hola {{1}}, ¿pudiste revisar la invitación? Reservamos {{2}} pases a tu nombre. Nos encantaría contar contigo el {{3}}, por favor.",
+    }],
+  });
+  const followup = existingDefault({
+    id: "tpl_sg",
+    purpose: "followup",
+    displayName: "Recontacto a indecisos",
+    components: [{
+      type: "BODY",
+      text: "Hola {{1}}, te escribo de nuevo por {{3}} del {{4}}. Reservamos {{2}} pases a tu nombre. ¿Ya pudieron confirmar si nos acompañan?",
+    }],
+  });
+  models.WhatsappMessageTemplate.findAll.mockResolvedValue([
+    existingDefault(),
+    reminder,
+    followup,
+  ]);
+  models.Event.findAll.mockResolvedValue([]);
+
+  await mod.ensurePurposeDefaults({
+    ownerUserId: "usr_1",
+    wabaId: "waba_1",
+    token: "planner",
+  });
+
+  expect(createMessageTemplate).not.toHaveBeenCalled();
+  expect(models.WhatsappMessageTemplate.create).not.toHaveBeenCalled();
+});
+
+test("resolveCampaignSendContext ignora un reminder marcado isCampaign", async () => {
+  const { mod, models } = await loadWithMocks("src/services/whatsapp-templates.service.js");
+  const invitation = {
+    eventId: "evt_1",
+    isCampaign: true,
+    slotMappings: LOCKED_MAPPINGS,
+    template: {
+      id: "tpl_inv",
+      name: "alanna_pc_1",
+      status: "APPROVED",
+      headerType: "none",
+      purpose: "invitation",
+      components: [{ type: "BODY", text: WIZARD_BODY }],
+    },
+  };
+  const reminder = {
+    eventId: "evt_1",
+    isCampaign: true,
+    slotMappings: LOCKED_MAPPINGS,
+    template: {
+      id: "tpl_rm",
+      name: "alanna_rm_1",
+      status: "APPROVED",
+      headerType: "none",
+      purpose: "reminder",
+    },
+  };
+  models.EventWhatsappTemplate.findAll.mockResolvedValue([reminder, invitation]);
+  models.WhatsappMessageTemplate.findAll.mockResolvedValue([]);
+
+  const context = await mod.resolveCampaignSendContext(
+    fakeEvent({ id: "evt_1", ownerId: "usr_1" }),
+  );
+  expect(context.hsmTemplateName).toBe("alanna_pc_1");
+});
+

@@ -6,6 +6,7 @@ import {
   WhatsappMessageTemplate,
   sequelize,
   ensureWhatsappTemplateDisplayName,
+  ensureWhatsappTemplatePurpose,
 } from "../../src/models/index.js";
 import {
   displayNameOrPreview,
@@ -17,6 +18,56 @@ describe("createModelsBundle whatsapp templates", () => {
     const models = createModelsBundle();
     expect(models.WhatsappMessageTemplate.create).toEqual(expect.any(Function));
     expect(models.EventWhatsappTemplate.create).toEqual(expect.any(Function));
+  });
+});
+
+describe("WhatsappMessageTemplate.purpose", () => {
+  test("es STRING(20) required con default invitation", () => {
+    const attr = WhatsappMessageTemplate.rawAttributes.purpose;
+    expect(attr).toBeDefined();
+    expect(attr.type).toBeInstanceOf(DataTypes.STRING);
+    expect(attr.type.options.length).toBe(20);
+    expect(attr.allowNull).toBe(false);
+    expect(attr.defaultValue).toBe("invitation");
+  });
+});
+
+describe("ensureWhatsappTemplatePurpose", () => {
+  test("hace addColumn si la tabla existe y falta purpose", async () => {
+    const qi = sequelize.getQueryInterface();
+    const describeTable = jest.spyOn(qi, "describeTable").mockResolvedValue({
+      id: { type: "CHAR(36)" },
+    });
+    const addColumn = jest.spyOn(qi, "addColumn").mockResolvedValue();
+    try {
+      await ensureWhatsappTemplatePurpose();
+      expect(describeTable).toHaveBeenCalledWith("whatsapp_message_templates");
+      expect(addColumn).toHaveBeenCalledTimes(1);
+      expect(addColumn.mock.calls[0][0]).toBe("whatsapp_message_templates");
+      expect(addColumn.mock.calls[0][1]).toBe("purpose");
+      const spec = addColumn.mock.calls[0][2];
+      expect(spec.allowNull).toBe(false);
+      expect(spec.defaultValue).toBe("invitation");
+      expect(spec.type.options.length).toBe(20);
+    } finally {
+      describeTable.mockRestore();
+      addColumn.mockRestore();
+    }
+  });
+
+  test("no llama addColumn si purpose ya existe", async () => {
+    const qi = sequelize.getQueryInterface();
+    const describeTable = jest.spyOn(qi, "describeTable").mockResolvedValue({
+      purpose: { type: "VARCHAR(20)" },
+    });
+    const addColumn = jest.spyOn(qi, "addColumn").mockResolvedValue();
+    try {
+      await ensureWhatsappTemplatePurpose();
+      expect(addColumn).not.toHaveBeenCalled();
+    } finally {
+      describeTable.mockRestore();
+      addColumn.mockRestore();
+    }
   });
 });
 

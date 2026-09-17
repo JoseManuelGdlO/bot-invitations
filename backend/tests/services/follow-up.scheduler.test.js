@@ -26,19 +26,28 @@ describe("follow-up.scheduler", () => {
   let scheduler;
   let models;
   let deliverAiMessage;
-  let resolveSeguimientoText;
-  let resolveReminderText;
+  let resolvePurposeSendContext;
   let assertWhatsappReady;
 
   beforeEach(async () => {
     deliverAiMessage = jest.fn(async () => undefined);
-    resolveSeguimientoText = jest.fn(async (_event, guest) => `Nudge ${guest.rep}`);
-    resolveReminderText = jest.fn(async () => "Recordatorio");
+    resolvePurposeSendContext = jest.fn(async (_event, purpose) => ({
+      template: {
+        components: [{ type: "BODY", text: "Hola {{1}}, tienes {{2}} pases." }],
+      },
+      hsmTemplateName: purpose === "followup" ? "alanna_sg_1" : "alanna_rm_1",
+      hsmParamsFor: jest.fn(async (guest) => [guest.rep, "2"]),
+      hsmHeaderDocument: null,
+      hsmHeaderImage: null,
+    }));
     assertWhatsappReady = jest.fn(async () => undefined);
     ({ mod: scheduler, models } = await loadWithMocks("src/services/follow-up.scheduler.js", {
       extraMocks: {
         "src/services/guest-message.service.js": () => ({ deliverAiMessage }),
-        "src/services/templates.service.js": () => ({ resolveSeguimientoText, resolveReminderText }),
+        "src/services/whatsapp-templates.service.js": () => ({ resolvePurposeSendContext }),
+        "src/services/meta.client.js": () => ({
+          fillMetaTemplate: (_body, params) => `HSM ${params[0]}`,
+        }),
         "src/services/integration-resolver.service.js": () => ({
           assertWhatsappReady,
         }),
@@ -65,18 +74,18 @@ describe("follow-up.scheduler", () => {
     });
     stubEventGuests([guest]);
     await scheduler.tickFollowUps();
-    expect(resolveSeguimientoText).toHaveBeenCalled();
+    expect(resolvePurposeSendContext).toHaveBeenCalledWith(expect.anything(), "followup");
     expect(deliverAiMessage).toHaveBeenCalledWith(
       expect.objectContaining({
         guest,
         kind: "seguimiento",
         followUpId: INDECISO_NUDGE_ID,
-        text: "Nudge Luis Pérez",
+        text: "HSM Luis Pérez",
+        hsmTemplateName: "alanna_sg_1",
       }),
     );
     expect(guest.followUp).toBe("");
     expect(guest.followUpsSent).toContain(INDECISO_NUDGE_ID);
-    expect(resolveReminderText).not.toHaveBeenCalled();
   });
 
   test("no envía si la fecha de seguimiento aún no vence", async () => {
@@ -103,7 +112,6 @@ describe("follow-up.scheduler", () => {
     await scheduler.tickFollowUps();
     expect(deliverAiMessage).toHaveBeenCalledTimes(1);
     expect(deliverAiMessage.mock.calls[0][0].kind).toBe("seguimiento");
-    expect(resolveReminderText).not.toHaveBeenCalled();
   });
 
   test("no envía nudge si la regla indeciso está apagada", async () => {
@@ -136,7 +144,6 @@ describe("follow-up.scheduler", () => {
     expect(deliverAiMessage).toHaveBeenCalledTimes(1);
     expect(deliverAiMessage.mock.calls[0][0].kind).toBe("follow_up");
     expect(deliverAiMessage.mock.calls[0][0].followUpId).toBe("f2");
-    expect(resolveSeguimientoText).not.toHaveBeenCalled();
   });
 
   test("envía f2 cuando ya venció el plazo desde el primer contacto", async () => {
@@ -147,13 +154,14 @@ describe("follow-up.scheduler", () => {
     });
     stubEventGuests([guest], { followUps: DEFAULT_RULES });
     await scheduler.tickFollowUps();
-    expect(resolveReminderText).toHaveBeenCalled();
+    expect(resolvePurposeSendContext).toHaveBeenCalledWith(expect.anything(), "reminder");
     expect(deliverAiMessage).toHaveBeenCalledWith(
       expect.objectContaining({
         guest,
         kind: "follow_up",
         followUpId: "f2",
-        text: "Recordatorio",
+        text: "HSM Luis Pérez",
+        hsmTemplateName: "alanna_rm_1",
       }),
     );
     expect(guest.followUpsSent).toContain("f2");
@@ -257,6 +265,20 @@ describe("follow-up.scheduler", () => {
     expect(deliverAiMessage).not.toHaveBeenCalled();
   });
 
+  test("omite el drip si la plantilla HSM de recordatorio no está lista", async () => {
+    resolvePurposeSendContext.mockRejectedValue(
+      Object.assign(new Error("Meta aún no aprueba la plantilla de recordatorio."), { status: 400 }),
+    );
+    const guest = fakeGuest({
+      status: "enviado",
+      followUpsSent: [],
+      contactedAt: addDays(new Date(), -8),
+    });
+    stubEventGuests([guest], { followUps: DEFAULT_RULES });
+    await scheduler.tickFollowUps();
+    expect(deliverAiMessage).not.toHaveBeenCalled();
+  });
+
   test("no envía si followUpsEnabled está apagado", async () => {
     const guest = fakeGuest({
       status: "enviado",
@@ -277,7 +299,6 @@ describe("follow-up.scheduler", () => {
     stubEventGuests([guest], { followUps: DEFAULT_RULES, followUpsEnabled: false });
     await scheduler.tickFollowUps();
     expect(deliverAiMessage).not.toHaveBeenCalled();
-    expect(resolveSeguimientoText).not.toHaveBeenCalled();
   });
 
   test("no envía si WhatsApp no está listo", async () => {

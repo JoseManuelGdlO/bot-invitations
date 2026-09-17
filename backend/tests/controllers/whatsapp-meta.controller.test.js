@@ -134,7 +134,7 @@ describe("whatsapp-meta.controller", () => {
           model: models.WhatsappMessageTemplate,
           as: "template",
           required: true,
-          where: { ownerUserId: "usr_test_1", wabaId: "waba_1" },
+          where: { ownerUserId: "usr_test_1", wabaId: "waba_1", purpose: "invitation" },
         },
       ],
     });

@@ -110,6 +110,8 @@ export function WhatsappTemplateCard({
   plannerName,
   onChange,
   onSave,
+  campaignRadioTitle = "Usar en campaña",
+  campaignRadioHint = "Solo esta plantilla se usa para el primer contacto masivo.",
 }: {
   draft: EventTemplateCardDraft;
   extraKeys: string[];
@@ -121,6 +123,8 @@ export function WhatsappTemplateCard({
   plannerName?: string | undefined;
   onChange: (patch: Partial<EventTemplateCardDraft>) => void;
   onSave: () => void;
+  campaignRadioTitle?: string;
+  campaignRadioHint?: string;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -578,9 +582,9 @@ export function WhatsappTemplateCard({
               className="mt-0.5"
             />
             <div>
-              <p className="text-sm font-medium">Usar en campaña</p>
+              <p className="text-sm font-medium">{campaignRadioTitle}</p>
               <p className="mt-0.5 text-xs text-muted-foreground">
-                Solo esta plantilla se usa para el primer contacto masivo.
+                {campaignRadioHint}
               </p>
             </div>
           </label>

@@ -109,6 +109,13 @@ export class MetaCloudProvider {
       let headerSource = meta.hsmHeaderDocument || null;
       let imageSource = meta.hsmHeaderImage || null;
       if (!templateName) {
+        const kind = String(meta.kind || "");
+        if (kind === "reminder" || kind === "follow_up") {
+          throw httpError(400, "Falta la plantilla HSM de recordatorio.");
+        }
+        if (kind === "seguimiento") {
+          throw httpError(400, "Falta la plantilla HSM de seguimiento.");
+        }
         const ctx = await resolveCampaignSendContext(event);
         templateName = String(ctx.hsmTemplateName || "").trim();
         if (!fromJob.length) {

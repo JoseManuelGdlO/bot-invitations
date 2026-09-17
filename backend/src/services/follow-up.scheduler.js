@@ -2,7 +2,9 @@ import { Op } from "sequelize";
 import { AiConfig, Conversation, Event, Guest, User } from "../models/index.js";
 import { assertWhatsappReady } from "./integration-resolver.service.js";
 import { deliverAiMessage } from "./guest-message.service.js";
-import { resolveReminderText, resolveSeguimientoText } from "./templates.service.js";
+import { resolvePurposeSendContext } from "./whatsapp-templates.service.js";
+import { fillMetaTemplate } from "./meta.client.js";
+import { bodyTextFromComponents } from "./whatsapp-template-slots.js";
 import { logActivity } from "./activity.service.js";
 import {
   computeFollowUpDueAt,
@@ -43,6 +45,12 @@ function markFollowUpsSent(guest, sent) {
 
 async function processIndecisoNudges(event, guests, paused, plannerName, budget, now, indecisoRule) {
   if (indecisoRule && indecisoRule.active === false) return;
+  let ctx;
+  try {
+    ctx = await resolvePurposeSendContext(event, "followup");
+  } catch {
+    return;
+  }
   for (const guest of guests) {
     if (budget.left <= 0) return;
     if (guest.status !== "seguimiento") continue;
@@ -52,11 +60,15 @@ async function processIndecisoNudges(event, guests, paused, plannerName, budget,
     const due = parseDateOnly(guest.followUp);
     if (!due || !isDue(due, now)) continue;
 
-    const text = await resolveSeguimientoText(event, guest, plannerName);
+    const params = await ctx.hsmParamsFor(guest, plannerName);
     await deliverAiMessage({
       event,
       guest,
-      text,
+      text: fillMetaTemplate(bodyTextFromComponents(ctx.template.components), params),
+      hsmParams: params,
+      hsmTemplateName: ctx.hsmTemplateName,
+      ...(ctx.hsmHeaderDocument ? { hsmHeaderDocument: ctx.hsmHeaderDocument } : {}),
+      ...(ctx.hsmHeaderImage ? { hsmHeaderImage: ctx.hsmHeaderImage } : {}),
       kind: "seguimiento",
       followUpId: INDECISO_NUDGE_ID,
     });
@@ -77,6 +89,12 @@ async function processIndecisoNudges(event, guests, paused, plannerName, budget,
 
 async function processDripReminders(event, guests, paused, plannerName, budget, now, rules) {
   if (!rules.length) return;
+  let ctx;
+  try {
+    ctx = await resolvePurposeSendContext(event, "reminder");
+  } catch {
+    return;
+  }
   for (const guest of guests) {
     if (budget.left <= 0) return;
     if (guest.status === "seguimiento") continue;
@@ -90,11 +108,15 @@ async function processDripReminders(event, guests, paused, plannerName, budget, 
       });
       if (!due || !isDue(due, now)) continue;
 
-      const text = await resolveReminderText(event, guest, plannerName);
+      const params = await ctx.hsmParamsFor(guest, plannerName);
       await deliverAiMessage({
         event,
         guest,
-        text,
+        text: fillMetaTemplate(bodyTextFromComponents(ctx.template.components), params),
+        hsmParams: params,
+        hsmTemplateName: ctx.hsmTemplateName,
+        ...(ctx.hsmHeaderDocument ? { hsmHeaderDocument: ctx.hsmHeaderDocument } : {}),
+        ...(ctx.hsmHeaderImage ? { hsmHeaderImage: ctx.hsmHeaderImage } : {}),
         kind: "follow_up",
         followUpId: rule.id,
       });

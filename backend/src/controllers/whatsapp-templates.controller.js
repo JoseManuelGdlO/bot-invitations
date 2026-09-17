@@ -21,6 +21,7 @@ import {
 import {
   bodyTextFromComponents,
 } from "../services/whatsapp-template-slots.js";
+import { normalizeTemplatePurpose } from "../services/whatsapp-template-purpose.js";
 
 function parsePayload(req) {
   if (typeof req.body?.payload !== "string") return req.body || {};
@@ -85,6 +86,7 @@ function serializeTemplate(template) {
     body: bodyTextFromComponents(template?.components),
     displayName: template?.displayName ?? null,
     isWabaDefault: Boolean(template?.isWabaDefault),
+    purpose: normalizeTemplatePurpose(template?.purpose),
   };
 }
 
@@ -98,6 +100,7 @@ function serializeOwnerTemplate(template) {
     headerFileName: template?.headerFileName ?? null,
     body: bodyTextFromComponents(template?.components),
     isWabaDefault: Boolean(template?.isWabaDefault),
+    purpose: normalizeTemplatePurpose(template?.purpose),
     rejectedReason: template?.rejectedReason ?? null,
     createdAt: template?.createdAt ?? null,
     slotMappings: template?.slotMappings || {},
@@ -200,6 +203,7 @@ export const postEventWhatsappTemplate = asyncHandler(async (req, res) => {
     headerType: payload.headerType,
     headerFile: uploadedFile(fieldFile(req, "header")),
     slotMappings: payload.slotMappings,
+    purpose: payload.purpose,
   });
   res.status(201).json({ template: serializeLink(result.link) });
 });

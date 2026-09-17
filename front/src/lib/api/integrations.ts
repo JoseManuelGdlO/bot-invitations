@@ -87,6 +87,7 @@ export type EventWhatsappTemplateDto = {
     body: string;
     displayName: string | null;
     isWabaDefault: boolean;
+    purpose?: string | null;
   };
 };
 
@@ -99,6 +100,7 @@ export type AccountWhatsappTemplateDto = {
   headerFileName?: string | null;
   body: string;
   isWabaDefault: boolean;
+  purpose?: string | null;
   rejectedReason: string | null;
   createdAt: string | null;
   slotMappings?: Record<string, WhatsappSlotMappingDto>;

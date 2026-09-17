@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Copy, Plus } from "lucide-react";
+import { Plus } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -25,12 +25,10 @@ import {
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { TemplateBodyEditor } from "@/components/template-body-editor";
-import { TemplatePreview } from "@/components/template-preview";
 import { WhatsappEventTemplateCreateDialog } from "@/components/whatsapp-event-template-create-dialog";
 import { WhatsappTemplateCard } from "@/components/whatsapp-template-card";
 import { useEvent, useStore } from "@/lib/mock/store";
-import type { EventItem, Guest, Template } from "@/lib/mock/types";
+import type { EventItem, Guest } from "@/lib/mock/types";
 import { availableTemplateKeys } from "@/lib/template-vars";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api/client";
@@ -53,6 +51,16 @@ import {
   buildEventTemplateFormData,
   shouldShowEventTemplateCards,
 } from "@/lib/whatsapp-templates";
+import {
+  PURPOSE_CAMPAIGN_RADIO_HINT,
+  PURPOSE_CAMPAIGN_RADIO_TITLE,
+  PURPOSE_HINT,
+  PURPOSE_TAB_LABEL,
+  TEMPLATE_PURPOSES,
+  normalizeTemplatePurpose,
+  templatesForPurpose,
+  type WhatsappTemplatePurpose,
+} from "@/lib/whatsapp-template-purpose";
 
 export const Route = createFileRoute("/eventos/$eventId/mensajes")({
   head: () => ({
@@ -76,19 +84,11 @@ export const Route = createFileRoute("/eventos/$eventId/mensajes")({
   component: Mensajes,
 });
 
-const localCategories = [
-  {
-    id: "Recordatorio",
-    hint: "Recordatorio automático. El envío masivo está desactivado; el texto queda listo por si se reactiva.",
-  },
-  {
-    id: "Seguimiento",
-    hint: "Recontacto a indecisos, según las reglas de seguimiento.",
-  },
-] as const;
-
-const PRIMER_CONTACTO_HINT =
-  "Campaña inicial de WhatsApp. Editas el cuerpo de cada plantilla de Meta y eliges cuál usar en el envío masivo.";
+const PURPOSE_TITLES: Record<WhatsappTemplatePurpose, string> = {
+  invitation: "Primer contacto",
+  reminder: "Recordatorio",
+  followup: "Seguimiento",
+};
 
 function mergeSavedDraft(
   prev: EventTemplateCardDraft[],
@@ -103,16 +103,18 @@ function mergeSavedDraft(
   }));
 }
 
-function PrimerContactoTemplates({
+function PurposeTemplates({
   eventId,
   guests,
   event,
   plannerName,
+  purpose,
 }: {
   eventId: string;
   guests: Guest[];
   event: EventItem | undefined;
   plannerName: string;
+  purpose: WhatsappTemplatePurpose;
 }) {
   const extraKeys = availableTemplateKeys(guests, event);
   const [drafts, setDrafts] = useState<EventTemplateCardDraft[]>([]);
@@ -129,6 +131,7 @@ function PrimerContactoTemplates({
   const [reloadKey, setReloadKey] = useState(0);
   const [savingSlot, setSavingSlot] = useState<number | null>(null);
   const [attaching, setAttaching] = useState(false);
+  const [nextSlot, setNextSlot] = useState(1);
 
   const campaignDraft =
     drafts.find((draft) => draft.isCampaign) ?? drafts[0] ?? null;
@@ -151,8 +154,6 @@ function PrimerContactoTemplates({
     : "";
   const campaignSlot = String(campaignDraft?.slot ?? "");
   const canCreate = canCreateEventCustomTemplate(drafts.length);
-  const nextSlot =
-    drafts.length === 0 ? 1 : Math.max(...drafts.map((item) => item.slot)) + 1;
   const showBanner =
     shouldShowDefaultTemplateBanner(focusedDraft || {}) ||
     shouldShowDefaultTemplateBanner(campaignDraft || {});
@@ -180,9 +181,17 @@ function PrimerContactoTemplates({
     ])
       .then(([eventData, accountData]) => {
         if (cancelled) return;
-        const next = draftsFromEventTemplates(eventData.templates || []);
+        const allDrafts = draftsFromEventTemplates(eventData.templates || []);
+        const next = allDrafts.filter((item) => item.purpose === purpose);
         setDrafts(next);
-        setAccountTemplates(accountData.templates || []);
+        setNextSlot(
+          allDrafts.length === 0
+            ? 1
+            : Math.max(...allDrafts.map((item) => item.slot)) + 1,
+        );
+        setAccountTemplates(
+          templatesForPurpose(accountData.templates || [], purpose),
+        );
         const campaign = next.find((item) => item.isCampaign) ?? next[0];
         setFocusedSlot(campaign?.slot ?? null);
       })
@@ -203,7 +212,7 @@ function PrimerContactoTemplates({
     return () => {
       cancelled = true;
     };
-  }, [eventId, reloadKey]);
+  }, [eventId, reloadKey, purpose]);
 
   const saveDraft = async (draft: EventTemplateCardDraft) => {
     if (savingSlot || error || loading) return;
@@ -307,9 +316,9 @@ function PrimerContactoTemplates({
 
   return (
     <section>
-      <h2 className="font-display text-2xl">Primer contacto</h2>
+      <h2 className="font-display text-2xl">{PURPOSE_TITLES[purpose]}</h2>
       <p className="mt-1 text-sm text-muted-foreground">
-        {PRIMER_CONTACTO_HINT}
+        {PURPOSE_HINT[purpose]}
       </p>
       {loading ? (
         <p className="mt-3 text-sm text-muted-foreground">
@@ -377,6 +386,8 @@ function PrimerContactoTemplates({
                 highlighted={focusedDraft?.slot === draft.slot}
                 onChange={(patch) => updateDraft(draft.slot, patch)}
                 onSave={() => requestSave(draft)}
+                campaignRadioTitle={PURPOSE_CAMPAIGN_RADIO_TITLE[purpose]}
+                campaignRadioHint={PURPOSE_CAMPAIGN_RADIO_HINT[purpose]}
               />
             ))}
           </RadioGroup>
@@ -406,6 +417,7 @@ function PrimerContactoTemplates({
         event={event}
         plannerName={plannerName}
         accountTemplates={accountTemplates}
+        purpose={purpose}
         onCreated={(template) => {
           const next = draftsFromEventTemplates([template])[0];
           if (!next) return;
@@ -443,92 +455,13 @@ function PrimerContactoTemplates({
   );
 }
 
-function TemplateCategory({
-  eventId,
-  category,
-  hint,
-  template,
-  templates,
-  guests,
-  event,
-  plannerName,
-  setTemplates,
-}: {
-  eventId: string;
-  category: string;
-  hint: string;
-  template: Template | undefined;
-  templates: Template[];
-  guests: Guest[];
-  event: EventItem | undefined;
-  plannerName: string;
-  setTemplates: (eventId: string, t: Template[]) => void;
-}) {
-  const [draft, setDraft] = useState(template?.body ?? "");
-
-  useEffect(() => {
-    setDraft(template?.body ?? "");
-  }, [template?.id, template?.body]);
-
-  const variables = availableTemplateKeys(guests, event);
-
-  return (
-    <section>
-      <h2 className="font-display text-2xl">{category}</h2>
-      <p className="mt-1 text-sm text-muted-foreground">{hint}</p>
-      {template ? (
-        <div className="mt-3 grid gap-4 md:grid-cols-2">
-          <div className="rounded-2xl border border-border bg-card p-5 shadow-soft">
-            <div className="mb-3 flex items-start justify-between gap-2">
-              <p className="font-medium">{template.title}</p>
-              <button
-                type="button"
-                onClick={() => {
-                  void navigator.clipboard.writeText(draft);
-                  toast.success("Plantilla copiada");
-                }}
-                className="rounded-md p-1.5 text-muted-foreground hover:bg-secondary"
-              >
-                <Copy className="size-4" />
-              </button>
-            </div>
-            <TemplateBodyEditor
-              value={template.body}
-              onChange={setDraft}
-              variables={variables}
-              onSave={(body) => {
-                setTemplates(
-                  eventId,
-                  templates.map((x) =>
-                    x.id === template.id ? { ...x, body } : x,
-                  ),
-                );
-                toast.success("Plantilla guardada");
-              }}
-            />
-          </div>
-          <TemplatePreview
-            body={draft}
-            guests={guests}
-            event={event}
-            plannerName={plannerName}
-          />
-        </div>
-      ) : (
-        <p className="mt-3 text-sm text-muted-foreground">
-          No hay plantilla para esta categoría.
-        </p>
-      )}
-    </section>
-  );
-}
-
 function Mensajes() {
   const { eventId } = Route.useParams();
   const { data, event, guests } = useEvent(eventId);
-  const { setTemplates, setFaqs, session } = useStore();
+  const { setFaqs, session } = useStore();
   const [q, setQ] = useState("");
   const [a, setA] = useState("");
+  const [purpose, setPurpose] = useState<WhatsappTemplatePurpose>("invitation");
   const plannerName = session?.name.split(" ")[0] ?? "Planner";
 
   return (
@@ -539,27 +472,32 @@ function Mensajes() {
           <TabsTrigger value="faq">Respuestas frecuentes</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="plantillas" className="mt-6 space-y-8">
-          <PrimerContactoTemplates
-            eventId={eventId}
-            guests={guests}
-            event={event}
-            plannerName={plannerName}
-          />
-          {localCategories.map((cat) => (
-            <TemplateCategory
-              key={cat.id}
-              eventId={eventId}
-              category={cat.id}
-              hint={cat.hint}
-              template={data.templates.find((t) => t.category === cat.id)}
-              templates={data.templates}
-              guests={guests}
-              event={event}
-              plannerName={plannerName}
-              setTemplates={setTemplates}
-            />
-          ))}
+        <TabsContent value="plantillas" className="mt-6 space-y-6">
+          <Tabs
+            value={purpose}
+            onValueChange={(value) =>
+              setPurpose(normalizeTemplatePurpose(value))
+            }
+          >
+            <TabsList>
+              {TEMPLATE_PURPOSES.map((item) => (
+                <TabsTrigger key={item} value={item}>
+                  {PURPOSE_TAB_LABEL[item]}
+                </TabsTrigger>
+              ))}
+            </TabsList>
+            {TEMPLATE_PURPOSES.map((item) => (
+              <TabsContent key={item} value={item} className="mt-6">
+                <PurposeTemplates
+                  eventId={eventId}
+                  guests={guests}
+                  event={event}
+                  plannerName={plannerName}
+                  purpose={item}
+                />
+              </TabsContent>
+            ))}
+          </Tabs>
         </TabsContent>
 
         <TabsContent value="faq" className="mt-6">

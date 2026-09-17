@@ -93,7 +93,12 @@ async function loadOpeningMetaTemplate(event) {
 
   const link = await EventWhatsappTemplate.findOne({
     where: { eventId, isCampaign: true },
-    include: [{ model: WhatsappMessageTemplate, as: "template", required: true }],
+    include: [{
+      model: WhatsappMessageTemplate,
+      as: "template",
+      required: true,
+      where: { purpose: "invitation" },
+    }],
   });
   const templateName = String(link?.template?.name || "").trim();
   if (!templateName) return null;

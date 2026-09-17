@@ -15,12 +15,24 @@ import {
 function tpl(overrides: {
   id?: string | null;
   isWabaDefault?: boolean;
+  purpose?: string;
 } = {}) {
   return {
     id: overrides.id ?? "tpl_1",
     isWabaDefault: overrides.isWabaDefault ?? true,
+    purpose: overrides.purpose,
   };
 }
+
+test("isSoleWabaDefault es por propósito", () => {
+  const invitation = tpl({ id: "tpl_inv", isWabaDefault: true, purpose: "invitation" });
+  const reminder = tpl({ id: "tpl_rm", isWabaDefault: true, purpose: "reminder" });
+  const list = [invitation, reminder];
+  assert.equal(isSoleWabaDefault(invitation, list), true);
+  assert.equal(canDeleteAccountWhatsappTemplate(invitation, list), false);
+  assert.equal(isSoleWabaDefault(reminder, list), true);
+  assert.equal(canDeleteAccountWhatsappTemplate(reminder, list), false);
+});
 
 test("isSoleWabaDefault es true si es el único default de la lista", () => {
   const sole = tpl({ id: "tpl_def", isWabaDefault: true });
@@ -61,7 +73,10 @@ test("accountWhatsappTemplatesEmptyCopy distingue wizard vs lista vacía", () =>
     ACCOUNT_TEMPLATES_EMPTY_NEEDS_SETUP,
     "Conecta WhatsApp y completa el wizard",
   );
-  assert.equal(ACCOUNT_TEMPLATES_EMPTY_NONE, "Aún no hay plantillas");
+  assert.equal(
+    accountWhatsappTemplatesEmptyCopy(true, "reminder"),
+    "Se crean al completar el wizard de invitación.",
+  );
 });
 
 test("accountTemplateDeleteWarning lista eventos, campaña y Meta", () => {
@@ -91,4 +106,5 @@ test("customAccountTemplateEditWarning avisa cuando count=1", () => {
 
 test("LAST_WABA_DEFAULT_DELETE_HINT explica el disable del último default", () => {
   assert.match(LAST_WABA_DEFAULT_DELETE_HINT, /default/i);
+  assert.match(LAST_WABA_DEFAULT_DELETE_HINT, /categoría/i);
 });

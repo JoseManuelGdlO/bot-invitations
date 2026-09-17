@@ -409,6 +409,7 @@ export const WhatsappMessageTemplate = sequelize.define(
     },
     rejectedReason: { type: DataTypes.TEXT, allowNull: true },
     isWabaDefault: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
+    purpose: { type: DataTypes.STRING(20), allowNull: false, defaultValue: "invitation" },
     clonedFromId: { type: DataTypes.CHAR(36), allowNull: true },
     lastStatusAt: { type: DataTypes.DATE, allowNull: true },
   },
@@ -620,10 +621,28 @@ export async function ensureWhatsappTemplateDisplayName() {
   console.log("[db] columna whatsapp_message_templates.displayName creada");
 }
 
+export async function ensureWhatsappTemplatePurpose() {
+  const qi = sequelize.getQueryInterface();
+  let table;
+  try {
+    table = await qi.describeTable("whatsapp_message_templates");
+  } catch {
+    return;
+  }
+  if (table.purpose) return;
+  await qi.addColumn("whatsapp_message_templates", "purpose", {
+    type: DataTypes.STRING(20),
+    allowNull: false,
+    defaultValue: "invitation",
+  });
+  console.log("[db] columna whatsapp_message_templates.purpose creada");
+}
+
 export async function ensureWhatsappTemplateTables() {
   await WhatsappMessageTemplate.sync();
   await EventWhatsappTemplate.sync();
   await ensureWhatsappTemplateDisplayName();
+  await ensureWhatsappTemplatePurpose();
 }
 
 export async function ensureCampaignColumns() {

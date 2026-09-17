@@ -13,6 +13,11 @@ import {
   type EventSlotMapping,
   type WizardHeaderType,
 } from "./whatsapp-templates.ts";
+import {
+  DEFAULT_TEMPLATE_PURPOSE,
+  normalizeTemplatePurpose,
+  type WhatsappTemplatePurpose,
+} from "./whatsapp-template-purpose.ts";
 
 export const EVENT_TEMPLATE_CAP = 10;
 export const DISPLAY_NAME_MAX = 120;
@@ -43,6 +48,7 @@ export type EventTemplateCardDraft = {
   rejectedReason: string | null;
   slotMappings: Record<string, EventSlotMapping>;
   persisted: boolean;
+  purpose: WhatsappTemplatePurpose;
 };
 
 export type PrimerContactoSelectorKind =
@@ -166,6 +172,7 @@ export function dtoToEventTemplateDraft(
     rejectedReason: dto.template.rejectedReason,
     slotMappings: mergeEventSlotMappings(body, dto.slotMappings || {}),
     persisted: true,
+    purpose: normalizeTemplatePurpose(dto.template.purpose),
   };
 }
 
@@ -199,12 +206,14 @@ export function accountTemplateToDraft(
     rejectedReason: template.rejectedReason,
     slotMappings: mergeEventSlotMappings(body, template.slotMappings || {}),
     persisted: true,
+    purpose: normalizeTemplatePurpose(template.purpose),
   };
 }
 
 export function blankEventTemplateDraft(
   slot: number,
   isCampaign: boolean,
+  purpose: WhatsappTemplatePurpose = DEFAULT_TEMPLATE_PURPOSE,
 ): EventTemplateCardDraft {
   return {
     slot,
@@ -223,6 +232,7 @@ export function blankEventTemplateDraft(
     rejectedReason: null,
     slotMappings: mergeEventSlotMappings("", {}),
     persisted: false,
+    purpose,
   };
 }
 
@@ -326,6 +336,7 @@ export function buildCreateEventTemplateFormData(input: {
   headerType: string;
   slotMappings: Record<string, EventSlotMapping>;
   headerFile?: File | null;
+  purpose?: WhatsappTemplatePurpose;
 }): FormData {
   const form = new FormData();
   form.append(
@@ -336,6 +347,7 @@ export function buildCreateEventTemplateFormData(input: {
       headerType: input.headerType,
       body: input.body,
       slotMappings: mergeEventSlotMappings(input.body, input.slotMappings),
+      purpose: input.purpose || DEFAULT_TEMPLATE_PURPOSE,
     }),
   );
   if (input.headerFile && needsHeaderFile(input.headerType)) {

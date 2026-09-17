@@ -306,6 +306,7 @@ describe("whatsapp-templates.controller", () => {
           body: "Hola {{1}}, tienes {{2}} pases.",
           displayName: null,
           isWabaDefault: false,
+          purpose: "invitation",
         }),
       })],
     });
@@ -445,6 +446,7 @@ describe("whatsapp-templates.controller", () => {
         mime: "image/jpeg",
         size: 5,
       },
+      purpose: payload.purpose,
     });
     expect(res.status).toHaveBeenCalledWith(201);
     expect(res.json).toHaveBeenCalledWith({
@@ -523,6 +525,7 @@ describe("whatsapp-templates.controller", () => {
       templates: [expect.objectContaining({
         displayName: "Invitación formal",
         isWabaDefault: true,
+        purpose: "invitation",
       })],
     });
   });
@@ -561,6 +564,7 @@ describe("whatsapp-templates.controller", () => {
         headerFileName: null,
         body: "Hola {{1}}, tienes {{2}} pases.",
         isWabaDefault: true,
+        purpose: "invitation",
         rejectedReason: null,
         createdAt,
         slotMappings: {},

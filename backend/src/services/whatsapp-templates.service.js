@@ -28,6 +28,13 @@ import {
   normalizeDisplayName,
   resolveSlotParamValues,
 } from "./whatsapp-template-slots.js";
+import {
+  DEFAULT_TEMPLATE_PURPOSE,
+  PURPOSE_DEFAULTS,
+  missingPurposeTemplateError,
+  normalizeTemplatePurpose,
+  pendingPurposeTemplateError,
+} from "./whatsapp-template-purpose.js";
 import { resolveActiveWhatsappMetaByOwner } from "./whatsapp-meta.service.js";
 import { Logger } from "../utils/logger.js";
 
@@ -180,8 +187,10 @@ async function createOnMeta({
   language = TEMPLATE_LANGUAGE,
   category = TEMPLATE_CATEGORY,
   initialName,
+  purpose = DEFAULT_TEMPLATE_PURPOSE,
 }) {
-  let name = initialName || generateTemplateName(slot);
+  const normalizedPurpose = normalizeTemplatePurpose(purpose);
+  let name = initialName || generateTemplateName(slot, normalizedPurpose);
   for (let attempt = 0; attempt < 2; attempt += 1) {
     const payload = {
       name,
@@ -195,10 +204,32 @@ async function createOnMeta({
       return { metaTemplateId: result.id, name };
     } catch (error) {
       if (attempt === 1 || !isDuplicateNameError(error)) throw error;
-      name = generateTemplateName(slot);
+      name = generateTemplateName(slot, normalizedPurpose);
     }
   }
   throw new Error("No se pudo crear la plantilla.");
+}
+
+function templatePurposeOf(row) {
+  return normalizeTemplatePurpose(row?.purpose);
+}
+
+function isRejectedStatus(row) {
+  return String(row?.status || "").toUpperCase() === "REJECTED";
+}
+
+async function findDefaultsForWaba({ ownerUserId, wabaId }) {
+  return WhatsappMessageTemplate.findAll({
+    where: { ownerUserId, wabaId, isWabaDefault: true },
+    order: [["createdAt", "ASC"]],
+  });
+}
+
+function defaultForPurpose(defaults, purpose) {
+  const normalized = normalizeTemplatePurpose(purpose);
+  return defaults.find((row) => (
+    templatePurposeOf(row) === normalized && !isRejectedStatus(row)
+  )) || null;
 }
 
 async function persistHeaderFile({ ownerUserId, template, headerFile }) {
@@ -217,13 +248,15 @@ async function persistHeaderFile({ ownerUserId, template, headerFile }) {
   return relativePath;
 }
 
-async function findReusableWizardDefault({ ownerUserId, wabaId }) {
-  const defaults = await WhatsappMessageTemplate.findAll({
-    where: { ownerUserId, wabaId, isWabaDefault: true },
-    order: [["createdAt", "ASC"]],
-  });
+async function findReusableWizardDefault({
+  ownerUserId,
+  wabaId,
+  purpose = DEFAULT_TEMPLATE_PURPOSE,
+}) {
+  const defaults = await findDefaultsForWaba({ ownerUserId, wabaId });
   const candidates = defaults.filter(
-    (row) => String(row?.status || "").toUpperCase() !== "REJECTED",
+    (row) => templatePurposeOf(row) === normalizeTemplatePurpose(purpose)
+      && !isRejectedStatus(row),
   );
   if (!candidates.length) return null;
   if (candidates.length === 1) return candidates[0];
@@ -238,11 +271,25 @@ async function findReusableWizardDefault({ ownerUserId, wabaId }) {
   return ranked[0].row;
 }
 
-export async function attachDefaultToOwnerEvents(ownerUserId, templateId, slotMappings) {
+function selectedLinkForPurpose(eventLinks, purpose) {
+  const normalized = normalizeTemplatePurpose(purpose);
+  return eventLinks.find((link) => (
+    Boolean(link.isCampaign)
+    && templatePurposeOf(link.template) === normalized
+  )) || null;
+}
+
+export async function attachDefaultToOwnerEvents(
+  ownerUserId,
+  templateId,
+  slotMappings,
+  purpose = DEFAULT_TEMPLATE_PURPOSE,
+) {
   const events = await Event.findAll({ where: { ownerId: ownerUserId } });
   if (!events.length) return;
   const incoming = await WhatsappMessageTemplate.findByPk(templateId);
   const incomingWaba = String(incoming?.wabaId || "").trim();
+  const normalizedPurpose = normalizeTemplatePurpose(purpose || incoming?.purpose);
   const links = await EventWhatsappTemplate.findAll({
     where: { eventId: events.map((event) => event.id) },
     include: [{ model: WhatsappMessageTemplate, as: "template" }],
@@ -255,22 +302,26 @@ export async function attachDefaultToOwnerEvents(ownerUserId, templateId, slotMa
   }
   for (const event of events) {
     const eventLinks = linksByEvent.get(event.id) || [];
-    const campaign = eventLinks.find((link) => Boolean(link.isCampaign));
-    if (campaign) {
-      const campaignWaba = String(campaign.template?.wabaId || "").trim();
-      if (incomingWaba && campaignWaba && campaignWaba !== incomingWaba) {
-        await campaign.update({
+    const selected = selectedLinkForPurpose(eventLinks, normalizedPurpose);
+    if (selected) {
+      const selectedWaba = String(selected.template?.wabaId || "").trim();
+      if (incomingWaba && selectedWaba && selectedWaba !== incomingWaba) {
+        await selected.update({
           whatsappMessageTemplateId: templateId,
           slotMappings,
         });
       }
       continue;
     }
-    const slots = eventLinks
-      .map((link) => Number(link.slot))
-      .filter((slot) => Number.isFinite(slot));
-    const slot = slots.length === 0 ? 1 : Math.max(...slots) + 1;
-    await EventWhatsappTemplate.create({
+    const alreadyLinked = eventLinks.find(
+      (link) => link.whatsappMessageTemplateId === templateId,
+    );
+    if (alreadyLinked) {
+      await alreadyLinked.update({ isCampaign: true, slotMappings });
+      continue;
+    }
+    const slot = nextEventSlot(eventLinks);
+    const created = await EventWhatsappTemplate.create({
       eventId: event.id,
       whatsappMessageTemplateId: templateId,
       ownerUserId,
@@ -278,15 +329,107 @@ export async function attachDefaultToOwnerEvents(ownerUserId, templateId, slotMa
       isCampaign: true,
       slotMappings,
     });
+    eventLinks.push(created);
   }
 }
 
-async function attachAndSyncWizardDefault(ownerUserId, templateId, slotMappings) {
-  await attachDefaultToOwnerEvents(ownerUserId, templateId, slotMappings);
+async function attachAndSyncWizardDefault(
+  ownerUserId,
+  templateId,
+  slotMappings,
+  purpose = DEFAULT_TEMPLATE_PURPOSE,
+) {
+  await attachDefaultToOwnerEvents(ownerUserId, templateId, slotMappings, purpose);
   await EventWhatsappTemplate.update(
     { slotMappings },
     { where: { whatsappMessageTemplateId: templateId } },
   );
+}
+
+async function createPurposeDefault({
+  ownerUserId,
+  wabaId,
+  token,
+  purpose,
+}) {
+  const spec = PURPOSE_DEFAULTS[purpose];
+  if (!spec) return null;
+  const mappings = assertSlotMappingsComplete(
+    spec.body,
+    mergeSlotMappings(spec.body, spec.slotMappings),
+  );
+  const components = buildTemplateComponents({
+    headerType: "none",
+    headerHandle: null,
+    bodyText: spec.body,
+    exampleValues: exampleValuesFromMappings(mappings),
+  });
+  const meta = await createOnMeta({
+    wabaId,
+    token,
+    slot: 1,
+    components,
+    purpose,
+  });
+  const row = await WhatsappMessageTemplate.create({
+    ownerUserId,
+    wabaId,
+    metaTemplateId: meta.metaTemplateId,
+    name: meta.name,
+    language: TEMPLATE_LANGUAGE,
+    category: TEMPLATE_CATEGORY,
+    headerType: "none",
+    headerMediaPath: null,
+    headerFileName: null,
+    headerMime: null,
+    headerSize: null,
+    headerHandle: null,
+    components,
+    status: "PENDING",
+    isWabaDefault: true,
+    purpose,
+    displayName: spec.displayName,
+  });
+  await attachAndSyncWizardDefault(ownerUserId, row.id, mappings, purpose);
+  return row;
+}
+
+export async function ensurePurposeDefaults({ ownerUserId, wabaId, token }) {
+  const defaults = await findDefaultsForWaba({ ownerUserId, wabaId });
+  const created = [];
+  for (const purpose of Object.keys(PURPOSE_DEFAULTS)) {
+    const spec = PURPOSE_DEFAULTS[purpose];
+    const existing = defaultForPurpose(defaults, purpose);
+    if (existing) {
+      const bodyText = bodyTextFromComponents(existing.components) || spec.body;
+      const mappings = assertSlotMappingsComplete(
+        bodyText,
+        mergeSlotMappings(bodyText, {
+          ...spec.slotMappings,
+          ...(await originSlotMappings(existing)),
+        }),
+      );
+      await attachDefaultToOwnerEvents(ownerUserId, existing.id, mappings, purpose);
+      continue;
+    }
+    const row = await createPurposeDefault({ ownerUserId, wabaId, token, purpose });
+    if (row) {
+      created.push(row);
+      defaults.push(row);
+    }
+  }
+  return created;
+}
+
+async function finishWizardTemplates(ownerUserId, wabaId, token, template, slotMappings) {
+  await attachAndSyncWizardDefault(
+    ownerUserId,
+    template.id,
+    slotMappings,
+    DEFAULT_TEMPLATE_PURPOSE,
+  );
+  await ensurePurposeDefaults({ ownerUserId, wabaId, token });
+  return { template, slotMappings };
 }
 
 export async function createWizardTemplates(input) {
@@ -294,7 +437,11 @@ export async function createWizardTemplates(input) {
   const validated = validateWizardTemplate(normalized);
   const { ownerUserId, wabaId, plannerAccessToken } = normalized;
   const token = resolveTemplateCrudToken(plannerAccessToken);
-  const existing = await findReusableWizardDefault({ ownerUserId, wabaId });
+  const existing = await findReusableWizardDefault({
+    ownerUserId,
+    wabaId,
+    purpose: DEFAULT_TEMPLATE_PURPOSE,
+  });
   const displayNamePatch = normalized.displayName !== undefined
     ? { displayName: normalizeDisplayName(normalized.displayName) }
     : {};
@@ -306,8 +453,13 @@ export async function createWizardTemplates(input) {
     ) {
       await existing.update(displayNamePatch);
     }
-    await attachAndSyncWizardDefault(ownerUserId, existing.id, validated.slotMappings);
-    return { template: existing, slotMappings: validated.slotMappings };
+    return finishWizardTemplates(
+      ownerUserId,
+      wabaId,
+      token,
+      existing,
+      validated.slotMappings,
+    );
   }
 
   const header = await editableHeader({
@@ -339,6 +491,7 @@ export async function createWizardTemplates(input) {
         header,
         components,
       }),
+      purpose: DEFAULT_TEMPLATE_PURPOSE,
       ...displayNamePatch,
     });
     if (header.headerFile) {
@@ -348,8 +501,13 @@ export async function createWizardTemplates(input) {
         headerFile: header.headerFile,
       });
     }
-    await attachAndSyncWizardDefault(ownerUserId, existing.id, validated.slotMappings);
-    return { template: existing, slotMappings: validated.slotMappings };
+    return finishWizardTemplates(
+      ownerUserId,
+      wabaId,
+      token,
+      existing,
+      validated.slotMappings,
+    );
   }
 
   const meta = await createOnMeta({
@@ -357,6 +515,7 @@ export async function createWizardTemplates(input) {
     token,
     slot: 1,
     components,
+    purpose: DEFAULT_TEMPLATE_PURPOSE,
   });
   const row = await WhatsappMessageTemplate.create({
     ownerUserId,
@@ -374,13 +533,19 @@ export async function createWizardTemplates(input) {
     components,
     status: "PENDING",
     isWabaDefault: true,
+    purpose: DEFAULT_TEMPLATE_PURPOSE,
     displayName: normalizeDisplayName(normalized.displayName),
   });
   if (header.headerFile) {
     await persistHeaderFile({ ownerUserId, template: row, headerFile: header.headerFile });
   }
-  await attachAndSyncWizardDefault(ownerUserId, row.id, validated.slotMappings);
-  return { template: row, slotMappings: validated.slotMappings };
+  return finishWizardTemplates(
+    ownerUserId,
+    wabaId,
+    token,
+    row,
+    validated.slotMappings,
+  );
 }
 
 async function currentOwnerWabaId(ownerUserId) {
@@ -396,16 +561,22 @@ function isTemplateStatus(row, status) {
   return String(row?.status || "").toUpperCase() === status;
 }
 
-async function promoteCurrentWabaDefault({ ownerUserId, wabaId }) {
+async function promoteCurrentWabaDefault({
+  ownerUserId,
+  wabaId,
+  purpose = DEFAULT_TEMPLATE_PURPOSE,
+}) {
+  const normalized = normalizeTemplatePurpose(purpose);
   const hsms = await WhatsappMessageTemplate.findAll({
     where: { ownerUserId, wabaId },
     order: [["createdAt", "ASC"]],
   });
-  const pick = hsms.find((row) => isTemplateStatus(row, "APPROVED"))
-    || hsms.find((row) => isTemplateStatus(row, "PENDING"))
+  const matching = hsms.filter((row) => templatePurposeOf(row) === normalized);
+  const pick = matching.find((row) => isTemplateStatus(row, "APPROVED"))
+    || matching.find((row) => isTemplateStatus(row, "PENDING"))
     || null;
   if (!pick) return null;
-  await pick.update({ isWabaDefault: true });
+  await pick.update({ isWabaDefault: true, purpose: normalized });
   return pick;
 }
 
@@ -463,13 +634,19 @@ export async function listOwnerTemplates(ownerUserId) {
   const { credentials } = await resolveActiveWhatsappMetaByOwner(ownerUserId);
   const wabaId = String(credentials?.wabaId || "").trim();
   if (!wabaId) throw httpError(400, "WhatsApp (Meta) no está configurado.");
+  const token = resolveTemplateCrudToken(credentials.accessToken);
 
   const defaults = await WhatsappMessageTemplate.findAll({
     where: { ownerUserId, wabaId, isWabaDefault: true },
   });
   if (!defaults.length) {
-    await promoteCurrentWabaDefault({ ownerUserId, wabaId });
+    await promoteCurrentWabaDefault({
+      ownerUserId,
+      wabaId,
+      purpose: DEFAULT_TEMPLATE_PURPOSE,
+    });
   }
+  await ensurePurposeDefaults({ ownerUserId, wabaId, token });
 
   const templates = await WhatsappMessageTemplate.findAll({
     where: { ownerUserId, wabaId },
@@ -486,6 +663,7 @@ export async function listOwnerTemplates(ownerUserId) {
   return templates.map((row) => Object.assign(row, {
     usage: serializeUsage(usage.get(row.id)),
     slotMappings: slotMappings.get(row.id) || {},
+    purpose: templatePurposeOf(row),
   }));
 }
 
@@ -524,11 +702,13 @@ function isCampaignCapableStatus(row) {
 }
 
 async function assertNotLastDiscoveredDefault({ ownerUserId, wabaId, template }) {
+  const purpose = templatePurposeOf(template);
   let defaults = await WhatsappMessageTemplate.findAll({
     where: { ownerUserId, wabaId, isWabaDefault: true },
   });
+  defaults = defaults.filter((row) => templatePurposeOf(row) === purpose);
   if (!defaults.length) {
-    const promoted = await promoteCurrentWabaDefault({ ownerUserId, wabaId });
+    const promoted = await promoteCurrentWabaDefault({ ownerUserId, wabaId, purpose });
     defaults = promoted ? [promoted] : [];
   }
   const isOnlyDefault = defaults.length === 1 && defaults[0].id === template.id;
@@ -546,6 +726,7 @@ async function assertNotLastDiscoveredDefault({ ownerUserId, wabaId, template })
   });
   const covered = new Set();
   for (const link of otherLinks) {
+    if (templatePurposeOf(link.template) !== purpose) continue;
     if (isCampaignCapableStatus(link.template)) covered.add(link.eventId);
   }
   if (events.some((event) => !covered.has(event.id))) {
@@ -556,8 +737,12 @@ async function assertNotLastDiscoveredDefault({ ownerUserId, wabaId, template })
   }
 }
 
-async function reattachDefaultAfterCustomDelete(ownerUserId, wabaId) {
-  const accountDefault = await findReusableWizardDefault({ ownerUserId, wabaId });
+async function reattachDefaultAfterCustomDelete(ownerUserId, wabaId, purpose) {
+  const accountDefault = await findReusableWizardDefault({
+    ownerUserId,
+    wabaId,
+    purpose,
+  });
   if (!accountDefault || !isCampaignCapableStatus(accountDefault)) return;
 
   const existingLink = await EventWhatsappTemplate.findOne({
@@ -565,7 +750,12 @@ async function reattachDefaultAfterCustomDelete(ownerUserId, wabaId) {
   });
   const slotMappings = existingLink?.slotMappings
     || mergeSlotMappings(bodyTextFromComponents(accountDefault.components), {});
-  await attachDefaultToOwnerEvents(ownerUserId, accountDefault.id, slotMappings);
+  await attachDefaultToOwnerEvents(
+    ownerUserId,
+    accountDefault.id,
+    slotMappings,
+    purpose,
+  );
 }
 
 export async function deleteOwnerTemplate({ ownerUserId, templateId } = {}) {
@@ -606,7 +796,11 @@ export async function deleteOwnerTemplate({ ownerUserId, templateId } = {}) {
   }
 
   if (!template.isWabaDefault) {
-    await reattachDefaultAfterCustomDelete(ownerUserId, wabaId);
+    await reattachDefaultAfterCustomDelete(
+      ownerUserId,
+      wabaId,
+      templatePurposeOf(template),
+    );
   }
 }
 
@@ -643,16 +837,21 @@ function sourceLinkFor(template, links) {
 }
 
 async function retargetStaleCampaignLinks({ existing, source }) {
-  const preferred = source.templates[0];
-  if (!preferred) return false;
-  const currentWabaId = String(preferred.wabaId || "").trim();
-  if (!currentWabaId) return false;
-  const preferredLink = sourceLinkFor(preferred, source.links);
+  const preferredByPurpose = new Map();
+  for (const template of source.templates) {
+    const purpose = templatePurposeOf(template);
+    if (!preferredByPurpose.has(purpose)) preferredByPurpose.set(purpose, template);
+  }
   let retargeted = false;
   for (const link of existing) {
     if (!link.isCampaign) continue;
+    const purpose = templatePurposeOf(link.template);
+    const preferred = preferredByPurpose.get(purpose);
+    if (!preferred) continue;
+    const currentWabaId = String(preferred.wabaId || "").trim();
     const linkedWaba = String(link.template?.wabaId || "").trim();
-    if (!linkedWaba || linkedWaba === currentWabaId) continue;
+    if (!currentWabaId || !linkedWaba || linkedWaba === currentWabaId) continue;
+    const preferredLink = sourceLinkFor(preferred, source.links);
     const slotMappings = preferredLink?.slotMappings || link.slotMappings;
     await link.update({
       whatsappMessageTemplateId: preferred.id,
@@ -717,46 +916,44 @@ export async function ensureEventWhatsappTemplates(event) {
   }
 
   const retargeted = await retargetStaleCampaignLinks({ existing, source });
-  const candidates = source.templates.map((template, index) => {
-    const sourceLink = sourceLinkFor(template, source.links);
-    return {
-      template,
-      sourceLink,
-      slot: sourceLink?.slot ?? index + 1,
-      index,
-    };
-  });
-  const existingSlots = new Set(existing.map((link) => link.slot));
-  const missing = candidates.filter(({ slot }) => !existingSlots.has(slot));
+  const linkedIds = new Set(existing.map((link) => link.whatsappMessageTemplateId));
+  const selectedPurposes = new Set(
+    existing
+      .filter((link) => link.isCampaign)
+      .map((link) => templatePurposeOf(link.template)),
+  );
+  const missing = source.templates.filter((template) => !linkedIds.has(template.id));
   if (!missing.length) {
     return { attached: retargeted, cloned: false, links: existing };
   }
 
   const links = [...existing];
-  for (const { template: origin, sourceLink, slot, index } of missing) {
-    links.push(await EventWhatsappTemplate.create({
+  for (const origin of missing) {
+    const sourceLink = sourceLinkFor(origin, source.links);
+    const purpose = templatePurposeOf(origin);
+    const slot = nextEventSlot(links);
+    const created = await EventWhatsappTemplate.create({
       eventId: event.id,
       whatsappMessageTemplateId: origin.id,
       ownerUserId: event.ownerId,
       slot,
-      isCampaign: sourceLink?.isCampaign ?? index === 0,
+      isCampaign: !selectedPurposes.has(purpose),
       slotMappings: sourceLink?.slotMappings || {},
-    }));
+    });
+    if (!selectedPurposes.has(purpose)) selectedPurposes.add(purpose);
+    links.push(created);
   }
   return { attached: true, cloned: false, links };
 }
 
-function missingCampaignTemplateError() {
-  return httpError(
-    400,
-    "Crea una plantilla de primer contacto y espera la aprobación de Meta.",
-  );
+function missingCampaignTemplateError(purpose = DEFAULT_TEMPLATE_PURPOSE) {
+  return httpError(400, missingPurposeTemplateError(purpose));
 }
 
-function assertLinkedTemplateReady(link) {
-  if (!link?.template) throw missingCampaignTemplateError();
+function assertLinkedTemplateReady(link, purpose = DEFAULT_TEMPLATE_PURPOSE) {
+  if (!link?.template) throw missingCampaignTemplateError(purpose);
   if (link.template.status !== "APPROVED") {
-    throw httpError(400, "Meta aún no aprueba la plantilla de campaña.");
+    throw httpError(400, pendingPurposeTemplateError(purpose));
   }
   if (
     ["document", "image"].includes(link.template.headerType)
@@ -799,19 +996,34 @@ function sendContextFrom(link, event) {
   };
 }
 
-export async function assertCampaignTemplateReady(event) {
-  await ensureEventWhatsappTemplates(event);
-  const link = await EventWhatsappTemplate.findOne({
-    where: { eventId: event.id, isCampaign: true },
+async function findSelectedLink(eventId, purpose = DEFAULT_TEMPLATE_PURPOSE) {
+  const normalized = normalizeTemplatePurpose(purpose);
+  const links = await EventWhatsappTemplate.findAll({
+    where: { eventId, isCampaign: true },
     include: [{ model: WhatsappMessageTemplate, as: "template", required: true }],
   });
-  if (!link) throw missingCampaignTemplateError();
-  return assertLinkedTemplateReady(link);
+  return links.find((link) => templatePurposeOf(link.template) === normalized) || null;
+}
+
+export async function assertPurposeTemplateReady(event, purpose = DEFAULT_TEMPLATE_PURPOSE) {
+  const normalized = normalizeTemplatePurpose(purpose);
+  await ensureEventWhatsappTemplates(event);
+  const link = await findSelectedLink(event.id, normalized);
+  if (!link) throw missingCampaignTemplateError(normalized);
+  return assertLinkedTemplateReady(link, normalized);
+}
+
+export async function assertCampaignTemplateReady(event) {
+  return assertPurposeTemplateReady(event, DEFAULT_TEMPLATE_PURPOSE);
+}
+
+export async function resolvePurposeSendContext(event, purpose = DEFAULT_TEMPLATE_PURPOSE) {
+  const link = await assertPurposeTemplateReady(event, purpose);
+  return sendContextFrom(link, event);
 }
 
 export async function resolveCampaignSendContext(event) {
-  const link = await assertCampaignTemplateReady(event);
-  return sendContextFrom(link, event);
+  return resolvePurposeSendContext(event, DEFAULT_TEMPLATE_PURPOSE);
 }
 
 export async function resolveOwnerCampaignSendContext({ ownerUserId, wabaId } = {}) {
@@ -826,7 +1038,7 @@ export async function resolveOwnerCampaignSendContext({ ownerUserId, wabaId } = 
         model: WhatsappMessageTemplate,
         as: "template",
         required: true,
-        where: { wabaId: currentWabaId },
+        where: { wabaId: currentWabaId, purpose: DEFAULT_TEMPLATE_PURPOSE },
       },
     ],
     order: [[{ model: Event }, "createdAt", "DESC"]],
@@ -851,14 +1063,28 @@ export async function listEventWhatsappTemplates(eventId) {
 }
 
 export async function setCampaignSlot({ eventId, slot }) {
-  await EventWhatsappTemplate.update(
-    { isCampaign: false },
-    { where: { eventId } },
-  );
-  await EventWhatsappTemplate.update(
-    { isCampaign: true },
-    { where: { eventId, slot } },
-  );
+  const numericSlot = assertValidEventSlot(slot);
+  const target = await EventWhatsappTemplate.findOne({
+    where: { eventId, slot: numericSlot },
+    include: [{ model: WhatsappMessageTemplate, as: "template", required: true }],
+  });
+  if (!target) throw httpError(404, "Plantilla del evento no encontrada.");
+  const purpose = templatePurposeOf(target.template);
+  const links = await EventWhatsappTemplate.findAll({
+    where: { eventId },
+    include: [{ model: WhatsappMessageTemplate, as: "template", required: true }],
+  });
+  const samePurposeIds = links
+    .filter((link) => templatePurposeOf(link.template) === purpose)
+    .map((link) => link.id)
+    .filter(Boolean);
+  if (samePurposeIds.length) {
+    await EventWhatsappTemplate.update(
+      { isCampaign: false },
+      { where: { id: samePurposeIds } },
+    );
+  }
+  await target.update({ isCampaign: true });
 }
 
 async function editableHeader({ template, headerType, headerFile, token }) {
@@ -972,19 +1198,30 @@ function nextEventSlot(links = []) {
   return slots.length === 0 ? 1 : Math.max(...slots) + 1;
 }
 
-async function loadEventTemplateLinks(eventId) {
-  const links = await EventWhatsappTemplate.findAll({ where: { eventId } });
-  if (links.length >= EVENT_TEMPLATE_CAP) {
+async function loadEventTemplateLinks(eventId, purpose) {
+  const links = await EventWhatsappTemplate.findAll({
+    where: { eventId },
+    include: [{ model: WhatsappMessageTemplate, as: "template" }],
+  });
+  const normalized = normalizeTemplatePurpose(purpose);
+  const samePurposeCount = links.filter(
+    (link) => templatePurposeOf(link.template) === normalized,
+  ).length;
+  if (samePurposeCount >= EVENT_TEMPLATE_CAP) {
     throw httpError(400, "El evento ya tiene el máximo de 10 plantillas.");
   }
   return links;
 }
 
-async function resolveCustomOrigin({ source, templateId, ownerUserId, wabaId }) {
+async function resolveCustomOrigin({ source, templateId, ownerUserId, wabaId, purpose }) {
   const normalized = String(source || "").trim().toLowerCase();
   if (normalized === "blank") return null;
   if (normalized === "default") {
-    const origin = await findReusableWizardDefault({ ownerUserId, wabaId });
+    const origin = await findReusableWizardDefault({
+      ownerUserId,
+      wabaId,
+      purpose,
+    });
     if (!origin) throw httpError(404, "No hay plantilla default en este WABA.");
     return origin;
   }
@@ -1051,20 +1288,24 @@ export async function createEventCustomTemplate({
   headerType,
   headerFile,
   slotMappings,
+  purpose,
 }) {
   await requireOwnedEvent(eventId, ownerUserId);
   const { credentials } = await resolveActiveWhatsappMetaByOwner(ownerUserId);
   const wabaId = String(credentials?.wabaId || "").trim();
   if (!wabaId) throw httpError(400, "WhatsApp (Meta) no está configurado.");
   const token = resolveTemplateCrudToken(credentials.accessToken);
+  const requestedPurpose = normalizeTemplatePurpose(purpose);
 
-  const links = await loadEventTemplateLinks(eventId);
+  const links = await loadEventTemplateLinks(eventId, requestedPurpose);
   const origin = await resolveCustomOrigin({
     source,
     templateId,
     ownerUserId,
     wabaId,
+    purpose: requestedPurpose,
   });
+  const purposeToSave = origin ? templatePurposeOf(origin) : requestedPurpose;
 
   const resolvedBody = String(body || "").trim()
     ? String(body)
@@ -1105,6 +1346,7 @@ export async function createEventCustomTemplate({
     token,
     slot,
     components,
+    purpose: purposeToSave,
   });
   const template = await WhatsappMessageTemplate.create({
     ownerUserId,
@@ -1119,6 +1361,7 @@ export async function createEventCustomTemplate({
       components,
     }),
     isWabaDefault: false,
+    purpose: purposeToSave,
     clonedFromId: origin?.id || null,
     displayName: persistableDisplayName(displayName, origin?.displayName),
   });
@@ -1156,7 +1399,7 @@ export async function attachEventTemplate({ eventId, ownerUserId, templateId }) 
     throw httpError(409, "Esta plantilla ya está vinculada al evento.");
   }
 
-  const links = await loadEventTemplateLinks(eventId);
+  const links = await loadEventTemplateLinks(eventId, templatePurposeOf(template));
   const sourceLink = await EventWhatsappTemplate.findOne({
     where: { whatsappMessageTemplateId: template.id },
   });
@@ -1229,7 +1472,7 @@ export async function submitEventTemplate({
   });
 
   if (!pivot) {
-    const name = generateTemplateName(numericSlot);
+    const name = generateTemplateName(numericSlot, templatePurposeOf(template) || DEFAULT_TEMPLATE_PURPOSE);
     template = await WhatsappMessageTemplate.create({
       ownerUserId,
       wabaId,
@@ -1244,6 +1487,7 @@ export async function submitEventTemplate({
         bodyStatus: "DRAFT",
       }),
       isWabaDefault: false,
+      purpose: DEFAULT_TEMPLATE_PURPOSE,
       displayName: persistableDisplayName(displayName, null),
     });
     pivot = await EventWhatsappTemplate.create({
@@ -1260,6 +1504,7 @@ export async function submitEventTemplate({
       slot: numericSlot,
       components,
       initialName: name,
+      purpose: DEFAULT_TEMPLATE_PURPOSE,
     });
     await template.update({
       metaTemplateId: meta.metaTemplateId,
@@ -1280,6 +1525,7 @@ export async function submitEventTemplate({
         language: template.language || TEMPLATE_LANGUAGE,
         category: template.category || TEMPLATE_CATEGORY,
         initialName: template.name,
+        purpose: templatePurposeOf(template),
       });
     await template.update({
       ...localTemplateFields({
@@ -1331,6 +1577,7 @@ export async function submitEventTemplate({
         components,
         language: template.language,
         category: template.category,
+        purpose: templatePurposeOf(template),
       });
       const clone = await WhatsappMessageTemplate.create({
         ownerUserId,
@@ -1345,6 +1592,7 @@ export async function submitEventTemplate({
           components,
         }),
         isWabaDefault: false,
+        purpose: templatePurposeOf(template),
         clonedFromId: template.id,
         displayName: persistableDisplayName(displayName, template.displayName),
       });
@@ -1383,7 +1631,7 @@ export async function submitOwnerCustomTemplate({
     where: { id, ownerUserId, wabaId },
   });
   if (!template) throw httpError(404, "Plantilla no encontrada.");
-  if (template.isWabaDefault) {
+  if (template.isWabaDefault && templatePurposeOf(template) === DEFAULT_TEMPLATE_PURPOSE) {
     throw httpError(400, "Edita la plantilla default con el wizard.");
   }
 
@@ -1421,6 +1669,7 @@ export async function submitOwnerCustomTemplate({
       language: template.language || TEMPLATE_LANGUAGE,
       category: template.category || TEMPLATE_CATEGORY,
       initialName: template.name,
+      purpose: templatePurposeOf(template),
     });
     await template.update({
       ...localTemplateFields({

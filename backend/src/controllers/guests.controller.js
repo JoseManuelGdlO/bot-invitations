@@ -8,9 +8,8 @@ import { guestsToRows, toCsv, toPdf, toXlsx } from "../services/export.service.j
 import { assertCanAddGuestsForEvent, assertCanSendInvitations } from "../services/plans.service.js";
 import { assertWhatsappReady } from "../services/integration-resolver.service.js";
 import { deliverAiMessage } from "../services/guest-message.service.js";
-import { resolveReminderText } from "../services/templates.service.js";
 import { phonesMatch } from "../services/bot/session.service.js";
-import { resolveCampaignSendContext } from "../services/whatsapp-templates.service.js";
+import { resolveCampaignSendContext, resolvePurposeSendContext } from "../services/whatsapp-templates.service.js";
 import { fillMetaTemplate } from "../services/meta.client.js";
 import { bodyTextFromComponents } from "../services/whatsapp-template-slots.js";
 
@@ -130,7 +129,32 @@ export const deleteGuest = asyncHandler(async (req, res) => {
 });
 
 async function deliverOpeningInvitation({ event, guest, plannerName }) {
-  const ctx = await resolveCampaignSendContext(event);
+  return deliverPurposeHsm({
+    event,
+    guest,
+    plannerName,
+    purpose: "invitation",
+    kind: "campaign",
+    guestPatch: {
+      status: "enviado",
+      whatsapp: "pendiente",
+      contactedAt: new Date(),
+    },
+  });
+}
+
+async function deliverPurposeHsm({
+  event,
+  guest,
+  plannerName,
+  purpose,
+  kind,
+  guestPatch = {},
+  followUpId,
+}) {
+  const ctx = purpose === "invitation"
+    ? await resolveCampaignSendContext(event)
+    : await resolvePurposeSendContext(event, purpose);
   const params = await ctx.hsmParamsFor(guest, plannerName);
   return deliverAiMessage({
     event,
@@ -140,12 +164,9 @@ async function deliverOpeningInvitation({ event, guest, plannerName }) {
     hsmTemplateName: ctx.hsmTemplateName,
     ...(ctx.hsmHeaderDocument ? { hsmHeaderDocument: ctx.hsmHeaderDocument } : {}),
     ...(ctx.hsmHeaderImage ? { hsmHeaderImage: ctx.hsmHeaderImage } : {}),
-    kind: "campaign",
-    guestPatch: {
-      status: "enviado",
-      whatsapp: "pendiente",
-      contactedAt: new Date(),
-    },
+    kind,
+    ...(followUpId ? { followUpId } : {}),
+    guestPatch,
   });
 }
 
@@ -157,16 +178,16 @@ export const remindGuest = asyncHandler(async (req, res) => {
   assertCanSendInvitations(req.user);
   await assertWhatsappReady(event);
 
-  const sendOpening = guest.status === "sin_contactar";
+    const sendOpening = guest.status === "sin_contactar";
   if (sendOpening) {
     await deliverOpeningInvitation({ event, guest, plannerName: req.user.name });
     await logActivity(event.id, `Se envió la invitación inicial a ${guest.rep}`, "message");
   } else {
-    const text = await resolveReminderText(event, guest, req.user.name);
-    await deliverAiMessage({
+    await deliverPurposeHsm({
       event,
       guest,
-      text,
+      plannerName: req.user.name,
+      purpose: "reminder",
       kind: "reminder",
       guestPatch: {
         status: guest.status,

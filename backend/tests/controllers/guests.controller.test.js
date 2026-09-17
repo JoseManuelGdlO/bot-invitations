@@ -10,6 +10,7 @@ describe("guests.controller", () => {
   let deliverAiMessage;
   let resolveReminderText;
   let resolveCampaignSendContext;
+  let resolvePurposeSendContext;
 
   beforeEach(async () => {
     requireEvent = jest.fn(async () => fakeEvent());
@@ -25,6 +26,17 @@ describe("guests.controller", () => {
       link: {},
       hsmTemplateName: "alanna_pc_aa_1",
       hsmParamsFor: jest.fn(async () => ["Luis", "2"]),
+      hsmHeaderDocument: null,
+      hsmHeaderImage: null,
+    }));
+    resolvePurposeSendContext = jest.fn(async () => ({
+      template: {
+        name: "alanna_rm_aa_1",
+        components: [{ type: "BODY", text: "Hola {{1}}, tienes {{2}} pases el {{3}}." }],
+      },
+      link: {},
+      hsmTemplateName: "alanna_rm_aa_1",
+      hsmParamsFor: jest.fn(async () => ["Luis", "2", "mayo"]),
       hsmHeaderDocument: null,
       hsmHeaderImage: null,
     }));
@@ -58,7 +70,10 @@ describe("guests.controller", () => {
           resolveSeguimientoText: jest.fn(async () => "seguimiento"),
           composeConstructorMessage: jest.fn(() => ""),
         }),
-        "src/services/whatsapp-templates.service.js": () => ({ resolveCampaignSendContext }),
+        "src/services/whatsapp-templates.service.js": () => ({
+          resolveCampaignSendContext,
+          resolvePurposeSendContext,
+        }),
         "src/services/integration-resolver.service.js": () => ({
           assertWhatsappReady: jest.fn(async () => undefined),
         }),
@@ -207,10 +222,15 @@ describe("guests.controller", () => {
       req: createMockReq({ user: fakeUser(), params: { guestId: "gst_1" } }),
     });
 
-    expect(resolveReminderText).toHaveBeenCalled();
+    expect(resolvePurposeSendContext).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "evt_1" }),
+      "reminder",
+    );
     expect(deliverAiMessage).toHaveBeenCalledWith(
       expect.objectContaining({
         kind: "reminder",
+        hsmTemplateName: "alanna_rm_aa_1",
+        hsmParams: ["Luis", "2", "mayo"],
         guestPatch: expect.objectContaining({
           status: "enviado",
           whatsapp: "pendiente",
@@ -244,6 +264,7 @@ describe("guests.controller", () => {
     });
 
     expect(resolveReminderText).not.toHaveBeenCalled();
+    expect(resolvePurposeSendContext).not.toHaveBeenCalled();
     expect(resolveCampaignSendContext).toHaveBeenCalledWith(expect.objectContaining({ id: "evt_1" }));
     expect(deliverAiMessage).toHaveBeenCalledWith(
       expect.objectContaining({
