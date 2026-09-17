@@ -14,7 +14,11 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { cn } from "@/lib/utils";
 import { toInputDate } from "@/lib/mock/format";
 import type { CampaignSnapshot } from "@/lib/mock/types";
-import { isCampaignLaunchBlocked } from "@/lib/whatsapp-templates";
+import {
+  isCampaignLaunchBlocked,
+  secondaryCampaignLaunchNotice,
+  type SecondaryCampaignPurpose,
+} from "@/lib/whatsapp-templates";
 
 type Mode = "now" | "schedule";
 
@@ -27,6 +31,7 @@ export function LaunchCampaignDialog({
   error,
   campaignTemplateStatus,
   campaignTemplatesLoadError = false,
+  unapprovedSecondaryPurposes = [],
   onConfirm,
 }: {
   open: boolean;
@@ -37,6 +42,7 @@ export function LaunchCampaignDialog({
   error?: string;
   campaignTemplateStatus: string | null;
   campaignTemplatesLoadError?: boolean;
+  unapprovedSecondaryPurposes?: SecondaryCampaignPurpose[];
   onConfirm: (payload: { mode: Mode; date?: string }) => Promise<void>;
 }) {
   const today = toInputDate();
@@ -61,6 +67,9 @@ export function LaunchCampaignDialog({
     campaignTemplateStatus,
     campaignTemplatesLoadError,
   );
+  const secondaryNotice = launchBlocked
+    ? ""
+    : secondaryCampaignLaunchNotice(unapprovedSecondaryPurposes);
   const dateError =
     mode === "schedule" && date
       ? date < today
@@ -152,6 +161,11 @@ export function LaunchCampaignDialog({
         {error ? (
           <p className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
             {error}
+          </p>
+        ) : null}
+        {secondaryNotice ? (
+          <p className="rounded-lg border border-gold/40 bg-gold-soft/50 px-3 py-2 text-sm">
+            {secondaryNotice}
           </p>
         ) : null}
         <DialogFooter>

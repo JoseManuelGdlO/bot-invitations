@@ -14,7 +14,11 @@ import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { LaunchCampaignDialog } from "@/components/launch-campaign-dialog";
 import { integrationsApi } from "@/lib/api/integrations";
-import { campaignTemplateStatus as campaignStatusFromList } from "@/lib/whatsapp-templates";
+import {
+  campaignTemplateStatus as campaignStatusFromList,
+  unapprovedSecondaryCampaignPurposes,
+  type SecondaryCampaignPurpose,
+} from "@/lib/whatsapp-templates";
 import { statsFor, useEvent, useStore } from "@/lib/mock/store";
 import { daysUntil, formatShortDate } from "@/lib/mock/format";
 import { cn } from "@/lib/utils";
@@ -72,6 +76,8 @@ function Resumen() {
   >(null);
   const [campaignTemplatesLoadError, setCampaignTemplatesLoadError] =
     useState(false);
+  const [unapprovedSecondaryPurposes, setUnapprovedSecondaryPurposes] =
+    useState<SecondaryCampaignPurpose[]>([]);
 
   useEffect(() => {
     setCampaign(event?.campaign ?? IDLE_CAMPAIGN);
@@ -81,17 +87,23 @@ function Resumen() {
     let cancelled = false;
     setCampaignTemplatesLoadError(false);
     setCampaignTemplateStatus(null);
+    setUnapprovedSecondaryPurposes([]);
     void integrationsApi
       .listEventWhatsappTemplates(eventId)
       .then((data) => {
         if (cancelled) return;
+        const templates = data.templates || [];
         setCampaignTemplatesLoadError(false);
-        setCampaignTemplateStatus(campaignStatusFromList(data.templates || []));
+        setCampaignTemplateStatus(campaignStatusFromList(templates));
+        setUnapprovedSecondaryPurposes(
+          unapprovedSecondaryCampaignPurposes(templates),
+        );
       })
       .catch(() => {
         if (!cancelled) {
           setCampaignTemplatesLoadError(true);
           setCampaignTemplateStatus(null);
+          setUnapprovedSecondaryPurposes([]);
         }
       });
     return () => {
@@ -263,6 +275,7 @@ function Resumen() {
                     error={launchError}
                     campaignTemplateStatus={campaignTemplateStatus}
                     campaignTemplatesLoadError={campaignTemplatesLoadError}
+                    unapprovedSecondaryPurposes={unapprovedSecondaryPurposes}
                     onConfirm={async (payload) => {
                       setSubmitting(true);
                       setLaunchError("");

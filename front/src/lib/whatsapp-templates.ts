@@ -1,3 +1,9 @@
+import {
+  DEFAULT_TEMPLATE_PURPOSE,
+  PURPOSE_TAB_LABEL,
+  normalizeTemplatePurpose,
+} from "./whatsapp-template-purpose.ts";
+
 const PLACEHOLDER_REGEX = /\{\{(\d+)\}\}/g;
 const STARTS_WITH_PLACEHOLDER = /^\{\{\d+\}\}/;
 const ENDS_WITH_PLACEHOLDER = /\{\{\d+\}\}$/;
@@ -495,13 +501,55 @@ export function buildEventTemplateFormData(input: {
   return form;
 }
 
+type CampaignTemplateRow = {
+  isCampaign: boolean;
+  template: { status: string | null; purpose?: string | null };
+};
+
+function isCampaignInvitation(row: CampaignTemplateRow): boolean {
+  return (
+    row.isCampaign &&
+    normalizeTemplatePurpose(row.template.purpose) === DEFAULT_TEMPLATE_PURPOSE
+  );
+}
+
 export function campaignTemplateStatus(
-  templates: Array<{
-    isCampaign: boolean;
-    template: { status: string | null };
-  }>,
+  templates: CampaignTemplateRow[],
 ): string | null {
-  return templates.find((row) => row.isCampaign)?.template.status ?? null;
+  return templates.find(isCampaignInvitation)?.template.status ?? null;
+}
+
+const SECONDARY_CAMPAIGN_PURPOSES = ["reminder", "followup"] as const;
+
+export type SecondaryCampaignPurpose =
+  (typeof SECONDARY_CAMPAIGN_PURPOSES)[number];
+
+export function unapprovedSecondaryCampaignPurposes(
+  templates: CampaignTemplateRow[],
+): SecondaryCampaignPurpose[] {
+  return SECONDARY_CAMPAIGN_PURPOSES.filter((purpose) => {
+    const row = templates.find(
+      (item) =>
+        item.isCampaign &&
+        normalizeTemplatePurpose(item.template.purpose) === purpose,
+    );
+    return Boolean(row && row.template.status !== "APPROVED");
+  });
+}
+
+export function secondaryCampaignLaunchNotice(
+  purposes: SecondaryCampaignPurpose[],
+): string {
+  if (!purposes.length) return "";
+  const labels = purposes.map((purpose) => PURPOSE_TAB_LABEL[purpose]);
+  const names =
+    labels.length === 1
+      ? labels[0]
+      : `${labels.slice(0, -1).join(", ")} y ${labels[labels.length - 1]}`;
+  const singular = purposes.length === 1;
+  return singular
+    ? `La plantilla de ${names} aún no está aprobada. Puedes lanzar igual: esos mensajes se enviarán solos cuando Meta la apruebe. Si llega el día programado y sigue sin estar lista, el envío se aplaza al día siguiente.`
+    : `Las plantillas de ${names} aún no están aprobadas. Puedes lanzar igual: esos mensajes se enviarán solos cuando Meta las apruebe. Si llega el día programado y siguen sin estar listas, el envío se aplaza al día siguiente.`;
 }
 
 export function isCampaignLaunchBlocked(

@@ -16,6 +16,8 @@ import {
   isLaunchFollowUpRule,
   nextActiveFollowUpDate,
   parseDateOnly,
+  rolledFollowUpDate,
+  startOfDay,
 } from "./follow-up.service.js";
 import { Logger } from "../utils/logger.js";
 import { finalizePastEvents } from "./event-status.service.js";
@@ -43,12 +45,42 @@ function markFollowUpsSent(guest, sent) {
   if (typeof guest.changed === "function") guest.changed("followUpsSent", true);
 }
 
+async function postponeDueFollowUps(guests, getDue, now, { eventId, purpose }) {
+  const today = startOfDay(now);
+  for (const guest of guests) {
+    const due = getDue(guest);
+    if (!due || !isDue(due, now)) continue;
+    if (startOfDay(due).getTime() >= today.getTime()) continue;
+    const formatted = formatFollowUpDate(rolledFollowUpDate(due, now));
+    if (!formatted || formatted === (guest.followUp || "")) continue;
+    guest.followUp = formatted;
+    await guest.save();
+    log.info("follow-up aplazado: plantilla no lista", {
+      eventId,
+      guestId: guest.id,
+      purpose,
+      followUp: formatted,
+    });
+  }
+}
+
 async function processIndecisoNudges(event, guests, paused, plannerName, budget, now, indecisoRule) {
   if (indecisoRule && indecisoRule.active === false) return;
   let ctx;
   try {
     ctx = await resolvePurposeSendContext(event, "followup");
   } catch {
+    await postponeDueFollowUps(
+      guests,
+      (guest) => {
+        if (guest.status !== "seguimiento") return null;
+        if (paused.has(guest.id) || !guest.phone) return null;
+        if (sentIds(guest).includes(INDECISO_NUDGE_ID)) return null;
+        return parseDateOnly(guest.followUp);
+      },
+      now,
+      { eventId: event.id, purpose: "followup" },
+    );
     return;
   }
   for (const guest of guests) {
@@ -93,6 +125,25 @@ async function processDripReminders(event, guests, paused, plannerName, budget, 
   try {
     ctx = await resolvePurposeSendContext(event, "reminder");
   } catch {
+    await postponeDueFollowUps(
+      guests,
+      (guest) => {
+        if (guest.status === "seguimiento") return null;
+        if (paused.has(guest.id) || !guest.phone) return null;
+        const sent = sentIds(guest);
+        for (const rule of rules) {
+          if (!rule?.id || sent.includes(rule.id)) continue;
+          const due = computeFollowUpDueAt(rule, {
+            contactedAt: guest.contactedAt,
+            eventDate: event.date,
+          });
+          if (due && isDue(due, now)) return due;
+        }
+        return null;
+      },
+      now,
+      { eventId: event.id, purpose: "reminder" },
+    );
     return;
   }
   for (const guest of guests) {

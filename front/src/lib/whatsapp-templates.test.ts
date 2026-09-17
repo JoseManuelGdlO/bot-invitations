@@ -18,7 +18,9 @@ import {
   mergeEventSlotMappings,
   metaTemplateBodyErrors,
   shouldShowEventTemplateCards,
+  secondaryCampaignLaunchNotice,
   statusBadgeLabel,
+  unapprovedSecondaryCampaignPurposes,
   unmappedExtraNotices,
   wizardBodyError,
   type WizardTemplateDraft,
@@ -457,6 +459,76 @@ test("campaignTemplateStatus usa la fila isCampaign", () => {
     "PENDING",
   );
   assert.equal(campaignTemplateStatus([]), null);
+});
+
+test("campaignTemplateStatus ignora reminder isCampaign y usa la invitación", () => {
+  assert.equal(
+    campaignTemplateStatus([
+      {
+        isCampaign: true,
+        template: { status: "PENDING", purpose: "reminder" },
+      },
+      {
+        isCampaign: true,
+        template: { status: "APPROVED", purpose: "invitation" },
+      },
+    ]),
+    "APPROVED",
+  );
+});
+
+test("unapprovedSecondaryCampaignPurposes lista reminder y followup no APPROVED", () => {
+  assert.deepEqual(
+    unapprovedSecondaryCampaignPurposes([
+      {
+        isCampaign: true,
+        template: { status: "APPROVED", purpose: "invitation" },
+      },
+      {
+        isCampaign: true,
+        template: { status: "PENDING", purpose: "reminder" },
+      },
+      {
+        isCampaign: true,
+        template: { status: "REJECTED", purpose: "followup" },
+      },
+    ]),
+    ["reminder", "followup"],
+  );
+  assert.deepEqual(
+    unapprovedSecondaryCampaignPurposes([
+      {
+        isCampaign: true,
+        template: { status: "PENDING", purpose: "invitation" },
+      },
+      {
+        isCampaign: true,
+        template: { status: "APPROVED", purpose: "reminder" },
+      },
+    ]),
+    [],
+  );
+  assert.deepEqual(
+    unapprovedSecondaryCampaignPurposes([
+      {
+        isCampaign: false,
+        template: { status: "PENDING", purpose: "reminder" },
+      },
+    ]),
+    [],
+  );
+});
+
+test("secondaryCampaignLaunchNotice nombra Recordatorio y Seguimiento", () => {
+  assert.match(
+    secondaryCampaignLaunchNotice(["reminder"]),
+    /La plantilla de Recordatorio aún no está aprobada/,
+  );
+  assert.match(
+    secondaryCampaignLaunchNotice(["reminder", "followup"]),
+    /Las plantillas de Recordatorio y Seguimiento aún no están aprobadas/,
+  );
+  assert.equal(secondaryCampaignLaunchNotice([]), "");
 });
 
 test("isCampaignLaunchBlocked solo si el GET llegó y no está APPROVED", () => {

@@ -230,6 +230,13 @@ export function isDue(due, now = new Date()) {
   return startOfDay(due).getTime() <= startOfDay(now).getTime();
 }
 
+export function rolledFollowUpDate(due, now = new Date()) {
+  if (!due) return null;
+  const dueDay = startOfDay(due);
+  const today = startOfDay(now);
+  return dueDay < today ? today : dueDay;
+}
+
 export function nextActiveFollowUpDate(
   followUps,
   { contactedAt, eventDate, now = new Date(), alreadySent = [] } = {},

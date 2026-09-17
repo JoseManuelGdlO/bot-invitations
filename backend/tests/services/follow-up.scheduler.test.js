@@ -277,6 +277,85 @@ describe("follow-up.scheduler", () => {
     stubEventGuests([guest], { followUps: DEFAULT_RULES });
     await scheduler.tickFollowUps();
     expect(deliverAiMessage).not.toHaveBeenCalled();
+    expect(guest.followUp).toBe(formatFollowUpDate(new Date()));
+    expect(guest.save).toHaveBeenCalled();
+  });
+
+  test("no mueve el followUp del drip si vence hoy y la plantilla no está lista", async () => {
+    resolvePurposeSendContext.mockRejectedValue(
+      Object.assign(new Error("Meta aún no aprueba la plantilla de recordatorio."), { status: 400 }),
+    );
+    const guest = fakeGuest({
+      status: "enviado",
+      followUp: "",
+      followUpsSent: [],
+      contactedAt: addDays(new Date(), -7),
+    });
+    stubEventGuests([guest], {
+      followUps: [{ id: "f2", label: "Primer recordatorio", days: 7, when: "7 días después del primer contacto", active: true }],
+    });
+    await scheduler.tickFollowUps();
+    expect(deliverAiMessage).not.toHaveBeenCalled();
+    expect(guest.followUp).toBe("");
+    expect(guest.save).not.toHaveBeenCalled();
+  });
+
+  test("aplaza el recontacto indeciso al día siguiente si la plantilla no está lista", async () => {
+    resolvePurposeSendContext.mockImplementation(async (_event, purpose) => {
+      if (purpose === "followup") {
+        throw Object.assign(new Error("Meta aún no aprueba la plantilla de seguimiento."), { status: 400 });
+      }
+      return {
+        template: {
+          components: [{ type: "BODY", text: "Hola {{1}}, tienes {{2}} pases." }],
+        },
+        hsmTemplateName: "alanna_rm_1",
+        hsmParamsFor: jest.fn(async (guest) => [guest.rep, "2"]),
+        hsmHeaderDocument: null,
+        hsmHeaderImage: null,
+      };
+    });
+    const yesterday = formatFollowUpDate(addDays(new Date(), -1));
+    const guest = fakeGuest({
+      status: "seguimiento",
+      followUp: yesterday,
+      followUpsSent: [],
+    });
+    stubEventGuests([guest]);
+    await scheduler.tickFollowUps();
+    expect(deliverAiMessage).not.toHaveBeenCalled();
+    expect(guest.followUp).toBe(formatFollowUpDate(new Date()));
+    expect(guest.save).toHaveBeenCalled();
+  });
+
+  test("no mueve el followUp del indeciso si vence hoy y la plantilla no está lista", async () => {
+    resolvePurposeSendContext.mockRejectedValue(
+      Object.assign(new Error("Meta aún no aprueba la plantilla de seguimiento."), { status: 400 }),
+    );
+    const today = formatFollowUpDate(new Date());
+    const guest = fakeGuest({
+      status: "seguimiento",
+      followUp: today,
+      followUpsSent: [],
+    });
+    stubEventGuests([guest]);
+    await scheduler.tickFollowUps();
+    expect(deliverAiMessage).not.toHaveBeenCalled();
+    expect(guest.followUp).toBe(today);
+    expect(guest.save).not.toHaveBeenCalled();
+  });
+
+  test("envía el recontacto el mismo día si la plantilla ya está lista", async () => {
+    const guest = fakeGuest({
+      status: "seguimiento",
+      followUp: formatFollowUpDate(new Date()),
+      followUpsSent: [],
+    });
+    stubEventGuests([guest]);
+    await scheduler.tickFollowUps();
+    expect(deliverAiMessage).toHaveBeenCalledWith(
+      expect.objectContaining({ kind: "seguimiento", followUpId: INDECISO_NUDGE_ID }),
+    );
   });
 
   test("no envía si followUpsEnabled está apagado", async () => {

@@ -16,6 +16,7 @@ import {
   nextActiveFollowUpDate,
   normalizeFollowUps,
   parseFollowUpWhen,
+  rolledFollowUpDate,
   startOfDay,
 } from "../../src/services/follow-up.service.js";
 
@@ -30,6 +31,13 @@ describe("follow-up.service", () => {
   test("defaultIndecisoFollowUpDate respeta días custom", () => {
     const now = new Date(2026, 7, 26);
     expect(formatFollowUpDate(defaultIndecisoFollowUpDate(now, 5))).toBe("31/08/2026");
+  });
+
+  test("rolledFollowUpDate deja hoy igual y sube fechas pasadas a hoy", () => {
+    const today = new Date(2026, 8, 10, 18, 30, 0);
+    expect(rolledFollowUpDate(new Date(2026, 8, 10), today)).toEqual(startOfDay(today));
+    expect(rolledFollowUpDate(new Date(2026, 8, 9), today)).toEqual(startOfDay(today));
+    expect(formatFollowUpDate(rolledFollowUpDate(new Date(2026, 8, 9), today))).toBe("10/09/2026");
   });
 
   test("parseFollowUpWhen entiende seguimiento y days del JSON", () => {
