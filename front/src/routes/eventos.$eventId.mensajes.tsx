@@ -1,6 +1,6 @@
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
-import { Plus } from "lucide-react";
+import { Loader2, Plus } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -24,6 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { WhatsappEventTemplateCreateDialog } from "@/components/whatsapp-event-template-create-dialog";
 import { WhatsappTemplateCard } from "@/components/whatsapp-template-card";
@@ -52,7 +53,9 @@ import {
 } from "@/lib/whatsapp-event-templates";
 import {
   buildEventTemplateFormData,
+  eventTemplatesLoadUi,
   isMetaTemplateInReview,
+  isWhatsAppUnconfiguredError,
   shouldShowEventTemplateCards,
   WHATSAPP_SETUP_CTA_DESCRIPTION,
   WHATSAPP_SETUP_CTA_LABEL,
@@ -96,6 +99,39 @@ const PURPOSE_TITLES: Record<WhatsappTemplatePurpose, string> = {
   followup: "Seguimiento",
 };
 
+function PurposeTemplatesSkeleton() {
+  return (
+    <div className="mt-3 space-y-4" aria-busy="true" aria-live="polite">
+      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+        <Loader2 className="size-4 animate-spin" />
+        Cargando plantillas…
+      </div>
+      <div className="space-y-2">
+        <Skeleton className="h-4 w-20" />
+        <Skeleton className="h-10 w-full" />
+      </div>
+      <div className="space-y-4 rounded-2xl border border-border bg-card p-6 shadow-soft">
+        <div className="flex items-start justify-between gap-3">
+          <Skeleton className="h-5 w-44" />
+          <Skeleton className="h-5 w-24 rounded-full" />
+        </div>
+        <div className="space-y-2">
+          <Skeleton className="h-4 w-16" />
+          <Skeleton className="h-10 w-full" />
+        </div>
+        <div className="space-y-2">
+          <Skeleton className="h-4 w-24" />
+          <Skeleton className="h-28 w-full" />
+        </div>
+        <div className="flex justify-end">
+          <Skeleton className="h-10 w-40" />
+        </div>
+      </div>
+      <Skeleton className="h-10 w-56" />
+    </div>
+  );
+}
+
 function mergeSavedDraft(
   prev: EventTemplateCardDraft[],
   next: EventTemplateCardDraft,
@@ -135,6 +171,7 @@ function PurposeTemplates({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [whatsappConfigured, setWhatsappConfigured] = useState(false);
+  const [showWhatsAppSetupCta, setShowWhatsAppSetupCta] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const [savingSlot, setSavingSlot] = useState<number | null>(null);
   const [attaching, setAttaching] = useState(false);
@@ -180,23 +217,38 @@ function PurposeTemplates({
     let cancelled = false;
     setLoading(true);
     setError("");
-    void Promise.all([
+    setShowWhatsAppSetupCta(false);
+    void Promise.allSettled([
       integrationsApi.getWhatsAppStatus(),
       integrationsApi.listEventWhatsappTemplates(eventId),
-      integrationsApi.listAccountWhatsappTemplates().catch(() => ({
-        templates: [] as AccountWhatsappTemplateDto[],
-      })),
+      integrationsApi.listAccountWhatsappTemplates(),
     ])
-      .then(([status, eventData, accountData]) => {
+      .then(([statusResult, eventResult, accountResult]) => {
         if (cancelled) return;
-        const configured = Boolean(status.configured);
-        setWhatsappConfigured(configured);
-        if (!configured) {
+        const statusConfigured =
+          statusResult.status === "fulfilled"
+            ? Boolean(statusResult.value.configured)
+            : null;
+        const listError =
+          eventResult.status === "rejected" ? eventResult.reason : null;
+        const ui = eventTemplatesLoadUi({ statusConfigured, listError });
+        setWhatsappConfigured(ui.whatsappConfigured);
+        setShowWhatsAppSetupCta(ui.showWhatsAppSetupCta);
+        setError(ui.error);
+        if (ui.error || !ui.whatsappConfigured) {
           setDrafts([]);
           setAccountTemplates([]);
           setFocusedSlot(null);
           return;
         }
+        const eventData =
+          eventResult.status === "fulfilled"
+            ? eventResult.value
+            : { templates: [] };
+        const accountData =
+          accountResult.status === "fulfilled"
+            ? accountResult.value
+            : { templates: [] };
         const allDrafts = draftsFromEventTemplates(eventData.templates || []);
         const next = allDrafts.filter((item) => item.purpose === purpose);
         setDrafts(next);
@@ -210,18 +262,6 @@ function PurposeTemplates({
         );
         const campaign = next.find((item) => item.isCampaign) ?? next[0];
         setFocusedSlot(campaign?.slot ?? null);
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        setDrafts([]);
-        setAccountTemplates([]);
-        setFocusedSlot(null);
-        setWhatsappConfigured(false);
-        setError(
-          err instanceof ApiError
-            ? err.message
-            : "No se pudieron cargar las plantillas de Meta.",
-        );
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -341,26 +381,29 @@ function PurposeTemplates({
       <p className="mt-1 text-sm text-muted-foreground">
         {PURPOSE_HINT[purpose]}
       </p>
-      {loading ? (
-        <p className="mt-3 text-sm text-muted-foreground">
-          Cargando plantillas de Meta…
-        </p>
-      ) : null}
+      {loading ? <PurposeTemplatesSkeleton /> : null}
       {error ? (
         <div className="mt-3 flex flex-col items-start gap-2">
           <p className="text-sm text-destructive">{error}</p>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            disabled={loading}
-            onClick={() => setReloadKey((n) => n + 1)}
-          >
-            Reintentar
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={loading}
+              onClick={() => setReloadKey((n) => n + 1)}
+            >
+              Reintentar
+            </Button>
+            {isWhatsAppUnconfiguredError(error) ? (
+              <Button type="button" size="sm" asChild>
+                <Link to="/eventos/whatsapp">{WHATSAPP_SETUP_CTA_LABEL}</Link>
+              </Button>
+            ) : null}
+          </div>
         </div>
       ) : null}
-      {!loading && !error && !whatsappConfigured ? (
+      {!loading && showWhatsAppSetupCta ? (
         <Alert className="mt-3">
           <AlertDescription className="space-y-3">
             <p>{WHATSAPP_SETUP_CTA_DESCRIPTION}</p>

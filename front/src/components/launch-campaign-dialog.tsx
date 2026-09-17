@@ -17,6 +17,7 @@ import { toInputDate } from "@/lib/mock/format";
 import type { CampaignSnapshot } from "@/lib/mock/types";
 import {
   CAMPAIGN_LAUNCH_TEMPLATE_NOT_APPROVED,
+  CAMPAIGN_LAUNCH_TEMPLATES_UNAVAILABLE,
   CAMPAIGN_LAUNCH_WHATSAPP_SETUP_DESCRIPTION,
   isCampaignLaunchBlocked,
   secondaryCampaignLaunchNotice,
@@ -102,9 +103,11 @@ export function LaunchCampaignDialog({
           <DialogDescription>
             {needsWhatsApp
               ? CAMPAIGN_LAUNCH_WHATSAPP_SETUP_DESCRIPTION
-              : launchBlocked
-                ? CAMPAIGN_LAUNCH_TEMPLATE_NOT_APPROVED
-                : "El primer contacto se envía a quienes todavía no han sido contactados. Puedes lanzarlo ahora o dejarlo programado."}
+              : campaignTemplatesLoadError
+                ? CAMPAIGN_LAUNCH_TEMPLATES_UNAVAILABLE
+                : launchBlocked
+                  ? CAMPAIGN_LAUNCH_TEMPLATE_NOT_APPROVED
+                  : "El primer contacto se envía a quienes todavía no han sido contactados. Puedes lanzarlo ahora o dejarlo programado."}
           </DialogDescription>
         </DialogHeader>
         <RadioGroup

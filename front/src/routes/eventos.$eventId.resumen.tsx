@@ -97,7 +97,7 @@ function Resumen() {
       setWhatsappConfigured(
         statusResult.status === "fulfilled"
           ? Boolean(statusResult.value.configured)
-          : true,
+          : false,
       );
       if (templatesResult.status === "fulfilled") {
         const templates = templatesResult.value.templates || [];

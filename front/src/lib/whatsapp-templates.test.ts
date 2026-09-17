@@ -13,9 +13,12 @@ import {
   extractBodyPlaceholders,
   insertWizardVariable,
   CAMPAIGN_LAUNCH_TEMPLATE_NOT_APPROVED,
+  CAMPAIGN_LAUNCH_TEMPLATES_UNAVAILABLE,
+  eventTemplatesLoadUi,
   isCampaignLaunchBlocked,
   isEventTemplateCardReady,
   isMetaTemplateInReview,
+  isWhatsAppUnconfiguredError,
   isWizardCardReady,
   META_TEMPLATE_PENDING_EDIT_HINT,
   mergeEventSlotMappings,
@@ -24,6 +27,7 @@ import {
   shouldShowEventTemplateCards,
   secondaryCampaignLaunchNotice,
   statusBadgeLabel,
+  WHATSAPP_CONNECTED_NEXT_STEP,
   WHATSAPP_SETUP_CTA_DESCRIPTION,
   WHATSAPP_SETUP_CTA_LABEL,
   unapprovedSecondaryCampaignPurposes,
@@ -562,14 +566,18 @@ test("secondaryCampaignLaunchNotice nombra Recordatorio y Seguimiento", () => {
   assert.equal(secondaryCampaignLaunchNotice([]), "");
 });
 
-test("isCampaignLaunchBlocked solo si el GET llegó y no está APPROVED", () => {
+test("isCampaignLaunchBlocked si el GET llegó y no está APPROVED", () => {
   assert.equal(isCampaignLaunchBlocked("APPROVED", false), false);
   assert.equal(isCampaignLaunchBlocked("PENDING", false), true);
   assert.equal(isCampaignLaunchBlocked("REJECTED", false), true);
   assert.equal(isCampaignLaunchBlocked(null, false), true);
-  assert.equal(isCampaignLaunchBlocked("APPROVED", true), false);
-  assert.equal(isCampaignLaunchBlocked("PENDING", true), false);
-  assert.equal(isCampaignLaunchBlocked(null, true), false);
+});
+
+test("isCampaignLaunchBlocked si no se pudieron comprobar las plantillas", () => {
+  assert.equal(isCampaignLaunchBlocked("APPROVED", true), true);
+  assert.equal(isCampaignLaunchBlocked("PENDING", true), true);
+  assert.equal(isCampaignLaunchBlocked(null, true), true);
+  assert.equal(isCampaignLaunchBlocked("APPROVED", true, true), true);
 });
 
 test("isCampaignLaunchBlocked si WhatsApp no está configurado aunque el GET falle", () => {
@@ -577,7 +585,6 @@ test("isCampaignLaunchBlocked si WhatsApp no está configurado aunque el GET fal
   assert.equal(isCampaignLaunchBlocked("PENDING", true, false), true);
   assert.equal(isCampaignLaunchBlocked("APPROVED", true, false), true);
   assert.equal(isCampaignLaunchBlocked("APPROVED", false, true), false);
-  assert.equal(isCampaignLaunchBlocked("PENDING", true, true), false);
 });
 
 test("shouldShowEventTemplateCards oculta el editor si el GET falló", () => {
@@ -601,6 +608,74 @@ test("copy de CTA WhatsApp y plantilla de campaña no aprobada", () => {
   assert.equal(WHATSAPP_SETUP_CTA_LABEL, "Conectar WhatsApp");
   assert.match(CAMPAIGN_LAUNCH_TEMPLATE_NOT_APPROVED, /Aprobada/);
   assert.match(CAMPAIGN_LAUNCH_TEMPLATE_NOT_APPROVED, /Mensajes/);
+  assert.match(CAMPAIGN_LAUNCH_TEMPLATES_UNAVAILABLE, /comprobar tus plantillas/);
+  assert.match(WHATSAPP_CONNECTED_NEXT_STEP, /apruebe/);
+});
+
+test("isWhatsAppUnconfiguredError detecta el 400 de Meta sin WhatsApp", () => {
+  const unconfigured = Object.assign(
+    new Error("WhatsApp (Meta) no está configurado."),
+    { status: 400 },
+  );
+  assert.equal(isWhatsAppUnconfiguredError(unconfigured), true);
+  assert.equal(
+    isWhatsAppUnconfiguredError("WhatsApp (Meta) no está configurado."),
+    true,
+  );
+  assert.equal(
+    isWhatsAppUnconfiguredError(new Error("No se pudieron cargar las plantillas de Meta.")),
+    false,
+  );
+  assert.equal(
+    isWhatsAppUnconfiguredError(
+      Object.assign(new Error("Error de red"), { status: 500 }),
+    ),
+    false,
+  );
+});
+
+test("eventTemplatesLoadUi no borra WhatsApp OK si solo falla el listado", () => {
+  const ui = eventTemplatesLoadUi({
+    statusConfigured: true,
+    listError: new Error("Error de red"),
+  });
+  assert.equal(ui.whatsappConfigured, true);
+  assert.equal(ui.showWhatsAppSetupCta, false);
+  assert.match(ui.error, /Error de red/);
+});
+
+test("eventTemplatesLoadUi muestra CTA si el error es WhatsApp no configurado", () => {
+  const ui = eventTemplatesLoadUi({
+    statusConfigured: null,
+    listError: Object.assign(new Error("WhatsApp (Meta) no está configurado."), {
+      status: 400,
+    }),
+  });
+  assert.equal(ui.whatsappConfigured, false);
+  assert.equal(ui.showWhatsAppSetupCta, true);
+});
+
+test("eventTemplatesLoadUi no inventa desconectado si el status falló", () => {
+  const ui = eventTemplatesLoadUi({
+    statusConfigured: null,
+    listError: new Error("Error de red"),
+  });
+  assert.equal(ui.showWhatsAppSetupCta, false);
+  assert.match(ui.error, /Error de red/);
+});
+
+test("eventTemplatesLoadUi conserva el listado si el status falló pero las plantillas llegaron", () => {
+  const ui = eventTemplatesLoadUi({ statusConfigured: null });
+  assert.equal(ui.whatsappConfigured, true);
+  assert.equal(ui.showWhatsAppSetupCta, false);
+  assert.equal(ui.error, "");
+});
+
+test("eventTemplatesLoadUi muestra CTA si el status dice que no hay WhatsApp", () => {
+  const ui = eventTemplatesLoadUi({ statusConfigured: false });
+  assert.equal(ui.whatsappConfigured, false);
+  assert.equal(ui.showWhatsAppSetupCta, true);
+  assert.equal(ui.error, "");
 });
 
 test("insertWizardVariable aplica preset si el cuerpo está vacío", () => {

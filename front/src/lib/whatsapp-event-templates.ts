@@ -109,7 +109,10 @@ export function shouldConfirmMetaResubmit(input: {
   persisted?: boolean;
   status?: string | null;
 }): boolean {
-  return Boolean(input.persisted) && input.status === "APPROVED";
+  return (
+    Boolean(input.persisted) &&
+    (input.status === "APPROVED" || input.status === "REJECTED")
+  );
 }
 
 export function canEditEventExtraMappings(input: {

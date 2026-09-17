@@ -125,9 +125,13 @@ test("banner y confirm de fork solo si la plantilla es default de cuenta", () =>
   assert.equal(shouldConfirmEventTemplateFork({ isWabaDefault: false }), false);
 });
 
-test("shouldConfirmMetaResubmit solo si la plantilla persistida está APPROVED", () => {
+test("shouldConfirmMetaResubmit si la plantilla persistida está APPROVED o REJECTED", () => {
   assert.equal(
     shouldConfirmMetaResubmit({ persisted: true, status: "APPROVED" }),
+    true,
+  );
+  assert.equal(
+    shouldConfirmMetaResubmit({ persisted: true, status: "REJECTED" }),
     true,
   );
   assert.equal(

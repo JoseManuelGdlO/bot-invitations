@@ -586,6 +586,84 @@ export const CAMPAIGN_LAUNCH_WHATSAPP_SETUP_DESCRIPTION =
   "Primero debes configurar tu cuenta de WhatsApp.";
 export const CAMPAIGN_LAUNCH_TEMPLATE_NOT_APPROVED =
   "No puedes lanzar todavía: Meta aún no aprueba la plantilla de primer contacto. Cuando en Mensajes del evento figure como Aprobada, vuelve aquí.";
+export const CAMPAIGN_LAUNCH_TEMPLATES_UNAVAILABLE =
+  "No pudimos comprobar tus plantillas, intenta de nuevo.";
+export const WHATSAPP_CONNECTED_NEXT_STEP =
+  "Crea la plantilla de invitación y espera a que Meta la apruebe.";
+
+function errorStatus(err: unknown): number | null {
+  if (!err || typeof err !== "object" || !("status" in err)) return null;
+  const status = Number((err as { status: unknown }).status);
+  return Number.isFinite(status) ? status : null;
+}
+
+export function isWhatsAppUnconfiguredError(err: unknown): boolean {
+  const message =
+    err instanceof Error ? err.message : typeof err === "string" ? err : "";
+  if (!/no está configurado/i.test(message)) return false;
+  if (!/whatsapp|meta/i.test(message)) return false;
+  const status = errorStatus(err);
+  return status == null || status === 400;
+}
+
+export type EventTemplatesLoadUi = {
+  whatsappConfigured: boolean;
+  showWhatsAppSetupCta: boolean;
+  error: string;
+};
+
+export function eventTemplatesLoadUi(input: {
+  statusConfigured: boolean | null;
+  listError?: unknown;
+}): EventTemplatesLoadUi {
+  const listError = input.listError ?? null;
+  const errorMessage = listError
+    ? listError instanceof Error
+      ? listError.message
+      : "No se pudieron cargar las plantillas de Meta."
+    : "";
+  const unconfiguredError = Boolean(
+    listError && isWhatsAppUnconfiguredError(listError),
+  );
+
+  if (input.statusConfigured === false) {
+    return {
+      whatsappConfigured: false,
+      showWhatsAppSetupCta: true,
+      error: "",
+    };
+  }
+
+  if (input.statusConfigured === true) {
+    return {
+      whatsappConfigured: true,
+      showWhatsAppSetupCta: false,
+      error: errorMessage,
+    };
+  }
+
+  if (unconfiguredError) {
+    return {
+      whatsappConfigured: false,
+      showWhatsAppSetupCta: true,
+      error: "",
+    };
+  }
+
+  if (listError) {
+    return {
+      whatsappConfigured: false,
+      showWhatsAppSetupCta: false,
+      error: errorMessage,
+    };
+  }
+
+  return {
+    whatsappConfigured: true,
+    showWhatsAppSetupCta: false,
+    error: "",
+  };
+}
 
 export function isCampaignLaunchBlocked(
   status: string | null,
@@ -593,7 +671,7 @@ export function isCampaignLaunchBlocked(
   whatsappConfigured = true,
 ): boolean {
   if (!whatsappConfigured) return true;
-  if (loadError) return false;
+  if (loadError) return true;
   return status !== "APPROVED";
 }
 

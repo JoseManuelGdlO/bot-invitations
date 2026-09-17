@@ -9,6 +9,8 @@ export const ACCOUNT_TEMPLATES_EMPTY_NEEDS_SETUP =
 export const ACCOUNT_TEMPLATES_EMPTY_NONE = "Aún no hay plantillas";
 export const ACCOUNT_TEMPLATES_EMPTY_PURPOSE =
   "Se crean al completar el wizard de invitación.";
+export const ACCOUNT_TEMPLATES_PAGE_SUBTITLE =
+  "Plantillas de esta cuenta. Meta tiene que aprobar cada una antes de poder mandar mensajes masivos. Borrarlas también las quita en Meta.";
 
 export const LAST_WABA_DEFAULT_DELETE_HINT =
   "No se puede borrar la única plantilla default de esta categoría.";

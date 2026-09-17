@@ -48,6 +48,7 @@ import {
 } from "@/lib/meta-embedded-signup";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { WHATSAPP_CONNECTED_NEXT_STEP } from "@/lib/whatsapp-templates";
 
 export const Route = createFileRoute("/eventos/whatsapp")({
   head: () => ({
@@ -152,7 +153,7 @@ function WhatsAppMetaPage() {
           connected.displayPhoneNumber
             ? `Número ${connected.displayPhoneNumber}.`
             : "La cuenta quedó vinculada.",
-          "Crea la plantilla de invitación y espera a que Meta la apruebe.",
+          WHATSAPP_CONNECTED_NEXT_STEP,
         ].join(" "),
       });
     } catch (err) {
@@ -218,7 +219,9 @@ function WhatsAppMetaPage() {
       }));
       setCredsOpen(false);
       setCredsForm(emptyCredentialsForm);
-      toast.success("Credenciales de WhatsApp guardadas");
+      toast.success("Credenciales de WhatsApp guardadas", {
+        description: WHATSAPP_CONNECTED_NEXT_STEP,
+      });
       await load();
     } catch (err) {
       toast.error(

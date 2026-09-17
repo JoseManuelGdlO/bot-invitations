@@ -30,6 +30,7 @@ import {
 import { useStore } from "@/lib/mock/store";
 import { availableTemplateKeys } from "@/lib/template-vars";
 import {
+  ACCOUNT_TEMPLATES_PAGE_SUBTITLE,
   LAST_WABA_DEFAULT_DELETE_HINT,
   accountTemplateDeleteWarning,
   accountWhatsappTemplatesEmptyCopy,
@@ -336,7 +337,7 @@ function AccountWhatsappTemplatesPage() {
           </p>
           <h1 className="mt-1 font-display text-4xl">Plantillas de WhatsApp</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            Plantillas de esta cuenta. Borrarlas también las quita en Meta.
+            {ACCOUNT_TEMPLATES_PAGE_SUBTITLE}
           </p>
         </div>
         {whatsappConfigured ? (

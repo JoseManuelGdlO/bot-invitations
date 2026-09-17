@@ -4,6 +4,7 @@ import {
   ACCOUNT_TEMPLATE_DELETE_META_COPY,
   ACCOUNT_TEMPLATES_EMPTY_NEEDS_SETUP,
   ACCOUNT_TEMPLATES_EMPTY_NONE,
+  ACCOUNT_TEMPLATES_PAGE_SUBTITLE,
   LAST_WABA_DEFAULT_DELETE_HINT,
   accountTemplateDeleteWarning,
   accountWhatsappTemplatesEmptyCopy,
@@ -107,4 +108,10 @@ test("customAccountTemplateEditWarning avisa cuando count=1", () => {
 test("LAST_WABA_DEFAULT_DELETE_HINT explica el disable del último default", () => {
   assert.match(LAST_WABA_DEFAULT_DELETE_HINT, /default/i);
   assert.match(LAST_WABA_DEFAULT_DELETE_HINT, /categoría/i);
+});
+
+test("ACCOUNT_TEMPLATES_PAGE_SUBTITLE menciona revisión Meta antes de usar", () => {
+  assert.match(ACCOUNT_TEMPLATES_PAGE_SUBTITLE, /aprobar/);
+  assert.match(ACCOUNT_TEMPLATES_PAGE_SUBTITLE, /mensajes masivos/);
+  assert.match(ACCOUNT_TEMPLATES_PAGE_SUBTITLE, /Meta/);
 });
