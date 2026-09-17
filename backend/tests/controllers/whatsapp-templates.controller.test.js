@@ -46,6 +46,7 @@ describe("whatsapp-templates.controller", () => {
   let listOwnerTemplates;
   let deleteOwnerTemplate;
   let submitEventTemplate;
+  let submitOwnerCustomTemplate;
   let createEventCustomTemplate;
   let attachEventTemplate;
   let setCampaignSlot;
@@ -66,6 +67,17 @@ describe("whatsapp-templates.controller", () => {
     listOwnerTemplates = jest.fn(async () => []);
     deleteOwnerTemplate = jest.fn(async () => undefined);
     submitEventTemplate = jest.fn(async () => template());
+    submitOwnerCustomTemplate = jest.fn(async () => template({
+      isWabaDefault: false,
+      headerFileName: "portada.jpg",
+      displayName: "Invitación con mesa",
+      slotMappings: link().slotMappings,
+      usage: {
+        eventCount: 2,
+        campaignEventCount: 1,
+        events: [{ id: "evt_1", name: "Boda Ana" }],
+      },
+    }));
     createEventCustomTemplate = jest.fn(async () => ({
       template: template({ isWabaDefault: false }),
       link: link({ slot: 2, isCampaign: false }),
@@ -98,6 +110,7 @@ describe("whatsapp-templates.controller", () => {
           listOwnerTemplates,
           deleteOwnerTemplate,
           submitEventTemplate,
+          submitOwnerCustomTemplate,
           createEventCustomTemplate,
           attachEventTemplate,
           setCampaignSlot,
@@ -545,6 +558,7 @@ describe("whatsapp-templates.controller", () => {
         name: "alanna_pc_ab12cd34_1",
         status: "APPROVED",
         headerType: "none",
+        headerFileName: null,
         body: "Hola {{1}}, tienes {{2}} pases.",
         isWabaDefault: true,
         rejectedReason: null,
@@ -556,6 +570,37 @@ describe("whatsapp-templates.controller", () => {
           events: [{ id: "evt_1", name: "Boda Ana" }],
         },
       }],
+    });
+  });
+
+  test("GET biblioteca serializa headerFileName", async () => {
+    listOwnerTemplates.mockResolvedValue([{
+      id: "tpl_1",
+      displayName: "Invitación formal",
+      name: "alanna_pc_ab12cd34_1",
+      status: "APPROVED",
+      headerType: "document",
+      headerFileName: "invitacion.pdf",
+      components: [{ type: "BODY", text: "Hola {{1}}, tienes {{2}} pases." }],
+      isWabaDefault: false,
+      rejectedReason: null,
+      createdAt: new Date("2026-01-02T00:00:00.000Z"),
+      slotMappings: {},
+      usage: {
+        eventCount: 0,
+        campaignEventCount: 0,
+        events: [],
+      },
+    }]);
+
+    const { res } = await callHandler(controller.getOwnerWhatsappTemplates, {
+      req: createMockReq(),
+    });
+
+    expect(res.json).toHaveBeenCalledWith({
+      templates: [expect.objectContaining({
+        headerFileName: "invitacion.pdf",
+      })],
     });
   });
 
@@ -617,5 +662,49 @@ describe("whatsapp-templates.controller", () => {
     });
 
     expect(next).toHaveBeenCalledWith(expect.objectContaining({ status: 409 }));
+  });
+
+  test("PUT biblioteca llama al servicio in situ y serializa headerFileName", async () => {
+    const uploaded = {
+      buffer: Buffer.from("image"),
+      originalname: "portada.jpg",
+      mimetype: "image/jpeg",
+      size: 5,
+    };
+    const payload = {
+      body: "Hola {{1}}, tienes {{2}} pases.",
+      headerType: "image",
+      slotMappings: link().slotMappings,
+      displayName: "Invitación con mesa",
+    };
+
+    const { res } = await callHandler(controller.putOwnerWhatsappTemplate, {
+      req: createMockReq({
+        params: { id: "tpl_custom" },
+        body: { payload: JSON.stringify(payload) },
+        files: { header: [uploaded] },
+      }),
+    });
+
+    expect(requireEvent).not.toHaveBeenCalled();
+    expect(submitOwnerCustomTemplate).toHaveBeenCalledWith({
+      ownerUserId: "usr_test_1",
+      templateId: "tpl_custom",
+      ...payload,
+      headerFile: {
+        buffer: uploaded.buffer,
+        fileName: "portada.jpg",
+        mime: "image/jpeg",
+        size: 5,
+      },
+    });
+    expect(res.json).toHaveBeenCalledWith({
+      template: expect.objectContaining({
+        id: "tpl_1",
+        displayName: "Invitación con mesa",
+        headerFileName: "portada.jpg",
+        isWabaDefault: false,
+      }),
+    });
   });
 });

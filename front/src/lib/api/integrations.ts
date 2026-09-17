@@ -96,6 +96,7 @@ export type AccountWhatsappTemplateDto = {
   name: string | null;
   status: string | null;
   headerType: string;
+  headerFileName?: string | null;
   body: string;
   isWabaDefault: boolean;
   rejectedReason: string | null;
@@ -209,6 +210,11 @@ export const integrationsApi = {
     api<void>(
       `/integrations/whatsapp/meta/templates/${encodeURIComponent(id)}`,
       { method: "DELETE" },
+    ),
+  putAccountWhatsappTemplate: (id: string, form: FormData) =>
+    api<{ template: AccountWhatsappTemplateDto }>(
+      `/integrations/whatsapp/meta/templates/${encodeURIComponent(id)}`,
+      { method: "PUT", body: form },
     ),
   createEventWhatsappTemplate: (eventId: string, form: FormData) =>
     api<{ template: EventWhatsappTemplateDto }>(

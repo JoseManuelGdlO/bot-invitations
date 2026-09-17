@@ -3,6 +3,7 @@ import { test } from "node:test";
 import { WIZARD_EXTRA_FIELDS } from "./whatsapp-template-presets.ts";
 import { extraSlotOptions, LITERAL_SLOT_OPTION } from "./whatsapp-templates.ts";
 import {
+  accountTemplateToDraft,
   buildCreateEventTemplateFormData,
   buildPrimerContactoSelectorOptions,
   canCreateEventCustomTemplate,
@@ -330,4 +331,38 @@ test("buildCreateEventTemplateFormData manda source blank o default y header", (
   const payload = JSON.parse(String(fromDefault.get("payload")));
   assert.equal(payload.source, "default");
   assert.equal(fromDefault.get("header"), file);
+});
+
+test("accountTemplateToDraft mapea biblioteca a tarjeta editable", () => {
+  const draft = accountTemplateToDraft({
+    id: "tpl_custom",
+    displayName: "Invitación con mesa",
+    name: "alanna_pc_custom",
+    status: "APPROVED",
+    headerType: "image",
+    headerFileName: "portada.jpg",
+    body: OK_BODY,
+    isWabaDefault: false,
+    rejectedReason: null,
+    createdAt: "2026-01-02T00:00:00.000Z",
+    slotMappings: {
+      "1": { type: "field", key: "nombre" },
+      "2": { type: "field", key: "numero_invitados" },
+      "3": { type: "field", key: "mesa" },
+    },
+    usage: {
+      eventCount: 1,
+      campaignEventCount: 1,
+      events: [{ id: "evt_1", name: "Boda Ana" }],
+    },
+  });
+  assert.equal(draft.templateId, "tpl_custom");
+  assert.equal(draft.displayName, "Invitación con mesa");
+  assert.equal(draft.headerType, "image");
+  assert.equal(draft.headerFileName, "portada.jpg");
+  assert.equal(draft.savedHeaderFileName, "portada.jpg");
+  assert.equal(draft.isWabaDefault, false);
+  assert.equal(draft.isCampaign, false);
+  assert.equal(draft.persisted, true);
+  assert.equal(draft.body, OK_BODY);
 });

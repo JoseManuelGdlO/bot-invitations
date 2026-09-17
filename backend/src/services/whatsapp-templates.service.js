@@ -1364,3 +1364,109 @@ export async function submitEventTemplate({
   }
   return template;
 }
+
+export async function submitOwnerCustomTemplate({
+  ownerUserId,
+  templateId,
+  body,
+  headerType,
+  headerFile,
+  slotMappings,
+  displayName,
+}) {
+  const { credentials } = await resolveActiveWhatsappMetaByOwner(ownerUserId);
+  const wabaId = String(credentials?.wabaId || "").trim();
+  if (!wabaId) throw httpError(400, "WhatsApp (Meta) no está configurado.");
+
+  const id = String(templateId || "").trim();
+  const template = await WhatsappMessageTemplate.findOne({
+    where: { id, ownerUserId, wabaId },
+  });
+  if (!template) throw httpError(404, "Plantilla no encontrada.");
+  if (template.isWabaDefault) {
+    throw httpError(400, "Edita la plantilla default con el wizard.");
+  }
+
+  const normalizedHeaderType = String(headerType || "none").toLowerCase();
+  if (!HEADER_TYPES.has(normalizedHeaderType)) {
+    throw httpError(400, "El tipo de encabezado no es válido.");
+  }
+
+  const bodyText = String(body || "");
+  assertWizardBody(bodyText);
+  const mappings = assertSlotMappingsComplete(
+    bodyText,
+    mergeSlotMappings(bodyText, slotMappings || {}),
+  );
+  const token = resolveTemplateCrudToken(credentials.accessToken);
+  const header = await editableHeader({
+    template,
+    headerType: normalizedHeaderType,
+    headerFile,
+    token,
+  });
+  const components = buildTemplateComponents({
+    headerType: normalizedHeaderType,
+    headerHandle: header.headerHandle,
+    bodyText,
+    exampleValues: exampleValuesFromMappings(mappings),
+  });
+
+  if (!template.metaTemplateId) {
+    const meta = await createOnMeta({
+      wabaId,
+      token,
+      slot: 1,
+      components,
+      language: template.language || TEMPLATE_LANGUAGE,
+      category: template.category || TEMPLATE_CATEGORY,
+      initialName: template.name,
+    });
+    await template.update({
+      ...localTemplateFields({
+        headerType: normalizedHeaderType,
+        header,
+        components,
+      }),
+      metaTemplateId: meta.metaTemplateId,
+      name: meta.name,
+      wabaId,
+      displayName: persistableDisplayName(displayName, template.displayName),
+    });
+  } else {
+    await updateMessageTemplate({
+      templateId: template.metaTemplateId,
+      token,
+      payload: {
+        components,
+        language: template.language || TEMPLATE_LANGUAGE,
+        category: template.category || TEMPLATE_CATEGORY,
+      },
+    });
+    await template.update({
+      ...localTemplateFields({
+        headerType: normalizedHeaderType,
+        header,
+        components,
+      }),
+      displayName: persistableDisplayName(displayName, template.displayName),
+    });
+  }
+
+  if (header.headerFile) {
+    await persistHeaderFile({ ownerUserId, template, headerFile: header.headerFile });
+  }
+
+  const links = await EventWhatsappTemplate.findAll({
+    where: { whatsappMessageTemplateId: template.id },
+    include: [{ model: Event }],
+  });
+  for (const link of links) {
+    await link.update({ slotMappings: mappings });
+  }
+
+  return Object.assign(template, {
+    slotMappings: mappings,
+    usage: serializeUsage(usageByTemplateId(links).get(template.id)),
+  });
+}

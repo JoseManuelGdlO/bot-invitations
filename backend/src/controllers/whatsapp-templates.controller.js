@@ -16,6 +16,7 @@ import {
   listOwnerTemplates,
   setCampaignSlot,
   submitEventTemplate,
+  submitOwnerCustomTemplate,
 } from "../services/whatsapp-templates.service.js";
 import {
   bodyTextFromComponents,
@@ -94,6 +95,7 @@ function serializeOwnerTemplate(template) {
     name: template?.name ?? null,
     status: template?.status ?? null,
     headerType: template?.headerType ?? "none",
+    headerFileName: template?.headerFileName ?? null,
     body: bodyTextFromComponents(template?.components),
     isWabaDefault: Boolean(template?.isWabaDefault),
     rejectedReason: template?.rejectedReason ?? null,
@@ -168,6 +170,20 @@ export const deleteOwnerWhatsappTemplate = asyncHandler(async (req, res) => {
     templateId: req.params.id,
   });
   res.status(204).send();
+});
+
+export const putOwnerWhatsappTemplate = asyncHandler(async (req, res) => {
+  const payload = parsePayload(req);
+  const template = await submitOwnerCustomTemplate({
+    ownerUserId: req.user.id,
+    templateId: req.params.id,
+    body: payload.body,
+    headerType: payload.headerType,
+    headerFile: uploadedFile(fieldFile(req, "header")),
+    slotMappings: payload.slotMappings,
+    displayName: payload.displayName,
+  });
+  res.json({ template: serializeOwnerTemplate(template) });
 });
 
 export const postEventWhatsappTemplate = asyncHandler(async (req, res) => {

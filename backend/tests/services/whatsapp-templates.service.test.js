@@ -2904,3 +2904,190 @@ test("submit fork usa displayName del payload si viene", async () => {
     }),
   );
 });
+
+function ownerCustomTemplate(overrides = {}) {
+  return hsmRow({
+    id: "tpl_custom",
+    metaTemplateId: "meta_custom",
+    name: "alanna_pc_custom",
+    language: "es_MX",
+    category: "MARKETING",
+    headerType: "none",
+    status: "APPROVED",
+    isWabaDefault: false,
+    displayName: "Invitación con mesa",
+    components: [{ type: "BODY", text: WIZARD_BODY }],
+    ...overrides,
+  });
+}
+
+function ownerCustomLink(overrides = {}) {
+  return {
+    id: overrides.id || "link_1",
+    eventId: overrides.eventId || "evt_1",
+    whatsappMessageTemplateId: "tpl_custom",
+    isCampaign: true,
+    slotMappings: LOCKED_MAPPINGS,
+    Event: {
+      id: overrides.eventId || "evt_1",
+      name: overrides.eventName || "Boda Ana",
+    },
+    update: jest.fn(async function update(patch) {
+      Object.assign(this, patch);
+      return this;
+    }),
+    ...overrides,
+  };
+}
+
+async function loadOwnerCustomSubmitService(graph = {}) {
+  const createMessageTemplate = graph.createMessageTemplate
+    || jest.fn(async () => ({ id: "meta_new" }));
+  const updateMessageTemplate = graph.updateMessageTemplate || jest.fn();
+  const { mod, models } = await loadWithMocks("src/services/whatsapp-templates.service.js", {
+    extraMocks: {
+      ...ownerMetaMocks(),
+      "src/services/meta-graph.client.js": () => ({
+        resolveTemplateCrudToken: graph.resolveTemplateCrudToken || ((token) => token || "tok"),
+        ensurePlatformCanManageWaba: jest.fn(),
+        createMessageTemplate,
+        updateMessageTemplate,
+        uploadResumableHeader: graph.uploadResumableHeader || jest.fn(),
+        deleteMessageTemplate: jest.fn(),
+      }),
+    },
+  });
+  return { mod, models, createMessageTemplate, updateMessageTemplate };
+}
+
+test("submitOwnerCustomTemplate actualiza Meta in situ y mappings de todos los vínculos", async () => {
+  const { mod, models, createMessageTemplate, updateMessageTemplate } =
+    await loadOwnerCustomSubmitService();
+  const template = ownerCustomTemplate();
+  const first = ownerCustomLink({ id: "link_1", eventId: "evt_1", eventName: "Boda Ana" });
+  const second = ownerCustomLink({
+    id: "link_2",
+    eventId: "evt_2",
+    eventName: "XV de Laura",
+    isCampaign: false,
+  });
+  models.WhatsappMessageTemplate.findOne.mockResolvedValue(template);
+  models.EventWhatsappTemplate.findAll.mockResolvedValue([first, second]);
+
+  const result = await mod.submitOwnerCustomTemplate({
+    ownerUserId: "usr_1",
+    templateId: "tpl_custom",
+    body: WIZARD_BODY_UPDATED,
+    headerType: "none",
+    slotMappings: LOCKED_MAPPINGS,
+    displayName: "  Copia de biblioteca  ",
+  });
+
+  expect(createMessageTemplate).not.toHaveBeenCalled();
+  expect(updateMessageTemplate).toHaveBeenCalledTimes(1);
+  expect(updateMessageTemplate).toHaveBeenCalledWith(expect.objectContaining({
+    templateId: "meta_custom",
+  }));
+  expect(models.WhatsappMessageTemplate.create).not.toHaveBeenCalled();
+  expect(template.update).toHaveBeenCalledWith(expect.objectContaining({
+    displayName: "Copia de biblioteca",
+    status: "PENDING",
+  }));
+  expect(first.update).toHaveBeenCalledWith({ slotMappings: LOCKED_MAPPINGS });
+  expect(second.update).toHaveBeenCalledWith({ slotMappings: LOCKED_MAPPINGS });
+  expect(result.id).toBe("tpl_custom");
+  expect(result.usage).toEqual({
+    eventCount: 2,
+    campaignEventCount: 1,
+    events: [
+      { id: "evt_1", name: "Boda Ana" },
+      { id: "evt_2", name: "XV de Laura" },
+    ],
+  });
+});
+
+test("submitOwnerCustomTemplate actualiza una plantilla sin vínculos", async () => {
+  const { mod, models, createMessageTemplate, updateMessageTemplate } =
+    await loadOwnerCustomSubmitService();
+  const template = ownerCustomTemplate();
+  models.WhatsappMessageTemplate.findOne.mockResolvedValue(template);
+  models.EventWhatsappTemplate.findAll.mockResolvedValue([]);
+
+  const result = await mod.submitOwnerCustomTemplate({
+    ownerUserId: "usr_1",
+    templateId: "tpl_custom",
+    body: WIZARD_BODY_UPDATED,
+    headerType: "none",
+    slotMappings: LOCKED_MAPPINGS,
+  });
+
+  expect(createMessageTemplate).not.toHaveBeenCalled();
+  expect(updateMessageTemplate).toHaveBeenCalledTimes(1);
+  expect(result.id).toBe("tpl_custom");
+  expect(result.usage).toEqual({
+    eventCount: 0,
+    campaignEventCount: 0,
+    events: [],
+  });
+});
+
+test("submitOwnerCustomTemplate rechaza el default de cuenta", async () => {
+  const { mod, models, updateMessageTemplate } = await loadOwnerCustomSubmitService();
+  models.WhatsappMessageTemplate.findOne.mockResolvedValue(
+    ownerCustomTemplate({ isWabaDefault: true }),
+  );
+
+  await expect(mod.submitOwnerCustomTemplate({
+    ownerUserId: "usr_1",
+    templateId: "tpl_custom",
+    body: WIZARD_BODY,
+    headerType: "none",
+    slotMappings: LOCKED_MAPPINGS,
+  })).rejects.toMatchObject({
+    status: 400,
+    message: "Edita la plantilla default con el wizard.",
+  });
+  expect(updateMessageTemplate).not.toHaveBeenCalled();
+});
+
+test("submitOwnerCustomTemplate 404 si la plantilla no es del owner/WABA", async () => {
+  const { mod, models } = await loadOwnerCustomSubmitService();
+  models.WhatsappMessageTemplate.findOne.mockResolvedValue(null);
+
+  await expect(mod.submitOwnerCustomTemplate({
+    ownerUserId: "usr_1",
+    templateId: "tpl_missing",
+    body: WIZARD_BODY,
+    headerType: "none",
+    slotMappings: LOCKED_MAPPINGS,
+  })).rejects.toMatchObject({
+    status: 404,
+    message: "Plantilla no encontrada.",
+  });
+});
+
+test("submitOwnerCustomTemplate crea en Meta si aún no tiene metaTemplateId", async () => {
+  const { mod, models, createMessageTemplate, updateMessageTemplate } =
+    await loadOwnerCustomSubmitService();
+  const template = ownerCustomTemplate({
+    metaTemplateId: null,
+    name: "alanna_pc_draft",
+  });
+  models.WhatsappMessageTemplate.findOne.mockResolvedValue(template);
+  models.EventWhatsappTemplate.findAll.mockResolvedValue([]);
+
+  await mod.submitOwnerCustomTemplate({
+    ownerUserId: "usr_1",
+    templateId: "tpl_custom",
+    body: WIZARD_BODY,
+    headerType: "none",
+    slotMappings: LOCKED_MAPPINGS,
+  });
+
+  expect(createMessageTemplate).toHaveBeenCalledTimes(1);
+  expect(updateMessageTemplate).not.toHaveBeenCalled();
+  expect(template.update).toHaveBeenCalledWith(expect.objectContaining({
+    metaTemplateId: "meta_new",
+    status: "PENDING",
+  }));
+});

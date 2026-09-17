@@ -1,6 +1,6 @@
 import { Link, createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
-import { FileStack, Loader2, Pencil, Trash2 } from "lucide-react";
+import { FileStack, Loader2, Pencil, Plus, Trash2 } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -14,35 +14,28 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { TemplatePreview } from "@/components/template-preview";
+import { WhatsappAccountTemplateEditDialog } from "@/components/whatsapp-account-template-edit-dialog";
+import { WhatsappEventTemplateCreateDialog } from "@/components/whatsapp-event-template-create-dialog";
 import { WhatsAppTemplateWizardDialog } from "@/components/whatsapp-template-wizard-dialog";
 import { ApiError } from "@/lib/api/client";
 import {
   integrationsApi,
   type AccountWhatsappTemplateDto,
 } from "@/lib/api/integrations";
+import { useStore } from "@/lib/mock/store";
+import { availableTemplateKeys } from "@/lib/template-vars";
 import {
   LAST_WABA_DEFAULT_DELETE_HINT,
   accountTemplateDeleteWarning,
   accountWhatsappTemplatesEmptyCopy,
   canDeleteAccountWhatsappTemplate,
-  customAccountTemplateEditWarning,
 } from "@/lib/whatsapp-account-templates";
 import { displayNameOrPreview } from "@/lib/whatsapp-event-templates";
-import { mappingsFromAccountTemplate } from "@/lib/whatsapp-template-presets";
 import {
   statusBadgeClassName,
   statusBadgeLabel,
@@ -70,17 +63,35 @@ export const Route = createFileRoute("/eventos/plantillas")({
 });
 
 function AccountWhatsappTemplatesPage() {
+  const { events, guests, session } = useStore();
+  const plannerName = session?.name.split(" ")[0] ?? "Planner";
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
   const [loadError, setLoadError] = useState(false);
   const [whatsappConfigured, setWhatsappConfigured] = useState(false);
   const [templates, setTemplates] = useState<AccountWhatsappTemplateDto[]>([]);
   const [wizardOpen, setWizardOpen] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
+  const [createEventId, setCreateEventId] = useState("");
   const [toDelete, setToDelete] = useState<AccountWhatsappTemplateDto | null>(
     null,
   );
   const [customEdit, setCustomEdit] =
     useState<AccountWhatsappTemplateDto | null>(null);
+
+  const createEvent = events.find((item) => item.id === createEventId);
+  const createGuests = guests.filter(
+    (guest) => guest.eventId === createEventId,
+  );
+  const createExtraKeys = availableTemplateKeys(createGuests, createEvent);
+  const editEventId = customEdit?.usage?.events?.[0]?.id;
+  const editEvent = events.find((item) => item.id === editEventId);
+  const editGuests = guests.filter((guest) => guest.eventId === editEventId);
+  const editExtraKeys = availableTemplateKeys(editGuests, editEvent);
+  const eventOptions = events.map((item) => ({
+    id: item.id,
+    name: item.name,
+  }));
 
   const load = useCallback(async () => {
     const [statusResult, listResult] = await Promise.allSettled([
@@ -158,14 +169,41 @@ function AccountWhatsappTemplatesPage() {
 
   return (
     <main className="mx-auto w-full max-w-3xl flex-1 space-y-6 px-5 py-8 md:px-8 md:py-10">
-      <div>
-        <p className="text-xs font-medium uppercase tracking-[0.14em] text-gold">
-          Cuenta
-        </p>
-        <h1 className="mt-1 font-display text-4xl">Plantillas de WhatsApp</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          HSMs de esta cuenta. Borrarlas también las quita en Meta.
-        </p>
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-xs font-medium uppercase tracking-[0.14em] text-gold">
+            Cuenta
+          </p>
+          <h1 className="mt-1 font-display text-4xl">Plantillas de WhatsApp</h1>
+          <p className="mt-1 text-sm text-muted-foreground">
+            HSMs de esta cuenta. Borrarlas también las quita en Meta.
+          </p>
+        </div>
+        {whatsappConfigured ? (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-flex">
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={events.length === 0}
+                    onClick={() => {
+                      setCreateEventId("");
+                      setCreateOpen(true);
+                    }}
+                  >
+                    <Plus className="size-4" />
+                    Crear plantilla
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              {events.length === 0 ? (
+                <TooltipContent>Crea un evento primero</TooltipContent>
+              ) : null}
+            </Tooltip>
+          </TooltipProvider>
+        ) : null}
       </div>
 
       {templates.length === 0 ? (
@@ -185,8 +223,12 @@ function AccountWhatsappTemplatesPage() {
                   Reintentar
                 </Button>
               ) : whatsappConfigured ? (
-                <Button type="button" size="sm" onClick={() => setWizardOpen(true)}>
-                  Crear plantilla
+                <Button
+                  type="button"
+                  size="sm"
+                  onClick={() => setWizardOpen(true)}
+                >
+                  Crear plantilla default
                 </Button>
               ) : (
                 <Button type="button" size="sm" asChild>
@@ -200,8 +242,7 @@ function AccountWhatsappTemplatesPage() {
         <ul className="space-y-3">
           {templates.map((row) => {
             const canDelete = canDeleteAccountWhatsappTemplate(row, templates);
-            const title =
-              displayNameOrPreview(row) || row.name || "Plantilla";
+            const title = displayNameOrPreview(row) || row.name || "Plantilla";
             const usage = row.usage;
             const eventNames = (usage?.events ?? [])
               .map((event) => event.name)
@@ -296,57 +337,35 @@ function AccountWhatsappTemplatesPage() {
         }}
       />
 
-      <Dialog
+      <WhatsappEventTemplateCreateDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        eventId={createEventId}
+        events={eventOptions}
+        onEventIdChange={setCreateEventId}
+        slot={1}
+        extraKeys={createExtraKeys}
+        guests={createGuests}
+        event={createEvent}
+        plannerName={plannerName}
+        accountTemplates={templates}
+        onCreated={async () => {
+          await load();
+        }}
+      />
+
+      <WhatsappAccountTemplateEditDialog
+        template={customEdit}
         open={!!customEdit}
-        onOpenChange={(open) => !open && setCustomEdit(null)}
-      >
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
-            <DialogTitle>
-              {displayNameOrPreview(customEdit || {}) || "Plantilla"}
-            </DialogTitle>
-            <DialogDescription>
-              {customAccountTemplateEditWarning(
-                customEdit?.usage?.eventCount ?? 0,
-              )}
-            </DialogDescription>
-          </DialogHeader>
-          {(customEdit?.usage?.events ?? []).length > 0 ? (
-            <ul className="space-y-2">
-              {(customEdit?.usage?.events ?? []).map((event) => (
-                <li key={event.id}>
-                  <Button variant="outline" size="sm" asChild>
-                    <Link
-                      to="/eventos/$eventId/mensajes"
-                      params={{ eventId: event.id }}
-                    >
-                      Editar en {event.name}
-                    </Link>
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          ) : null}
-          {customEdit ? (
-            <TemplatePreview
-              body={customEdit.body}
-              guests={[]}
-              event={undefined}
-              slotMappings={mappingsFromAccountTemplate(
-                customEdit.body,
-                customEdit.slotMappings,
-              )}
-              compact
-              sampleFallback
-            />
-          ) : null}
-          <DialogFooter>
-            <Button type="button" variant="outline" onClick={() => setCustomEdit(null)}>
-              Cerrar
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        onOpenChange={(open) => {
+          if (!open) setCustomEdit(null);
+        }}
+        extraKeys={editExtraKeys}
+        guests={editGuests}
+        event={editEvent}
+        plannerName={plannerName}
+        onSaved={load}
+      />
 
       <AlertDialog
         open={!!toDelete}

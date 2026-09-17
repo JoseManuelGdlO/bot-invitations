@@ -118,6 +118,11 @@ router.post(
   ]),
   whatsappTemplates.postWizardTemplates,
 );
+router.put(
+  "/integrations/whatsapp/meta/templates/:id",
+  handleTemplateHeaderUpload([{ name: "header", maxCount: 1 }]),
+  whatsappTemplates.putOwnerWhatsappTemplate,
+);
 router.delete(
   "/integrations/whatsapp/meta/templates/:id",
   whatsappTemplates.deleteOwnerWhatsappTemplate,

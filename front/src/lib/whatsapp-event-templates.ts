@@ -1,4 +1,7 @@
-import type { EventWhatsappTemplateDto } from "@/lib/api/integrations";
+import type {
+  AccountWhatsappTemplateDto,
+  EventWhatsappTemplateDto,
+} from "@/lib/api/integrations";
 import {
   WIZARD_EXTRA_FIELDS,
   WIZARD_UNIVERSAL_FIELDS,
@@ -172,6 +175,31 @@ export function draftsFromEventTemplates(
   return [...templates]
     .map(dtoToEventTemplateDraft)
     .sort((a, b) => a.slot - b.slot);
+}
+
+export function accountTemplateToDraft(
+  template: AccountWhatsappTemplateDto,
+): EventTemplateCardDraft {
+  const headerType = headerTypeOf(template.headerType);
+  const body = template.body || "";
+  return {
+    slot: 1,
+    linkId: null,
+    templateId: template.id,
+    displayName: template.displayName || "",
+    body,
+    headerType,
+    headerFile: null,
+    headerFileName: template.headerFileName ?? null,
+    savedHeaderType: headerType,
+    savedHeaderFileName: template.headerFileName ?? null,
+    isCampaign: false,
+    isWabaDefault: Boolean(template.isWabaDefault),
+    status: template.status,
+    rejectedReason: template.rejectedReason,
+    slotMappings: mergeEventSlotMappings(body, template.slotMappings || {}),
+    persisted: true,
+  };
 }
 
 export function blankEventTemplateDraft(

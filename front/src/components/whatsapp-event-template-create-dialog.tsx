@@ -17,6 +17,13 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { WhatsappTemplateCard } from "@/components/whatsapp-template-card";
 import { ApiError } from "@/lib/api/client";
 import {
@@ -57,6 +64,8 @@ export function WhatsappEventTemplateCreateDialog({
   open,
   onOpenChange,
   eventId,
+  events,
+  onEventIdChange,
   slot,
   extraKeys,
   guests = [],
@@ -68,6 +77,8 @@ export function WhatsappEventTemplateCreateDialog({
   open: boolean;
   onOpenChange: (open: boolean) => void;
   eventId: string;
+  events?: Array<{ id: string; name: string }>;
+  onEventIdChange?: (eventId: string) => void;
   slot: number;
   extraKeys: string[];
   guests?: Guest[];
@@ -152,6 +163,10 @@ export function WhatsappEventTemplateCreateDialog({
 
   const submit = async () => {
     if (submitting) return;
+    if (!eventId) {
+      toast.error("Elige un evento.");
+      return;
+    }
     setSubmitting(true);
     try {
       const { template } = await integrationsApi.createEventWhatsappTemplate(
@@ -170,9 +185,7 @@ export function WhatsappEventTemplateCreateDialog({
       onCreated(template);
     } catch (err) {
       toast.error(
-        err instanceof ApiError
-          ? err.message
-          : "No se pudo crear la plantilla",
+        err instanceof ApiError ? err.message : "No se pudo crear la plantilla",
       );
     } finally {
       setSubmitting(false);
@@ -184,13 +197,36 @@ export function WhatsappEventTemplateCreateDialog({
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-h-[90vh] max-w-5xl overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Crear plantilla para este evento</DialogTitle>
+            <DialogTitle>
+              {events ? "Crear plantilla" : "Crear plantilla para este evento"}
+            </DialogTitle>
             <DialogDescription>
-              La copia queda solo en este evento. Meta la revisa antes de usarla
-              en campaña.
+              {events
+                ? "Elige el evento. Meta la revisa antes de usarla en campaña."
+                : "La copia queda solo en este evento. Meta la revisa antes de usarla en campaña."}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
+            {events ? (
+              <div className="space-y-2">
+                <p className="text-sm font-medium">Evento</p>
+                <Select
+                  {...(eventId ? { value: eventId } : {})}
+                  onValueChange={(value) => onEventIdChange?.(value)}
+                >
+                  <SelectTrigger id="account-create-event">
+                    <SelectValue placeholder="Elige un evento" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {events.map((item) => (
+                      <SelectItem key={item.id} value={item.id}>
+                        {item.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            ) : null}
             <div className="space-y-2">
               <p className="text-sm font-medium">Preconfiguración</p>
               <div className="flex flex-wrap gap-2">
