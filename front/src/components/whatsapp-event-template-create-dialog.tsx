@@ -44,6 +44,7 @@ import {
 } from "@/lib/whatsapp-templates";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import type { EventItem, Guest } from "@/lib/mock/types";
 
 const EXISTING_HEADER_FILE = "existente";
 
@@ -58,6 +59,9 @@ export function WhatsappEventTemplateCreateDialog({
   eventId,
   slot,
   extraKeys,
+  guests = [],
+  event,
+  plannerName,
   accountTemplates,
   onCreated,
 }: {
@@ -66,6 +70,9 @@ export function WhatsappEventTemplateCreateDialog({
   eventId: string;
   slot: number;
   extraKeys: string[];
+  guests?: Guest[];
+  event?: EventItem | undefined;
+  plannerName?: string | undefined;
   accountTemplates: AccountWhatsappTemplateDto[];
   onCreated: (template: EventWhatsappTemplateDto) => void;
 }) {
@@ -175,7 +182,7 @@ export function WhatsappEventTemplateCreateDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-h-[90vh] max-w-2xl overflow-y-auto">
+        <DialogContent className="max-h-[90vh] max-w-5xl overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Crear plantilla para este evento</DialogTitle>
             <DialogDescription>
@@ -221,6 +228,9 @@ export function WhatsappEventTemplateCreateDialog({
             <WhatsappTemplateCard
               draft={draft}
               extraKeys={extraKeys}
+              guests={guests}
+              event={event}
+              plannerName={plannerName}
               submitting={submitting}
               showCampaignRadio={false}
               onChange={updateDraft}

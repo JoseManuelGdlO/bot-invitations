@@ -107,10 +107,12 @@ function PrimerContactoTemplates({
   eventId,
   guests,
   event,
+  plannerName,
 }: {
   eventId: string;
   guests: Guest[];
   event: EventItem | undefined;
+  plannerName: string;
 }) {
   const extraKeys = availableTemplateKeys(guests, event);
   const [drafts, setDrafts] = useState<EventTemplateCardDraft[]>([]);
@@ -334,7 +336,7 @@ function PrimerContactoTemplates({
             <div className="space-y-2">
               <Label htmlFor="primer-contacto-selector">Plantilla</Label>
               <Select
-                value={selectorValue || undefined}
+                {...(selectorValue ? { value: selectorValue } : {})}
                 onValueChange={onSelectorChange}
                 disabled={attaching}
               >
@@ -359,15 +361,18 @@ function PrimerContactoTemplates({
             </Alert>
           ) : null}
           <RadioGroup
-            value={campaignSlot || undefined}
+            value={campaignSlot || null}
             onValueChange={(value) => void selectCampaign(value)}
-            className="grid gap-4 md:grid-cols-2"
+            className="grid gap-4"
           >
             {drafts.map((draft) => (
               <WhatsappTemplateCard
                 key={draft.slot}
                 draft={draft}
                 extraKeys={extraKeys}
+                guests={guests}
+                event={event}
+                plannerName={plannerName}
                 submitting={savingSlot === draft.slot}
                 highlighted={focusedDraft?.slot === draft.slot}
                 onChange={(patch) => updateDraft(draft.slot, patch)}
@@ -397,6 +402,9 @@ function PrimerContactoTemplates({
         eventId={eventId}
         slot={nextSlot}
         extraKeys={extraKeys}
+        guests={guests}
+        event={event}
+        plannerName={plannerName}
         accountTemplates={accountTemplates}
         onCreated={(template) => {
           const next = draftsFromEventTemplates([template])[0];
@@ -536,6 +544,7 @@ function Mensajes() {
             eventId={eventId}
             guests={guests}
             event={event}
+            plannerName={plannerName}
           />
           {localCategories.map((cat) => (
             <TemplateCategory

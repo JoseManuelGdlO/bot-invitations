@@ -1,5 +1,9 @@
 import { formatDate } from "./mock/format.ts";
 import type { EventItem, Guest } from "./mock/types.ts";
+import {
+  mergeEventSlotMappings,
+  type EventSlotMapping,
+} from "./whatsapp-templates.ts";
 
 export const TEMPLATE_VARIABLES = [
   "nombre",
@@ -118,6 +122,7 @@ export function splitMetaBody(text: string): MetaBodySegment[] {
       segments.push({ type: "text", value: raw.slice(last, start) });
     }
     const key = match[1];
+    if (!key) continue;
     let index = seen.get(key);
     if (index === undefined) {
       index = nextIndex;
@@ -147,7 +152,7 @@ export function fillMetaBody(bodyText: string, values: string[], keys?: string[]
     map[key] = values[i] ?? "";
   });
   return String(bodyText || "").replace(META_PLACEHOLDER_RE, (full, key: string) =>
-    Object.prototype.hasOwnProperty.call(map, key) ? map[key] : full,
+    Object.prototype.hasOwnProperty.call(map, key) ? (map[key] ?? "") : full,
   );
 }
 
@@ -223,4 +228,73 @@ export function interpolateTemplate(
     /\{\{(\w+)\}\}/g,
     (_, key: string) => vars[key] ?? `{{${key}}}`,
   );
+}
+
+function resolveMetaSlotValue(
+  mapping: EventSlotMapping | undefined,
+  vars: Record<string, string>,
+) {
+  if (!mapping) return null;
+  if (mapping.type === "literal") {
+    const value = String(mapping.value ?? "").trim();
+    return value || null;
+  }
+  if (mapping.type === "field") {
+    const key = String(mapping.key || "").trim();
+    if (!key || !Object.prototype.hasOwnProperty.call(vars, key)) return null;
+    const value = String(vars[key] ?? "").trim();
+    return value || null;
+  }
+  return null;
+}
+
+export const SAMPLE_PREVIEW_EVENT: EventItem = {
+  id: "sample-event",
+  name: "Boda Ana y Luis",
+  shortName: "AL",
+  type: "Boda",
+  hosts: "Ana y Luis",
+  date: "2026-10-10",
+  time: "18:00",
+  timezone: "America/Mexico_City",
+  venue: "Hacienda",
+  address: "Calle 10, Mérida",
+  estimatedGuests: 100,
+  cover: "",
+  status: "activo",
+};
+
+export const SAMPLE_PREVIEW_GUEST: Guest = {
+  id: "sample-guest",
+  eventId: SAMPLE_PREVIEW_EVENT.id,
+  rep: "Laura Escobedo",
+  phone: "+529991111111",
+  invited: 2,
+  confirmed: 0,
+  table: "Mesa 2",
+  family: "Escobedo",
+  guestType: "",
+  notes: "",
+  tag: "",
+  status: "sin_contactar",
+  whatsapp: "pendiente",
+  lastMessage: "",
+  lastReply: "",
+  lastReplyAt: "",
+  followUp: "",
+};
+
+export function interpolateMetaTemplate(
+  body: string,
+  slotMappings: Record<string, EventSlotMapping> = {},
+  guest: Guest | undefined,
+  event: EventItem | undefined,
+  plannerName = "Planner",
+) {
+  const text = String(body || "");
+  const vars = guestTemplateVars(guest, event, plannerName);
+  const mappings = mergeEventSlotMappings(text, slotMappings);
+  return text.replace(/\{\{(\d+)\}\}/g, (full, id: string) => {
+    return resolveMetaSlotValue(mappings[id], vars) ?? full;
+  });
 }

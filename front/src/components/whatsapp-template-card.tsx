@@ -27,6 +27,7 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { TemplateVariableMenu } from "@/components/template-variable-menu";
+import { TemplatePreview } from "@/components/template-preview";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 import { wrapSelection } from "@/lib/whatsapp-markup";
@@ -53,6 +54,7 @@ import {
   type EventSlotMapping,
   type WizardHeaderType,
 } from "@/lib/whatsapp-templates";
+import type { EventItem, Guest } from "@/lib/mock/types";
 
 export type { EventTemplateCardDraft };
 
@@ -103,6 +105,9 @@ export function WhatsappTemplateCard({
   submitting = false,
   showCampaignRadio = true,
   highlighted = false,
+  guests = [],
+  event,
+  plannerName,
   onChange,
   onSave,
 }: {
@@ -111,6 +116,9 @@ export function WhatsappTemplateCard({
   submitting?: boolean;
   showCampaignRadio?: boolean;
   highlighted?: boolean;
+  guests?: Guest[];
+  event?: EventItem | undefined;
+  plannerName?: string | undefined;
   onChange: (patch: Partial<EventTemplateCardDraft>) => void;
   onSave: () => void;
 }) {
@@ -374,6 +382,7 @@ export function WhatsappTemplateCard({
           </div>
         ) : null}
 
+        <div className="grid items-start gap-4 md:grid-cols-2">
         <div className="space-y-2">
           <Label htmlFor={`event-template-body-${draft.slot}`}>
             Cuerpo del mensaje
@@ -465,6 +474,17 @@ export function WhatsappTemplateCard({
               {"{{1}} es el nombre y {{2}} el número de pases."}
             </p>
           )}
+        </div>
+
+        <TemplatePreview
+          body={draft.body}
+          guests={guests}
+          event={event}
+          plannerName={plannerName}
+          slotMappings={draft.slotMappings}
+          compact
+          sampleFallback
+        />
         </div>
 
         <div className="space-y-2 rounded-xl border border-border bg-secondary/40 p-3">

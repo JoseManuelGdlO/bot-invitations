@@ -31,6 +31,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { TemplateVariableMenu } from "@/components/template-variable-menu";
+import { TemplatePreview } from "@/components/template-preview";
 import { ApiError } from "@/lib/api/client";
 import { integrationsApi } from "@/lib/api/integrations";
 import { wrapSelection } from "@/lib/whatsapp-markup";
@@ -372,7 +373,7 @@ export function WhatsAppTemplateWizardDialog({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-2xl">
+        <DialogContent className="max-w-5xl">
           <DialogHeader>
             <DialogTitle>Plantilla de invitación</DialogTitle>
             <DialogDescription>
@@ -481,6 +482,7 @@ export function WhatsAppTemplateWizardDialog({
               </div>
             ) : null}
 
+            <div className="grid items-start gap-4 md:grid-cols-2">
             <div className="space-y-2">
               <Label htmlFor="wizard-body">Cuerpo del mensaje</Label>
               <div className="mb-2 flex flex-wrap items-center gap-1">
@@ -570,6 +572,16 @@ export function WhatsAppTemplateWizardDialog({
                   {"{{1}} es el nombre y {{2}} el número de pases."}
                 </p>
               )}
+            </div>
+
+            <TemplatePreview
+              body={draft.body}
+              guests={[]}
+              event={undefined}
+              slotMappings={draft.slotMappings}
+              compact
+              sampleFallback
+            />
             </div>
 
             <div className="space-y-2 rounded-xl border border-border bg-secondary/40 p-3">

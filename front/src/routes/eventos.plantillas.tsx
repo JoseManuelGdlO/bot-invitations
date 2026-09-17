@@ -27,6 +27,7 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { TemplatePreview } from "@/components/template-preview";
 import { WhatsAppTemplateWizardDialog } from "@/components/whatsapp-template-wizard-dialog";
 import { ApiError } from "@/lib/api/client";
 import {
@@ -41,6 +42,7 @@ import {
   customAccountTemplateEditWarning,
 } from "@/lib/whatsapp-account-templates";
 import { displayNameOrPreview } from "@/lib/whatsapp-event-templates";
+import { mappingsFromAccountTemplate } from "@/lib/whatsapp-template-presets";
 import {
   statusBadgeClassName,
   statusBadgeLabel,
@@ -298,7 +300,7 @@ function AccountWhatsappTemplatesPage() {
         open={!!customEdit}
         onOpenChange={(open) => !open && setCustomEdit(null)}
       >
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>
               {displayNameOrPreview(customEdit || {}) || "Plantilla"}
@@ -310,19 +312,33 @@ function AccountWhatsappTemplatesPage() {
             </DialogDescription>
           </DialogHeader>
           {(customEdit?.usage?.events ?? []).length > 0 ? (
-            <ul className="space-y-1 text-sm">
+            <ul className="space-y-2">
               {(customEdit?.usage?.events ?? []).map((event) => (
                 <li key={event.id}>
-                  <Link
-                    to="/eventos/$eventId/mensajes"
-                    params={{ eventId: event.id }}
-                    className="text-gold hover:underline"
-                  >
-                    {event.name}
-                  </Link>
+                  <Button variant="outline" size="sm" asChild>
+                    <Link
+                      to="/eventos/$eventId/mensajes"
+                      params={{ eventId: event.id }}
+                    >
+                      Editar en {event.name}
+                    </Link>
+                  </Button>
                 </li>
               ))}
             </ul>
+          ) : null}
+          {customEdit ? (
+            <TemplatePreview
+              body={customEdit.body}
+              guests={[]}
+              event={undefined}
+              slotMappings={mappingsFromAccountTemplate(
+                customEdit.body,
+                customEdit.slotMappings,
+              )}
+              compact
+              sampleFallback
+            />
           ) : null}
           <DialogFooter>
             <Button type="button" variant="outline" onClick={() => setCustomEdit(null)}>
