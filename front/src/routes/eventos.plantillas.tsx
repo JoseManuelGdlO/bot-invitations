@@ -37,8 +37,10 @@ import {
 } from "@/lib/whatsapp-account-templates";
 import { displayNameOrPreview } from "@/lib/whatsapp-event-templates";
 import {
+  metaTemplateStatusHint,
   statusBadgeClassName,
   statusBadgeLabel,
+  WHATSAPP_SETUP_CTA_LABEL,
 } from "@/lib/whatsapp-templates";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
@@ -60,7 +62,7 @@ export const Route = createFileRoute("/eventos/plantillas")({
       {
         name: "description",
         content:
-          "Biblioteca de plantillas HSM de la cuenta: estado Meta, uso en eventos y borrado.",
+          "Biblioteca de plantillas de la cuenta: estado Meta, uso en eventos y borrado.",
       },
       {
         property: "og:title",
@@ -219,7 +221,7 @@ function AccountWhatsappTemplatesPage() {
                 </Button>
               ) : (
                 <Button type="button" size="sm" asChild>
-                  <Link to="/eventos/whatsapp">Ir a WhatsApp</Link>
+                  <Link to="/eventos/whatsapp">{WHATSAPP_SETUP_CTA_LABEL}</Link>
                 </Button>
               )}
             </div>
@@ -236,6 +238,7 @@ function AccountWhatsappTemplatesPage() {
           const eventNames = (usage?.events ?? [])
             .map((event) => event.name)
             .filter(Boolean);
+          const statusHint = metaTemplateStatusHint(row.status);
           const deleteButton = (
             <Button
               type="button"
@@ -272,6 +275,11 @@ function AccountWhatsappTemplatesPage() {
                       </Badge>
                     ) : null}
                   </div>
+                  {statusHint ? (
+                    <p className="text-xs text-muted-foreground">
+                      {statusHint}
+                    </p>
+                  ) : null}
                   <p className="line-clamp-3 whitespace-pre-wrap text-sm text-muted-foreground">
                     {row.body || "Sin cuerpo"}
                   </p>
@@ -328,7 +336,7 @@ function AccountWhatsappTemplatesPage() {
           </p>
           <h1 className="mt-1 font-display text-4xl">Plantillas de WhatsApp</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            HSMs de esta cuenta. Borrarlas también las quita en Meta.
+            Plantillas de esta cuenta. Borrarlas también las quita en Meta.
           </p>
         </div>
         {whatsappConfigured ? (

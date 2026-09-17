@@ -13,6 +13,16 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import {
   Dialog,
   DialogContent,
   DialogDescription,
@@ -77,7 +87,9 @@ function WhatsAppMetaPage() {
   const [savingCreds, setSavingCreds] = useState(false);
   const [connectingMeta, setConnectingMeta] = useState(false);
   const [status, setStatus] = useState<WhatsAppMetaStatusDto | null>(null);
-  const [metaConfig, setMetaConfig] = useState<MetaSignupConfigDto | null>(null);
+  const [metaConfig, setMetaConfig] = useState<MetaSignupConfigDto | null>(
+    null,
+  );
   const [webhookOpen, setWebhookOpen] = useState(false);
   const [credsOpen, setCredsOpen] = useState(false);
   const [credsForm, setCredsForm] = useState(emptyCredentialsForm);
@@ -88,6 +100,7 @@ function WhatsAppMetaPage() {
     "Prueba de conexión desde Alanna Confirmaciones",
   );
   const [wizardOpen, setWizardOpen] = useState(false);
+  const [disconnectOpen, setDisconnectOpen] = useState(false);
 
   const load = useCallback(async () => {
     const next = await integrationsApi.getWhatsAppStatus();
@@ -135,9 +148,12 @@ function WhatsAppMetaPage() {
       await load();
       setWizardOpen(true);
       toast.success("WhatsApp conectado", {
-        description: connected.displayPhoneNumber
-          ? `Número ${connected.displayPhoneNumber}`
-          : "La cuenta quedó vinculada a Cloud API.",
+        description: [
+          connected.displayPhoneNumber
+            ? `Número ${connected.displayPhoneNumber}.`
+            : "La cuenta quedó vinculada.",
+          "Crea la plantilla de invitación y espera a que Meta la apruebe.",
+        ].join(" "),
       });
     } catch (err) {
       const message =
@@ -155,6 +171,7 @@ function WhatsAppMetaPage() {
     try {
       await integrationsApi.disconnectMeta();
       await load();
+      setDisconnectOpen(false);
       toast.success("WhatsApp desconectado");
     } catch (err) {
       toast.error(
@@ -195,7 +212,8 @@ function WhatsAppMetaPage() {
         displayPhoneNumber: next.displayPhoneNumber,
         hasTemplate: next.hasTemplate ?? prev?.hasTemplate ?? false,
         templateName: next.templateName ?? prev?.templateName ?? null,
-        templateLanguage: next.templateLanguage ?? prev?.templateLanguage ?? "es_MX",
+        templateLanguage:
+          next.templateLanguage ?? prev?.templateLanguage ?? "es_MX",
         webhookUrl: prev?.webhookUrl ?? next.webhookUrl ?? null,
       }));
       setCredsOpen(false);
@@ -267,8 +285,8 @@ function WhatsAppMetaPage() {
         </p>
         <h1 className="mt-1 font-display text-4xl">WhatsApp</h1>
         <p className="mt-1 text-sm text-muted-foreground">
-          Conecta el número de WhatsApp Business de esta cuenta. Las invitaciones
-          de tus eventos salen con ese WABA.
+          Conecta el número de WhatsApp Business de esta cuenta. Las
+          invitaciones de tus eventos salen con ese número.
         </p>
       </div>
 
@@ -281,8 +299,8 @@ function WhatsAppMetaPage() {
             <div>
               <h2 className="font-display text-2xl">Meta Cloud API</h2>
               <p className="mt-1 text-sm text-muted-foreground">
-                Un WABA por planner. Conéctalo con Facebook o pega el token
-                manualmente.
+                Un número de WhatsApp Business por planner. Conéctalo con
+                Facebook o pega el token manualmente.
               </p>
             </div>
           </div>
@@ -301,7 +319,7 @@ function WhatsAppMetaPage() {
                 type="button"
                 variant="outline"
                 size="sm"
-                onClick={disconnectMeta}
+                onClick={() => setDisconnectOpen(true)}
                 disabled={connectingMeta}
               >
                 {connectingMeta ? (
@@ -326,7 +344,12 @@ function WhatsAppMetaPage() {
                 Conectar con Facebook
               </Button>
             )}
-            <Button type="button" variant="outline" size="sm" onClick={openCredentials}>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={openCredentials}
+            >
               <KeyRound className="size-3.5" />
               {configured ? "Actualizar credenciales" : "Pegar token"}
             </Button>
@@ -345,7 +368,10 @@ function WhatsAppMetaPage() {
 
         <dl className="mt-5 grid gap-3 text-sm sm:grid-cols-2">
           <div className="rounded-lg border border-border px-3 py-2">
-            <dt className="text-xs text-muted-foreground">WABA ID</dt>
+            <dt className="text-xs text-muted-foreground">
+              WABA ID
+              <span className="ml-1 font-normal">· identificador de Meta</span>
+            </dt>
             <dd className="mt-0.5 font-medium font-mono text-xs">
               {status?.wabaId || (
                 <span className="font-sans text-sm font-normal text-muted-foreground">
@@ -355,7 +381,10 @@ function WhatsAppMetaPage() {
             </dd>
           </div>
           <div className="rounded-lg border border-border px-3 py-2">
-            <dt className="text-xs text-muted-foreground">Phone number ID</dt>
+            <dt className="text-xs text-muted-foreground">
+              Phone number ID
+              <span className="ml-1 font-normal">· identificador de Meta</span>
+            </dt>
             <dd className="mt-0.5 font-medium font-mono text-xs">
               {status?.phoneNumberId || (
                 <span className="font-sans text-sm font-normal text-muted-foreground">
@@ -373,7 +402,9 @@ function WhatsAppMetaPage() {
             </dd>
           </div>
           <div className="rounded-lg border border-border px-3 py-2">
-            <dt className="text-xs text-muted-foreground">Plantilla HSM</dt>
+            <dt className="text-xs text-muted-foreground">
+              Plantilla de invitación
+            </dt>
             <dd className="mt-0.5 font-medium">
               {status?.templateName ? (
                 <>
@@ -389,15 +420,22 @@ function WhatsAppMetaPage() {
           </div>
         </dl>
         {!configured ? (
-          <p className="mt-3 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
-            Esta cuenta aún no tiene credenciales de Meta. Conéctalas para
-            enviar invitaciones.
-          </p>
+          <div className="mt-3 rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
+            <p>
+              Esta cuenta aún no tiene WhatsApp conectado. Para enviar
+              invitaciones:
+            </p>
+            <ol className="mt-2 list-decimal space-y-1 pl-5">
+              <li>Conecta tu cuenta de WhatsApp Business.</li>
+              <li>Crea la plantilla de invitación.</li>
+              <li>Espera a que Meta la apruebe.</li>
+            </ol>
+          </div>
         ) : !status?.hasTemplate ? (
           <div className="mt-3 flex flex-col gap-3 rounded-lg border border-gold/40 bg-gold-soft/50 px-3 py-3 sm:flex-row sm:items-center sm:justify-between">
             <p className="text-sm">
               Falta la plantilla de invitación. Meta debe aprobarla antes de
-              lanzar la campaña.
+              lanzar la campaña; no podrás lanzar mientras esté en revisión.
             </p>
             <Button type="button" size="sm" onClick={() => setWizardOpen(true)}>
               Crear plantilla
@@ -412,7 +450,7 @@ function WhatsAppMetaPage() {
           </p>
         ) : (
           <p className="mt-3 text-xs text-muted-foreground">
-            Conectar con Facebook usa Embedded Signup. Pegar el token queda
+            Conectar con Facebook usa el alta con Facebook. Pegar el token queda
             como alternativa si Meta no completa el flujo.
           </p>
         )}
@@ -421,13 +459,15 @@ function WhatsAppMetaPage() {
       <section className="rounded-2xl border border-border bg-card p-6 shadow-soft">
         <h2 className="font-display text-2xl">Probar envío</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Manda un texto libre (ventana de 24 h) o la plantilla HSM a un número
-          de 10 dígitos, usando el WABA de esta cuenta.
+          Manda un texto libre (ventana de 24 h) o la plantilla de invitación a
+          un número de 10 dígitos, usando el WhatsApp Business de esta cuenta.
         </p>
         <form className="mt-5 space-y-4" onSubmit={sendTest}>
           <RadioGroup
             value={testType}
-            onValueChange={(value) => setTestType(value as WhatsAppSendTestType)}
+            onValueChange={(value) =>
+              setTestType(value as WhatsAppSendTestType)
+            }
             className="gap-3 sm:grid-cols-2 sm:grid"
           >
             <label
@@ -521,9 +561,9 @@ function WhatsAppMetaPage() {
               {configured ? "Actualizar credenciales" : "Conectar WhatsApp"}
             </DialogTitle>
             <DialogDescription>
-              Pega el token de usuario del sistema, el WABA ID y el phone
-              number ID que te da Meta. Preferimos Embedded Signup cuando esté
-              configurado.
+              Pega el token de usuario del sistema y los identificadores de Meta
+              (WABA ID y phone number ID). Preferimos el alta con Facebook
+              cuando esté configurado.
             </DialogDescription>
           </DialogHeader>
           <form className="space-y-4" onSubmit={saveCredentials}>
@@ -535,7 +575,10 @@ function WhatsAppMetaPage() {
                 autoComplete="off"
                 value={credsForm.accessToken}
                 onChange={(e) =>
-                  setCredsForm((prev) => ({ ...prev, accessToken: e.target.value }))
+                  setCredsForm((prev) => ({
+                    ...prev,
+                    accessToken: e.target.value,
+                  }))
                 }
                 placeholder="EAAG…"
                 required
@@ -569,7 +612,9 @@ function WhatsAppMetaPage() {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="metaDisplayPhone">Número visible (opcional)</Label>
+              <Label htmlFor="metaDisplayPhone">
+                Número visible (opcional)
+              </Label>
               <Input
                 id="metaDisplayPhone"
                 value={credsForm.displayPhoneNumber}
@@ -629,6 +674,28 @@ function WhatsAppMetaPage() {
           </DialogContent>
         </Dialog>
       ) : null}
+      <AlertDialog open={disconnectOpen} onOpenChange={setDisconnectOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>¿Desconectar WhatsApp?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Se detendrán los envíos y las campañas de todos tus eventos hasta
+              que vuelvas a conectar la cuenta.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={connectingMeta}>
+              Cancelar
+            </AlertDialogCancel>
+            <AlertDialogAction
+              disabled={connectingMeta}
+              onClick={() => void disconnectMeta()}
+            >
+              Desconectar
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </main>
   );
 }

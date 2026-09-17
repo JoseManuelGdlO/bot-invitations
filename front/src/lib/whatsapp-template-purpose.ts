@@ -12,7 +12,7 @@ export const PURPOSE_TAB_LABEL: Record<WhatsappTemplatePurpose, string> = {
 
 export const PURPOSE_HINT: Record<WhatsappTemplatePurpose, string> = {
   invitation:
-    "Campaña inicial de WhatsApp. Editas el cuerpo de cada plantilla de Meta y eliges cuál usar en el envío masivo.",
+    "Campaña inicial de WhatsApp. Meta debe aprobar cada plantilla antes de usarla en el envío masivo.",
   reminder:
     "Recordatorio automático. Elige cuál se usa en los envíos de recordatorio.",
   followup:

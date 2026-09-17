@@ -26,6 +26,15 @@ export const DISPLAY_NAME_PREVIEW_MAX = 80;
 export const DEFAULT_ACCOUNT_TEMPLATE_BANNER =
   "Esta es la plantilla default de la cuenta. Si la editas y guardas, se crea una copia solo para este evento.";
 
+export const META_RESUBMIT_TITLE_EVENT =
+  "¿Enviar esta plantilla a revisión de Meta?";
+export const META_RESUBMIT_WARNING_EVENT =
+  "Dejará de poder usarse en envíos hasta que Meta la apruebe otra vez. El proceso puede tardar aproximadamente 1 día.";
+export const META_RESUBMIT_TITLE_ACCOUNT =
+  "¿Seguro que quieres mandar esta plantilla a revisión?";
+export const META_RESUBMIT_WARNING_ACCOUNT =
+  "Quedará deshabilitada en todos los eventos que la usan hasta que Meta la apruebe otra vez.";
+
 export const CREATE_EVENT_TEMPLATE_SELECTOR_VALUE = "create";
 export const CREATE_EVENT_TEMPLATE_SELECTOR_LABEL =
   "Crear plantilla para este evento";
@@ -94,6 +103,13 @@ export function shouldConfirmEventTemplateFork(input: {
   isWabaDefault?: boolean;
 }): boolean {
   return Boolean(input.isWabaDefault);
+}
+
+export function shouldConfirmMetaResubmit(input: {
+  persisted?: boolean;
+  status?: string | null;
+}): boolean {
+  return Boolean(input.persisted) && input.status === "APPROVED";
 }
 
 export function canEditEventExtraMappings(input: {

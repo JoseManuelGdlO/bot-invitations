@@ -5,7 +5,7 @@ import {
 } from "./whatsapp-template-purpose.ts";
 
 export const ACCOUNT_TEMPLATES_EMPTY_NEEDS_SETUP =
-  "Conecta WhatsApp y completa el wizard";
+  "Primero debes configurar tu cuenta de WhatsApp. Sin ella no puedes crear ni enviar plantillas.";
 export const ACCOUNT_TEMPLATES_EMPTY_NONE = "Aún no hay plantillas";
 export const ACCOUNT_TEMPLATES_EMPTY_PURPOSE =
   "Se crean al completar el wizard de invitación.";

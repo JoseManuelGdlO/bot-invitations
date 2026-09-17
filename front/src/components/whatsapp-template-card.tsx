@@ -44,9 +44,12 @@ import {
   extraSlotOptionLabel,
   insertWizardVariable,
   isEventTemplateCardReady,
+  isMetaTemplateInReview,
   LITERAL_SLOT_OPTION,
   mergeEventSlotMappings,
+  META_TEMPLATE_PENDING_EDIT_HINT,
   metaTemplateBodyErrors,
+  metaTemplateStatusHint,
   needsHeaderFile,
   statusBadgeClassName,
   statusBadgeLabel,
@@ -158,6 +161,7 @@ export function WhatsappTemplateCard({
   const variables = eventTemplateVariableKeys(draft.isWabaDefault, extraKeys);
   const showFile = needsHeaderFile(draft.headerType);
   const status = draft.status || "DRAFT";
+  const inReview = isMetaTemplateInReview(draft.status);
   const ready = isEventTemplateCardReady(draft);
   const title =
     displayNameOrPreview({
@@ -297,6 +301,30 @@ export function WhatsappTemplateCard({
       {statusBadgeLabel(status)}
     </Badge>
   );
+  const statusHint = metaTemplateStatusHint(status);
+  const statusBlock = (
+    <div className="flex max-w-[14rem] flex-col items-end gap-1">
+      {draft.rejectedReason ? (
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button type="button" className="cursor-help">
+                {badge}
+              </button>
+            </TooltipTrigger>
+            <TooltipContent className="max-w-xs">
+              {draft.rejectedReason}
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+      ) : (
+        badge
+      )}
+      {statusHint ? (
+        <p className="text-right text-xs text-muted-foreground">{statusHint}</p>
+      ) : null}
+    </div>
+  );
 
   return (
     <Card
@@ -307,24 +335,13 @@ export function WhatsappTemplateCard({
     >
       <CardHeader className="flex flex-row items-start justify-between gap-3 space-y-0">
         <CardTitle className="text-base font-medium">{title}</CardTitle>
-        {draft.rejectedReason ? (
-          <TooltipProvider>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <button type="button" className="cursor-help">
-                  {badge}
-                </button>
-              </TooltipTrigger>
-              <TooltipContent className="max-w-xs">
-                {draft.rejectedReason}
-              </TooltipContent>
-            </Tooltip>
-          </TooltipProvider>
-        ) : (
-          badge
-        )}
+        {statusBlock}
       </CardHeader>
       <CardContent className="space-y-4">
+        <fieldset
+          disabled={inReview}
+          className="min-w-0 space-y-4 border-0 p-0"
+        >
         <div className="space-y-2">
           <Label htmlFor={`event-template-name-${draft.slot}`}>Nombre</Label>
           <Input
@@ -567,6 +584,7 @@ export function WhatsappTemplateCard({
             })}
           </div>
         ) : null}
+        </fieldset>
 
         {showCampaignRadio ? (
           <label
@@ -591,15 +609,30 @@ export function WhatsappTemplateCard({
         ) : null}
       </CardContent>
       <CardFooter>
-        <Button
-          type="button"
-          className="w-full"
-          disabled={!ready || submitting}
-          onClick={onSave}
-        >
-          {submitting ? <Loader2 className="size-4 animate-spin" /> : null}
-          Guardar y enviar a revisión
-        </Button>
+        {inReview ? (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <span className="inline-flex w-full">
+                  <Button type="button" className="w-full" disabled>
+                    Guardar y enviar a revisión
+                  </Button>
+                </span>
+              </TooltipTrigger>
+              <TooltipContent>{META_TEMPLATE_PENDING_EDIT_HINT}</TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        ) : (
+          <Button
+            type="button"
+            className="w-full"
+            disabled={!ready || submitting}
+            onClick={onSave}
+          >
+            {submitting ? <Loader2 className="size-4 animate-spin" /> : null}
+            Guardar y enviar a revisión
+          </Button>
+        )}
       </CardFooter>
     </Card>
   );

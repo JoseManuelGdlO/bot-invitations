@@ -129,6 +129,33 @@ export function statusBadgeLabel(status: string): string {
   return STATUS_BADGE_LABELS[status] ?? status;
 }
 
+export const META_TEMPLATE_PENDING_EDIT_HINT =
+  "No se puede editar una plantilla en revisión";
+
+export function isMetaTemplateInReview(
+  status: string | null | undefined,
+): boolean {
+  return status === "PENDING";
+}
+
+export function metaTemplateStatusHint(
+  status: string | null | undefined,
+): string {
+  switch (status) {
+    case "PENDING":
+      return "En revisión de Meta. No se puede usar en envíos hasta que la aprueben.";
+    case "APPROVED":
+      return "Aprobada. Lista para envíos y campaña.";
+    case "REJECTED":
+      return "Meta la rechazó. Edítala y vuelve a enviarla a revisión.";
+    case "PAUSED":
+    case "DISABLED":
+      return "Pausada. No se usa en envíos hasta que vuelva a estar aprobada.";
+    default:
+      return "";
+  }
+}
+
 export function needsHeaderFile(headerType: string): boolean {
   return headerType === "document" || headerType === "image";
 }
@@ -552,10 +579,20 @@ export function secondaryCampaignLaunchNotice(
     : `Las plantillas de ${names} aún no están aprobadas. Puedes lanzar igual: esos mensajes se enviarán solos cuando Meta las apruebe. Si llega el día programado y siguen sin estar listas, el envío se aplaza al día siguiente.`;
 }
 
+export const WHATSAPP_SETUP_CTA_LABEL = "Conectar WhatsApp";
+export const WHATSAPP_SETUP_CTA_DESCRIPTION =
+  "Primero debes configurar tu cuenta de WhatsApp para crear y enviar plantillas de este evento.";
+export const CAMPAIGN_LAUNCH_WHATSAPP_SETUP_DESCRIPTION =
+  "Primero debes configurar tu cuenta de WhatsApp.";
+export const CAMPAIGN_LAUNCH_TEMPLATE_NOT_APPROVED =
+  "No puedes lanzar todavía: Meta aún no aprueba la plantilla de primer contacto. Cuando en Mensajes del evento figure como Aprobada, vuelve aquí.";
+
 export function isCampaignLaunchBlocked(
   status: string | null,
   loadError: boolean,
+  whatsappConfigured = true,
 ): boolean {
+  if (!whatsappConfigured) return true;
   if (loadError) return false;
   return status !== "APPROVED";
 }
@@ -563,8 +600,9 @@ export function isCampaignLaunchBlocked(
 export function shouldShowEventTemplateCards(
   loading: boolean,
   loadError: boolean,
+  whatsappConfigured = true,
 ): boolean {
-  return !loading && !loadError;
+  return !loading && !loadError && whatsappConfigured;
 }
 
 export function statusBadgeClassName(

@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import {
+  PURPOSE_HINT,
   PURPOSE_TAB_LABEL,
   showsInvitationPresets,
   templatesForPurpose,
@@ -29,4 +30,9 @@ test("create-dialog solo muestra presets de invitación en Mensajes", () => {
   assert.equal(PURPOSE_TAB_LABEL.invitation, "Mensajes");
   assert.equal(PURPOSE_TAB_LABEL.reminder, "Recordatorio");
   assert.equal(PURPOSE_TAB_LABEL.followup, "Seguimiento");
+});
+
+test("PURPOSE_HINT.invitation menciona aprobación Meta antes de campaña", () => {
+  assert.match(PURPOSE_HINT.invitation, /Meta/);
+  assert.match(PURPOSE_HINT.invitation, /aprob/i);
 });

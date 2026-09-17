@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { Link, createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Plus } from "lucide-react";
 import {
@@ -41,15 +41,21 @@ import {
   canCreateEventCustomTemplate,
   DEFAULT_ACCOUNT_TEMPLATE_BANNER,
   draftsFromEventTemplates,
+  META_RESUBMIT_TITLE_EVENT,
+  META_RESUBMIT_WARNING_EVENT,
   parsePrimerContactoSelectorValue,
   selectorValueForDraft,
   shouldConfirmEventTemplateFork,
+  shouldConfirmMetaResubmit,
   shouldShowDefaultTemplateBanner,
   type EventTemplateCardDraft,
 } from "@/lib/whatsapp-event-templates";
 import {
   buildEventTemplateFormData,
+  isMetaTemplateInReview,
   shouldShowEventTemplateCards,
+  WHATSAPP_SETUP_CTA_DESCRIPTION,
+  WHATSAPP_SETUP_CTA_LABEL,
 } from "@/lib/whatsapp-templates";
 import {
   PURPOSE_CAMPAIGN_RADIO_HINT,
@@ -128,6 +134,7 @@ function PurposeTemplates({
   );
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [whatsappConfigured, setWhatsappConfigured] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
   const [savingSlot, setSavingSlot] = useState<number | null>(null);
   const [attaching, setAttaching] = useState(false);
@@ -174,13 +181,22 @@ function PurposeTemplates({
     setLoading(true);
     setError("");
     void Promise.all([
+      integrationsApi.getWhatsAppStatus(),
       integrationsApi.listEventWhatsappTemplates(eventId),
       integrationsApi.listAccountWhatsappTemplates().catch(() => ({
         templates: [] as AccountWhatsappTemplateDto[],
       })),
     ])
-      .then(([eventData, accountData]) => {
+      .then(([status, eventData, accountData]) => {
         if (cancelled) return;
+        const configured = Boolean(status.configured);
+        setWhatsappConfigured(configured);
+        if (!configured) {
+          setDrafts([]);
+          setAccountTemplates([]);
+          setFocusedSlot(null);
+          return;
+        }
         const allDrafts = draftsFromEventTemplates(eventData.templates || []);
         const next = allDrafts.filter((item) => item.purpose === purpose);
         setDrafts(next);
@@ -200,6 +216,7 @@ function PurposeTemplates({
         setDrafts([]);
         setAccountTemplates([]);
         setFocusedSlot(null);
+        setWhatsappConfigured(false);
         setError(
           err instanceof ApiError
             ? err.message
@@ -247,7 +264,11 @@ function PurposeTemplates({
   };
 
   const requestSave = (draft: EventTemplateCardDraft) => {
-    if (shouldConfirmEventTemplateFork(draft)) {
+    if (isMetaTemplateInReview(draft.status)) return;
+    if (
+      shouldConfirmEventTemplateFork(draft) ||
+      shouldConfirmMetaResubmit(draft)
+    ) {
       setForkDraft(draft);
       return;
     }
@@ -339,7 +360,21 @@ function PurposeTemplates({
           </Button>
         </div>
       ) : null}
-      {shouldShowEventTemplateCards(loading, Boolean(error)) ? (
+      {!loading && !error && !whatsappConfigured ? (
+        <Alert className="mt-3">
+          <AlertDescription className="space-y-3">
+            <p>{WHATSAPP_SETUP_CTA_DESCRIPTION}</p>
+            <Button type="button" size="sm" asChild>
+              <Link to="/eventos/whatsapp">{WHATSAPP_SETUP_CTA_LABEL}</Link>
+            </Button>
+          </AlertDescription>
+        </Alert>
+      ) : null}
+      {shouldShowEventTemplateCards(
+        loading,
+        Boolean(error),
+        whatsappConfigured,
+      ) ? (
         <div className="mt-3 space-y-4">
           {selectorOptions.length > 0 ? (
             <div className="space-y-2">
@@ -433,9 +468,15 @@ function PurposeTemplates({
       >
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>¿Crear una copia para este evento?</AlertDialogTitle>
+            <AlertDialogTitle>
+              {forkDraft && shouldConfirmEventTemplateFork(forkDraft)
+                ? "¿Crear una copia para este evento?"
+                : META_RESUBMIT_TITLE_EVENT}
+            </AlertDialogTitle>
             <AlertDialogDescription>
-              {DEFAULT_ACCOUNT_TEMPLATE_BANNER}
+              {forkDraft && shouldConfirmEventTemplateFork(forkDraft)
+                ? `${DEFAULT_ACCOUNT_TEMPLATE_BANNER} ${META_RESUBMIT_WARNING_EVENT}`
+                : META_RESUBMIT_WARNING_EVENT}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -446,7 +487,9 @@ function PurposeTemplates({
                 setForkDraft(null);
               }}
             >
-              Crear copia y guardar
+              {forkDraft && shouldConfirmEventTemplateFork(forkDraft)
+                ? "Crear copia y guardar"
+                : "Enviar a revisión"}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

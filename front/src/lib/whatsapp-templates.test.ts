@@ -12,14 +12,20 @@ import {
   extraSlotOptions,
   extractBodyPlaceholders,
   insertWizardVariable,
+  CAMPAIGN_LAUNCH_TEMPLATE_NOT_APPROVED,
   isCampaignLaunchBlocked,
   isEventTemplateCardReady,
+  isMetaTemplateInReview,
   isWizardCardReady,
+  META_TEMPLATE_PENDING_EDIT_HINT,
   mergeEventSlotMappings,
   metaTemplateBodyErrors,
+  metaTemplateStatusHint,
   shouldShowEventTemplateCards,
   secondaryCampaignLaunchNotice,
   statusBadgeLabel,
+  WHATSAPP_SETUP_CTA_DESCRIPTION,
+  WHATSAPP_SETUP_CTA_LABEL,
   unapprovedSecondaryCampaignPurposes,
   unmappedExtraNotices,
   wizardBodyError,
@@ -174,6 +180,19 @@ test("statusBadgeLabel cubre el resto de estados Meta", () => {
   assert.equal(statusBadgeLabel("REJECTED"), "Rechazada");
   assert.equal(statusBadgeLabel("PAUSED"), "Pausada");
   assert.equal(statusBadgeLabel("DISABLED"), "Pausada");
+});
+
+test("metaTemplateStatusHint explica el impacto en envíos", () => {
+  assert.match(metaTemplateStatusHint("PENDING"), /No se puede usar en envíos/);
+  assert.match(metaTemplateStatusHint("APPROVED"), /Lista para envíos/);
+  assert.match(metaTemplateStatusHint("REJECTED"), /rechazó/);
+  assert.match(metaTemplateStatusHint("PAUSED"), /Pausada/);
+  assert.equal(
+    metaTemplateStatusHint("DISABLED"),
+    metaTemplateStatusHint("PAUSED"),
+  );
+  assert.equal(metaTemplateStatusHint(""), "");
+  assert.equal(metaTemplateStatusHint(null), "");
 });
 
 test("isWizardCardReady exige archivo si el encabezado no es texto", () => {
@@ -388,6 +407,18 @@ test("isEventTemplateCardReady exige mapeo de extras y archivo si aplica", () =>
   );
 });
 
+test("isMetaTemplateInReview bloquea edición si está PENDING", () => {
+  assert.equal(isMetaTemplateInReview("PENDING"), true);
+  assert.equal(isMetaTemplateInReview("APPROVED"), false);
+  assert.equal(isMetaTemplateInReview("REJECTED"), false);
+  assert.equal(isMetaTemplateInReview("DRAFT"), false);
+  assert.equal(isMetaTemplateInReview(null), false);
+  assert.equal(
+    META_TEMPLATE_PENDING_EDIT_HINT,
+    "No se puede editar una plantilla en revisión",
+  );
+});
+
 test("isEventTemplateCardReady usa la misma puerta que el wizard", () => {
   const withMetaErrors = {
     body: "Hola {{1}}",
@@ -541,11 +572,35 @@ test("isCampaignLaunchBlocked solo si el GET llegó y no está APPROVED", () => 
   assert.equal(isCampaignLaunchBlocked(null, true), false);
 });
 
+test("isCampaignLaunchBlocked si WhatsApp no está configurado aunque el GET falle", () => {
+  assert.equal(isCampaignLaunchBlocked("APPROVED", false, false), true);
+  assert.equal(isCampaignLaunchBlocked("PENDING", true, false), true);
+  assert.equal(isCampaignLaunchBlocked("APPROVED", true, false), true);
+  assert.equal(isCampaignLaunchBlocked("APPROVED", false, true), false);
+  assert.equal(isCampaignLaunchBlocked("PENDING", true, true), false);
+});
+
 test("shouldShowEventTemplateCards oculta el editor si el GET falló", () => {
   assert.equal(shouldShowEventTemplateCards(true, false), false);
   assert.equal(shouldShowEventTemplateCards(false, true), false);
   assert.equal(shouldShowEventTemplateCards(true, true), false);
   assert.equal(shouldShowEventTemplateCards(false, false), true);
+});
+
+test("shouldShowEventTemplateCards oculta si WhatsApp no está configurado", () => {
+  assert.equal(shouldShowEventTemplateCards(false, false, false), false);
+  assert.equal(shouldShowEventTemplateCards(false, false, true), true);
+  assert.equal(shouldShowEventTemplateCards(false, true, true), false);
+});
+
+test("copy de CTA WhatsApp y plantilla de campaña no aprobada", () => {
+  assert.match(
+    WHATSAPP_SETUP_CTA_DESCRIPTION,
+    /configurar tu cuenta de WhatsApp/,
+  );
+  assert.equal(WHATSAPP_SETUP_CTA_LABEL, "Conectar WhatsApp");
+  assert.match(CAMPAIGN_LAUNCH_TEMPLATE_NOT_APPROVED, /Aprobada/);
+  assert.match(CAMPAIGN_LAUNCH_TEMPLATE_NOT_APPROVED, /Mensajes/);
 });
 
 test("insertWizardVariable aplica preset si el cuerpo está vacío", () => {

@@ -20,7 +20,12 @@ import {
   extraSlotOptionsForEventTemplate,
   parsePrimerContactoSelectorValue,
   shouldConfirmEventTemplateFork,
+  shouldConfirmMetaResubmit,
   shouldShowDefaultTemplateBanner,
+  META_RESUBMIT_TITLE_ACCOUNT,
+  META_RESUBMIT_TITLE_EVENT,
+  META_RESUBMIT_WARNING_ACCOUNT,
+  META_RESUBMIT_WARNING_EVENT,
 } from "./whatsapp-event-templates.ts";
 
 const OK_BODY =
@@ -118,6 +123,26 @@ test("banner y confirm de fork solo si la plantilla es default de cuenta", () =>
   );
   assert.equal(shouldConfirmEventTemplateFork({ isWabaDefault: true }), true);
   assert.equal(shouldConfirmEventTemplateFork({ isWabaDefault: false }), false);
+});
+
+test("shouldConfirmMetaResubmit solo si la plantilla persistida está APPROVED", () => {
+  assert.equal(
+    shouldConfirmMetaResubmit({ persisted: true, status: "APPROVED" }),
+    true,
+  );
+  assert.equal(
+    shouldConfirmMetaResubmit({ persisted: true, status: "PENDING" }),
+    false,
+  );
+  assert.equal(
+    shouldConfirmMetaResubmit({ persisted: false, status: "APPROVED" }),
+    false,
+  );
+  assert.equal(shouldConfirmMetaResubmit({ persisted: true, status: null }), false);
+  assert.match(META_RESUBMIT_TITLE_EVENT, /revisión de Meta/);
+  assert.match(META_RESUBMIT_WARNING_EVENT, /apruebe otra vez/);
+  assert.match(META_RESUBMIT_TITLE_ACCOUNT, /mandar esta plantilla a revisión/);
+  assert.match(META_RESUBMIT_WARNING_ACCOUNT, /todos los eventos/);
 });
 
 test("extras del default se mapean con dropdown de universales; literales y mesa solo en personalizada", () => {

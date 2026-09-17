@@ -1,3 +1,4 @@
+import { Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
@@ -15,8 +16,11 @@ import { cn } from "@/lib/utils";
 import { toInputDate } from "@/lib/mock/format";
 import type { CampaignSnapshot } from "@/lib/mock/types";
 import {
+  CAMPAIGN_LAUNCH_TEMPLATE_NOT_APPROVED,
+  CAMPAIGN_LAUNCH_WHATSAPP_SETUP_DESCRIPTION,
   isCampaignLaunchBlocked,
   secondaryCampaignLaunchNotice,
+  WHATSAPP_SETUP_CTA_LABEL,
   type SecondaryCampaignPurpose,
 } from "@/lib/whatsapp-templates";
 
@@ -31,6 +35,7 @@ export function LaunchCampaignDialog({
   error,
   campaignTemplateStatus,
   campaignTemplatesLoadError = false,
+  whatsappConfigured = true,
   unapprovedSecondaryPurposes = [],
   onConfirm,
 }: {
@@ -42,6 +47,7 @@ export function LaunchCampaignDialog({
   error?: string;
   campaignTemplateStatus: string | null;
   campaignTemplatesLoadError?: boolean;
+  whatsappConfigured?: boolean;
   unapprovedSecondaryPurposes?: SecondaryCampaignPurpose[];
   onConfirm: (payload: { mode: Mode; date?: string }) => Promise<void>;
 }) {
@@ -56,9 +62,10 @@ export function LaunchCampaignDialog({
 
   useEffect(() => {
     if (!open) return;
-    const next = campaign.status === "scheduled" && campaign.scheduledAt
-      ? campaign.scheduledAt
-      : "";
+    const next =
+      campaign.status === "scheduled" && campaign.scheduledAt
+        ? campaign.scheduledAt
+        : "";
     setMode(next ? "schedule" : "now");
     setDate(next || toInputDate());
   }, [open, campaign.status, campaign.scheduledAt]);
@@ -66,7 +73,9 @@ export function LaunchCampaignDialog({
   const launchBlocked = isCampaignLaunchBlocked(
     campaignTemplateStatus,
     campaignTemplatesLoadError,
+    whatsappConfigured,
   );
+  const needsWhatsApp = !whatsappConfigured;
   const secondaryNotice = launchBlocked
     ? ""
     : secondaryCampaignLaunchNotice(unapprovedSecondaryPurposes);
@@ -91,11 +100,11 @@ export function LaunchCampaignDialog({
               : "Iniciar campaña"}
           </DialogTitle>
           <DialogDescription>
-            El primer contacto se envía a quienes todavía no han sido
-            contactados. Puedes lanzarlo ahora o dejarlo programado.
-            {launchBlocked
-              ? " Meta aún no aprueba la plantilla de campaña."
-              : null}
+            {needsWhatsApp
+              ? CAMPAIGN_LAUNCH_WHATSAPP_SETUP_DESCRIPTION
+              : launchBlocked
+                ? CAMPAIGN_LAUNCH_TEMPLATE_NOT_APPROVED
+                : "El primer contacto se envía a quienes todavía no han sido contactados. Puedes lanzarlo ahora o dejarlo programado."}
           </DialogDescription>
         </DialogHeader>
         <RadioGroup
@@ -158,6 +167,11 @@ export function LaunchCampaignDialog({
             </div>
           </label>
         </RadioGroup>
+        {needsWhatsApp ? (
+          <Button type="button" asChild>
+            <Link to="/eventos/whatsapp">{WHATSAPP_SETUP_CTA_LABEL}</Link>
+          </Button>
+        ) : null}
         {error ? (
           <p className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
             {error}

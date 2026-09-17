@@ -78,6 +78,7 @@ function Resumen() {
     useState(false);
   const [unapprovedSecondaryPurposes, setUnapprovedSecondaryPurposes] =
     useState<SecondaryCampaignPurpose[]>([]);
+  const [whatsappConfigured, setWhatsappConfigured] = useState(true);
 
   useEffect(() => {
     setCampaign(event?.campaign ?? IDLE_CAMPAIGN);
@@ -88,24 +89,29 @@ function Resumen() {
     setCampaignTemplatesLoadError(false);
     setCampaignTemplateStatus(null);
     setUnapprovedSecondaryPurposes([]);
-    void integrationsApi
-      .listEventWhatsappTemplates(eventId)
-      .then((data) => {
-        if (cancelled) return;
-        const templates = data.templates || [];
+    void Promise.allSettled([
+      integrationsApi.getWhatsAppStatus(),
+      integrationsApi.listEventWhatsappTemplates(eventId),
+    ]).then(([statusResult, templatesResult]) => {
+      if (cancelled) return;
+      setWhatsappConfigured(
+        statusResult.status === "fulfilled"
+          ? Boolean(statusResult.value.configured)
+          : true,
+      );
+      if (templatesResult.status === "fulfilled") {
+        const templates = templatesResult.value.templates || [];
         setCampaignTemplatesLoadError(false);
         setCampaignTemplateStatus(campaignStatusFromList(templates));
         setUnapprovedSecondaryPurposes(
           unapprovedSecondaryCampaignPurposes(templates),
         );
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setCampaignTemplatesLoadError(true);
-          setCampaignTemplateStatus(null);
-          setUnapprovedSecondaryPurposes([]);
-        }
-      });
+        return;
+      }
+      setCampaignTemplatesLoadError(true);
+      setCampaignTemplateStatus(null);
+      setUnapprovedSecondaryPurposes([]);
+    });
     return () => {
       cancelled = true;
     };
@@ -275,6 +281,7 @@ function Resumen() {
                     error={launchError}
                     campaignTemplateStatus={campaignTemplateStatus}
                     campaignTemplatesLoadError={campaignTemplatesLoadError}
+                    whatsappConfigured={whatsappConfigured}
                     unapprovedSecondaryPurposes={unapprovedSecondaryPurposes}
                     onConfirm={async (payload) => {
                       setSubmitting(true);

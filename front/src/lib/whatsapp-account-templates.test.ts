@@ -63,7 +63,7 @@ test("una personalizada se puede borrar aunque sea la única fila", () => {
 test("accountWhatsappTemplatesEmptyCopy distingue wizard vs lista vacía", () => {
   assert.equal(
     accountWhatsappTemplatesEmptyCopy(false),
-    "Conecta WhatsApp y completa el wizard",
+    "Primero debes configurar tu cuenta de WhatsApp. Sin ella no puedes crear ni enviar plantillas.",
   );
   assert.equal(
     accountWhatsappTemplatesEmptyCopy(true),
@@ -71,7 +71,7 @@ test("accountWhatsappTemplatesEmptyCopy distingue wizard vs lista vacía", () =>
   );
   assert.equal(
     ACCOUNT_TEMPLATES_EMPTY_NEEDS_SETUP,
-    "Conecta WhatsApp y completa el wizard",
+    "Primero debes configurar tu cuenta de WhatsApp. Sin ella no puedes crear ni enviar plantillas.",
   );
   assert.equal(
     accountWhatsappTemplatesEmptyCopy(true, "reminder"),
