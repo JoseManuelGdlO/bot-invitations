@@ -25,6 +25,11 @@ import { pageHead } from "@/lib/seo";
 import type { BillingInterval, SubscriptionPlan } from "@/lib/mock/types";
 import { cn } from "@/lib/utils";
 import { BillingToggle, yearlyAmount } from "@/components/billing-toggle";
+import {
+  MX_PHONE_HINT,
+  mxPhoneError,
+  sanitizeMxPhoneInput,
+} from "@/lib/mx-phone";
 
 type LoginSearch = {
   email: string | undefined;
@@ -195,8 +200,13 @@ function Registro() {
       return;
     }
     if (step === 0) {
-      if (!businessName.trim() || !phone.trim() || !state.trim()) {
+      if (!businessName.trim() || !state.trim()) {
         toast.error("Completa negocio, teléfono y estado para continuar");
+        return;
+      }
+      const phoneError = mxPhoneError(phone);
+      if (phoneError) {
+        toast.error(phoneError);
         return;
       }
       if (!name.trim() || !email.trim() || password.length < 6) {
@@ -233,7 +243,7 @@ function Registro() {
         email,
         password,
         planId,
-        phone,
+        phone: sanitizeMxPhoneInput(phone),
         state,
         businessName,
         interval,
@@ -406,11 +416,16 @@ function Registro() {
                 <Input
                   id="phone"
                   type="tel"
+                  inputMode="numeric"
+                  autoComplete="tel"
                   value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="+52 999 123 4567"
+                  onChange={(e) =>
+                    setPhone(sanitizeMxPhoneInput(e.target.value))
+                  }
+                  placeholder="5512345678"
                   required
                 />
+                <p className="text-xs text-muted-foreground">{MX_PHONE_HINT}</p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="state">Estado</Label>
@@ -465,7 +480,12 @@ function Registro() {
                 minLength={6}
               />
             </div>
-            <Button type="submit" className="w-full" size="lg" disabled={loading}>
+            <Button
+              type="submit"
+              className="w-full"
+              size="lg"
+              disabled={loading}
+            >
               {loading ? <Loader2 className="size-4 animate-spin" /> : null}
               Continuar al plan
             </Button>

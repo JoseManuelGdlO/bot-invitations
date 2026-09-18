@@ -49,6 +49,11 @@ import {
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { WHATSAPP_CONNECTED_NEXT_STEP } from "@/lib/whatsapp-templates";
+import {
+  MX_PHONE_HINT,
+  mxPhoneError,
+  sanitizeMxPhoneInput,
+} from "@/lib/mx-phone";
 
 export const Route = createFileRoute("/eventos/whatsapp")({
   head: () => ({
@@ -236,10 +241,16 @@ function WhatsAppMetaPage() {
 
   const sendTest = async (e: React.FormEvent) => {
     e.preventDefault();
+    const to = sanitizeMxPhoneInput(testTo);
+    const phoneError = mxPhoneError(to);
+    if (phoneError) {
+      toast.error(phoneError);
+      return;
+    }
     setBusy(true);
     try {
       await integrationsApi.sendWhatsAppTest({
-        to: testTo.trim(),
+        to,
         type: testType,
         text: testText.trim(),
         ...(testType === "template" ? { name: testName.trim() } : {}),
@@ -517,11 +528,15 @@ function WhatsAppMetaPage() {
             <Label htmlFor="testTo">Número de destino</Label>
             <Input
               id="testTo"
+              type="tel"
+              inputMode="numeric"
+              autoComplete="tel"
               value={testTo}
-              onChange={(e) => setTestTo(e.target.value)}
+              onChange={(e) => setTestTo(sanitizeMxPhoneInput(e.target.value))}
               placeholder="5512345678"
               required
             />
+            <p className="text-xs text-muted-foreground">{MX_PHONE_HINT}</p>
           </div>
           {testType === "template" ? (
             <div className="space-y-2">

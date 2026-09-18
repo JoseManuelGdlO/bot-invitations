@@ -60,6 +60,11 @@ import { PlanLimitBanner } from "@/components/plan-limit";
 import { SendGuestInvitationDialog } from "@/components/send-guest-invitation-dialog";
 import { PERMS } from "@/lib/permissions";
 import { ApiError } from "@/lib/api/client";
+import {
+  MX_PHONE_HINT,
+  mxPhoneError,
+  sanitizeMxPhoneInput,
+} from "@/lib/mx-phone";
 
 const TAG_OPTIONS = [
   "Sin etiqueta",
@@ -134,7 +139,7 @@ function Invitados() {
     () =>
       guests.filter(
         (g) =>
-          (status === "todos" || g.tag === (status) || g.status === status) &&
+          (status === "todos" || g.tag === status || g.status === status) &&
           (g.rep.toLowerCase().includes(q.toLowerCase()) ||
             g.phone.includes(q)),
       ),
@@ -219,7 +224,7 @@ function Invitados() {
             <Download className="size-4" /> Exportar
           </Button>
         ) : null}
-        { canEditGuest ? (
+        {canEditGuest ? (
           <Dialog
             open={addOpen}
             onOpenChange={(next) => {
@@ -243,9 +248,14 @@ function Invitados() {
                 onSubmit={async (e) => {
                   e.preventDefault();
                   const rep = form.rep.trim();
-                  const phone = form.phone.trim();
-                  if (!rep || !phone) {
+                  const phone = sanitizeMxPhoneInput(form.phone);
+                  const phoneError = mxPhoneError(phone);
+                  if (!rep) {
                     toast.error("Nombre y teléfono son requeridos");
+                    return;
+                  }
+                  if (phoneError) {
+                    toast.error(phoneError);
                     return;
                   }
                   const invited = Number(form.invited) || 1;
@@ -291,13 +301,23 @@ function Invitados() {
                   <Label htmlFor="guest-phone">Teléfono</Label>
                   <Input
                     id="guest-phone"
+                    type="tel"
+                    inputMode="numeric"
+                    autoComplete="tel"
+                    placeholder="5512345678"
                     value={form.phone}
                     disabled={saving}
                     onChange={(e) =>
-                      setForm((f) => ({ ...f, phone: e.target.value }))
+                      setForm((f) => ({
+                        ...f,
+                        phone: sanitizeMxPhoneInput(e.target.value),
+                      }))
                     }
                     required
                   />
+                  <p className="text-xs text-muted-foreground">
+                    {MX_PHONE_HINT}
+                  </p>
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="guest-invited">Invitados</Label>
@@ -405,9 +425,7 @@ function Invitados() {
               {showTableColumn ? (
                 <TableHead className="whitespace-nowrap">Mesa</TableHead>
               ) : null}
-              <TableHead className="whitespace-nowrap">
-                WhatsApp
-              </TableHead>
+              <TableHead className="whitespace-nowrap">WhatsApp</TableHead>
               <TableHead className="whitespace-nowrap">Confirmación</TableHead>
               <TableHead className="max-w-56 whitespace-nowrap">
                 Última respuesta
@@ -415,7 +433,10 @@ function Invitados() {
               <TableHead className="whitespace-nowrap text-center">
                 Invitados confirmados
               </TableHead>
-              <TableHead className="whitespace-nowrap"> Mensajes de seguimiento</TableHead>
+              <TableHead className="whitespace-nowrap">
+                {" "}
+                Mensajes de seguimiento
+              </TableHead>
               <TableHead className="whitespace-nowrap text-center">
                 Acciones
               </TableHead>
