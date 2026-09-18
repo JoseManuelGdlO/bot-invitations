@@ -54,6 +54,20 @@ const covers = [
   "linear-gradient(135deg, var(--info-soft), var(--secondary))",
 ];
 
+const EVENT_TYPES = [
+  "Boda",
+  "XV Años",
+  "Aniversario",
+  "Corporativo",
+  "Cumpleaños",
+  "Bautizo",
+  "Graduación",
+  "Reunión",
+  "Fiesta",
+] as const;
+
+const OTHER_EVENT_TYPE = "Otro";
+
 const steps = [
   "Información del evento",
   "Configuración visual",
@@ -81,6 +95,9 @@ function NewEvent() {
   const set = (k: keyof typeof form, v: string) =>
     setForm((f) => ({ ...f, [k]: v }));
 
+  const isCustomType = !(EVENT_TYPES as readonly string[]).includes(form.type);
+  const typeSelectValue = isCustomType ? OTHER_EVENT_TYPE : form.type;
+
   const finish = async (withList: boolean) => {
     if (
       session &&
@@ -107,7 +124,7 @@ function NewEvent() {
         id,
         name: form.name || "Nuevo evento",
         shortName: form.shortName || form.name.slice(0, 3).toUpperCase(),
-        type: form.type,
+        type: form.type.trim() || "Otro",
         hosts: form.hosts || "Anfitriones",
         date: form.date || "2027-01-01",
         time: form.time,
@@ -189,24 +206,34 @@ function NewEvent() {
             </div>
             <div className="space-y-2">
               <Label>Tipo de evento</Label>
-              <Select value={form.type} onValueChange={(v) => set("type", v)}>
+              <Select
+                value={typeSelectValue}
+                onValueChange={(v) =>
+                  set("type", v === OTHER_EVENT_TYPE ? "" : v)
+                }
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {[
-                    "Boda",
-                    "XV Años",
-                    "Aniversario",
-                    "Corporativo",
-                    "Cumpleaños",
-                  ].map((t) => (
+                  {EVENT_TYPES.map((t) => (
                     <SelectItem key={t} value={t}>
                       {t}
                     </SelectItem>
                   ))}
+                  <SelectItem value={OTHER_EVENT_TYPE}>
+                    {OTHER_EVENT_TYPE}
+                  </SelectItem>
                 </SelectContent>
               </Select>
+              {typeSelectValue === OTHER_EVENT_TYPE ? (
+                <Input
+                  value={form.type}
+                  onChange={(e) => set("type", e.target.value)}
+                  placeholder="Ej. Baby Shower"
+                  autoFocus
+                />
+              ) : null}
             </div>
             <div className="space-y-2">
               <Label>Nombre de los anfitriones</Label>
