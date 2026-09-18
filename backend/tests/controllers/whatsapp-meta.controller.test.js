@@ -11,6 +11,7 @@ describe("whatsapp-meta.controller", () => {
   let parseWhatsappMetaCredentials;
   let resolveActiveWhatsappMetaByOwner;
   let upsertWhatsappMetaCredentials;
+  let waitForTestDelivery;
   const envState = {
     nodeEnv: "development",
     meta: {
@@ -61,6 +62,7 @@ describe("whatsapp-meta.controller", () => {
         displayPhoneNumber: displayPhoneNumber || null,
       },
     }));
+    waitForTestDelivery = jest.fn(async () => null);
 
     ({ mod: controller, models } = await loadWithMocks("src/controllers/whatsapp-meta.controller.js", {
       extraMocks: {
@@ -90,6 +92,9 @@ describe("whatsapp-meta.controller", () => {
           parseWhatsappMetaCredentials,
           resolveActiveWhatsappMetaByOwner,
           upsertWhatsappMetaCredentials,
+        }),
+        "src/services/whatsapp-test-delivery.js": () => ({
+          waitForTestDelivery,
         }),
       },
     }));
@@ -279,8 +284,37 @@ describe("whatsapp-meta.controller", () => {
       phoneNumberId: "10987654321",
     });
     expect(sendTemplateWithRetry).not.toHaveBeenCalled();
+    expect(waitForTestDelivery).toHaveBeenCalledWith("wamid.text");
     expect(res.status).toHaveBeenCalledWith(202);
     expect(res.json).toHaveBeenCalledWith({ ok: true, type: "text", id: "wamid.text" });
+  });
+
+  test("send-test text 400 si el webhook reporta ventana de 24 h cerrada", async () => {
+    waitForTestDelivery.mockResolvedValue({
+      messageId: "wamid.text",
+      status: "failed",
+      errors: [
+        {
+          code: 131047,
+          title: "Re-engagement message",
+          message: "Re-engagement message",
+          error_data: {
+            details:
+              "Message failed to send because more than 24 hours have passed since the customer last replied to this number.",
+          },
+        },
+      ],
+    });
+    const { next, res } = await callHandler(controller.postWhatsappMetaSendTest, {
+      req: createMockReq({
+        body: { to: "5512345678", type: "text", text: "Hola de prueba" },
+      }),
+    });
+    expect(next).toHaveBeenCalledWith(expect.objectContaining({
+      status: 400,
+      message: "Han pasado más de 24 horas. Debes usar una plantilla aprobada.",
+    }));
+    expect(res.status).not.toHaveBeenCalled();
   });
 
   test("send-test template 400 sin plantilla de campaña del WABA activo", async () => {

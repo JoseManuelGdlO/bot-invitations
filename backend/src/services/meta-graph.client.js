@@ -1,5 +1,6 @@
 import { env } from "../config/env.js";
 import { httpError } from "../utils/http-error.js";
+import { userFacingMetaCodeMessage } from "../utils/meta-error.js";
 import { Logger } from "../utils/logger.js";
 
 const log = new Logger("MetaGraph");
@@ -43,20 +44,7 @@ function variablePolicyCopy(subcode, message) {
 function userFacingMetaMessage(code, fallback, subcode, searchText) {
   const variableCopy = variablePolicyCopy(subcode, searchText || fallback);
   if (variableCopy) return variableCopy;
-  const known = {
-    190: "El token de WhatsApp ya no es válido. Vuelve a conectar la cuenta.",
-    100: "La solicitud a Meta fue rechazada. Revisa la configuración de la app.",
-    10: "La app de Meta no tiene el permiso necesario.",
-    33: "No se encontró el recurso de WhatsApp en Meta.",
-    131000: "WhatsApp no pudo enviar el mensaje. Inténtalo de nuevo.",
-    131026: "El número de destino no es un WhatsApp válido.",
-    131047: "Han pasado más de 24 horas. Debes usar una plantilla aprobada.",
-    131051: "El tipo de mensaje no está soportado.",
-    132000: "La plantilla de WhatsApp fue rechazada o no existe.",
-    132001: "La plantilla no está disponible en este idioma.",
-    133010: "El número de WhatsApp no está registrado en Cloud API.",
-  };
-  return known[Number(code)] || fallback || "Error de la API de WhatsApp (Meta).";
+  return userFacingMetaCodeMessage(code, fallback);
 }
 
 export function parseGraphErrorPayload(payload = {}, httpStatus = 500) {

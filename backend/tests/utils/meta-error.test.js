@@ -1,4 +1,4 @@
-import { summarizeMetaError, summarizeMetaErrors } from "../../src/utils/meta-error.js";
+import { summarizeMetaError, summarizeMetaErrors, userFacingMetaCodeMessage } from "../../src/utils/meta-error.js";
 
 describe("summarizeMetaError", () => {
   test("lee Graph error.code error_data.details y fbtrace_id", () => {
@@ -56,5 +56,13 @@ describe("summarizeMetaErrors", () => {
     expect(summarizeMetaErrors([{}, { code: 100, message: "bad" }])).toEqual([
       expect.objectContaining({ code: 100, message: "bad" }),
     ]);
+  });
+});
+
+describe("userFacingMetaCodeMessage", () => {
+  test("traduce 131047 a la ventana de 24 horas", () => {
+    expect(userFacingMetaCodeMessage(131047, "Re-engagement message")).toBe(
+      "Han pasado más de 24 horas. Debes usar una plantilla aprobada.",
+    );
   });
 });

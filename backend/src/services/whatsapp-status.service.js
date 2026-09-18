@@ -1,6 +1,7 @@
 import { Conversation, Guest, Message } from "../models/index.js";
 import { Logger } from "../utils/logger.js";
 import { summarizeMetaErrors } from "../utils/meta-error.js";
+import { recordTestDeliveryStatus } from "./whatsapp-test-delivery.js";
 
 const log = new Logger("WhatsApp");
 
@@ -57,6 +58,8 @@ export async function applyWhatsappDeliveryStatus(status = {}) {
   if (!messageId || !delivery) {
     return { processed: true, reason: "invalid_status" };
   }
+
+  recordTestDeliveryStatus(status);
 
   const message = await Message.findOne({ where: { providerId: messageId } });
   if (!message) {

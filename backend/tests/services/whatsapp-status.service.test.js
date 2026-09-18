@@ -120,4 +120,25 @@ describe("whatsapp-status.service", () => {
     expect(models.Guest.findByPk).not.toHaveBeenCalled();
     expect(guest.save).not.toHaveBeenCalled();
   });
+
+  test("failed de wamid desconocido notifica el waiter de send-test", async () => {
+    ({ mod: { applyWhatsappDeliveryStatus }, models } = await loadWithMocks(
+      "src/services/whatsapp-status.service.js",
+    ));
+    models.Message.findOne.mockResolvedValue(null);
+    const { waitForTestDelivery, resetTestDeliveryWaiters } = await import(
+      "../../src/services/whatsapp-test-delivery.js"
+    );
+    resetTestDeliveryWaiters();
+    const pending = waitForTestDelivery("wamid.test", 500);
+    await applyWhatsappDeliveryStatus({
+      messageId: "wamid.test",
+      status: "failed",
+      errors: [{ code: 131047, title: "Re-engagement message", message: "Re-engagement message" }],
+    });
+    await expect(pending).resolves.toMatchObject({
+      messageId: "wamid.test",
+      status: "failed",
+    });
+  });
 });

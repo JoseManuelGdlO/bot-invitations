@@ -80,6 +80,18 @@ function metaWebhookPublicUrl() {
   return `${base}/webhooks/meta`;
 }
 
+function whatsappSendTestErrorMessage(err: unknown) {
+  if (!(err instanceof ApiError)) return "No se pudo enviar la prueba";
+  const haystack = err.message.toLowerCase();
+  if (
+    haystack.includes("re-engagement") ||
+    haystack.includes("more than 24 hours")
+  ) {
+    return "Han pasado más de 24 horas. Debes usar una plantilla aprobada.";
+  }
+  return err.message;
+}
+
 const emptyCredentialsForm = {
   accessToken: "",
   wabaId: "",
@@ -261,9 +273,7 @@ function WhatsAppMetaPage() {
           : "Mensaje de prueba enviado",
       );
     } catch (err) {
-      toast.error(
-        err instanceof ApiError ? err.message : "No se pudo enviar la prueba",
-      );
+      toast.error(whatsappSendTestErrorMessage(err));
     } finally {
       setBusy(false);
     }

@@ -40,6 +40,14 @@ describe("meta-graph.client", () => {
     expect(err.message).not.toContain("EAAJBSECRET");
   });
 
+  test("graphErrorFromResponse traduce 131047 a la ventana de 24 horas", async () => {
+    const { graphErrorFromResponse } = await import("../../src/services/meta-graph.client.js");
+    const err = graphErrorFromResponse(400, {
+      error: { message: "Re-engagement message", code: 131047 },
+    });
+    expect(err.message).toBe("Han pasado más de 24 horas. Debes usar una plantilla aprobada.");
+  });
+
   const DENSITY =
     "Esta plantilla tiene demasiadas variables en relación con su longitud. Reduce el número de variables o aumenta la longitud del mensaje.";
   const START = "Las variables no pueden ir al principio del mensaje.";

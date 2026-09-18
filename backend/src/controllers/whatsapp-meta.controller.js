@@ -16,6 +16,8 @@ import {
   resolveActiveWhatsappMetaByOwner,
   upsertWhatsappMetaCredentials,
 } from "../services/whatsapp-meta.service.js";
+import { waitForTestDelivery } from "../services/whatsapp-test-delivery.js";
+import { summarizeMetaErrors, userFacingMetaCodeMessage } from "../utils/meta-error.js";
 
 const log = new Logger("WhatsApp");
 
@@ -32,6 +34,15 @@ function requestHeader(req, name) {
 
 function isDevEnv() {
   return env.nodeEnv !== "production";
+}
+
+function assertTestDeliveryOk(status) {
+  if (!status || String(status.status || "").toLowerCase() !== "failed") return;
+  const errors = summarizeMetaErrors(status.errors);
+  throw httpError(
+    400,
+    userFacingMetaCodeMessage(errors[0]?.code, "WhatsApp no pudo enviar el mensaje de prueba."),
+  );
 }
 
 function metaWebhookUrl(req) {
@@ -185,10 +196,16 @@ export const postWhatsappMetaSendTest = asyncHandler(async (req, res) => {
     });
   }
 
+  const messageId = payload?.messages?.[0]?.id || payload?.id || null;
+  if (type === "text" && messageId) {
+    const delivery = await waitForTestDelivery(messageId);
+    assertTestDeliveryOk(delivery);
+  }
+
   log.info("send-test", { type, ownerUserId: req.user.id });
   res.status(202).json({
     ok: true,
     type,
-    id: payload?.messages?.[0]?.id || payload?.id || null,
+    id: messageId,
   });
 });
