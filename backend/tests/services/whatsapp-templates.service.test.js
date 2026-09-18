@@ -2120,12 +2120,18 @@ test("resolveOwnerCampaignSendContext usa la campaña más reciente del WABA act
     status: "APPROVED",
     headerType: "none",
     headerMediaPath: null,
+    components: [
+      { type: "BODY", text: "Hola {{1}}, reservamos {{2}} pases para el evento, por favor." },
+    ],
   };
   const link = {
     isCampaign: true,
     eventId: event.id,
     Event: event,
-    slotMappings: {},
+    slotMappings: {
+      "1": { type: "field", key: "nombre" },
+      "2": { type: "field", key: "numero_invitados" },
+    },
     template,
   };
   models.EventWhatsappTemplate.findOne.mockResolvedValue(link);
@@ -2149,6 +2155,7 @@ test("resolveOwnerCampaignSendContext usa la campaña más reciente del WABA act
     order: [[{ model: models.Event }, "createdAt", "DESC"]],
   });
   expect(context.hsmTemplateName).toBe("alanna_live_1");
+  expect(context.hsmExampleParams).toEqual(["María", "2"]);
 });
 
 test("resolveOwnerCampaignSendContext 400 sin pivot isCampaign del WABA activo", async () => {

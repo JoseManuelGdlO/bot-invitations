@@ -121,6 +121,7 @@ describe("whatsapp-meta.controller", () => {
       displayPhoneNumber: "5512345678",
       hasTemplate: true,
       templateName: "alanna_pc_campaign_2",
+      templateDisplayName: null,
       templateLanguage: "es_MX",
       webhookUrl: "http://localhost:4000/api/webhooks/meta",
     });
@@ -352,27 +353,37 @@ describe("whatsapp-meta.controller", () => {
     expect(sendTemplateWithRetry).not.toHaveBeenCalled();
   });
 
-  test("send-test template usa el name de campaña y {{1}}/{{2}} del request", async () => {
+  test("send-test template usa el name de campaña y valores de ejemplo de los slots", async () => {
     models.EventWhatsappTemplate.findOne.mockResolvedValue({
       isCampaign: true,
       eventId: "evt_1",
       Event: { id: "evt_1", ownerId: "usr_test_1" },
-      slotMappings: {},
+      slotMappings: {
+        "1": { type: "field", key: "nombre" },
+        "2": { type: "field", key: "numero_invitados" },
+        "3": { type: "literal", value: "Boda Ana" },
+      },
       template: {
         name: "alanna_pc_campaign_2",
         status: "APPROVED",
         headerType: "none",
         headerMediaPath: null,
+        components: [
+          {
+            type: "BODY",
+            text: "Hola {{1}}, reservamos {{2}} pases para {{3}}, por favor confirma.",
+          },
+        ],
       },
     });
     const { res } = await callHandler(controller.postWhatsappMetaSendTest, {
       req: createMockReq({
-        body: { to: "5512345678", type: "template", name: "Luis", text: "Invitación de boda" },
+        body: { to: "5512345678", type: "template" },
       }),
     });
     expect(sendTemplateWithRetry).toHaveBeenCalledWith({
       to: "5512345678",
-      bodyParams: ["Luis", "Invitación de boda"],
+      bodyParams: ["María", "2", "Boda Ana"],
       templateName: "alanna_pc_campaign_2",
       accessToken: "user-token",
       phoneNumberId: "10987654321",
@@ -389,12 +400,28 @@ describe("whatsapp-meta.controller", () => {
     expect(sendTextWithRetry).not.toHaveBeenCalled();
   });
 
-  test("send-test 400 si el texto de plantilla está vacío", async () => {
-    const { next } = await callHandler(controller.postWhatsappMetaSendTest, {
-      req: createMockReq({ body: { to: "5512345678", type: "template", text: "  " } }),
+  test("send-test template no exige text del request", async () => {
+    models.EventWhatsappTemplate.findOne.mockResolvedValue({
+      isCampaign: true,
+      eventId: "evt_1",
+      Event: { id: "evt_1", ownerId: "usr_test_1" },
+      slotMappings: {
+        "1": { type: "field", key: "nombre" },
+        "2": { type: "field", key: "numero_invitados" },
+      },
+      template: {
+        name: "alanna_pc_campaign_2",
+        status: "APPROVED",
+        headerType: "none",
+        headerMediaPath: null,
+        components: [{ type: "BODY", text: "Hola {{1}}, hay {{2}} pases reservados para ti." }],
+      },
     });
-    expect(next).toHaveBeenCalledWith(expect.objectContaining({ status: 400 }));
-    expect(sendTemplateWithRetry).not.toHaveBeenCalled();
+    const { res } = await callHandler(controller.postWhatsappMetaSendTest, {
+      req: createMockReq({ body: { to: "5512345678", type: "template" } }),
+    });
+    expect(sendTemplateWithRetry).toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(202);
   });
 
   test("GET template usa credenciales del owner y templateName del query", async () => {

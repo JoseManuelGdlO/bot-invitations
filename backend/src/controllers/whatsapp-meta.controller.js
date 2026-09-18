@@ -85,6 +85,7 @@ async function templateStatus(ownerUserId, wabaId) {
     return {
       hasTemplate: false,
       templateName: null,
+      templateDisplayName: null,
       templateLanguage,
     };
   }
@@ -106,6 +107,7 @@ async function templateStatus(ownerUserId, wabaId) {
   return {
     hasTemplate: count > 0,
     templateName: campaignLink?.template?.name || null,
+    templateDisplayName: campaignLink?.template?.displayName || null,
     templateLanguage,
   };
 }
@@ -159,7 +161,6 @@ export const postWhatsappMetaSendTest = asyncHandler(async (req, res) => {
   const to = String(req.body?.to || "").trim();
   const type = String(req.body?.type || "text").trim().toLowerCase();
   const text = String(req.body?.text || "").trim();
-  const name = sanitizeMetaBodyParam(req.body?.name) || "invitado";
 
   if (type !== "text" && type !== "template") {
     throw httpError(400, "type debe ser text o template.");
@@ -169,17 +170,21 @@ export const postWhatsappMetaSendTest = asyncHandler(async (req, res) => {
 
   let payload;
   if (type === "template") {
-    const bodyParam = sanitizeMetaBodyParam(text);
-    if (!bodyParam) throw httpError(400, "El texto de la plantilla es obligatorio.");
     const ctx = await resolveOwnerCampaignSendContext({
       ownerUserId: req.user.id,
       wabaId: credentials.wabaId,
     });
+    const bodyParams = (ctx.hsmExampleParams || [])
+      .map((value) => sanitizeMetaBodyParam(value))
+      .filter((value) => value != null && String(value).length > 0);
+    if (!bodyParams.length) {
+      throw httpError(400, "La plantilla de campaña no tiene variables de ejemplo para la prueba.");
+    }
     const headerDocument = await resolveSendHeaderMedia(ctx.hsmHeaderDocument, credentials);
     const headerImage = await resolveSendHeaderMedia(ctx.hsmHeaderImage, credentials, "image");
     payload = await metaClient.sendTemplateWithRetry({
       to,
-      bodyParams: [name, bodyParam],
+      bodyParams,
       accessToken: credentials.accessToken,
       phoneNumberId: credentials.phoneNumberId,
       templateName: ctx.hsmTemplateName,

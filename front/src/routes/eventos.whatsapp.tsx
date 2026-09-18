@@ -113,7 +113,6 @@ function WhatsAppMetaPage() {
   const [credsForm, setCredsForm] = useState(emptyCredentialsForm);
   const [testType, setTestType] = useState<WhatsAppSendTestType>("template");
   const [testTo, setTestTo] = useState("");
-  const [testName, setTestName] = useState("Invitado");
   const [testText, setTestText] = useState(
     "Prueba de conexión desde Alanna Confirmaciones",
   );
@@ -230,6 +229,8 @@ function WhatsAppMetaPage() {
         displayPhoneNumber: next.displayPhoneNumber,
         hasTemplate: next.hasTemplate ?? prev?.hasTemplate ?? false,
         templateName: next.templateName ?? prev?.templateName ?? null,
+        templateDisplayName:
+          next.templateDisplayName ?? prev?.templateDisplayName ?? null,
         templateLanguage:
           next.templateLanguage ?? prev?.templateLanguage ?? "es_MX",
         webhookUrl: prev?.webhookUrl ?? next.webhookUrl ?? null,
@@ -259,13 +260,16 @@ function WhatsAppMetaPage() {
       toast.error(phoneError);
       return;
     }
+    if (testType === "text" && !testText.trim()) {
+      toast.error("Escribe un mensaje de prueba.");
+      return;
+    }
     setBusy(true);
     try {
       await integrationsApi.sendWhatsAppTest({
         to,
         type: testType,
-        text: testText.trim(),
-        ...(testType === "template" ? { name: testName.trim() } : {}),
+        ...(testType === "text" ? { text: testText.trim() } : {}),
       });
       toast.success(
         testType === "template"
@@ -432,10 +436,15 @@ function WhatsAppMetaPage() {
             <dd className="mt-0.5 font-medium">
               {status?.templateName ? (
                 <>
-                  {status.templateName}
+                  {status.templateDisplayName || status.templateName}
                   <span className="ml-1 font-normal text-muted-foreground">
                     · {status.templateLanguage}
                   </span>
+                  {status.templateDisplayName ? (
+                    <p className="mt-0.5 font-mono text-xs font-normal text-muted-foreground">
+                      {status.templateName}
+                    </p>
+                  ) : null}
                 </>
               ) : (
                 <span className="text-muted-foreground">Sin nombre</span>
@@ -483,8 +492,9 @@ function WhatsAppMetaPage() {
       <section className="rounded-2xl border border-border bg-card p-6 shadow-soft">
         <h2 className="font-display text-2xl">Probar envío</h2>
         <p className="mt-1 text-sm text-muted-foreground">
-          Manda un texto libre (ventana de 24 h) o la plantilla de invitación a
-          un número de 10 dígitos, usando el WhatsApp Business de esta cuenta.
+          Comprueba que el número conectado pueda enviar. La plantilla usa la de
+          campaña de invitación; el texto libre solo funciona dentro de la
+          ventana de 24 h.
         </p>
         <form className="mt-5 space-y-4" onSubmit={sendTest}>
           <RadioGroup
@@ -549,35 +559,51 @@ function WhatsAppMetaPage() {
             <p className="text-xs text-muted-foreground">{MX_PHONE_HINT}</p>
           </div>
           {testType === "template" ? (
+            <div className="rounded-lg border border-border bg-muted/30 px-3 py-3 text-sm">
+              {canSendTemplate && status?.templateName ? (
+                <>
+                  <p className="font-medium">
+                    {status.templateDisplayName || "Plantilla de campaña"}
+                  </p>
+                  <p className="mt-0.5 font-mono text-xs text-muted-foreground">
+                    {status.templateName}
+                    {status.templateLanguage
+                      ? ` · ${status.templateLanguage}`
+                      : null}
+                  </p>
+                  <p className="mt-2 text-xs text-muted-foreground">
+                    Se enviará con valores de ejemplo (como en Meta). No hace
+                    falta editar el texto de la plantilla.
+                  </p>
+                </>
+              ) : (
+                <p className="text-muted-foreground">
+                  Necesitas una plantilla de invitación de campaña aprobada para
+                  probar este envío.
+                </p>
+              )}
+            </div>
+          ) : (
             <div className="space-y-2">
-              <Label htmlFor="testName">Nombre (variable 1)</Label>
-              <Input
-                id="testName"
-                value={testName}
-                onChange={(e) => setTestName(e.target.value)}
-                placeholder="Invitado"
+              <Label htmlFor="testText">Mensaje</Label>
+              <Textarea
+                id="testText"
+                value={testText}
+                onChange={(e) => setTestText(e.target.value)}
+                required
+                rows={3}
               />
             </div>
-          ) : null}
-          <div className="space-y-2">
-            <Label htmlFor="testText">
-              {testType === "template" ? "Mensaje (variable 2)" : "Mensaje"}
-            </Label>
-            <Textarea
-              id="testText"
-              value={testText}
-              onChange={(e) => setTestText(e.target.value)}
-              required
-              rows={3}
-            />
-          </div>
+          )}
           <Button type="submit" disabled={!canSend || busy}>
             {busy ? (
               <Loader2 className="size-4 animate-spin" />
             ) : (
               <FlaskConical className="size-4" />
             )}
-            Probar envío
+            {testType === "template"
+              ? "Enviar plantilla de prueba"
+              : "Probar envío"}
           </Button>
         </form>
       </section>

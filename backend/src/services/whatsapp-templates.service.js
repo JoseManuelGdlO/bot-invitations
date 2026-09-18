@@ -978,14 +978,22 @@ function sendContextFrom(link, event) {
     }
     : null;
   const eventId = event?.id || link.eventId || null;
+  const stored = link.slotMappings && typeof link.slotMappings === "object"
+    ? link.slotMappings
+    : {};
+  const bodyText = bodyTextFromComponents(template.components) || "";
+  const mappings = Object.keys(stored).length
+    ? stored
+    : (bodyText ? mergeSlotMappings(bodyText, {}) : {});
 
   return {
     template,
     link,
     hsmTemplateName: template.name,
+    hsmExampleParams: exampleValuesFromMappings(mappings),
     async hsmParamsFor(guest, plannerName) {
       return resolveSlotParamValues(
-        link.slotMappings || {},
+        mappings,
         eventGuestVars(event || {}, guest, plannerName),
       );
     },

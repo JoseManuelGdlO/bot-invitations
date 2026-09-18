@@ -35,6 +35,7 @@ export type WhatsAppMetaStatusDto = {
   displayPhoneNumber: string | null;
   hasTemplate: boolean;
   templateName: string | null;
+  templateDisplayName?: string | null;
   templateLanguage: string;
   webhookUrl: string | null;
 };
@@ -171,8 +172,7 @@ export const integrationsApi = {
   sendWhatsAppTest: (body: {
     to: string;
     type: WhatsAppSendTestType;
-    text: string;
-    name?: string;
+    text?: string;
   }) =>
     api<{ ok: boolean; type: WhatsAppSendTestType; id: string | null }>(
       "/internal/whatsapp/send-test",
