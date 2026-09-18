@@ -160,6 +160,74 @@ export function needsHeaderFile(headerType: string): boolean {
   return headerType === "document" || headerType === "image";
 }
 
+const EXISTING_HEADER_SENTINEL = "existente";
+
+export type TemplateHeaderPreviewState =
+  | { kind: "none" }
+  | { kind: "empty"; headerType: "image" | "document" }
+  | { kind: "image"; source: "file" | "saved"; fileName: string }
+  | {
+      kind: "document";
+      source: "file" | "saved";
+      fileName: string;
+      previewablePdf: boolean;
+    };
+
+function isPdfHeaderFile(file: File) {
+  return file.type === "application/pdf" || /\.pdf$/i.test(file.name);
+}
+
+function savedHeaderFileName(headerFileName?: string | null) {
+  const raw = String(headerFileName || "").trim();
+  if (!raw) return null;
+  if (raw.toLowerCase() === EXISTING_HEADER_SENTINEL) return "Archivo actual";
+  return raw;
+}
+
+export function templateHeaderPreviewState(input: {
+  headerType?: string | null | undefined;
+  headerFile?: File | null | undefined;
+  headerFileName?: string | null | undefined;
+}): TemplateHeaderPreviewState {
+  const headerType =
+    input.headerType === "image" || input.headerType === "document"
+      ? input.headerType
+      : null;
+  if (!headerType) return { kind: "none" };
+
+  const file = input.headerFile ?? null;
+  if (file) {
+    const fileName =
+      file.name ||
+      savedHeaderFileName(input.headerFileName) ||
+      (headerType === "image" ? "imagen" : "documento");
+    if (headerType === "image") {
+      return { kind: "image", source: "file", fileName };
+    }
+    return {
+      kind: "document",
+      source: "file",
+      fileName,
+      previewablePdf: isPdfHeaderFile(file),
+    };
+  }
+
+  const fileName = savedHeaderFileName(input.headerFileName);
+  if (fileName) {
+    if (headerType === "image") {
+      return { kind: "image", source: "saved", fileName };
+    }
+    return {
+      kind: "document",
+      source: "saved",
+      fileName,
+      previewablePdf: /\.pdf$/i.test(fileName),
+    };
+  }
+
+  return { kind: "empty", headerType };
+}
+
 export function wizardCardBlockReason(draft: {
   body: string;
   headerType: string;

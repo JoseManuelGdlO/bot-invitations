@@ -503,6 +503,9 @@ export function WhatsappTemplateCard({
           event={event}
           plannerName={plannerName}
           slotMappings={draft.slotMappings}
+          headerType={draft.headerType}
+          headerFile={draft.headerFile}
+          headerFileName={draft.headerFileName}
           compact
           sampleFallback
         />

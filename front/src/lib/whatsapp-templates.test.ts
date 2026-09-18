@@ -12,6 +12,7 @@ import {
   extraSlotOptions,
   extractBodyPlaceholders,
   insertWizardVariable,
+  templateHeaderPreviewState,
   CAMPAIGN_LAUNCH_TEMPLATE_NOT_APPROVED,
   CAMPAIGN_LAUNCH_TEMPLATES_UNAVAILABLE,
   eventTemplatesLoadUi,
@@ -197,6 +198,77 @@ test("metaTemplateStatusHint explica el impacto en envíos", () => {
   );
   assert.equal(metaTemplateStatusHint(""), "");
   assert.equal(metaTemplateStatusHint(null), "");
+});
+
+test("templateHeaderPreviewState oculta el encabezado si es solo texto", () => {
+  assert.deepEqual(templateHeaderPreviewState(draft()), { kind: "none" });
+});
+
+test("templateHeaderPreviewState usa placeholder si falta el archivo", () => {
+  assert.deepEqual(templateHeaderPreviewState(draft({ headerType: "image" })), {
+    kind: "empty",
+    headerType: "image",
+  });
+  assert.deepEqual(
+    templateHeaderPreviewState(draft({ headerType: "document" })),
+    { kind: "empty", headerType: "document" },
+  );
+});
+
+test("templateHeaderPreviewState previsualiza la imagen o el PDF cargado", () => {
+  const image = new File(["x"], "portada.png", { type: "image/png" });
+  const pdf = new File(["%PDF"], "invitacion.pdf", { type: "application/pdf" });
+  const word = new File(["x"], "invitacion.docx", {
+    type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  });
+  assert.deepEqual(
+    templateHeaderPreviewState(
+      draft({ headerType: "image", headerFile: image }),
+    ),
+    { kind: "image", source: "file", fileName: "portada.png" },
+  );
+  assert.deepEqual(
+    templateHeaderPreviewState(
+      draft({ headerType: "document", headerFile: pdf }),
+    ),
+    {
+      kind: "document",
+      source: "file",
+      fileName: "invitacion.pdf",
+      previewablePdf: true,
+    },
+  );
+  assert.deepEqual(
+    templateHeaderPreviewState(
+      draft({ headerType: "document", headerFile: word }),
+    ),
+    {
+      kind: "document",
+      source: "file",
+      fileName: "invitacion.docx",
+      previewablePdf: false,
+    },
+  );
+});
+
+test("templateHeaderPreviewState muestra el archivo guardado sin tratarlo como vacío", () => {
+  assert.deepEqual(
+    templateHeaderPreviewState(
+      draft({ headerType: "image", headerFileName: "portada.jpg" }),
+    ),
+    { kind: "image", source: "saved", fileName: "portada.jpg" },
+  );
+  assert.deepEqual(
+    templateHeaderPreviewState(
+      draft({ headerType: "document", headerFileName: "existente" }),
+    ),
+    {
+      kind: "document",
+      source: "saved",
+      fileName: "Archivo actual",
+      previewablePdf: false,
+    },
+  );
 });
 
 test("isWizardCardReady exige archivo si el encabezado no es texto", () => {

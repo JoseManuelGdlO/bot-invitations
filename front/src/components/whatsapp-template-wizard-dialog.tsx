@@ -587,6 +587,9 @@ export function WhatsAppTemplateWizardDialog({
               guests={[]}
               event={undefined}
               slotMappings={draft.slotMappings}
+              headerType={draft.headerType}
+              headerFile={draft.headerFile}
+              headerFileName={draft.headerFileName ?? null}
               compact
               sampleFallback
             />
