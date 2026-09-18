@@ -36,6 +36,7 @@ import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Textarea } from "@/components/ui/textarea";
 import { WhatsAppTemplateWizardDialog } from "@/components/whatsapp-template-wizard-dialog";
 import { apiBase, ApiError } from "@/lib/api/client";
+import { botApi } from "@/lib/api/bot";
 import {
   integrationsApi,
   type MetaSignupConfigDto,
@@ -118,11 +119,22 @@ function WhatsAppMetaPage() {
   );
   const [wizardOpen, setWizardOpen] = useState(false);
   const [disconnectOpen, setDisconnectOpen] = useState(false);
+  const [devTools, setDevTools] = useState(false);
 
   const load = useCallback(async () => {
     const next = await integrationsApi.getWhatsAppStatus();
     setStatus(next);
     return next;
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    botApi.status().then((res) => {
+      if (!cancelled) setDevTools(Boolean(res.enabled));
+    });
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   useEffect(() => {
@@ -138,7 +150,7 @@ function WhatsAppMetaPage() {
       .finally(() => setLoading(false));
   }, [load]);
 
-  const webhookUrl = import.meta.env.DEV
+  const webhookUrl = devTools
     ? status?.webhookUrl || metaWebhookPublicUrl()
     : null;
 
@@ -328,7 +340,8 @@ function WhatsAppMetaPage() {
               <h2 className="font-display text-2xl">Meta Cloud API</h2>
               <p className="mt-1 text-sm text-muted-foreground">
                 Un número de WhatsApp Business por planner. Conéctalo con
-                Facebook o pega el token manualmente.
+                Facebook
+                {devTools ? " o pega el token manualmente" : ""}.
               </p>
             </div>
           </div>
@@ -372,16 +385,18 @@ function WhatsAppMetaPage() {
                 Conectar con Facebook
               </Button>
             )}
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={openCredentials}
-            >
-              <KeyRound className="size-3.5" />
-              {configured ? "Actualizar credenciales" : "Pegar token"}
-            </Button>
-            {webhookUrl ? (
+            {devTools ? (
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={openCredentials}
+              >
+                <KeyRound className="size-3.5" />
+                {configured ? "Actualizar credenciales" : "Pegar token"}
+              </Button>
+            ) : null}
+            {devTools && webhookUrl ? (
               <Button
                 type="button"
                 variant="outline"
@@ -475,16 +490,32 @@ function WhatsAppMetaPage() {
             </Button>
           </div>
         ) : null}
+        <p className="mt-3 text-sm text-muted-foreground">
+          Al conectar con Facebook, procura agregar un método de pago en tu cuenta de
+          WhatsApp Business (país, moneda y facturación). Sin eso, Meta puede
+          rechazar los envíos.{" "}
+          <a
+            href="https://business.facebook.com/billing_hub"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="font-medium text-foreground underline underline-offset-2 hover:text-gold"
+          >
+            Abrir facturación en Meta Business Suite
+          </a>
+        </p>
         {!metaConfig?.configured ? (
           <p className="mt-3 text-xs text-muted-foreground">
             Falta configurar META_APP_ID, META_APP_SECRET y
-            META_EMBEDDED_SIGNUP_CONFIG_ID en el servidor para conectar con
-            Facebook. Mientras tanto puedes pegar el token a mano.
+            META_EMBEDDED_SIGNUP_CONFIG_ID en el servidor
+            {devTools
+              ? ". Mientras tanto puedes pegar el token a mano."
+              : ". Intenta más tarde o contacta a soporte."}
           </p>
         ) : (
           <p className="mt-3 text-xs text-muted-foreground">
-            Conectar con Facebook usa el alta con Facebook. Pegar el token queda
-            como alternativa si Meta no completa el flujo.
+            Pulsa «Conectar con Facebook» para vincular tu WhatsApp Business. Se
+            abre una ventana de Meta; al terminar, tu número queda listo para
+            enviar invitaciones.
           </p>
         )}
       </section>

@@ -65,4 +65,10 @@ describe("userFacingMetaCodeMessage", () => {
       "Han pasado más de 24 horas. Debes usar una plantilla aprobada.",
     );
   });
+
+  test("traduce 131042 a problema de facturación", () => {
+    expect(userFacingMetaCodeMessage(131042, "Business eligibility payment issue")).toBe(
+      "Hay un problema de facturación en tu cuenta de WhatsApp Business. Configura el país y la moneda en Meta Business Manager.",
+    );
+  });
 });
