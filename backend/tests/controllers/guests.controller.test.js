@@ -7,6 +7,7 @@ describe("guests.controller", () => {
   let requireEvent;
   let userEventIds;
   let assertCanAddGuests;
+  let logActivity;
   let deliverAiMessage;
   let resolveReminderText;
   let resolveCampaignSendContext;
@@ -16,6 +17,7 @@ describe("guests.controller", () => {
     requireEvent = jest.fn(async () => fakeEvent());
     userEventIds = jest.fn(async () => ["evt_1"]);
     assertCanAddGuests = jest.fn(async () => undefined);
+    logActivity = jest.fn(async () => undefined);
     deliverAiMessage = jest.fn(async () => undefined);
     resolveReminderText = jest.fn(async () => "Recordatorio de prueba");
     resolveCampaignSendContext = jest.fn(async () => ({
@@ -50,9 +52,7 @@ describe("guests.controller", () => {
           hasEventPermission: jest.fn(async () => true),
           PERMS,
         }),
-        "src/services/activity.service.js": () => ({ 
-          logActivity: jest.fn(async () => undefined) 
-        }),
+        "src/services/activity.service.js": () => ({ logActivity }),
         "src/services/outbound.worker.js": () => ({ 
           enqueueJob: jest.fn(async () => undefined) 
         }),
@@ -146,6 +146,43 @@ describe("guests.controller", () => {
       req: createMockReq({ user: fakeUser(), params: { guestId: "missing" }, body: {} }),
     });
     expect(res.status).toHaveBeenCalledWith(404);
+  });
+
+  test("updateGuest loguea confirmación solo si el RSVP cambió", async () => {
+    const guest = fakeGuest({ status: "enviado", invited: 2, confirmed: 0 });
+    models.Guest.findOne.mockResolvedValue(guest);
+    await callHandler(controller.updateGuest, {
+      req: createMockReq({
+        user: fakeUser(),
+        params: { guestId: "gst_1" },
+        body: { status: "confirmado", confirmed: 2 },
+      }),
+    });
+    expect(logActivity).toHaveBeenCalledTimes(1);
+    expect(logActivity).toHaveBeenCalledWith("evt_1", "Luis Pérez confirmó 2 de 2 lugares", "confirm");
+
+    logActivity.mockClear();
+    await callHandler(controller.updateGuest, {
+      req: createMockReq({
+        user: fakeUser(),
+        params: { guestId: "gst_1" },
+        body: { notes: "mesa 4" },
+      }),
+    });
+    expect(logActivity).not.toHaveBeenCalled();
+  });
+
+  test("updateGuest loguea rechazo cuando el RSVP pasa a no_asistira", async () => {
+    const guest = fakeGuest({ status: "enviado", invited: 2, confirmed: 0 });
+    models.Guest.findOne.mockResolvedValue(guest);
+    await callHandler(controller.updateGuest, {
+      req: createMockReq({
+        user: fakeUser(),
+        params: { guestId: "gst_1" },
+        body: { status: "no_asistira", confirmed: 0 },
+      }),
+    });
+    expect(logActivity).toHaveBeenCalledWith("evt_1", "Luis Pérez no podrá asistir", "reject");
   });
 
   test("previewImport 400 sin archivo", async () => {

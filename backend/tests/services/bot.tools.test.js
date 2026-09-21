@@ -5,11 +5,13 @@ import { formatFollowUpDate, defaultIndecisoFollowUpDate } from "../../src/servi
 describe("bot tools", () => {
   let tools;
   let models;
+  let logActivity;
 
   beforeEach(async () => {
+    logActivity = jest.fn(async () => undefined);
     ({ mod: tools, models } = await loadWithMocks("src/services/bot/tools.js", {
       extraMocks: {
-        "src/services/activity.service.js": () => ({ logActivity: jest.fn(async () => undefined) }),
+        "src/services/activity.service.js": () => ({ logActivity }),
       },
     }));
   });
@@ -25,6 +27,28 @@ describe("bot tools", () => {
     expect(result.instruction).toMatch(/cierre breve y natural/);
     expect(result.instruction).not.toMatch(/usar_plantilla con category/);
     expect(guest.save).toHaveBeenCalled();
+    expect(logActivity).toHaveBeenCalledTimes(1);
+    expect(logActivity).toHaveBeenCalledWith("evt_1", "Luis Pérez confirmó 2 de 2 lugares", "confirm");
+  });
+
+  test("actualizar_confirmacion no vuelve a loguear el mismo RSVP", async () => {
+    const guest = fakeGuest({ status: "confirmado", invited: 7, confirmed: 7 });
+    await tools.executeActualizarConfirmacion(
+      { status: "confirmado", confirmed: 7 },
+      { guest, event: fakeEvent(), dryRun: false },
+    );
+    expect(guest.save).toHaveBeenCalled();
+    expect(logActivity).not.toHaveBeenCalled();
+  });
+
+  test("actualizar_confirmacion sí loguea si cambia el número confirmado", async () => {
+    const guest = fakeGuest({ status: "confirmado", invited: 7, confirmed: 2 });
+    await tools.executeActualizarConfirmacion(
+      { status: "confirmado", confirmed: 7 },
+      { guest, event: fakeEvent(), dryRun: false },
+    );
+    expect(logActivity).toHaveBeenCalledTimes(1);
+    expect(logActivity).toHaveBeenCalledWith("evt_1", "Luis Pérez confirmó 7 de 7 lugares", "confirm");
   });
 
   test("actualizar_confirmacion recorta confirmed al cupo si piden de más", async () => {
@@ -79,6 +103,18 @@ describe("bot tools", () => {
     expect(guest.confirmed).toBe(0);
     expect(result.instruction).toMatch(/cierre breve y natural/);
     expect(result.instruction).not.toMatch(/usar_plantilla con category/);
+    expect(logActivity).toHaveBeenCalledTimes(1);
+    expect(logActivity).toHaveBeenCalledWith("evt_1", "Luis Pérez no podrá asistir", "reject");
+  });
+
+  test("actualizar_confirmacion no vuelve a loguear el mismo rechazo", async () => {
+    const guest = fakeGuest({ status: "no_asistira", confirmed: 0 });
+    await tools.executeActualizarConfirmacion(
+      { status: "no_asistira", confirmed: null },
+      { guest, event: fakeEvent(), dryRun: false },
+    );
+    expect(guest.save).toHaveBeenCalled();
+    expect(logActivity).not.toHaveBeenCalled();
   });
 
   test("marcar_seguimiento agenda a 3 días y limpia el nudge previo", async () => {
@@ -95,6 +131,17 @@ describe("bot tools", () => {
     expect(guest.followUpsSent).toEqual(["f2"]);
     expect(result.instruction).toMatch(/No uses ahora la plantilla Seguimiento/);
     expect(guest.save).toHaveBeenCalled();
+    expect(logActivity).toHaveBeenCalledTimes(1);
+  });
+
+  test("marcar_seguimiento no vuelve a loguear si ya estaba en seguimiento", async () => {
+    const guest = fakeGuest({ status: "seguimiento", followUpsSent: [] });
+    await tools.executeMarcarSeguimiento(
+      { reason: "otra vez", followUpDate: null },
+      { guest, event: fakeEvent(), dryRun: false },
+    );
+    expect(guest.save).toHaveBeenCalled();
+    expect(logActivity).not.toHaveBeenCalled();
   });
 
   test("marcar_seguimiento usa los días de ai.followUps", async () => {

@@ -94,6 +94,9 @@ export const updateGuest = asyncHandler(async (req, res) => {
     if (delta > 0) await assertCanAddGuestsForEvent(req.user, event, delta);
   }
   const previousPhone = guest.phone;
+  const previousStatus = guest.status;
+  const previousConfirmed = Number(guest.confirmed) || 0;
+  const previousInvited = Number(guest.invited) || 0;
   for (const key of allowed) {
     if (req.body?.[key] !== undefined) guest[key] = req.body[key];
   }
@@ -104,8 +107,14 @@ export const updateGuest = asyncHandler(async (req, res) => {
     guest.confirmedAt = new Date();
   }
   await guest.save();
-  if (guest.status === "confirmado") {
+  const nextConfirmed = Number(guest.confirmed) || 0;
+  const nextInvited = Number(guest.invited) || 0;
+  const rsvpChanged =
+    previousStatus !== guest.status || previousConfirmed !== nextConfirmed || previousInvited !== nextInvited;
+  if (rsvpChanged && ["confirmado", "parcial"].includes(guest.status)) {
     await logActivity(event.id, `${guest.rep} confirmó ${guest.confirmed} de ${guest.invited} lugares`, "confirm");
+  } else if (rsvpChanged && guest.status === "no_asistira") {
+    await logActivity(event.id, `${guest.rep} no podrá asistir`, "reject");
   }
   res.json(serializeGuest(guest, event.slug));
 });

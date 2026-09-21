@@ -130,6 +130,7 @@ export async function executeActualizarConfirmacion(args, { guest, event, dryRun
     return { success: false, error: "status inválido" };
   }
   const confirmed = clampConfirmed(guest, status, args?.confirmed);
+  const rsvpChanged = guest.status !== status || Number(guest.confirmed) !== confirmed;
   guest.status = status;
   guest.confirmed = confirmed;
   guest.whatsapp = "respondido";
@@ -142,10 +143,12 @@ export async function executeActualizarConfirmacion(args, { guest, event, dryRun
   if (!dryRun) {
     await guest.save();
 
-    if (status === "confirmado" || status === "parcial") {
-      await logActivity(event.id, `${guest.rep} confirmó ${confirmed} de ${guest.invited} lugares`, "confirm");
-    } else {
-      await logActivity(event.id, `${guest.rep} no podrá asistir`, "reject");
+    if (rsvpChanged) {
+      if (status === "confirmado" || status === "parcial") {
+        await logActivity(event.id, `${guest.rep} confirmó ${confirmed} de ${guest.invited} lugares`, "confirm");
+      } else {
+        await logActivity(event.id, `${guest.rep} no podrá asistir`, "reject");
+      }
     }
   }
 
@@ -173,6 +176,7 @@ export async function executeMarcarSeguimiento(args, { guest, event, ai, dryRun 
   if (["confirmado", "parcial", "no_asistira"].includes(guest.status)) {
     return { success: false, error: "El invitado ya tiene un RSVP cerrado." };
   }
+  const enteredFollowUp = guest.status !== "seguimiento";
   guest.status = "seguimiento";
   guest.whatsapp = "respondido";
   const given = parseFollowUpDateInput(args?.followUpDate);
@@ -183,12 +187,14 @@ export async function executeMarcarSeguimiento(args, { guest, event, ai, dryRun 
   if (typeof guest.changed === "function") guest.changed("followUpsSent", true);
   if (!dryRun) {
     await guest.save();
-    const reason = String(args?.reason || "").trim();
-    await logActivity(
-      event.id,
-      `${guest.rep} quedó en seguimiento${reason ? `: ${reason}` : ""}`,
-      "system",
-    );
+    if (enteredFollowUp) {
+      const reason = String(args?.reason || "").trim();
+      await logActivity(
+        event.id,
+        `${guest.rep} quedó en seguimiento${reason ? `: ${reason}` : ""}`,
+        "system",
+      );
+    }
   }
   botLog("seguimiento marcado", {
     guestId: guest.id,
