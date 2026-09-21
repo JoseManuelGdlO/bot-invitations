@@ -82,6 +82,10 @@ interface Ctx extends State {
     password: string,
     rememberMe?: boolean,
   ) => Promise<SessionUser>;
+  loginWithGoogle: (
+    idToken: string,
+    rememberMe?: boolean,
+  ) => Promise<SessionUser>;
   register: (payload: {
     name: string;
     email: string;
@@ -92,11 +96,26 @@ interface Ctx extends State {
     businessName: string;
     interval?: "month" | "year";
   }) => Promise<{ checkoutUrl?: string | null }>;
+  registerWithGoogle: (
+    idToken: string,
+    payload: {
+      name: string;
+      planId: string;
+      phone: string;
+      state: string;
+      businessName: string;
+      interval?: "month" | "year";
+    },
+  ) => Promise<{ checkoutUrl?: string | null }>;
   registerInvite: (payload: {
     name: string;
     email: string;
     password: string;
   }) => Promise<void>;
+  registerInviteWithGoogle: (
+    idToken: string,
+    payload?: { name?: string },
+  ) => Promise<void>;
   startCheckout: (
     planId: string,
     interval?: "month" | "year",
@@ -284,6 +303,21 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         await afterAuth(res, Boolean(rememberMe));
         return res.user;
       },
+      loginWithGoogle: async (idToken, rememberMe) => {
+        const res = await api<{ accessToken: string; user: SessionUser }>(
+          "/auth/google",
+          {
+            method: "POST",
+            body: JSON.stringify({
+              idToken,
+              rememberMe,
+              intent: "login",
+            }),
+          },
+        );
+        await afterAuth(res, Boolean(rememberMe));
+        return res.user;
+      },
       register: async (payload) => {
         const res = await api<{
           accessToken: string;
@@ -296,12 +330,42 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         await afterAuth(res, false);
         return { checkoutUrl: res.checkoutUrl ?? null };
       },
+      registerWithGoogle: async (idToken, payload) => {
+        const res = await api<{
+          accessToken: string;
+          user: SessionUser;
+          checkoutUrl?: string | null;
+        }>("/auth/google", {
+          method: "POST",
+          body: JSON.stringify({
+            idToken,
+            intent: "register",
+            ...payload,
+          }),
+        });
+        await afterAuth(res, false);
+        return { checkoutUrl: res.checkoutUrl ?? null };
+      },
       registerInvite: async (payload) => {
         const res = await api<{ accessToken: string; user: SessionUser }>(
           "/auth/register-invite",
           {
             method: "POST",
             body: JSON.stringify(payload),
+          },
+        );
+        await afterAuth(res, false);
+      },
+      registerInviteWithGoogle: async (idToken, payload) => {
+        const res = await api<{ accessToken: string; user: SessionUser }>(
+          "/auth/google",
+          {
+            method: "POST",
+            body: JSON.stringify({
+              idToken,
+              intent: "register-invite",
+              name: payload?.name,
+            }),
           },
         );
         await afterAuth(res, false);

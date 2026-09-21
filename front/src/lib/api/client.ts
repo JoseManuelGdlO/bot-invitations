@@ -3,6 +3,7 @@ const REMEMBER_KEY = "alanna-remember";
 
 const AUTH_PUBLIC_PATHS = new Set([
   "/auth/login",
+  "/auth/google",
   "/auth/register",
   "/auth/register-invite",
   "/auth/email-available",

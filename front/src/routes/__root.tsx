@@ -11,8 +11,12 @@ import { useEffect, type ReactNode } from "react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
+import { GoogleOAuthProvider } from "@react-oauth/google";
 import { StoreProvider } from "@/lib/mock/store";
 import { Toaster } from "@/components/ui/sonner";
+
+const googleClientId =
+  String(import.meta.env["VITE_GOOGLE_CLIENT_ID"] || "").trim() || undefined;
 
 function NotFoundComponent() {
   return (
@@ -157,13 +161,21 @@ function RootShell({ children }: { children: ReactNode }) {
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
 
+  const app = (
+    <StoreProvider>
+      {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
+      <Outlet />
+      <Toaster position="top-right" />
+    </StoreProvider>
+  );
+
   return (
     <QueryClientProvider client={queryClient}>
-      <StoreProvider>
-        {/* Required: nested routes render here. Removing <Outlet /> breaks all child routes. */}
-        <Outlet />
-        <Toaster position="top-right" />
-      </StoreProvider>
+      {googleClientId ? (
+        <GoogleOAuthProvider clientId={googleClientId}>{app}</GoogleOAuthProvider>
+      ) : (
+        app
+      )}
     </QueryClientProvider>
   );
 }

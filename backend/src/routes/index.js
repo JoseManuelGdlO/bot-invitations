@@ -69,6 +69,7 @@ router.post("/auth/register", auth.register);
 router.post("/auth/register-invite", auth.registerInvite);
 router.get("/auth/email-available", auth.emailAvailable);
 router.post("/auth/login", auth.login);
+router.post("/auth/google", auth.google);
 router.post("/auth/refresh", auth.refresh);
 router.post("/auth/logout", auth.logout);
 router.post("/auth/forgot-password", auth.forgotPassword);

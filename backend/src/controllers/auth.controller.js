@@ -9,6 +9,7 @@ import { getPlanUsage, serializePlan, settleExpiredSubscription } from "../servi
 import { startCheckout, stripeEnabled } from "../services/stripe.service.js";
 import { getLatestCancellation, serializeCancellation } from "../services/cancellation.service.js";
 import { sendPasswordResetEmail } from "../services/email.service.js";
+import { verifyGoogleIdToken } from "../utils/googleAuth.js";
 import { Logger } from "../utils/logger.js";
 import {
   issueTokens,
@@ -147,12 +148,116 @@ export const registerInvite = asyncHandler(async (req, res) => {
 export const login = asyncHandler(async (req, res) => {
   const { email, password, rememberMe } = req.body || {};
   const user = await User.findOne({ where: { email: String(email || "").trim().toLowerCase() } });
+  if (user && !user.passwordHash) {
+    return res.status(401).json({ error: "Esta cuenta usa Google; inicia sesión con Google." });
+  }
   if (!user || !(await bcrypt.compare(String(password || ""), user.passwordHash))) {
     return res.status(401).json({ error: "Correo o contraseña incorrectos." });
   }
   await claimPendingInvitations(user);
   const tokens = await respondWithTokens(res, user, !!rememberMe);
   res.json(tokens);
+});
+
+export const google = asyncHandler(async (req, res) => {
+  const { idToken, rememberMe, intent: rawIntent } = req.body || {};
+  if (!idToken) return res.status(400).json({ error: "El token de Google es obligatorio." });
+  const intent = rawIntent === "register" || rawIntent === "register-invite" ? rawIntent : "login";
+
+  let profile;
+  try {
+    profile = await verifyGoogleIdToken(String(idToken));
+  } catch (error) {
+    if (error.status) return res.status(error.status).json({ error: error.message });
+    authLog.warn("Token de Google inválido", { error: error.message });
+    return res.status(401).json({ error: "No se pudo verificar la cuenta de Google." });
+  }
+
+  let user = await User.findOne({ where: { googleId: profile.googleId } });
+  if (!user) {
+    user = await User.findOne({ where: { email: profile.email } });
+  }
+
+  if (user) {
+    if (!user.googleId) {
+      user.googleId = profile.googleId;
+      await user.save();
+    } else if (user.googleId !== profile.googleId) {
+      return res.status(409).json({ error: "Ese correo ya está registrado." });
+    }
+    await claimPendingInvitations(user);
+    const tokens = await respondWithTokens(res, user, !!rememberMe);
+    return res.json(tokens);
+  }
+
+  if (intent === "login") {
+    return res.status(404).json({ error: "No hay cuenta con este Google. Crea una en registro." });
+  }
+
+  if (intent === "register-invite") {
+    const pending = await findPendingInvitations(profile.email);
+    if (!pending.length) {
+      return res.status(403).json({ error: "No hay una invitación pendiente para este correo." });
+    }
+    const displayName = String(req.body?.name || "").trim() || profile.name;
+    user = await User.create({
+      name: displayName,
+      email: profile.email,
+      passwordHash: null,
+      googleId: profile.googleId,
+      role: pending[0].role || "Wedding Planner",
+      businessName: null,
+      phone: null,
+      state: null,
+      planId: null,
+      billingInterval: "month",
+      subscriptionStatus: "active",
+    });
+    await claimPendingInvitations(user);
+    const tokens = await respondWithTokens(res, user, false);
+    return res.status(201).json({ ...tokens, checkoutUrl: null });
+  }
+
+  const { name, planId, phone, state, businessName, interval } = req.body || {};
+  const billingInterval = interval === "year" ? "year" : "month";
+  const displayName = String(name || "").trim() || profile.name;
+  if (!displayName) {
+    return res.status(400).json({ error: "El nombre es requerido." });
+  }
+  if (!businessName?.trim() || !phone?.trim() || !state?.trim()) {
+    return res.status(400).json({ error: "Nombre del negocio, teléfono y estado son requeridos." });
+  }
+  if (!planId) return res.status(400).json({ error: "Selecciona un plan para continuar." });
+  const plan = await Plan.findByPk(planId);
+  if (!plan) return res.status(400).json({ error: "El plan seleccionado no existe." });
+
+  user = await User.create({
+    name: displayName,
+    email: profile.email,
+    passwordHash: null,
+    googleId: profile.googleId,
+    role: "Wedding Planner",
+    businessName: businessName.trim(),
+    phone: phone.trim(),
+    state: state.trim(),
+    planId: plan.id,
+    billingInterval,
+    subscriptionStatus: stripeEnabled() ? "pending" : "active",
+  });
+  await claimPendingInvitations(user);
+  const tokens = await respondWithTokens(res, user, false);
+  let checkoutUrl = null;
+  if (stripeEnabled()) {
+    const checkout = await startCheckout(user, plan, { interval: billingInterval });
+    checkoutUrl = checkout.checkoutUrl;
+    if (!checkoutUrl) {
+      return res.status(502).json({
+        ...tokens,
+        error: "No se pudo abrir Stripe Checkout. Revisa las llaves y el webhook.",
+      });
+    }
+  }
+  return res.status(201).json({ ...tokens, checkoutUrl });
 });
 
 export const me = asyncHandler(async (req, res) => {

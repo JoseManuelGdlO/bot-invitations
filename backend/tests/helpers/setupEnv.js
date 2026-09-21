@@ -26,3 +26,4 @@ process.env.META_APP_SECRET = "test-meta-app-secret";
 process.env.META_EMBEDDED_SIGNUP_CONFIG_ID = "test-meta-config-id";
 process.env.ADMIN_EMAIL = "admin@alannaconfirmaciones.com.mx";
 process.env.ADMIN_PASSWORD = "test-admin-password";
+process.env.GOOGLE_CLIENT_ID = "test-google-client-id";

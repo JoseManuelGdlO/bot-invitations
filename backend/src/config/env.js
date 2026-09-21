@@ -73,6 +73,7 @@ export const env = {
     refreshDays: Number(process.env.JWT_REFRESH_EXPIRES_DAYS || 7),
     rememberDays: Number(process.env.JWT_REFRESH_REMEMBER_DAYS || 30),
   },
+  googleClientId: process.env.GOOGLE_CLIENT_ID || "",
   resetUrl:
     process.env.FRONTEND_RESET_URL ||
     `${(process.env.CLIENT_URL || "http://localhost:8080").replace(/\/$/, "")}/restablecer-contrasena`,

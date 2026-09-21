@@ -10,6 +10,8 @@ import { useStore } from "@/lib/mock/store";
 import { toast } from "sonner";
 import { api, ApiError } from "@/lib/api/client";
 import { pageHead } from "@/lib/seo";
+import { GoogleAccountOption } from "@/components/google-account-option";
+import { decodeGoogleCredential } from "@/lib/decode-google-credential";
 
 type RegistroSearch = {
   plan: string | undefined;
@@ -43,7 +45,7 @@ export const Route = createFileRoute("/iniciar-sesion")({
 });
 
 function Login() {
-  const { login } = useStore();
+  const { login, loginWithGoogle } = useStore();
   const navigate = useNavigate();
   const { email: invitedEmail } = Route.useSearch();
   const [email, setEmail] = useState(invitedEmail || "");
@@ -106,6 +108,35 @@ function Login() {
     } catch (err) {
       toast.error(
         err instanceof ApiError ? err.message : "No se pudo iniciar sesión",
+      );
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const enterWithGoogle = async (idToken: string) => {
+    setLoading(true);
+    try {
+      const user = await loginWithGoogle(idToken, rememberMe);
+      navigate({ to: user.isAdmin ? "/admin" : "/eventos" });
+    } catch (err) {
+      if (err instanceof ApiError && err.status === 404) {
+        const googleEmail = decodeGoogleCredential(idToken).email;
+        toast.message("No hay cuenta con este Google. Crea una para continuar.");
+        navigate({
+          to: "/registro",
+          search: registroSearch(
+            invitedEmail
+              ? { email: invitedEmail, invite: "1" }
+              : googleEmail
+                ? { email: googleEmail }
+                : undefined,
+          ),
+        });
+        return;
+      }
+      toast.error(
+        err instanceof ApiError ? err.message : "No se pudo entrar con Google",
       );
     } finally {
       setLoading(false);
@@ -201,6 +232,10 @@ function Login() {
               {loading ? <Loader2 className="size-4 animate-spin" /> : null}
               Iniciar sesión
             </Button>
+            <GoogleAccountOption
+              disabled={loading}
+              onCredential={(idToken) => void enterWithGoogle(idToken)}
+            />
             <p className="text-center text-xs text-muted-foreground">
               ¿Aún no tienes cuenta?{" "}
               <Link
