@@ -40,6 +40,30 @@ export type WhatsAppMetaStatusDto = {
   webhookUrl: string | null;
 };
 
+export type PricingAnalyticsRange = "7d" | "30d" | "90d";
+
+export type WhatsAppPricingAnalyticsDto = {
+  range: PricingAnalyticsRange | string;
+  start: number;
+  end: number;
+  currency: string | null;
+  costAvailable: boolean;
+  kpis: {
+    totalCost: number | null;
+    totalVolume: number;
+    avgCostPerMessage: number | null;
+    freeVolume: number;
+    paidVolume: number;
+  };
+  series: Array<{ day: string; cost: number; volume: number }>;
+  byCategory: Array<{
+    category: string;
+    cost: number | null;
+    volume: number;
+  }>;
+  cached?: boolean;
+};
+
 export type WhatsAppMetaCredentialsInput = {
   accessToken: string;
   wabaId: string;
@@ -157,6 +181,10 @@ export const integrationsApi = {
     }),
   getWhatsAppStatus: () =>
     api<WhatsAppMetaStatusDto>("/internal/whatsapp/status"),
+  getPricingAnalytics: (range: PricingAnalyticsRange = "30d") =>
+    api<WhatsAppPricingAnalyticsDto>(
+      `/internal/whatsapp/pricing-analytics?range=${encodeURIComponent(range)}`,
+    ),
   getWhatsAppTemplate: (templateName: string) =>
     api<WhatsAppMetaTemplateDto>(
       `/internal/whatsapp/template?templateName=${encodeURIComponent(templateName)}`,

@@ -16,6 +16,7 @@ import {
   resolveActiveWhatsappMetaByOwner,
   upsertWhatsappMetaCredentials,
 } from "../services/whatsapp-meta.service.js";
+import { getOwnerPricingAnalytics } from "../services/meta-pricing-analytics.service.js";
 import { waitForTestDelivery } from "../services/whatsapp-test-delivery.js";
 import { summarizeMetaErrors, userFacingMetaCodeMessage } from "../utils/meta-error.js";
 
@@ -155,6 +156,14 @@ export const getWhatsappMetaTemplate = asyncHandler(async (req, res) => {
     templateName,
   });
   res.json(template);
+});
+
+export const getWhatsappPricingAnalytics = asyncHandler(async (req, res) => {
+  const data = await getOwnerPricingAnalytics({
+    ownerUserId: req.user.id,
+    range: req.query?.range,
+  });
+  res.json(data);
 });
 
 export const postWhatsappMetaSendTest = asyncHandler(async (req, res) => {

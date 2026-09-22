@@ -103,9 +103,34 @@ export class ApiError extends Error {
 
 async function parse(res: Response) {
   const text = await res.text();
-  const data = text ? JSON.parse(text) : null;
+  if (!text) {
+    if (!res.ok) throw new ApiError("Error de red", res.status);
+    return null;
+  }
+  const trimmed = text.trimStart();
+  if (trimmed.startsWith("<!") || trimmed.startsWith("<html")) {
+    throw new ApiError(
+      res.ok
+        ? "La API devolvió HTML en lugar de JSON. Revisa VITE_API_URL."
+        : `La API respondió ${res.status} con HTML (¿ruta inexistente o proxy mal configurado?).`,
+      res.status || 502,
+    );
+  }
+  let data: unknown = null;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new ApiError(
+      `Respuesta inválida de la API (${res.status || "sin status"}).`,
+      res.status || 502,
+    );
+  }
   if (!res.ok) {
-    throw new ApiError(data?.error || "Error de red", res.status);
+    const errMsg =
+      data && typeof data === "object" && "error" in data
+        ? String((data as { error?: unknown }).error || "Error de red")
+        : "Error de red";
+    throw new ApiError(errMsg, res.status);
   }
   return data;
 }

@@ -453,6 +453,53 @@ export async function listWabaPhoneNumbers(wabaId, token) {
   return Array.isArray(payload.data) ? payload.data : [];
 }
 
+/**
+ * Pricing analytics del WABA (costo/volumen por mensaje entregado).
+ * @see https://developers.facebook.com/docs/whatsapp/business-management-api/analytics/
+ */
+export async function getWabaPricingAnalytics({
+  wabaId,
+  token,
+  start,
+  end,
+  granularity = "DAILY",
+  metricTypes = ["COST", "VOLUME"],
+  dimensions = ["PRICING_CATEGORY", "PRICING_TYPE", "COUNTRY"],
+} = {}) {
+  const waba = String(wabaId || "").trim();
+  if (!waba) throw httpError(400, "Falta el WABA ID.");
+  if (!token) throw httpError(400, "Falta el access token de Meta.");
+  const startUnix = Number(start);
+  const endUnix = Number(end);
+  if (!Number.isFinite(startUnix) || !Number.isFinite(endUnix)) {
+    throw httpError(400, "start y end deben ser timestamps Unix.");
+  }
+  if (endUnix <= startUnix) throw httpError(400, "end debe ser posterior a start.");
+
+  const metrics = (Array.isArray(metricTypes) ? metricTypes : [])
+    .map((v) => String(v || "").trim().toUpperCase())
+    .filter(Boolean);
+  const dims = (Array.isArray(dimensions) ? dimensions : [])
+    .map((v) => String(v || "").trim().toUpperCase())
+    .filter(Boolean);
+  const gran = String(granularity || "DAILY").trim().toUpperCase() || "DAILY";
+
+  const fields = [
+    `pricing_analytics.start(${Math.floor(startUnix)})`,
+    `.end(${Math.floor(endUnix)})`,
+    `.granularity(${gran})`,
+    metrics.length ? `.metric_types(${metrics.join(",")})` : "",
+    dims.length ? `.dimensions(${dims.join(",")})` : "",
+  ].join("");
+
+  return graphRequest({
+    method: "GET",
+    path: waba,
+    token,
+    query: { fields },
+  });
+}
+
 export async function getPhoneNumberDetails(phoneNumberId, token) {
   return graphRequest({
     method: "GET",

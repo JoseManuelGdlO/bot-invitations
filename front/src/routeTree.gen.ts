@@ -33,6 +33,7 @@ import { Route as BlogIndexRouteImport } from './routes/blog.index'
 import { Route as BlogSlugRouteImport } from './routes/blog.$slug'
 import { Route as EventosIndexRouteImport } from './routes/eventos.index'
 import { Route as EventosEventIdRouteImport } from './routes/eventos.$eventId'
+import { Route as EventosCostosRouteImport } from './routes/eventos.costos'
 import { Route as EventosNuevoRouteImport } from './routes/eventos.nuevo'
 import { Route as EventosPlantillasRouteImport } from './routes/eventos.plantillas'
 import { Route as EventosSoporteRouteImport } from './routes/eventos.soporte'
@@ -176,6 +177,11 @@ const EventosEventIdRoute = EventosEventIdRouteImport.update({
   path: '/$eventId',
   getParentRoute: () => EventosRoute,
 } as any)
+const EventosCostosRoute = EventosCostosRouteImport.update({
+  id: '/costos',
+  path: '/costos',
+  getParentRoute: () => EventosRoute,
+} as any)
 const EventosNuevoRoute = EventosNuevoRouteImport.update({
   id: '/nuevo',
   path: '/nuevo',
@@ -309,6 +315,7 @@ export interface FileRoutesByFullPath {
   '/admin/soporte': typeof AdminSoporteRouteWithChildren
   '/blog/$slug': typeof BlogSlugRoute
   '/eventos/$eventId': typeof EventosEventIdRouteWithChildren
+  '/eventos/costos': typeof EventosCostosRoute
   '/eventos/nuevo': typeof EventosNuevoRoute
   '/eventos/plantillas': typeof EventosPlantillasRoute
   '/eventos/soporte': typeof EventosSoporteRouteWithChildren
@@ -351,6 +358,7 @@ export interface FileRoutesByTo {
   '/admin/finanzas': typeof AdminFinanzasRoute
   '/admin/planes': typeof AdminPlanesRoute
   '/blog/$slug': typeof BlogSlugRoute
+  '/eventos/costos': typeof EventosCostosRoute
   '/eventos/nuevo': typeof EventosNuevoRoute
   '/eventos/plantillas': typeof EventosPlantillasRoute
   '/eventos/suscripcion': typeof EventosSuscripcionRoute
@@ -398,6 +406,7 @@ export interface FileRoutesById {
   '/admin/soporte': typeof AdminSoporteRouteWithChildren
   '/blog/$slug': typeof BlogSlugRoute
   '/eventos/$eventId': typeof EventosEventIdRouteWithChildren
+  '/eventos/costos': typeof EventosCostosRoute
   '/eventos/nuevo': typeof EventosNuevoRoute
   '/eventos/plantillas': typeof EventosPlantillasRoute
   '/eventos/soporte': typeof EventosSoporteRouteWithChildren
@@ -447,6 +456,7 @@ export interface FileRouteTypes {
     | '/admin/soporte'
     | '/blog/$slug'
     | '/eventos/$eventId'
+    | '/eventos/costos'
     | '/eventos/nuevo'
     | '/eventos/plantillas'
     | '/eventos/soporte'
@@ -489,6 +499,7 @@ export interface FileRouteTypes {
     | '/admin/finanzas'
     | '/admin/planes'
     | '/blog/$slug'
+    | '/eventos/costos'
     | '/eventos/nuevo'
     | '/eventos/plantillas'
     | '/eventos/suscripcion'
@@ -535,6 +546,7 @@ export interface FileRouteTypes {
     | '/admin/soporte'
     | '/blog/$slug'
     | '/eventos/$eventId'
+    | '/eventos/costos'
     | '/eventos/nuevo'
     | '/eventos/plantillas'
     | '/eventos/soporte'
@@ -747,6 +759,13 @@ declare module '@tanstack/react-router' {
       path: '/$eventId'
       fullPath: '/eventos/$eventId'
       preLoaderRoute: typeof EventosEventIdRouteImport
+      parentRoute: typeof EventosRoute
+    }
+    '/eventos/costos': {
+      id: '/eventos/costos'
+      path: '/costos'
+      fullPath: '/eventos/costos'
+      preLoaderRoute: typeof EventosCostosRouteImport
       parentRoute: typeof EventosRoute
     }
     '/eventos/nuevo': {
@@ -991,6 +1010,7 @@ const EventosSoporteRouteWithChildren = EventosSoporteRoute._addFileChildren(
 
 interface EventosRouteChildren {
   EventosEventIdRoute: typeof EventosEventIdRouteWithChildren
+  EventosCostosRoute: typeof EventosCostosRoute
   EventosNuevoRoute: typeof EventosNuevoRoute
   EventosPlantillasRoute: typeof EventosPlantillasRoute
   EventosSoporteRoute: typeof EventosSoporteRouteWithChildren
@@ -1001,6 +1021,7 @@ interface EventosRouteChildren {
 
 const EventosRouteChildren: EventosRouteChildren = {
   EventosEventIdRoute: EventosEventIdRouteWithChildren,
+  EventosCostosRoute: EventosCostosRoute,
   EventosNuevoRoute: EventosNuevoRoute,
   EventosPlantillasRoute: EventosPlantillasRoute,
   EventosSoporteRoute: EventosSoporteRouteWithChildren,

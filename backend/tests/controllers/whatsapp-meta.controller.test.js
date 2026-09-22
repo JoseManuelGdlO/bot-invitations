@@ -12,6 +12,7 @@ describe("whatsapp-meta.controller", () => {
   let resolveActiveWhatsappMetaByOwner;
   let upsertWhatsappMetaCredentials;
   let waitForTestDelivery;
+  let getOwnerPricingAnalytics;
   const envState = {
     nodeEnv: "development",
     meta: {
@@ -63,6 +64,23 @@ describe("whatsapp-meta.controller", () => {
       },
     }));
     waitForTestDelivery = jest.fn(async () => null);
+    getOwnerPricingAnalytics = jest.fn(async () => ({
+      range: "30d",
+      start: 1,
+      end: 2,
+      currency: "USD",
+      costAvailable: true,
+      kpis: {
+        totalCost: 10,
+        totalVolume: 100,
+        avgCostPerMessage: 0.1,
+        freeVolume: 20,
+        paidVolume: 80,
+      },
+      series: [],
+      byCategory: [],
+      cached: false,
+    }));
 
     ({ mod: controller, models } = await loadWithMocks("src/controllers/whatsapp-meta.controller.js", {
       extraMocks: {
@@ -92,6 +110,9 @@ describe("whatsapp-meta.controller", () => {
           parseWhatsappMetaCredentials,
           resolveActiveWhatsappMetaByOwner,
           upsertWhatsappMetaCredentials,
+        }),
+        "src/services/meta-pricing-analytics.service.js": () => ({
+          getOwnerPricingAnalytics,
         }),
         "src/services/whatsapp-test-delivery.js": () => ({
           waitForTestDelivery,
@@ -199,6 +220,32 @@ describe("whatsapp-meta.controller", () => {
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({ hasTemplate: false, templateName: null }),
     );
+  });
+
+  test("pricing-analytics devuelve el DTO del service", async () => {
+    const { res } = await callHandler(controller.getWhatsappPricingAnalytics, {
+      req: createMockReq({ query: { range: "7d" } }),
+    });
+    expect(getOwnerPricingAnalytics).toHaveBeenCalledWith({
+      ownerUserId: "usr_test_1",
+      range: "7d",
+    });
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        range: "30d",
+        costAvailable: true,
+        kpis: expect.objectContaining({ totalCost: 10, totalVolume: 100 }),
+      }),
+    );
+  });
+
+  test("pricing-analytics propaga 400 si WhatsApp no está configurado", async () => {
+    const err = Object.assign(new Error("WhatsApp (Meta) no está configurado."), { status: 400 });
+    getOwnerPricingAnalytics.mockRejectedValue(err);
+    const { next } = await callHandler(controller.getWhatsappPricingAnalytics, {
+      req: createMockReq({ query: { range: "30d" } }),
+    });
+    expect(next).toHaveBeenCalledWith(err);
   });
 
   test("status informa que no hay plantilla cuando el owner no tiene filas", async () => {

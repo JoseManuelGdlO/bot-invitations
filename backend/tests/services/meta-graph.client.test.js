@@ -419,4 +419,41 @@ describe("meta-graph.client", () => {
     });
     expect(out).toEqual(expect.objectContaining({ shared: true, assigned: true }));
   });
+
+  test("getWabaPricingAnalytics GET al WABA con fields pricing_analytics y Bearer", async () => {
+    global.fetch = jest.fn(async () => ({
+      ok: true,
+      status: 200,
+      text: async () =>
+        JSON.stringify({
+          pricing_analytics: {
+            data: [{ data_points: [{ start: 1, end: 2, volume: 10, cost: 1.5 }] }],
+          },
+          id: "waba_1",
+        }),
+    }));
+    await jest.unstable_mockModule("../../src/config/env.js", () => ({
+      env: { meta: { accessToken: "sys_tok", appId: "app_1", graphVersion: "v21.0" } },
+    }));
+    const { getWabaPricingAnalytics } = await import("../../src/services/meta-graph.client.js");
+    const out = await getWabaPricingAnalytics({
+      wabaId: "waba_1",
+      token: "planner_tok",
+      start: 1700000000,
+      end: 1702592000,
+      granularity: "DAILY",
+    });
+    expect(out.id).toBe("waba_1");
+    const [url, init] = fetch.mock.calls[0];
+    expect(url).toContain("/waba_1?");
+    expect(decodeURIComponent(String(url))).toContain(
+      "pricing_analytics.start(1700000000).end(1702592000).granularity(DAILY)",
+    );
+    expect(decodeURIComponent(String(url))).toContain("metric_types(COST,VOLUME)");
+    expect(decodeURIComponent(String(url))).toContain(
+      "dimensions(PRICING_CATEGORY,PRICING_TYPE,COUNTRY)",
+    );
+    expect(init.method).toBe("GET");
+    expect(init.headers.Authorization).toBe("Bearer planner_tok");
+  });
 });
