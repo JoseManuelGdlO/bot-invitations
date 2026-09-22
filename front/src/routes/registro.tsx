@@ -25,6 +25,8 @@ import { pageHead } from "@/lib/seo";
 import type { BillingInterval, SubscriptionPlan } from "@/lib/mock/types";
 import { cn } from "@/lib/utils";
 import { BillingToggle, yearlyAmount } from "@/components/billing-toggle";
+import { GoogleAccountOption } from "@/components/google-account-option";
+import { decodeGoogleCredential } from "@/lib/decode-google-credential";
 import {
   MX_PHONE_HINT,
   mxPhoneError,
@@ -92,7 +94,7 @@ const MEXICO_STATES = [
 ];
 
 function Registro() {
-  const { register, registerInvite, session, hydrated } = useStore();
+  const { register, registerInvite, registerWithGoogle, registerInviteWithGoogle, session, hydrated } = useStore();
   const navigate = useNavigate();
   const childMatches = useChildMatches();
   const {
@@ -110,6 +112,7 @@ function Registro() {
   const [email, setEmail] = useState(invitedEmail || "");
   const [emailError, setEmailError] = useState("");
   const [password, setPassword] = useState("");
+  const [googleIdToken, setGoogleIdToken] = useState("");
   const [plans, setPlans] = useState<SubscriptionPlan[]>([]);
   const [planId, setPlanId] = useState("");
   const [interval, setInterval] = useState<BillingInterval>("month");
@@ -173,9 +176,59 @@ function Registro() {
     );
   };
 
+  const applyGoogleProfile = (idToken: string) => {
+    const profile = decodeGoogleCredential(idToken);
+    if (invitedEmail && profile.email && profile.email !== invitedEmail.trim().toLowerCase()) {
+      toast.error("Usa la cuenta de Google del correo al que te invitaron.");
+      return false;
+    }
+    setGoogleIdToken(idToken);
+    if (profile.name && !name.trim()) setName(profile.name);
+    if (profile.email) {
+      setEmail(profile.email);
+      setEmailError("");
+    }
+    return true;
+  };
+
+  const submitInviteWithGoogle = async (idToken: string, displayName: string) => {
+    setLoading(true);
+    try {
+      await registerInviteWithGoogle(idToken, { name: displayName });
+      toast.success("Cuenta creada", {
+        description: "Ya puedes ver el evento al que te invitaron.",
+      });
+      navigate({ to: "/eventos" });
+    } catch (err) {
+      const message =
+        err instanceof ApiError ? err.message : "No se pudo crear la cuenta";
+      if (err instanceof ApiError && err.status === 409) {
+        setEmailError(message);
+        toast.error(message);
+        navigate({
+          to: "/iniciar-sesion",
+          search: loginSearch(email),
+        });
+        return;
+      }
+      if (err instanceof ApiError) setEmailError(message);
+      toast.error(message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isInvite) {
+      if (googleIdToken) {
+        if (!name.trim()) {
+          toast.error("Completa tu nombre para continuar");
+          return;
+        }
+        await submitInviteWithGoogle(googleIdToken, name.trim());
+        return;
+      }
       if (!name.trim() || !email.trim() || password.length < 6) {
         toast.error(
           "Completa nombre, correo y contraseña (mín. 6) para continuar",
@@ -209,9 +262,11 @@ function Registro() {
         toast.error(phoneError);
         return;
       }
-      if (!name.trim() || !email.trim() || password.length < 6) {
+      if (!name.trim() || !email.trim() || (!googleIdToken && password.length < 6)) {
         toast.error(
-          "Completa nombre, correo y contraseña (mín. 6) para continuar",
+          googleIdToken
+            ? "Completa nombre y correo para continuar"
+            : "Completa nombre, correo y contraseña (mín. 6) para continuar",
         );
         return;
       }
@@ -238,16 +293,25 @@ function Registro() {
     }
     setLoading(true);
     try {
-      const { checkoutUrl } = await register({
-        name,
-        email,
-        password,
-        planId,
-        phone: sanitizeMxPhoneInput(phone),
-        state,
-        businessName,
-        interval,
-      });
+      const { checkoutUrl } = googleIdToken
+        ? await registerWithGoogle(googleIdToken, {
+            name,
+            planId,
+            phone: sanitizeMxPhoneInput(phone),
+            state,
+            businessName,
+            interval,
+          })
+        : await register({
+            name,
+            email,
+            password,
+            planId,
+            phone: sanitizeMxPhoneInput(phone),
+            state,
+            businessName,
+            interval,
+          });
       if (checkoutUrl) {
         toast.success("Cuenta creada", {
           description: "Te llevamos a Stripe para pagar tu plan.",
@@ -339,10 +403,10 @@ function Registro() {
                   setEmail(e.target.value);
                   if (emailError) setEmailError("");
                 }}
-                readOnly={Boolean(invitedEmail)}
+                readOnly={Boolean(invitedEmail) || Boolean(googleIdToken)}
                 aria-invalid={Boolean(emailError)}
                 required
-                className={invitedEmail ? "bg-muted" : undefined}
+                className={invitedEmail || googleIdToken ? "bg-muted" : undefined}
               />
               {emailError ? (
                 <p className="text-sm text-destructive">
@@ -357,17 +421,23 @@ function Registro() {
                 </p>
               ) : null}
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Contraseña</Label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                minLength={6}
-              />
-            </div>
+            {googleIdToken ? (
+              <p className="rounded-xl bg-muted/60 px-3 py-2 text-sm text-muted-foreground">
+                Continuarás con Google{email ? ` (${email})` : ""}.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                <Label htmlFor="password">Contraseña</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  minLength={6}
+                />
+              </div>
+            )}
             <Button
               type="submit"
               className="w-full"
@@ -377,6 +447,19 @@ function Registro() {
               {loading ? <Loader2 className="size-4 animate-spin" /> : null}
               Crear cuenta
             </Button>
+            <GoogleAccountOption
+              disabled={loading}
+              onCredential={(idToken) => {
+                if (!applyGoogleProfile(idToken)) return;
+                const profile = decodeGoogleCredential(idToken);
+                const displayName = name.trim() || profile.name;
+                if (!displayName) {
+                  toast.error("Completa tu nombre para continuar");
+                  return;
+                }
+                void submitInviteWithGoogle(idToken, displayName);
+              }}
+            />
             <p className="text-center text-xs text-muted-foreground">
               Al crear tu cuenta aceptas las{" "}
               <Link to="/terminos" className="underline underline-offset-4">
@@ -453,8 +536,10 @@ function Registro() {
                   setEmail(e.target.value);
                   if (emailError) setEmailError("");
                 }}
+                readOnly={Boolean(googleIdToken)}
                 aria-invalid={Boolean(emailError)}
                 required
+                className={googleIdToken ? "bg-muted" : undefined}
               />
               {emailError ? (
                 <p className="text-sm text-destructive">
@@ -469,17 +554,23 @@ function Registro() {
                 </p>
               ) : null}
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Contraseña</Label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                minLength={6}
-              />
-            </div>
+            {googleIdToken ? (
+              <p className="rounded-xl bg-muted/60 px-3 py-2 text-sm text-muted-foreground">
+                Continuarás con Google{email ? ` (${email})` : ""}. Completa negocio, teléfono y estado.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                <Label htmlFor="password">Contraseña</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  required
+                  minLength={6}
+                />
+              </div>
+            )}
             <Button
               type="submit"
               className="w-full"
@@ -489,6 +580,15 @@ function Registro() {
               {loading ? <Loader2 className="size-4 animate-spin" /> : null}
               Continuar al plan
             </Button>
+            <GoogleAccountOption
+              disabled={loading}
+              onCredential={(idToken) => {
+                if (!applyGoogleProfile(idToken)) return;
+                toast.success("Google listo", {
+                  description: "Completa negocio, teléfono y estado para continuar.",
+                });
+              }}
+            />
           </>
         ) : (
           <>

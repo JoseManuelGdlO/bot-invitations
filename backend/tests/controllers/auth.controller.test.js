@@ -7,11 +7,17 @@ describe("auth.controller", () => {
   let startCheckout;
   let scheduleCancelAtPeriodEnd;
   let sendPasswordResetEmail;
+  let verifyGoogleIdToken;
 
   beforeEach(async () => {
     startCheckout = jest.fn(async () => ({ checkoutUrl: "https://checkout.test", updated: false }));
     scheduleCancelAtPeriodEnd = jest.fn(async () => ({ scheduled: true, periodEnd: new Date() }));
     sendPasswordResetEmail = jest.fn(async () => ({ messageId: "mail_1" }));
+    verifyGoogleIdToken = jest.fn(async () => ({
+      googleId: "g-123",
+      email: "ana@test.com",
+      name: "Ana Test",
+    }));
 
     ({ mod: controller, models } = await loadWithMocks("src/controllers/auth.controller.js", {
       extraMocks: {
@@ -47,6 +53,9 @@ describe("auth.controller", () => {
         "src/services/cancellation.service.js": () => ({
           getLatestCancellation: jest.fn(async () => null),
           serializeCancellation: jest.fn(() => null),
+        }),
+        "src/utils/googleAuth.js": () => ({
+          verifyGoogleIdToken,
         }),
       },
     }));
@@ -332,5 +341,130 @@ describe("auth.controller", () => {
 
     const { res } = await callHandler(controller.dashboard, { req: createMockReq({ user }) });
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ events: [], session: expect.any(Object) }));
+  });
+
+  test("google 400 sin idToken", async () => {
+    const { res } = await callHandler(controller.google, { req: createMockReq({ body: {} }) });
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(models.User.create).not.toHaveBeenCalled();
+  });
+
+  test("google 401 si el token es inválido", async () => {
+    verifyGoogleIdToken.mockRejectedValue(new Error("bad token"));
+    const { res } = await callHandler(controller.google, {
+      req: createMockReq({ body: { idToken: "broken" } }),
+    });
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(res.json).toHaveBeenCalledWith({ error: "No se pudo verificar la cuenta de Google." });
+  });
+
+  test("google login vincula googleId de una cuenta existente por email", async () => {
+    const user = fakeUser({ googleId: null, passwordHash: "valid_hash" });
+    models.User.findOne.mockResolvedValueOnce(null).mockResolvedValueOnce(user);
+    models.Plan.findByPk.mockResolvedValue(fakePlan());
+
+    const { res } = await callHandler(controller.google, {
+      req: createMockReq({ body: { idToken: "ok", intent: "login", rememberMe: true } }),
+    });
+
+    expect(user.googleId).toBe("g-123");
+    expect(user.save).toHaveBeenCalled();
+    expect(models.User.create).not.toHaveBeenCalled();
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ accessToken: expect.any(String) }));
+  });
+
+  test("google login 404 no crea usuario", async () => {
+    models.User.findOne.mockResolvedValue(null);
+    const { res } = await callHandler(controller.google, {
+      req: createMockReq({ body: { idToken: "ok", intent: "login" } }),
+    });
+    expect(res.status).toHaveBeenCalledWith(404);
+    expect(models.User.create).not.toHaveBeenCalled();
+  });
+
+  test("google register 400 si faltan datos de negocio", async () => {
+    models.User.findOne.mockResolvedValue(null);
+    const { res } = await callHandler(controller.google, {
+      req: createMockReq({ body: { idToken: "ok", intent: "register" } }),
+    });
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(models.User.create).not.toHaveBeenCalled();
+  });
+
+  test("google register 201 crea usuario sin password y sin Stripe", async () => {
+    const plan = fakePlan({ id: "plan_1" });
+    const user = fakeUser({ id: "usr_g_1", email: "ana@test.com", planId: "plan_1", passwordHash: null, googleId: "g-123" });
+    models.User.findOne.mockResolvedValue(null);
+    models.Plan.findByPk.mockResolvedValue(plan);
+    models.User.create.mockResolvedValue(user);
+
+    const { res } = await callHandler(controller.google, {
+      req: createMockReq({
+        body: {
+          idToken: "ok",
+          intent: "register",
+          name: "Ana",
+          planId: "plan_1",
+          phone: "5511111111",
+          state: "CDMX",
+          businessName: "Studio Ana",
+        },
+      }),
+    });
+
+    expect(models.User.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        email: "ana@test.com",
+        passwordHash: null,
+        googleId: "g-123",
+        planId: "plan_1",
+      }),
+    );
+    expect(startCheckout).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ accessToken: expect.any(String) }));
+  });
+
+  test("google register-invite 403 sin invitación pendiente", async () => {
+    models.User.findOne.mockResolvedValue(null);
+    models.EventMember.findAll.mockResolvedValue([]);
+    const { res } = await callHandler(controller.google, {
+      req: createMockReq({ body: { idToken: "ok", intent: "register-invite" } }),
+    });
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(models.User.create).not.toHaveBeenCalled();
+  });
+
+  test("google register-invite 201 crea cuenta sin checkout", async () => {
+    models.User.findOne.mockResolvedValue(null);
+    models.EventMember.findAll.mockResolvedValue([{ role: "Asistente", email: "ana@test.com", userId: null }]);
+    const user = fakeUser({ id: "usr_g_inv", email: "ana@test.com", planId: null, passwordHash: null, googleId: "g-123" });
+    models.User.create.mockResolvedValue(user);
+
+    const { res } = await callHandler(controller.google, {
+      req: createMockReq({ body: { idToken: "ok", intent: "register-invite" } }),
+    });
+
+    expect(models.User.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        email: "ana@test.com",
+        passwordHash: null,
+        googleId: "g-123",
+        planId: null,
+        subscriptionStatus: "active",
+      }),
+    );
+    expect(startCheckout).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ checkoutUrl: null, accessToken: expect.any(String) }));
+  });
+
+  test("login 401 si la cuenta es solo Google", async () => {
+    models.User.findOne.mockResolvedValue(fakeUser({ passwordHash: null, googleId: "g-123" }));
+    const { res } = await callHandler(controller.login, {
+      req: createMockReq({ body: { email: "ana@test.com", password: "secret12" } }),
+    });
+    expect(res.status).toHaveBeenCalledWith(401);
+    expect(res.json).toHaveBeenCalledWith({ error: "Esta cuenta usa Google; inicia sesión con Google." });
   });
 });

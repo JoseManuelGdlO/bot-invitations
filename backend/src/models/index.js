@@ -29,7 +29,8 @@ export const User = sequelize.define("users", {
   id: uuid,
   name: { type: DataTypes.STRING(160), allowNull: false },
   email: { type: DataTypes.STRING(190), allowNull: false, unique: true },
-  passwordHash: { type: DataTypes.STRING(120), allowNull: false },
+  passwordHash: { type: DataTypes.STRING(120), allowNull: true },
+  googleId: { type: DataTypes.STRING(64), allowNull: true, unique: true },
   role: { type: DataTypes.STRING(80), allowNull: false, defaultValue: "Wedding Planner" },
   businessName: { type: DataTypes.STRING(180), allowNull: true },
   phone: { type: DataTypes.STRING(40), allowNull: true },
@@ -955,6 +956,32 @@ export async function ensureGuestPhoneDigits() {
     } catch (err) {
       console.error("[db] no se pudo crear índice guests_phone_digits", err?.message || err);
     }
+  }
+}
+
+export async function ensureUserGoogleOAuth() {
+  const qi = sequelize.getQueryInterface();
+  let table;
+  try {
+    table = await qi.describeTable("users");
+  } catch {
+    return;
+  }
+  if (!table.googleId) {
+    await qi.addColumn("users", "googleId", {
+      type: DataTypes.STRING(64),
+      allowNull: true,
+      unique: true,
+    });
+    console.log("[db] columna users.googleId creada");
+  }
+  const passwordHash = table.passwordHash;
+  if (passwordHash && passwordHash.allowNull === false) {
+    await qi.changeColumn("users", "passwordHash", {
+      type: DataTypes.STRING(120),
+      allowNull: true,
+    });
+    console.log("[db] users.passwordHash ahora permite null (cuentas Google)");
   }
 }
 
