@@ -37,6 +37,7 @@ export type WhatsAppMetaStatusDto = {
   templateName: string | null;
   templateDisplayName?: string | null;
   templateLanguage: string;
+  invitationWizardRequired?: boolean;
   webhookUrl: string | null;
 };
 

@@ -44,6 +44,7 @@ export const User = sequelize.define("users", {
   cancelAtPeriodEnd: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
   currentPeriodEnd: { type: DataTypes.DATE, allowNull: true },
   tokenVersion: { type: DataTypes.INTEGER, allowNull: false, defaultValue: 0 },
+  invitationWizardStatus: {type: DataTypes.ENUM("pending", "completed", "skipped"), allowNull: true, defaultValue: null },
 });
 
 export const RefreshToken = sequelize.define(
@@ -983,6 +984,23 @@ export async function ensureUserGoogleOAuth() {
     });
     console.log("[db] users.passwordHash ahora permite null (cuentas Google)");
   }
+}
+
+export async function ensureUserInvitationWizardStatus() {
+  const qi = sequelize.getQueryInterface();
+  let table;
+  try {
+    table = await qi.describeTable("users");
+  } catch {
+    return;
+  }
+  if (table.invitationWizardStatus) return;
+  await qi.addColumn("users", "invitationWizardStatus", {
+    type: DataTypes.ENUM("pending", "completed", "skipped"),
+    allowNull: true,
+    defaultValue: null,
+  });
+  console.log("[db] columna users.invitationWizardStatus creada");
 }
 
 export async function ensureChannelIntegrationMetaColumns() {

@@ -13,6 +13,7 @@ describe("whatsapp-meta.controller", () => {
   let upsertWhatsappMetaCredentials;
   let waitForTestDelivery;
   let getOwnerPricingAnalytics;
+  let getInvitationWizardRequired;
   const envState = {
     nodeEnv: "development",
     meta: {
@@ -64,6 +65,7 @@ describe("whatsapp-meta.controller", () => {
       },
     }));
     waitForTestDelivery = jest.fn(async () => null);
+    getInvitationWizardRequired = jest.fn(async () => false);
     getOwnerPricingAnalytics = jest.fn(async () => ({
       range: "30d",
       start: 1,
@@ -117,6 +119,13 @@ describe("whatsapp-meta.controller", () => {
         "src/services/whatsapp-test-delivery.js": () => ({
           waitForTestDelivery,
         }),
+        "src/services/invitation-wizard-status.service.js": () => ({
+          getInvitationWizardRequired,
+          markInvitationWizardPending: jest.fn(async () => "pending"),
+          markInvitationWizardSkipped: jest.fn(async () => "skipped"),
+          markInvitationWizardCompleted: jest.fn(async () => "completed"),
+          isInvitationWizardRequired: (status) => status === "pending",
+        }),
       },
     }));
     models.WhatsappMessageTemplate.count.mockResolvedValue(1);
@@ -144,6 +153,7 @@ describe("whatsapp-meta.controller", () => {
       templateName: "alanna_pc_campaign_2",
       templateDisplayName: null,
       templateLanguage: "es_MX",
+      invitationWizardRequired: false,
       webhookUrl: "http://localhost:4000/api/webhooks/meta",
     });
     expect(models.WhatsappMessageTemplate.count).toHaveBeenCalledWith({

@@ -113,10 +113,12 @@ export function WhatsAppTemplateWizardDialog({
   open,
   onOpenChange,
   onCreated,
+  dismissible = true,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCreated?: () => void | Promise<void>;
+  dismissible?: boolean;
 }) {
   const [draft, setDraft] = useState<WizardTemplateDraft>(emptyDraft);
   const [selectedPresetId, setSelectedPresetId] =
@@ -378,10 +380,25 @@ export function WhatsAppTemplateWizardDialog({
   const showFile = needsHeaderFile(draft.headerType);
   const ready = canSubmitWizard(draft);
 
+  const handleOpenChange = (next: boolean) => {
+    if (!next && !dismissible) return;
+    onOpenChange(next);
+  };
+
+  const preventDismiss = (event: { preventDefault: () => void }) => {
+    if (!dismissible) event.preventDefault();
+  };
+
   return (
     <>
-      <Dialog open={open} onOpenChange={onOpenChange}>
-        <DialogContent className="max-w-5xl">
+      <Dialog open={open} onOpenChange={handleOpenChange}>
+        <DialogContent
+          className="max-w-5xl"
+          showCloseButton={dismissible}
+          onEscapeKeyDown={preventDismiss}
+          onPointerDownOutside={preventDismiss}
+          onInteractOutside={preventDismiss}
+        >
           <DialogHeader>
             <DialogTitle>Plantilla de invitación</DialogTitle>
             <DialogDescription>
@@ -637,14 +654,16 @@ export function WhatsAppTemplateWizardDialog({
             ) : null}
 
             <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => onOpenChange(false)}
-                disabled={submitting}
-              >
-                Cancelar
-              </Button>
+              {dismissible ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => onOpenChange(false)}
+                  disabled={submitting}
+                >
+                  Cancelar
+                </Button>
+              ) : null}
               <Button type="submit" disabled={!ready || submitting}>
                 {submitting ? (
                   <Loader2 className="size-4 animate-spin" />

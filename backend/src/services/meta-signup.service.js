@@ -22,6 +22,10 @@ import {
   unsubscribeWabaApp,
 } from "./meta-graph.client.js";
 import { upsertWhatsappMetaCredentials } from "./whatsapp-meta.service.js";
+import {
+  markInvitationWizardPending,
+  markInvitationWizardSkipped,
+} from "./invitation-wizard-status.service.js";
 
 const log = new Logger("MetaSignup");
 
@@ -234,6 +238,8 @@ export async function completeEmbeddedSignup({
     coexistenceEnabled,
   });
 
+  await markInvitationWizardPending(ownerUserId);
+
   return {
     integration,
     displayPhoneNumber,
@@ -303,5 +309,6 @@ export async function disconnectMetaWhatsapp({ ownerUserId }) {
 
   const integrationId = integration?.id || metaRow.id;
   log.info("disconnect: conexión Meta desactivada", { ownerUserId, integrationId });
+  await markInvitationWizardSkipped(ownerUserId);
   return { ok: true, integrationId };
 }

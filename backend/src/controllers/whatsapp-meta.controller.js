@@ -19,6 +19,7 @@ import {
 import { getOwnerPricingAnalytics } from "../services/meta-pricing-analytics.service.js";
 import { waitForTestDelivery } from "../services/whatsapp-test-delivery.js";
 import { summarizeMetaErrors, userFacingMetaCodeMessage } from "../utils/meta-error.js";
+import { getInvitationWizardRequired } from "../services/invitation-wizard-status.service.js";
 
 const log = new Logger("WhatsApp");
 
@@ -115,7 +116,10 @@ async function templateStatus(ownerUserId, wabaId) {
 
 export const getWhatsappMetaStatus = asyncHandler(async (req, res) => {
   const owner = await findWhatsappMetaStatusByOwner(req.user.id);
-  const template = await templateStatus(req.user.id, owner.wabaId);
+  const [template, invitationWizardRequired] = await Promise.all([
+    templateStatus(req.user.id, owner.wabaId),
+    getInvitationWizardRequired(req.user.id),
+  ]);
   res.json({
     provider: "meta-cloud",
     configured: owner.configured,
@@ -123,6 +127,7 @@ export const getWhatsappMetaStatus = asyncHandler(async (req, res) => {
     phoneNumberId: owner.phoneNumberId,
     displayPhoneNumber: owner.displayPhoneNumber,
     ...template,
+    invitationWizardRequired,
     webhookUrl: metaWebhookUrl(req),
   });
 });
@@ -133,7 +138,10 @@ export const postWhatsappMetaCredentials = asyncHandler(async (req, res) => {
     ownerUserId: req.user.id,
     ...parsed,
   });
-  const template = await templateStatus(req.user.id, integration.wabaId);
+  const [template, invitationWizardRequired] = await Promise.all([
+    templateStatus(req.user.id, integration.wabaId),
+    getInvitationWizardRequired(req.user.id),
+  ]);
   log.info("credentials upsert", { ownerUserId: req.user.id, phoneNumberId: integration.phoneNumberId });
   res.status(201).json({
     ok: true,
@@ -143,6 +151,7 @@ export const postWhatsappMetaCredentials = asyncHandler(async (req, res) => {
     phoneNumberId: integration.phoneNumberId,
     displayPhoneNumber: integration.displayPhoneNumber || null,
     ...template,
+    invitationWizardRequired,
   });
 });
 

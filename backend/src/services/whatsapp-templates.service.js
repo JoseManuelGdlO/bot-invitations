@@ -28,6 +28,7 @@ import {
   normalizeDisplayName,
   resolveSlotParamValues,
 } from "./whatsapp-template-slots.js";
+import { markInvitationWizardCompleted } from "./invitation-wizard-status.service.js";
 import {
   DEFAULT_TEMPLATE_PURPOSE,
   PURPOSE_DEFAULTS,
@@ -429,6 +430,7 @@ async function finishWizardTemplates(ownerUserId, wabaId, token, template, slotM
     DEFAULT_TEMPLATE_PURPOSE,
   );
   await ensurePurposeDefaults({ ownerUserId, wabaId, token });
+  await markInvitationWizardCompleted(ownerUserId);
   return { template, slotMappings };
 }
 

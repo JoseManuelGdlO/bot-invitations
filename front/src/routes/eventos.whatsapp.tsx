@@ -139,7 +139,12 @@ function WhatsAppMetaPage() {
 
   useEffect(() => {
     Promise.all([load(), integrationsApi.getMetaSignupConfig()])
-      .then(([, config]) => setMetaConfig(config))
+      .then(([next, config]) => {
+        setMetaConfig(config);
+        if (next?.configured && next.invitationWizardRequired) {
+          setWizardOpen(true);
+        }
+      })
       .catch((err) =>
         toast.error(
           err instanceof ApiError
@@ -174,8 +179,10 @@ function WhatsAppMetaPage() {
         businessId: session?.businessId ?? null,
         event: session?.event ?? null,
       });
-      await load();
-      setWizardOpen(true);
+      const next = await load();
+      if (next?.invitationWizardRequired) {
+        setWizardOpen(true);
+      }
       toast.success("WhatsApp conectado", {
         description: [
           connected.displayPhoneNumber
@@ -735,6 +742,7 @@ function WhatsAppMetaPage() {
       <WhatsAppTemplateWizardDialog
         open={wizardOpen}
         onOpenChange={setWizardOpen}
+        dismissible={!status?.invitationWizardRequired}
         onCreated={async () => {
           await load();
         }}

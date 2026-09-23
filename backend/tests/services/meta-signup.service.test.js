@@ -13,6 +13,8 @@ describe("meta-signup.service", () => {
   let initiateCoexistenceSync;
   let upsertWhatsappMetaCredentials;
   let ensurePlatformCanManageWaba;
+  let markInvitationWizardPending;
+  let markInvitationWizardSkipped;
 
   beforeEach(async () => {
     exchangeEmbeddedSignupCode = jest.fn(async () => ({ accessToken: "EAA_TOKEN" }));
@@ -40,6 +42,8 @@ describe("meta-signup.service", () => {
       integration: { id: "wa_meta" },
       hasActiveCredential: true,
     }));
+    markInvitationWizardPending = jest.fn(async () => "pending");
+    markInvitationWizardSkipped = jest.fn(async () => "skipped");
 
     ({ mod: service, models } = await loadWithMocks("src/services/meta-signup.service.js", {
       extraMocks: {
@@ -66,6 +70,10 @@ describe("meta-signup.service", () => {
         }),
         "src/services/whatsapp-meta.service.js": () => ({
           upsertWhatsappMetaCredentials,
+        }),
+        "src/services/invitation-wizard-status.service.js": () => ({
+          markInvitationWizardPending,
+          markInvitationWizardSkipped,
         }),
       },
     }));
@@ -127,6 +135,7 @@ describe("meta-signup.service", () => {
     );
     expect(result.coexistenceEnabled).toBe(true);
     expect(initiateCoexistenceSync).toHaveBeenCalled();
+    expect(markInvitationWizardPending).toHaveBeenCalledWith("usr_test_1");
   });
 
   test("completeEmbeddedSignup descubre el número si Meta no mandó phone_number_id", async () => {
@@ -137,5 +146,21 @@ describe("meta-signup.service", () => {
     });
     expect(listWabaPhoneNumbers).toHaveBeenCalledWith("waba_1", "EAA_TOKEN");
     expect(models.ChannelIntegration.create.mock.calls[0][0].phoneNumberId).toBe("pn_1");
+  });
+
+  test("disconnectMetaWhatsapp marca el wizard como skipped", async () => {
+    models.ChannelIntegration.findOne.mockResolvedValue({
+      id: "int_meta",
+      wabaId: "waba_1",
+      update: jest.fn(async function update(patch) {
+        Object.assign(this, patch);
+        return this;
+      }),
+    });
+    models.WhatsappIntegration.findOne.mockResolvedValue(null);
+
+    await service.disconnectMetaWhatsapp({ ownerUserId: "usr_test_1" });
+
+    expect(markInvitationWizardSkipped).toHaveBeenCalledWith("usr_test_1");
   });
 });
