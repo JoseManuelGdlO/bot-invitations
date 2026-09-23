@@ -28,6 +28,10 @@ import {
   type PricingAnalyticsRange,
   type WhatsAppPricingAnalyticsDto,
 } from "@/lib/api/integrations";
+import {
+  estimateCostFromCategories,
+  WHATSAPP_RATE_CARD_META,
+} from "@/lib/whatsapp-rate-card";
 import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/eventos/costos")({
@@ -63,6 +67,25 @@ const CATEGORY_COLORS = [
   "var(--chart-5)",
 ];
 
+const RATE_CARD_PANEL_ROWS: Array<{ label: string; rate: number }> = [
+  {
+    label: "Marketing",
+    rate: WHATSAPP_RATE_CARD_META.ratesMxnPerMessage.MARKETING,
+  },
+  {
+    label: "Utilidad",
+    rate: WHATSAPP_RATE_CARD_META.ratesMxnPerMessage.UTILITY,
+  },
+  {
+    label: "Autenticación",
+    rate: WHATSAPP_RATE_CARD_META.ratesMxnPerMessage.AUTHENTICATION,
+  },
+  {
+    label: "Servicio",
+    rate: WHATSAPP_RATE_CARD_META.ratesMxnPerMessage.SERVICE,
+  },
+];
+
 function formatMoney(value: number | null | undefined, currency: string | null) {
   if (value == null || !Number.isFinite(value)) return "—";
   try {
@@ -81,13 +104,22 @@ function formatNumber(value: number | null | undefined) {
   return new Intl.NumberFormat("es-MX").format(value);
 }
 
+function formatRate(rate: number) {
+  return new Intl.NumberFormat("es-MX", {
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 4,
+  }).format(rate);
+}
+
 function categoryLabel(raw: string) {
   const key = String(raw || "").trim().toUpperCase();
   const map: Record<string, string> = {
     MARKETING: "Marketing",
     UTILITY: "Utilidad",
     AUTHENTICATION: "Autenticación",
+    AUTHENTICATION_INTERNATIONAL: "Autenticación internacional",
     SERVICE: "Servicio",
+    REFERRAL_CONVERSION: "Conversión por referido",
     UNKNOWN: "Sin categoría",
   };
   return map[key] || raw || "Sin categoría";
@@ -136,19 +168,30 @@ function CostosWhatsAppPage() {
     };
   }, [range]);
 
+  const estimate = useMemo(
+    () => (data ? estimateCostFromCategories(data.byCategory) : null),
+    [data],
+  );
+
   const pieData = useMemo(() => {
-    if (!data?.byCategory?.length) return [];
-    return data.byCategory.map((row, i) => ({
+    if (!estimate?.rows?.length) return [];
+    return estimate.rows.map((row, i) => ({
       name: categoryLabel(row.category),
       value: row.volume,
-      cost: row.cost,
+      rate: row.rate,
+      estimatedCost: row.estimatedCost,
       color: CATEGORY_COLORS[i % CATEGORY_COLORS.length],
     }));
-  }, [data]);
+  }, [estimate]);
 
   const freePct =
     data && data.kpis.totalVolume > 0
       ? Math.round((data.kpis.freeVolume / data.kpis.totalVolume) * 100)
+      : null;
+
+  const costPerMessage =
+    estimate && data && data.kpis.totalVolume > 0
+      ? estimate.totalEstimatedCost / data.kpis.totalVolume
       : null;
 
   if (configured === false) {
@@ -184,7 +227,8 @@ function CostosWhatsAppPage() {
           </p>
           <h1 className="mt-1 font-display text-3xl md:text-4xl">Costos</h1>
           <p className="mt-2 max-w-xl text-sm text-muted-foreground">
-            Volumen y costo aproximado de mensajes entregados, según Meta.
+            Volumen y costo aproximado de mensajes entregados, según tarifas Meta
+            México.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -206,10 +250,22 @@ function CostosWhatsAppPage() {
         </div>
       </header>
 
-      {data && !data.costAvailable ? (
-        <div className="mb-6 rounded-xl border border-warning/40 bg-warning/10 px-4 py-3 text-sm text-foreground">
-          El costo no está disponible para esta cuenta (facturación vía partner de
-          Meta). Sí puedes ver el volumen de mensajes entregados.
+      {data ? (
+        <div className="mb-6 rounded-xl border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
+          Costo{" "}
+          <span className="font-medium text-foreground">aproximado</span>{" "}
+          calculado con las tarifas públicas de Meta para México (MXN) × mensajes
+          entregados por categoría. No es el extracto de facturación de Meta ni
+          de Alanna. Fuente:{" "}
+          <a
+            href={WHATSAPP_RATE_CARD_META.sourceUrl}
+            target="_blank"
+            rel="noreferrer"
+            className="text-foreground underline underline-offset-2 hover:text-gold"
+          >
+            developers.facebook.com … pricing#rates
+          </a>
+          .
         </div>
       ) : null}
 
@@ -225,13 +281,13 @@ function CostosWhatsAppPage() {
         </div>
       ) : null}
 
-      {!loading && data ? (
+      {!loading && data && estimate ? (
         <>
           <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <StatCard
-              label="Costo total"
-              value={formatMoney(data.kpis.totalCost, data.currency)}
-              hint={data.currency ? `Moneda: ${data.currency}` : undefined}
+              label="Costo aproximado"
+              value={formatMoney(estimate.totalEstimatedCost, "MXN")}
+              hint="Estimado · tarifas Meta México"
               icon={CircleDollarSign}
               tone="gold"
             />
@@ -241,8 +297,9 @@ function CostosWhatsAppPage() {
               icon={MessageSquare}
             />
             <StatCard
-              label="Costo promedio / mensaje"
-              value={formatMoney(data.kpis.avgCostPerMessage, data.currency)}
+              label="Costo aprox. / mensaje"
+              value={formatMoney(costPerMessage, "MXN")}
+              hint="MXN por mensaje entregado"
               tone="default"
             />
             <StatCard
@@ -254,9 +311,56 @@ function CostosWhatsAppPage() {
             />
           </div>
 
+          <section className="mt-6 rounded-2xl border border-border bg-card p-6 shadow-soft">
+            <h2 className="font-display text-2xl">Tarifas usadas</h2>
+            <dl className="mt-3 grid gap-1 text-sm text-muted-foreground sm:grid-cols-3">
+              <div>
+                <dt className="inline">Mercado: </dt>
+                <dd className="inline text-foreground">
+                  {WHATSAPP_RATE_CARD_META.market}
+                </dd>
+              </div>
+              <div>
+                <dt className="inline">Moneda: </dt>
+                <dd className="inline text-foreground">
+                  {WHATSAPP_RATE_CARD_META.currency}
+                </dd>
+              </div>
+              <div>
+                <dt className="inline">Actualizado: </dt>
+                <dd className="inline text-foreground">
+                  {WHATSAPP_RATE_CARD_META.updatedAt}
+                </dd>
+              </div>
+            </dl>
+            <ul className="mt-4 space-y-1.5 text-sm">
+              {RATE_CARD_PANEL_ROWS.map((row) => (
+                <li
+                  key={row.label}
+                  className="flex items-center justify-between gap-2 text-muted-foreground"
+                >
+                  <span>{row.label}</span>
+                  <span className="text-foreground">
+                    {formatRate(row.rate)} {WHATSAPP_RATE_CARD_META.currency}
+                  </span>
+                </li>
+              ))}
+            </ul>
+            <p className="mt-4 text-xs text-muted-foreground">
+              <a
+                href={WHATSAPP_RATE_CARD_META.sourceUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="underline underline-offset-2 hover:text-foreground"
+              >
+                Ver rate card oficial de Meta
+              </a>
+            </p>
+          </section>
+
           <div className="mt-8 grid gap-6 lg:grid-cols-3">
             <section className="rounded-2xl border border-border bg-card p-6 shadow-soft lg:col-span-2">
-              <h2 className="font-display text-2xl">Costo y volumen por día</h2>
+              <h2 className="font-display text-2xl">Volumen por día</h2>
               <div className="mt-4 h-72">
                 {data.series.length ? (
                   <ResponsiveContainer width="100%" height="100%">
@@ -267,35 +371,18 @@ function CostosWhatsAppPage() {
                         tick={{ fontSize: 11 }}
                         tickFormatter={(v) => String(v).slice(5)}
                       />
-                      <YAxis yAxisId="left" tick={{ fontSize: 11 }} />
-                      <YAxis
-                        yAxisId="right"
-                        orientation="right"
-                        tick={{ fontSize: 11 }}
-                      />
+                      <YAxis tick={{ fontSize: 11 }} />
                       <Tooltip
-                        formatter={(value: number, name: string) =>
-                          name === "cost"
-                            ? [formatMoney(value, data.currency), "Costo"]
-                            : [formatNumber(value), "Volumen"]
-                        }
+                        formatter={(value: number) => [
+                          formatNumber(value),
+                          "Volumen",
+                        ]}
                         labelFormatter={(label) => String(label)}
                       />
-                      <Legend
-                        formatter={(value) =>
-                          value === "cost" ? "Costo" : "Volumen"
-                        }
-                      />
+                      <Legend formatter={() => "Volumen"} />
                       <Bar
-                        yAxisId="left"
                         dataKey="volume"
                         fill="var(--chart-2)"
-                        radius={[4, 4, 0, 0]}
-                      />
-                      <Bar
-                        yAxisId="right"
-                        dataKey="cost"
-                        fill="var(--chart-1)"
                         radius={[4, 4, 0, 0]}
                       />
                     </BarChart>
@@ -328,11 +415,18 @@ function CostosWhatsAppPage() {
                       </Pie>
                       <Tooltip
                         formatter={(value: number, _name, item) => {
-                          const cost = item?.payload?.cost;
+                          const payload = item?.payload as
+                            | {
+                                rate: number | null;
+                                estimatedCost: number | null;
+                              }
+                            | undefined;
                           const vol = formatNumber(value);
-                          if (cost == null) return [vol, "Mensajes"];
+                          if (!payload || payload.rate === null) {
+                            return [`${vol} · Sin tarifa en rate card`, "Mensajes"];
+                          }
                           return [
-                            `${vol} · ${formatMoney(cost, data.currency)}`,
+                            `${vol} · ${formatMoney(payload.estimatedCost, "MXN")}`,
                             "Mensajes",
                           ];
                         }}
@@ -358,7 +452,18 @@ function CostosWhatsAppPage() {
                       />
                       {row.name}
                     </span>
-                    <span>{formatNumber(row.value)}</span>
+                    <span className="text-right">
+                      {formatNumber(row.value)}
+                      {" · "}
+                      {row.rate === null ? (
+                        "Sin tarifa en rate card"
+                      ) : (
+                        <>
+                          {formatRate(row.rate)} MXN ·{" "}
+                          {formatMoney(row.estimatedCost, "MXN")}
+                        </>
+                      )}
+                    </span>
                   </li>
                 ))}
               </ul>
@@ -366,9 +471,13 @@ function CostosWhatsAppPage() {
           </div>
 
           <p className="mt-6 text-xs text-muted-foreground">
-            Costos aproximados según Meta; la cobranza ocurre al entregarse el
-            mensaje. Los totales pueden diferir ligeramente del extracto de Meta
-            Business Suite.
+            Costos{" "}
+            <span className="font-medium text-foreground">aproximados</span>{" "}
+            según tarifas Meta México (MXN) aplicadas al volumen entregado
+            reportado por <code className="text-[0.7rem]">pricing_analytics</code>
+            . Meta no expone <code className="text-[0.7rem]">COST</code> cuando la
+            cuenta factura vía socio. Las tarifas pueden cambiar; revisa la rate
+            card oficial.
           </p>
         </>
       ) : null}
