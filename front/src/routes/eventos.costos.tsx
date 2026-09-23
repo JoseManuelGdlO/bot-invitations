@@ -67,23 +67,12 @@ const CATEGORY_COLORS = [
   "var(--chart-5)",
 ];
 
+const rates = WHATSAPP_RATE_CARD_META.ratesMxnPerMessage;
 const RATE_CARD_PANEL_ROWS: Array<{ label: string; rate: number }> = [
-  {
-    label: "Marketing",
-    rate: WHATSAPP_RATE_CARD_META.ratesMxnPerMessage.MARKETING,
-  },
-  {
-    label: "Utilidad",
-    rate: WHATSAPP_RATE_CARD_META.ratesMxnPerMessage.UTILITY,
-  },
-  {
-    label: "Autenticación",
-    rate: WHATSAPP_RATE_CARD_META.ratesMxnPerMessage.AUTHENTICATION,
-  },
-  {
-    label: "Servicio",
-    rate: WHATSAPP_RATE_CARD_META.ratesMxnPerMessage.SERVICE,
-  },
+  { label: "Marketing", rate: rates["MARKETING"] ?? 0.5614 },
+  { label: "Utilidad", rate: rates["UTILITY"] ?? 0.1565 },
+  { label: "Autenticación", rate: rates["AUTHENTICATION"] ?? 0.1565 },
+  { label: "Servicio", rate: rates["SERVICE"] ?? 0 },
 ];
 
 function formatMoney(value: number | null | undefined, currency: string | null) {
