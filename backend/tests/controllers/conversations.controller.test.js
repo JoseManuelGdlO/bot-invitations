@@ -67,6 +67,44 @@ describe("conversations.controller", () => {
     expect(res.status).toHaveBeenCalledWith(400);
   });
 
+  test("sendMessage no persiste si WhatsApp falla", async () => {
+    const sendWhatsApp = jest.fn(async () => {
+      throw Object.assign(new Error("Meta rejected"), { status: 400 });
+    });
+    ({ mod: controller, models } = await loadWithMocks("src/controllers/conversations.controller.js", {
+      extraMocks: {
+        "src/services/access.service.js": () => ({
+          requireEvent: jest.fn(async () => fakeEvent()),
+          userEventIds: jest.fn(async () => ["evt_1"]),
+          requirePermission: jest.fn(async () => true),
+          PERMS,
+        }),
+        "src/services/outbound.worker.js": () => ({ enqueueJob: jest.fn(async () => undefined) }),
+        "src/services/plans.service.js": () => ({ assertCanSendInvitations: jest.fn() }),
+        "src/services/campaign.service.js": () => ({ planCampaign, getEventCampaignSnapshot }),
+        "src/services/whatsapp.adapter.js": () => ({
+          createWhatsAppProvider: () => ({ sendMessage: sendWhatsApp }),
+        }),
+        "src/services/bot/bot.service.js": () => ({
+          appendOutboundToSession: jest.fn(async () => undefined),
+        }),
+      },
+    }));
+    models.Conversation.findOne.mockResolvedValue(
+      createInstance({ id: "c1", eventId: "evt_1", guestId: "gst_1", aiPaused: true }),
+    );
+    models.Event.findByPk.mockResolvedValue(fakeEvent());
+    models.Guest.findByPk.mockResolvedValue(createInstance({ id: "gst_1", phone: "6183218624" }));
+
+    const { next } = await callHandler(controller.sendMessage, {
+      req: createMockReq({ params: { conversationId: "c1" }, body: { text: "Hola" } }),
+    });
+
+    expect(sendWhatsApp).toHaveBeenCalled();
+    expect(models.Message.create).not.toHaveBeenCalled();
+    expect(next).toHaveBeenCalledWith(expect.objectContaining({ message: "Meta rejected" }));
+  });
+
   test("launchCampaign planifica now", async () => {
     const { res } = await callHandler(controller.launchCampaign, {
       req: createMockReq({ params: { eventId: "boda-ana" }, body: { mode: "now" } }),

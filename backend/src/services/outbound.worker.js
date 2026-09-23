@@ -3,6 +3,7 @@ import { Event, Guest, Message, OutboundJob } from "../models/index.js";
 import { createWhatsAppProvider, isColdConversation } from "./whatsapp.adapter.js";
 import { env } from "../config/env.js";
 import { Logger } from "../utils/logger.js";
+import { formatClock } from "../utils/time.js";
 import { formatWhatsappTo, resolveWhatsappTo } from "../utils/whatsapp-identity.js";
 import {
   countInitialConversations,
@@ -66,8 +67,72 @@ async function persistOutboundProviderId(job, result) {
   await message.save();
 }
 
+async function persistOutboundMessageAfterSend(job, result) {
+  const payload = job.payload || {};
+  if (!payload.persistMessage) {
+    await persistOutboundProviderId(job, result);
+    return;
+  }
+  const conversationId = payload.conversationId;
+  const text = String(payload.text || "").trim();
+  if (!conversationId || !text) return;
+
+  const providerId = String(result?.providerId || "").trim() || null;
+  const from = ["ai", "guest", "planner"].includes(payload.messageFrom)
+    ? payload.messageFrom
+    : "ai";
+  await Message.create({
+    conversationId,
+    from,
+    text,
+    at: formatClock(undefined, payload.timezone),
+    ...(payload.messageKind ? { kind: payload.messageKind } : {}),
+    ...(providerId ? { providerId } : {}),
+  });
+
+  const eventId = payload.eventId;
+  const guestId = payload.guestId;
+  if (!eventId || !guestId) return;
+  const [event, guest] = await Promise.all([
+    Event.findByPk(eventId),
+    Guest.findByPk(guestId),
+  ]);
+  if (!event || !guest) return;
+
+  const { applyGuestOutboundPatch } = await import("./guest-message.service.js");
+  await applyGuestOutboundPatch(guest, {
+    text,
+    guestPatch: payload.guestPatch || {},
+  });
+
+  if (payload.appendToSession) {
+    const { appendOutboundToSession } = await import("./bot/bot.service.js");
+    await appendOutboundToSession({ event, guest, text });
+  }
+}
+
+async function discardFailedOutboundMessage(job) {
+  const payload = job.payload || {};
+  if (payload.persistMessage) return;
+  const conversationId = payload.conversationId;
+  const text = String(payload.text || "").trim();
+  if (!conversationId || !text) return;
+  const message = await Message.findOne({
+    where: {
+      conversationId,
+      text,
+      providerId: null,
+      from: { [Op.in]: ["ai", "planner"] },
+    },
+    order: [["createdAt", "DESC"]],
+  });
+  if (!message) return;
+  await message.destroy();
+}
+
 async function syncWhatsappSendJob(job, { ok, result } = {}) {
-  if (ok) await persistOutboundProviderId(job, result);
+  if (ok) await persistOutboundMessageAfterSend(job, result);
+  else await discardFailedOutboundMessage(job);
   const guestId = job.payload?.guestId;
   if (guestId) {
     const guest = await Guest.findByPk(guestId);

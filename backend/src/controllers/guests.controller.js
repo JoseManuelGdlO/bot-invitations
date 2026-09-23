@@ -137,13 +137,14 @@ export const deleteGuest = asyncHandler(async (req, res) => {
   res.json({ ok: true });
 });
 
-async function deliverOpeningInvitation({ event, guest, plannerName }) {
+async function deliverOpeningInvitation({ event, guest, plannerName, sync = false }) {
   return deliverPurposeHsm({
     event,
     guest,
     plannerName,
     purpose: "invitation",
     kind: "campaign",
+    sync,
     guestPatch: {
       status: "enviado",
       whatsapp: "pendiente",
@@ -160,6 +161,7 @@ async function deliverPurposeHsm({
   kind,
   guestPatch = {},
   followUpId,
+  sync = false,
 }) {
   const ctx = purpose === "invitation"
     ? await resolveCampaignSendContext(event)
@@ -174,6 +176,7 @@ async function deliverPurposeHsm({
     ...(ctx.hsmHeaderDocument ? { hsmHeaderDocument: ctx.hsmHeaderDocument } : {}),
     ...(ctx.hsmHeaderImage ? { hsmHeaderImage: ctx.hsmHeaderImage } : {}),
     kind,
+    sync,
     ...(followUpId ? { followUpId } : {}),
     guestPatch,
   });
@@ -187,9 +190,9 @@ export const remindGuest = asyncHandler(async (req, res) => {
   assertCanSendInvitations(req.user);
   await assertWhatsappReady(event);
 
-    const sendOpening = guest.status === "sin_contactar";
+  const sendOpening = guest.status === "sin_contactar";
   if (sendOpening) {
-    await deliverOpeningInvitation({ event, guest, plannerName: req.user.name });
+    await deliverOpeningInvitation({ event, guest, plannerName: req.user.name, sync: true });
     await logActivity(event.id, `Se envió la invitación inicial a ${guest.rep}`, "message");
   } else {
     await deliverPurposeHsm({
@@ -198,6 +201,7 @@ export const remindGuest = asyncHandler(async (req, res) => {
       plannerName: req.user.name,
       purpose: "reminder",
       kind: "reminder",
+      sync: true,
       guestPatch: {
         status: guest.status,
         whatsapp: "pendiente",

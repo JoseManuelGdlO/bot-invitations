@@ -9,9 +9,15 @@ describe("bot.service processGuestMessage", () => {
   let processTurn;
   let tryLockBotSession;
   let session;
+  let sendWhatsApp;
 
   async function setup() {
     enqueueJob = jest.fn(async () => undefined);
+    sendWhatsApp = jest.fn(async () => ({
+      provider: "stub",
+      skipped: false,
+      providerId: "wamid.bot",
+    }));
     processTurn = jest.fn(async ({ executeTool }) => {
       await executeTool({
         name: "actualizar_confirmacion",
@@ -32,6 +38,9 @@ describe("bot.service processGuestMessage", () => {
     ({ mod: service, models } = await loadWithMocks("src/services/bot/bot.service.js", {
       extraMocks: {
         "src/services/outbound.worker.js": () => ({ enqueueJob }),
+        "src/services/whatsapp.adapter.js": () => ({
+          createWhatsAppProvider: () => ({ sendMessage: sendWhatsApp }),
+        }),
         "src/services/bot/openai.service.js": () => ({ processTurn }),
         "src/services/bot/prompt.service.js": () => ({
           buildInstructions: jest.fn(() => "instrucciones"),
@@ -161,6 +170,8 @@ describe("bot.service processGuestMessage", () => {
 
     expect(processTurn).toHaveBeenCalledTimes(1);
     expect(result.reply).toBe("Claro");
+    expect(sendWhatsApp).toHaveBeenCalled();
+    expect(enqueueJob).not.toHaveBeenCalled();
     const aiTexts = models.Message.create.mock.calls
       .map(([row]) => row)
       .filter((row) => row.from === "ai")

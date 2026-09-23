@@ -8,11 +8,12 @@ import { asyncHandler } from "../utils/async.js";
 import { formatClock } from "../utils/time.js";
 import { serializeConversation, serializeMessage } from "../utils/serialize.js";
 import { requireEvent, userEventIds, requirePermission, PERMS } from "../services/access.service.js";
-import { enqueueJob } from "../services/outbound.worker.js";
 import { assertCanSendInvitations } from "../services/plans.service.js";
 import { appendOutboundToSession } from "../services/bot/bot.service.js";
 import { resolveWhatsappTo } from "../utils/whatsapp-identity.js";
 import { getEventCampaignSnapshot, planCampaign } from "../services/campaign.service.js";
+import { createWhatsAppProvider } from "../services/whatsapp.adapter.js";
+import { httpError } from "../utils/http-error.js";
 import { Logger } from "../utils/logger.js";
 
 const log = new Logger("WhatsApp");
@@ -59,27 +60,43 @@ export const sendMessage = asyncHandler(async (req, res) => {
   const text = String(req.body?.text || "").trim();
   if (!text) return res.status(400).json({ error: "El mensaje no puede estar vacío." });
   const from = found.conv.aiPaused ? "planner" : req.body?.from || "planner";
+  const messageFrom = ["ai", "guest", "planner"].includes(from) ? from : "planner";
+  const guest = await Guest.findByPk(found.conv.guestId);
+
+  if (guest && messageFrom !== "guest") {
+    const provider = createWhatsAppProvider();
+    const result = await provider.sendMessage(resolveWhatsappTo(guest), text, {
+      eventId: found.event.id,
+      guestId: guest.id,
+      conversationId: found.conv.id,
+      kind: "message",
+    });
+    if (result?.skipped) {
+      throw httpError(502, "No se pudo enviar el mensaje por WhatsApp.");
+    }
+    const message = await Message.create({
+      conversationId: found.conv.id,
+      from: messageFrom,
+      text,
+      at: formatClock(undefined, found.event.timezone),
+      ...(result?.providerId ? { providerId: result.providerId } : {}),
+    });
+    found.conv.unread = 0;
+    await found.conv.save();
+    guest.lastMessage = text.slice(0, 80);
+    await guest.save();
+    await appendOutboundToSession({ event: found.event, guest, text });
+    return res.status(201).json(serializeMessage(message));
+  }
+
   const message = await Message.create({
     conversationId: found.conv.id,
-    from: ["ai", "guest", "planner"].includes(from) ? from : "planner",
+    from: messageFrom,
     text,
     at: formatClock(undefined, found.event.timezone),
   });
   found.conv.unread = 0;
   await found.conv.save();
-  const guest = await Guest.findByPk(found.conv.guestId);
-  if (guest && from !== "guest") {
-    guest.lastMessage = text.slice(0, 80);
-    await guest.save();
-    await enqueueJob("whatsapp.send", {
-      to: resolveWhatsappTo(guest),
-      text,
-      guestId: guest.id,
-      eventId: found.event.id,
-      conversationId: found.conv.id,
-    });
-    await appendOutboundToSession({ event: found.event, guest, text });
-  }
   res.status(201).json(serializeMessage(message));
 });
 

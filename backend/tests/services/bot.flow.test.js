@@ -16,12 +16,18 @@ describe("flujo RSVP processGuestMessage", () => {
   let service;
   let models;
   let enqueueJob;
+  let sendWhatsApp;
   let processTurn;
   let session;
   let conv;
 
   async function setup(turnImpl) {
     enqueueJob = jest.fn(async () => undefined);
+    sendWhatsApp = jest.fn(async () => ({
+      provider: "stub",
+      skipped: false,
+      providerId: "wamid.bot",
+    }));
     processTurn = jest.fn(turnImpl);
     session = createInstance({
       id: "ses_1",
@@ -42,6 +48,9 @@ describe("flujo RSVP processGuestMessage", () => {
     ({ mod: service, models } = await loadWithMocks("src/services/bot/bot.service.js", {
       extraMocks: {
         "src/services/outbound.worker.js": () => ({ enqueueJob }),
+        "src/services/whatsapp.adapter.js": () => ({
+          createWhatsAppProvider: () => ({ sendMessage: sendWhatsApp }),
+        }),
         "src/services/bot/openai.service.js": () => ({ processTurn }),
         "src/services/bot/session.service.js": () => ({
           appendSessionItems: jest.fn(async () => session),
@@ -108,7 +117,8 @@ describe("flujo RSVP processGuestMessage", () => {
     });
     expect(result.reply).toContain("únicamente para adultos");
     expect(guest.status).toBe("en_conversacion");
-    expect(enqueueJob).toHaveBeenCalled();
+    expect(sendWhatsApp).toHaveBeenCalled();
+    expect(enqueueJob).not.toHaveBeenCalled();
     expect(processTurn).toHaveBeenCalledWith(
       expect.objectContaining({
         instructions: expect.stringMatching(/faq \| asistira/),

@@ -164,7 +164,7 @@ interface Ctx extends State {
   setTemplates: (eventId: string, t: EventData["templates"]) => void;
   uploadOpeningDocument: (eventId: string, file: File) => Promise<EventData["templates"][number]>;
   setFaqs: (eventId: string, f: EventData["faqs"]) => void;
-  sendMessage: (convId: string, msg: ChatMessage) => void;
+  sendMessage: (convId: string, msg: ChatMessage) => Promise<ChatMessage>;
   toggleAI: (convId: string, paused: boolean) => void;
   logActivity: (item: ActivityItem) => void;
   launchCampaign: (
@@ -594,35 +594,29 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           body: JSON.stringify(f),
         }).catch(console.error);
       },
-      sendMessage: (convId, msg) => {
-        setState((s) => ({
-          ...s,
-          conversations: s.conversations.map((c) =>
-            c.id === convId
-              ? { ...c, unread: 0, messages: [...c.messages, msg] }
-              : c,
-          ),
-        }));
-        api<ChatMessage>(`/conversations/${convId}/messages`, {
-          method: "POST",
-          body: JSON.stringify({ text: msg.text, from: msg.from }),
-        })
-          .then((saved) =>
-            setState((s) => ({
-              ...s,
-              conversations: s.conversations.map((c) =>
-                c.id === convId
-                  ? {
-                      ...c,
-                      messages: c.messages.map((m) =>
-                        m.id === msg.id ? saved : m,
-                      ),
-                    }
-                  : c,
-              ),
-            })),
-          )
-          .catch(console.error);
+      sendMessage: async (convId, msg) => {
+        try {
+          const saved = await api<ChatMessage>(`/conversations/${convId}/messages`, {
+            method: "POST",
+            body: JSON.stringify({ text: msg.text, from: msg.from }),
+          });
+          setState((s) => ({
+            ...s,
+            conversations: s.conversations.map((c) =>
+              c.id === convId
+                ? { ...c, unread: 0, messages: [...c.messages, saved] }
+                : c,
+            ),
+          }));
+          return saved;
+        } catch (err) {
+          const message =
+            err instanceof ApiError
+              ? err.message
+              : "No se pudo enviar el mensaje";
+          toast.error(message);
+          throw err;
+        }
       },
       toggleAI: (convId, paused) => {
         setState((s) => ({

@@ -266,6 +266,7 @@ describe("guests.controller", () => {
     expect(deliverAiMessage).toHaveBeenCalledWith(
       expect.objectContaining({
         kind: "reminder",
+        sync: true,
         hsmTemplateName: "alanna_rm_aa_1",
         hsmParams: ["Luis", "2", "mayo"],
         guestPatch: expect.objectContaining({
@@ -306,6 +307,7 @@ describe("guests.controller", () => {
     expect(deliverAiMessage).toHaveBeenCalledWith(
       expect.objectContaining({
         kind: "campaign",
+        sync: true,
         text: "Hola Luis, tienes 2 pases.",
         hsmParams: ["Luis", "2"],
         hsmTemplateName: "alanna_pc_aa_1",

@@ -209,15 +209,20 @@ function Conversaciones() {
       }
       return;
     }
+    const text = draft.trim();
     const now = new Date().toISOString();
-    sendMessage(active.conv.id, {
-      id: `m-${Date.now()}`,
-      from: active.conv.aiPaused ? "planner" : "ai",
-      text: draft,
-      at: formatMessageTime(now, timeZone),
-      createdAt: now,
-    });
     setDraft("");
+    try {
+      await sendMessage(active.conv.id, {
+        id: `m-${Date.now()}`,
+        from: active.conv.aiPaused ? "planner" : "ai",
+        text,
+        at: formatMessageTime(now, timeZone),
+        createdAt: now,
+      });
+    } catch {
+      setDraft(text);
+    }
   };
 
   return (

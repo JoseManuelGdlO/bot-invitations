@@ -82,6 +82,7 @@ describe("outbound.worker", () => {
   let recordCampaignSendResult;
   let isColdConversation;
   let assertOpeningDocumentReady;
+  let appendOutboundToSession;
 
   beforeEach(async () => {
     sendMessage = jest.fn(async () => ({
@@ -93,6 +94,7 @@ describe("outbound.worker", () => {
     executeCampaignLaunch = jest.fn(async () => ({}));
     recordCampaignSendResult = jest.fn(async () => undefined);
     isColdConversation = jest.fn(async () => true);
+    appendOutboundToSession = jest.fn(async () => undefined);
     assertOpeningDocumentReady = jest.fn(async (tpl) => {
       if (!tpl?.attachDocument) return { attachDocument: false };
       return {
@@ -121,6 +123,9 @@ describe("outbound.worker", () => {
         "src/services/campaign-progress.js": () => ({ recordCampaignSendResult }),
         "src/services/opening-document.service.js": () => ({
           assertOpeningDocumentReady,
+        }),
+        "src/services/bot/bot.service.js": () => ({
+          appendOutboundToSession,
         }),
       },
     }));
@@ -419,6 +424,134 @@ describe("outbound.worker", () => {
     await service.processJob(job);
     expect(message.providerId).toBe("wamid.abc");
     expect(message.save).toHaveBeenCalled();
+  });
+
+  test("processJob con persistMessage crea el mensaje solo tras envío ok", async () => {
+    models.Message.create.mockResolvedValue(createInstance({ id: "msg_new" }));
+    models.Event.findByPk.mockResolvedValue(createInstance({ id: "evt_1", timezone: "America/Mexico_City" }));
+    models.Guest.findByPk.mockResolvedValue(createInstance({ id: "g1", phone: "6183218624" }));
+    sendMessage.mockResolvedValueOnce({
+      provider: "stub",
+      skipped: false,
+      providerId: "wamid.new",
+      conversationStarted: true,
+    });
+    const job = createInstance({
+      type: "whatsapp.send",
+      attempts: 0,
+      payload: {
+        to: "6183218624",
+        text: "hola plantilla",
+        kind: "campaign",
+        guestId: "g1",
+        eventId: "evt_1",
+        conversationId: "cnv_1",
+        persistMessage: true,
+        messageFrom: "ai",
+        messageKind: "template",
+        timezone: "America/Mexico_City",
+      },
+    });
+    await service.processJob(job);
+    expect(models.Message.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        conversationId: "cnv_1",
+        from: "ai",
+        text: "hola plantilla",
+        kind: "template",
+        providerId: "wamid.new",
+      }),
+    );
+    expect(appendOutboundToSession).not.toHaveBeenCalled();
+  });
+
+  test("processJob con appendToSession actualiza guest y sesión solo tras ok", async () => {
+    const guest = createInstance({
+      id: "g1",
+      phone: "6183218624",
+      status: "sin_contactar",
+      lastMessage: "viejo",
+    });
+    models.Message.create.mockResolvedValue(createInstance({ id: "msg_new" }));
+    models.Event.findByPk.mockResolvedValue(createInstance({ id: "evt_1", timezone: "America/Mexico_City" }));
+    models.Guest.findByPk.mockResolvedValue(guest);
+    sendMessage.mockResolvedValueOnce({
+      provider: "stub",
+      skipped: false,
+      providerId: "wamid.new",
+    });
+    const job = createInstance({
+      type: "whatsapp.send",
+      attempts: 0,
+      payload: {
+        to: "6183218624",
+        text: "hola plantilla",
+        kind: "campaign",
+        guestId: "g1",
+        eventId: "evt_1",
+        conversationId: "cnv_1",
+        persistMessage: true,
+        appendToSession: true,
+        messageFrom: "ai",
+        messageKind: "template",
+        timezone: "America/Mexico_City",
+        guestPatch: { status: "enviado", whatsapp: "pendiente" },
+      },
+    });
+    await service.processJob(job);
+    expect(guest.status).toBe("enviado");
+    expect(guest.whatsapp).toBe("pendiente");
+    expect(guest.lastMessage).toBe("hola plantilla");
+    expect(guest.save).toHaveBeenCalled();
+    expect(appendOutboundToSession).toHaveBeenCalledWith(
+      expect.objectContaining({ text: "hola plantilla" }),
+    );
+  });
+
+  test("processJob con persistMessage no crea mensaje si el envío falla", async () => {
+    sendMessage.mockRejectedValueOnce(new Error("boom"));
+    const job = createInstance({
+      type: "whatsapp.send",
+      attempts: 0,
+      payload: {
+        to: "6183218624",
+        text: "hola",
+        kind: "campaign",
+        guestId: "g1",
+        conversationId: "cnv_1",
+        persistMessage: true,
+        messageFrom: "ai",
+      },
+    });
+    await service.processJob(job);
+    expect(models.Message.create).not.toHaveBeenCalled();
+    expect(job.status).toBe("failed");
+  });
+
+  test("processJob elimina mensaje legacy sin providerId si el envío falla", async () => {
+    const message = createInstance({
+      id: "msg_legacy",
+      conversationId: "cnv_1",
+      from: "ai",
+      text: "hola",
+      providerId: null,
+      destroy: jest.fn(async () => undefined),
+    });
+    models.Message.findOne.mockResolvedValue(message);
+    sendMessage.mockRejectedValueOnce(new Error("boom"));
+    const job = createInstance({
+      type: "whatsapp.send",
+      attempts: 0,
+      payload: {
+        to: "6183218624",
+        text: "hola",
+        kind: "message",
+        guestId: "g1",
+        conversationId: "cnv_1",
+      },
+    });
+    await service.processJob(job);
+    expect(message.destroy).toHaveBeenCalled();
   });
 
   test("processJob de campaña no marca whatsapp enviado al aceptar Graph", async () => {

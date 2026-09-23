@@ -3,8 +3,8 @@ import { Op } from "sequelize";
 import { env } from "../../config/env.js";
 import { formatClock } from "../../utils/time.js";
 import { httpError } from "../../utils/http-error.js";
-import { enqueueJob } from "../outbound.worker.js";
 import { normalizeWaIdTo10, resolveWhatsappTo, shouldPersistWhatsappChatId } from "../../utils/whatsapp-identity.js";
+import { createWhatsAppProvider } from "../whatsapp.adapter.js";
 import { buildInstructions, loadEventBotContext } from "./prompt.service.js";
 import { processTurn } from "./openai.service.js";
 import { executeBotTool } from "./tools.js";
@@ -200,26 +200,39 @@ async function runGuestTurn({
 
     botLog("turn completado", botTurnResult(result));
 
-    if (persistConversation) {
-      await Message.create({
-        conversationId: conv.id,
-        from: "ai",
-        text: result.reply,
-        at: formatClock(undefined, event.timezone),
-        ...(result.fromTemplate ? { kind: "template" } : {}),
-      });
-      guest.lastMessage = String(result.reply || "").slice(0, 80);
-      await guest.save();
-    }
-
     if (!dryRun && persistConversation) {
-      await enqueueJob("whatsapp.send", {
-        to: resolveWhatsappTo(guest),
-        text: result.reply,
-        guestId: guest.id,
-        eventId: event.id,
-        conversationId: conv.id,
-      });
+      try {
+        const provider = createWhatsAppProvider();
+        const waResult = await provider.sendMessage(resolveWhatsappTo(guest), result.reply, {
+          eventId: event.id,
+          guestId: guest.id,
+          conversationId: conv.id,
+          kind: "message",
+          ...(result.fromTemplate ? { hsmTemplateName: result.hsmTemplateName } : {}),
+        });
+        if (waResult?.skipped) {
+          botWarn("whatsapp omitido tras turn", {
+            ...botTurnContext({ event, guest, message: combinedText, dryRun, persistConversation, userId: sessionUserId }),
+            reason: "provider skipped",
+          });
+        } else {
+          guest.lastMessage = String(result.reply || "").slice(0, 80);
+          await guest.save();
+          await Message.create({
+            conversationId: conv.id,
+            from: "ai",
+            text: result.reply,
+            at: formatClock(undefined, event.timezone),
+            ...(result.fromTemplate ? { kind: "template" } : {}),
+            ...(waResult?.providerId ? { providerId: waResult.providerId } : {}),
+          });
+        }
+      } catch (sendError) {
+        botError("whatsapp falló tras turn", {
+          ...botTurnContext({ event, guest, message: combinedText, dryRun, persistConversation, userId: sessionUserId }),
+          error: sendError.message,
+        });
+      }
     }
 
     return {
