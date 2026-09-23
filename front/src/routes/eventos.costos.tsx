@@ -300,6 +300,12 @@ function CostosWhatsAppPage() {
             />
           </div>
 
+          {!loading && data && data.kpis.totalVolume === 0 ? (
+            <p className="mt-6 rounded-xl border border-border bg-card px-4 py-3 text-sm text-muted-foreground">
+              No hay mensajes entregados en este periodo según Meta, o el analytics aún no tiene datos.
+            </p>
+          ) : null}
+
           <section className="mt-6 rounded-2xl border border-border bg-card p-6 shadow-soft">
             <h2 className="font-display text-2xl">Tarifas usadas</h2>
             <dl className="mt-3 grid gap-1 text-sm text-muted-foreground sm:grid-cols-3">
