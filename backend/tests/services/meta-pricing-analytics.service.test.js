@@ -15,6 +15,22 @@ describe("meta-pricing-analytics.service", () => {
     expect(parsed.end - parsed.start).toBeLessThanOrEqual(8 * 24 * 60 * 60);
   });
 
+  test('parsePricingRange("90d") nunca devuelve start menor a 1764612000', async () => {
+    const { parsePricingRange } = await import("../../src/services/meta-pricing-analytics.service.js");
+    const minStart = 1764612000;
+    const originalNow = Date.now;
+    // 90d atrás caería 60 días antes del mínimo de Meta; el clamp debe subir start.
+    Date.now = () => (minStart + 30 * 24 * 60 * 60) * 1000;
+    try {
+      const parsed = parsePricingRange("90d");
+      expect(parsed.start).toBeGreaterThanOrEqual(minStart);
+      expect(parsed.start).toBe(minStart);
+      expect(parsed.end).toBeGreaterThan(parsed.start);
+    } finally {
+      Date.now = originalNow;
+    }
+  });
+
   test("normalizePricingAnalytics agrega KPIs, series y categorías", async () => {
     const { normalizePricingAnalytics } = await import(
       "../../src/services/meta-pricing-analytics.service.js"
@@ -138,5 +154,38 @@ describe("meta-pricing-analytics.service", () => {
     const second = await mod.getOwnerPricingAnalytics({ ownerUserId: "user_1", range: "30d" });
     expect(second.cached).toBe(true);
     expect(getWabaPricingAnalytics).toHaveBeenCalledTimes(1);
+  });
+
+  test("getOwnerPricingAnalytics llama Graph con metricTypes VOLUME", async () => {
+    const getWabaPricingAnalytics = jest.fn(async () => ({
+      pricing_analytics: {
+        data: [
+          {
+            data_points: [{ start: 1700000000, volume: 25, pricing_category: "UTILITY" }],
+          },
+        ],
+      },
+    }));
+    const resolveActiveWhatsappMetaByOwner = jest.fn(async () => ({
+      credentials: { accessToken: "tok", wabaId: "waba_1" },
+    }));
+
+    await jest.unstable_mockModule("../../src/services/meta-graph.client.js", () => ({
+      getWabaPricingAnalytics,
+    }));
+    await jest.unstable_mockModule("../../src/services/whatsapp-meta.service.js", () => ({
+      resolveActiveWhatsappMetaByOwner,
+    }));
+
+    const mod = await import("../../src/services/meta-pricing-analytics.service.js");
+    mod.clearPricingAnalyticsCache();
+
+    const out = await mod.getOwnerPricingAnalytics({ ownerUserId: "user_vol", range: "7d" });
+    expect(getWabaPricingAnalytics).toHaveBeenCalledTimes(1);
+    expect(getWabaPricingAnalytics.mock.calls[0][0]).toEqual(
+      expect.objectContaining({ metricTypes: ["VOLUME"] }),
+    );
+    expect(out.costAvailable).toBe(false);
+    expect(out.kpis.totalVolume).toBe(25);
   });
 });

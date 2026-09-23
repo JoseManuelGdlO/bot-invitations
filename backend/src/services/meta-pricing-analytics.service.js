@@ -8,6 +8,9 @@ export const PRICING_RANGES = Object.freeze({
   "90d": 90,
 });
 
+/** Unix start mínimo de pricing_analytics (1 dic 2025 10:00 PT). */
+export const PRICING_ANALYTICS_MIN_START = 1764612000;
+
 const CACHE_TTL_MS = 5 * 60 * 1000;
 const cache = new Map();
 
@@ -31,10 +34,13 @@ export function parsePricingRange(raw) {
   const days = PRICING_RANGES[key];
   const endMs = Date.now();
   const startMs = endMs - days * 24 * 60 * 60 * 1000;
+  const end = Math.floor(endMs / 1000);
+  let start = Math.floor(startMs / 1000);
+  if (start < PRICING_ANALYTICS_MIN_START) start = PRICING_ANALYTICS_MIN_START;
   return {
     range: key,
-    start: Math.floor(startMs / 1000),
-    end: Math.floor(endMs / 1000),
+    start,
+    end,
   };
 }
 
@@ -181,6 +187,7 @@ export async function getOwnerPricingAnalytics({ ownerUserId, range: rangeRaw } 
     start,
     end,
     granularity: "DAILY",
+    metricTypes: ["VOLUME"],
   });
 
   const value = normalizePricingAnalytics({ range, start, end, payload });
