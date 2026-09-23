@@ -244,17 +244,7 @@ function CostosWhatsAppPage() {
           Costo{" "}
           <span className="font-medium text-foreground">aproximado</span>{" "}
           calculado con las tarifas públicas de Meta para México (MXN) × mensajes
-          entregados por categoría. No es el extracto de facturación de Meta ni
-          de Alanna. Fuente:{" "}
-          <a
-            href={WHATSAPP_RATE_CARD_META.sourceUrl}
-            target="_blank"
-            rel="noreferrer"
-            className="text-foreground underline underline-offset-2 hover:text-gold"
-          >
-            developers.facebook.com … pricing#rates
-          </a>
-          .
+          entregados por categoría.
         </div>
       ) : null}
 
@@ -470,8 +460,7 @@ function CostosWhatsAppPage() {
             <span className="font-medium text-foreground">aproximados</span>{" "}
             según tarifas Meta México (MXN) aplicadas al volumen entregado
             reportado por <code className="text-[0.7rem]">pricing_analytics</code>
-            . Meta no expone <code className="text-[0.7rem]">COST</code> cuando la
-            cuenta factura vía socio. Las tarifas pueden cambiar; revisa la rate
+            . Las tarifas pueden cambiar; revisa la rate
             card oficial.
           </p>
         </>
