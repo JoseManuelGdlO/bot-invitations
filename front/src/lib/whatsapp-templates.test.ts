@@ -10,8 +10,11 @@ import {
   extraPlaceholderIds,
   extraSlotOptionLabel,
   extraSlotOptions,
+  editorBodyFromStored,
+  editorNotice,
   extractBodyPlaceholders,
   insertWizardVariable,
+  storedBodyFromEditor,
   templateHeaderPreviewState,
   CAMPAIGN_LAUNCH_TEMPLATE_NOT_APPROVED,
   CAMPAIGN_LAUNCH_TEMPLATES_UNAVAILABLE,
@@ -841,5 +844,28 @@ test("insertWizardVariable inserta {{3}} lugar en medio del preset Formal", () =
       }),
     ),
     true,
+  );
+});
+
+test("el editor muestra {{nombre}} y al guardar vuelve a {{1}}", () => {
+  const stored = storedBodyFromEditor(
+    "Hola {{nombre}}, tienes {{numero_invitados}} pases para {{fecha}}.",
+  );
+  assert.equal(
+    stored.body,
+    "Hola {{1}}, tienes {{2}} pases para {{3}}.",
+  );
+  assert.deepEqual(stored.slotMappings["3"], { type: "field", key: "fecha" });
+  const editor = editorBodyFromStored(stored.body, stored.slotMappings);
+  assert.equal(
+    editor.text,
+    "Hola {{nombre}}, tienes {{numero_invitados}} pases para {{fecha}}.",
+  );
+  assert.equal(
+    editorNotice(
+      "Incluye {{1}} (nombre) y {{2}} (número de pases). Las dos son obligatorias.",
+      stored.slotMappings,
+    ),
+    "Incluye {{nombre}} (nombre) y {{numero_invitados}} (número de pases). Las dos son obligatorias.",
   );
 });

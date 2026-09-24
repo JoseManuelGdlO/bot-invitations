@@ -53,10 +53,14 @@ import {
 import {
   buildWizardFormData,
   canSubmitWizard,
+  editorBodyFromStored,
+  editorNotice,
+  editorVariableLabel,
   extraPlaceholderIds,
   insertWizardVariable,
   mergeEventSlotMappings,
   metaTemplateBodyErrors,
+  storedBodyFromEditor,
   needsHeaderFile,
   unmappedExtraNotices,
   type EventSlotMapping,
@@ -275,35 +279,39 @@ export function WhatsAppTemplateWizardDialog({
     });
   };
 
-  const setBody = (body: string) => {
+  const editorBody = editorBodyFromStored(draft.body, draft.slotMappings);
+
+  const setEditorBody = (editorText: string) => {
+    const stored = storedBodyFromEditor(editorText, draft.slotMappings);
     updateDraft({
-      body,
-      slotMappings: mergeEventSlotMappings(body, draft.slotMappings),
+      body: stored.body,
+      slotMappings: stored.slotMappings,
     });
     setInsertHint(null);
   };
 
   const applyWrap = (left: string, right: string = left) => {
     const el = textareaRef.current;
-    const start = el?.selectionStart ?? draft.body.length;
-    const end = el?.selectionEnd ?? draft.body.length;
-    const next = wrapSelection(draft.body, start, end, left, right);
-    setBody(next.text);
+    const start = el?.selectionStart ?? editorBody.text.length;
+    const end = el?.selectionEnd ?? editorBody.text.length;
+    const next = wrapSelection(editorBody.text, start, end, left, right);
+    setEditorBody(next.text);
     restoreSelection(next.selectionStart, next.selectionEnd);
   };
 
   const insertField = (fieldKey: string) => {
     const el = textareaRef.current;
     if (el && document.activeElement === el) rememberCaret(el);
-    const start = caretRef.current.start;
-    const end = caretRef.current.end;
+    const stored = storedBodyFromEditor(editorBody.text, draft.slotMappings);
+    const start = stored.mapToStored(caretRef.current.start);
+    const end = stored.mapToStored(caretRef.current.end);
     const formal = wizardPresetById("formal");
     const result = insertWizardVariable({
-      body: draft.body,
+      body: stored.body,
       cursorStart: start,
       cursorEnd: end,
       fieldKey,
-      slotMappings: draft.slotMappings,
+      slotMappings: stored.slotMappings,
       emptyFallback: {
         body: formal.body,
         slotMappings: formal.slotMappings,
@@ -316,20 +324,28 @@ export function WhatsAppTemplateWizardDialog({
       return;
     }
     if (result.error) {
-      setInsertHint(result.error);
+      setInsertHint(editorNotice(result.error, draft.slotMappings));
       return;
     }
     if (result.alreadyPresent) {
+      const next = editorBodyFromStored(result.body, result.slotMappings);
       setInsertHint("Esa variable ya está en el mensaje.");
-      restoreSelection(result.selectionStart, result.selectionEnd);
+      restoreSelection(
+        next.mapToEditor(result.selectionStart),
+        next.mapToEditor(result.selectionEnd),
+      );
       return;
     }
+    const next = editorBodyFromStored(result.body, result.slotMappings);
     updateDraft({
       body: result.body,
       slotMappings: result.slotMappings,
     });
     setInsertHint(null);
-    restoreSelection(result.selectionStart, result.selectionEnd);
+    restoreSelection(
+      next.mapToEditor(result.selectionStart),
+      next.mapToEditor(result.selectionEnd),
+    );
   };
 
   const setExtraMapping = (id: string, mapping: EventSlotMapping) => {
@@ -365,8 +381,13 @@ export function WhatsAppTemplateWizardDialog({
     }
   };
 
-  const bodyErrors = metaTemplateBodyErrors(draft.body);
-  const mappingNotices = unmappedExtraNotices(draft.body, draft.slotMappings);
+  const bodyErrors = metaTemplateBodyErrors(draft.body).map((message) =>
+    editorNotice(message, draft.slotMappings),
+  );
+  const mappingNotices = unmappedExtraNotices(
+    draft.body,
+    draft.slotMappings,
+  ).map((message) => editorNotice(message, draft.slotMappings));
   const notices = [
     ...bodyErrors,
     ...mappingNotices,
@@ -558,8 +579,8 @@ export function WhatsAppTemplateWizardDialog({
               <Textarea
                 id="wizard-body"
                 ref={textareaRef}
-                value={draft.body}
-                onChange={(e) => setBody(e.target.value)}
+                value={editorBody.text}
+                onChange={(e) => setEditorBody(e.target.value)}
                 onSelect={(e) => rememberCaret(e.currentTarget)}
                 onClick={(e) => rememberCaret(e.currentTarget)}
                 onKeyUp={(e) => rememberCaret(e.currentTarget)}
@@ -574,14 +595,14 @@ export function WhatsAppTemplateWizardDialog({
                     applyWrap("_");
                   }
                 }}
-                placeholder="Hola {{1}}, tienes {{2}} pases reservados."
+                placeholder="Hola {{nombre}}, tienes {{numero_invitados}} pases reservados."
                 rows={6}
                 className="font-sans text-sm leading-relaxed"
               />
               <TemplateVariableMenu
                 variables={[...WIZARD_UNIVERSAL_FIELDS]}
-                formatToken={(key) => key}
-                labelFor={(key) => key}
+                formatToken={(key) => `{{${key}}}`}
+                labelFor={(key) => `{{${key}}}`}
                 onInsert={insertField}
               />
               {notices.length > 0 ? (
@@ -594,7 +615,7 @@ export function WhatsAppTemplateWizardDialog({
                 </ul>
               ) : (
                 <p className="text-xs text-muted-foreground">
-                  {"{{1}} es el nombre y {{2}} el número de pases."}
+                  {"{{nombre}} y {{numero_invitados}} son obligatorias."}
                 </p>
               )}
             </div>
@@ -616,8 +637,8 @@ export function WhatsAppTemplateWizardDialog({
               <p className="text-xs font-medium text-muted-foreground">
                 Variables fijas
               </p>
-              <p className="text-sm">{"{{1}} · nombre"}</p>
-              <p className="text-sm">{"{{2}} · numero_invitados"}</p>
+              <p className="text-sm">{"{{nombre}}"}</p>
+              <p className="text-sm">{"{{numero_invitados}}"}</p>
             </div>
 
             {extras.length > 0 ? (
@@ -629,7 +650,9 @@ export function WhatsAppTemplateWizardDialog({
                     mapping?.type === "field" ? mapping.key : undefined;
                   return (
                     <div key={id} className="space-y-2">
-                      <Label htmlFor={`wizard-slot-${id}`}>{`{{${id}}}`}</Label>
+                      <Label htmlFor={`wizard-slot-${id}`}>
+                        {editorVariableLabel(id, draft.slotMappings)}
+                      </Label>
                       <Select
                         {...(selected ? { value: selected } : {})}
                         onValueChange={(value) =>

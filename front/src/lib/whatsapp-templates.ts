@@ -331,6 +331,190 @@ export function mergeEventSlotMappings(
   return mappings;
 }
 
+const EDITOR_TOKEN_RE = /\{\{(\d+|[A-Za-z_][A-Za-z0-9_]*)\}\}/g;
+
+type TokenSpan = {
+  sourceFrom: number;
+  sourceTo: number;
+  targetFrom: number;
+  targetTo: number;
+};
+
+function mapThroughSpans(spans: TokenSpan[], index: number): number {
+  let sourceCursor = 0;
+  let targetCursor = 0;
+  for (const span of spans) {
+    if (index <= span.sourceFrom) {
+      return targetCursor + (index - sourceCursor);
+    }
+    if (index <= span.sourceTo) {
+      const sourceLen = span.sourceTo - span.sourceFrom;
+      const targetLen = span.targetTo - span.targetFrom;
+      const offset = index - span.sourceFrom;
+      if (sourceLen === 0) return span.targetFrom;
+      return span.targetFrom + Math.round((offset / sourceLen) * targetLen);
+    }
+    sourceCursor = span.sourceTo;
+    targetCursor = span.targetTo;
+  }
+  return targetCursor + (index - sourceCursor);
+}
+
+export function placeholderFieldName(
+  id: string,
+  mappings: Record<string, EventSlotMapping> = {},
+): string | null {
+  const mapping = mappings[id];
+  if (mapping?.type === "field" && mapping.key) return mapping.key;
+  if (id === "1") return "nombre";
+  if (id === "2") return "numero_invitados";
+  return null;
+}
+
+export function editorVariableLabel(
+  id: string,
+  mappings: Record<string, EventSlotMapping> = {},
+): string {
+  const name = placeholderFieldName(id, mappings);
+  return name ? `{{${name}}}` : `{{${id}}}`;
+}
+
+export function editorNotice(
+  message: string,
+  mappings: Record<string, EventSlotMapping> = {},
+): string {
+  return message.replace(/\{\{(\d+)\}\}/g, (_full, id: string) =>
+    editorVariableLabel(id, mappings),
+  );
+}
+
+export function editorBodyFromStored(
+  body: string,
+  mappings: Record<string, EventSlotMapping> = {},
+): { text: string; mapToEditor: (index: number) => number } {
+  const source = String(body || "");
+  const spans: TokenSpan[] = [];
+  let text = "";
+  let last = 0;
+  for (const match of source.matchAll(/\{\{(\d+)\}\}/g)) {
+    const start = match.index ?? 0;
+    const id = match[1];
+    if (!id) continue;
+    const name = placeholderFieldName(id, mappings);
+    const replacement = name ? `{{${name}}}` : match[0];
+    text += source.slice(last, start);
+    const targetFrom = text.length;
+    text += replacement;
+    spans.push({
+      sourceFrom: start,
+      sourceTo: start + match[0].length,
+      targetFrom,
+      targetTo: text.length,
+    });
+    last = start + match[0].length;
+  }
+  text += source.slice(last);
+  return {
+    text,
+    mapToEditor: (index: number) => mapThroughSpans(spans, index),
+  };
+}
+
+export function storedBodyFromEditor(
+  editorText: string,
+  previous: Record<string, EventSlotMapping> = {},
+): {
+  body: string;
+  slotMappings: Record<string, EventSlotMapping>;
+  mapToStored: (index: number) => number;
+} {
+  const source = String(editorText || "");
+  const used = new Set<string>();
+  let nextId = 3;
+  for (const match of source.matchAll(/\{\{(\d+)\}\}/g)) {
+    const id = match[1];
+    if (!id) continue;
+    used.add(id);
+    const numeric = Number(id);
+    if (numeric >= nextId) nextId = numeric + 1;
+  }
+
+  const nameToId = new Map<string, string>();
+  const takeId = (preferred?: string | null) => {
+    if (
+      preferred &&
+      preferred !== "1" &&
+      preferred !== "2" &&
+      !used.has(preferred)
+    ) {
+      used.add(preferred);
+      const numeric = Number(preferred);
+      if (numeric >= nextId) nextId = numeric + 1;
+      return preferred;
+    }
+    while (used.has(String(nextId))) nextId += 1;
+    const id = String(nextId);
+    used.add(id);
+    nextId += 1;
+    return id;
+  };
+  const idForName = (name: string) => {
+    if (name === "nombre") return "1";
+    if (name === "numero_invitados") return "2";
+    const cached = nameToId.get(name);
+    if (cached) return cached;
+    let preferred: string | null = null;
+    for (const [id, mapping] of Object.entries(previous)) {
+      if (
+        mapping?.type === "field" &&
+        mapping.key === name &&
+        id !== "1" &&
+        id !== "2"
+      ) {
+        preferred = id;
+        break;
+      }
+    }
+    const id = takeId(preferred);
+    nameToId.set(name, id);
+    return id;
+  };
+
+  const spans: TokenSpan[] = [];
+  let body = "";
+  let last = 0;
+  const incoming: Record<string, EventSlotMapping> = { ...previous };
+  for (const match of source.matchAll(new RegExp(EDITOR_TOKEN_RE.source, "g"))) {
+    const start = match.index ?? 0;
+    const token = match[1];
+    if (!token) continue;
+    body += source.slice(last, start);
+    const targetFrom = body.length;
+    if (/^\d+$/.test(token)) {
+      body += match[0];
+    } else {
+      const id = idForName(token);
+      body += `{{${id}}}`;
+      if (id !== "1" && id !== "2") {
+        incoming[id] = { type: "field", key: token };
+      }
+    }
+    spans.push({
+      sourceFrom: start,
+      sourceTo: start + match[0].length,
+      targetFrom,
+      targetTo: body.length,
+    });
+    last = start + match[0].length;
+  }
+  body += source.slice(last);
+  return {
+    body,
+    slotMappings: mergeEventSlotMappings(body, incoming),
+    mapToStored: (index: number) => mapThroughSpans(spans, index),
+  };
+}
+
 export type InsertWizardVariableInput = {
   body: string;
   cursorStart: number;
