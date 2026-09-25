@@ -18,6 +18,7 @@ import {
 } from "@/components/ui/carousel";
 import { StatCard } from "@/components/stat-card";
 import { EventCard } from "@/components/event-card";
+import { buildEventOps, buildUpcomingReminders } from "@/lib/event-ops";
 import { statsFor, useStore } from "@/lib/mock/store";
 import { cn } from "@/lib/utils";
 import { PendingPaymentBanner, PlanLimitBanner } from "@/components/plan-limit";
@@ -46,14 +47,17 @@ export const Route = createFileRoute("/eventos/")({
 });
 
 const kindTone: Record<string, string> = {
-  confirm: "bg-success",
-  reject: "bg-destructive",
-  message: "bg-gold",
+  campaign: "bg-gold",
+  reminder: "bg-info",
   system: "bg-muted-foreground",
 };
 
 function EventsDashboard() {
-  const { events, guests, conversations, activity, session } = useStore();
+  const { events, guests, conversations, activity, data, session } = useStore();
+  const eventOps = buildEventOps(events, activity);
+  const upcomingReminders = buildUpcomingReminders(events, data, guests, new Date(), activity).filter(
+    (reminder) => reminder.status === "upcoming",
+  );
   const s = statsFor(guests);
   const active = events.filter((e) => e.status === "activo").length;
   const upcoming = events.filter(
@@ -171,32 +175,67 @@ function EventsDashboard() {
     <h2 className="font-display text-2xl">Actividad reciente</h2>
     <div className="mt-4 h-[350px] overflow-y-auto rounded-2xl border border-border bg-card p-5 shadow-soft">
       <div className="space-y-1">
-        {activity.map((a) => {
-          const ev = events.find((e) => e.id === a.eventId);
-          return (
-            <div
-              key={a.id}
-              className="flex gap-3 border-b border-border/60 py-3 last:border-0"
-            >
-              <span
-                className={cn(
-                  "mt-1.5 size-2 shrink-0 rounded-full",
-                  kindTone[a.kind]
-                )}
-              />
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium leading-snug">{a.text}</p>
-                <p className="mt-0.5 text-[11px] text-muted-foreground truncate">
-                  {ev?.name ?? "General"} · {a.at}
-                </p>
+        {eventOps.length === 0 ? (
+          <p className="text-sm text-muted-foreground">
+            Cuando lances una campaña o un recordatorio, aparecerá aquí.
+          </p>
+        ) : (
+          eventOps.map((a) => {
+            const ev = events.find((e) => e.id === a.eventId);
+            return (
+              <div
+                key={a.id}
+                className="flex gap-3 border-b border-border/60 py-3 last:border-0"
+              >
+                <span
+                  className={cn(
+                    "mt-1.5 size-2 shrink-0 rounded-full",
+                    kindTone[a.kind],
+                  )}
+                />
+                <div className="min-w-0 flex-1">
+                  <p className="text-sm font-medium leading-snug">{a.text}</p>
+                  <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+                    {ev?.name ?? "General"} · {a.at}
+                  </p>
+                </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })
+        )}
       </div>
     </div>
   </section>
 </div>
+
+      <section className="mt-8">
+        <h2 className="font-display text-2xl">Próximos recordatorios</h2>
+        <div className="mt-4 rounded-2xl border border-border bg-card p-5 shadow-soft">
+          {upcomingReminders.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              No hay recordatorios programados. Se agendan al lanzar la campaña
+              y según las reglas de cada evento.
+            </p>
+          ) : (
+            <div className="space-y-1">
+              {upcomingReminders.map((reminder) => (
+                <div
+                  key={reminder.id}
+                  className="flex flex-wrap items-baseline justify-between gap-2 border-b border-border/60 py-3 last:border-0"
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium">{reminder.label}</p>
+                    <p className="mt-0.5 truncate text-[11px] text-muted-foreground">
+                      {reminder.eventName} · {reminder.when}
+                    </p>
+                  </div>
+                  <p className="text-xs text-muted-foreground">{reminder.dateLabel}</p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
     </main>
   );
 }

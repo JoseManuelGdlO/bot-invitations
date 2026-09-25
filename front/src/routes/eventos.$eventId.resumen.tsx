@@ -19,6 +19,7 @@ import {
   unapprovedSecondaryCampaignPurposes,
   type SecondaryCampaignPurpose,
 } from "@/lib/whatsapp-templates";
+import { buildUpcomingReminders } from "@/lib/event-ops";
 import { statsFor, useEvent, useStore } from "@/lib/mock/store";
 import { daysUntil, formatShortDate } from "@/lib/mock/format";
 import { cn } from "@/lib/utils";
@@ -58,8 +59,11 @@ const kindTone: Record<string, string> = {
 
 function Resumen() {
   const { eventId } = Route.useParams();
-  const { event, guests } = useEvent(eventId);
+  const { event, guests, data } = useEvent(eventId);
   const { activity, launchCampaign, hasPerm, refresh } = useStore();
+  const reminders = event
+    ? buildUpcomingReminders([event], { [event.id]: data }, guests, new Date(), activity)
+    : [];
   const s = statsFor(guests);
   const eventActivity = activity.filter((a) => a.eventId === eventId);
   const pendingUncontacted = guests.filter(
@@ -377,6 +381,52 @@ function Resumen() {
           </div>
         </section>
       </div>
+
+      <section className="mt-6 lg:mt-8">
+        <h2 className="font-display text-xl sm:text-2xl">Recordatorios</h2>
+        <div className="mt-4 rounded-2xl border border-border bg-card p-5 shadow-soft sm:p-6">
+          {data.ai.followUpsEnabled === false ? (
+            <p className="text-sm text-muted-foreground">
+              Los recordatorios están desactivados para este evento.
+            </p>
+          ) : reminders.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              No hay recordatorios para este evento. Se agendan al lanzar la
+              campaña y según las reglas de seguimiento.
+            </p>
+          ) : (
+            <div className="space-y-1">
+              {reminders.map((reminder) => (
+                <div
+                  key={reminder.id}
+                  className="flex flex-wrap items-baseline justify-between gap-2 border-b border-border/60 py-3 last:border-0"
+                >
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium">{reminder.label}</p>
+                    <p className="mt-0.5 text-[11px] text-muted-foreground">
+                      {reminder.detail}
+                    </p>
+                  </div>
+                  <p
+                    className={cn(
+                      "text-xs",
+                      reminder.status === "sent"
+                        ? "text-success"
+                        : "text-muted-foreground",
+                    )}
+                  >
+                    {reminder.status === "sent"
+                      ? "Enviado"
+                      : reminder.status === "upcoming"
+                        ? reminder.dateLabel
+                        : "Pendiente"}
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </section>
     </main>
   );
 }
