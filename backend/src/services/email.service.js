@@ -51,6 +51,40 @@ export async function sendTeamInvitationEmail({ to, name, eventName, role, invit
   });
 }
 
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+export async function sendLaunchNoticeEmail({ to, name, title, body, link }) {
+  const greeting = name ? `¡Hola ${escapeHtml(name)}!` : "¡Hola!";
+  const safeTitle = escapeHtml(title);
+  const safeBody = escapeHtml(body);
+  const button = link
+    ? `<div style="margin: 30px 0; text-align: center;">
+          <a href="${escapeHtml(link)}" style="background-color: #d4af37; color: #000; padding: 12px 24px; text-decoration: none; border-radius: 8px; font-weight: bold; display: inline-block;">
+            Ver en Alanna
+          </a>
+        </div>`
+    : "";
+  return getTransporter().sendMail({
+    from: fromHeader(),
+    to,
+    subject: safeTitle || "Aviso de Alanna Confirmaciones",
+    html: `
+      <div style="font-family: sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eee; border-radius: 10px;">
+        <h2 style="color: #1a1a1a;">${greeting}</h2>
+        <p>${safeBody}</p>
+        ${button}
+        <p style="font-size: 12px; color: #666;">Recibes este correo porque eres el planner del evento.</p>
+      </div>
+    `,
+  });
+}
+
 export async function sendPasswordResetEmail({ to, name, resetLink }) {
   const greeting = name ? `¡Hola ${name}!` : "¡Hola!";
   return getTransporter().sendMail({

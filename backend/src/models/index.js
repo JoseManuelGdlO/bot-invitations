@@ -463,6 +463,26 @@ export const BotSession = sequelize.define(
   },
 );
 
+export const Notification = sequelize.define(
+  "notifications",
+  {
+    id: uuid,
+    userId: { type: DataTypes.CHAR(36), allowNull: false },
+    eventId: { type: DataTypes.CHAR(36), allowNull: true },
+    kind: { type: DataTypes.STRING(20), allowNull: false },
+    title: { type: DataTypes.STRING(180), allowNull: false },
+    body: { type: DataTypes.TEXT, allowNull: false },
+    href: { type: DataTypes.STRING(300), allowNull: true },
+    dedupeKey: { type: DataTypes.STRING(191), allowNull: false, unique: true },
+    readAt: { type: DataTypes.DATE, allowNull: true },
+    emailSentAt: { type: DataTypes.DATE, allowNull: true },
+    scheduledFor: { type: DataTypes.DATEONLY, allowNull: true },
+  },
+  {
+    indexes: [{ fields: ["userId"] }, { fields: ["eventId"] }],
+  },
+);
+
 export const OutboundJob = sequelize.define("outbound_jobs", {
   id: uuid,
   type: { type: DataTypes.STRING(80), allowNull: false },
@@ -523,6 +543,10 @@ Event.hasMany(Activity, { foreignKey: "eventId", as: "activities" });
 Activity.belongsTo(Event, { foreignKey: "eventId" });
 Event.hasMany(Campaign, { foreignKey: "eventId", as: "campaigns" });
 Campaign.belongsTo(Event, { foreignKey: "eventId" });
+User.hasMany(Notification, { foreignKey: "userId", as: "notifications" });
+Notification.belongsTo(User, { foreignKey: "userId" });
+Event.hasMany(Notification, { foreignKey: "eventId", as: "notifications" });
+Notification.belongsTo(Event, { foreignKey: "eventId" });
 Event.hasMany(BotSession, { foreignKey: "eventId", as: "botSessions" });
 BotSession.belongsTo(Event, { foreignKey: "eventId" });
 Guest.hasMany(BotSession, { foreignKey: "guestId", as: "botSessions" });
@@ -1001,6 +1025,10 @@ export async function ensureUserInvitationWizardStatus() {
     defaultValue: null,
   });
   console.log("[db] columna users.invitationWizardStatus creada");
+}
+
+export async function ensureNotificationsTable() {
+  await Notification.sync();
 }
 
 export async function ensureChannelIntegrationMetaColumns() {

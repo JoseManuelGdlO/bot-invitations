@@ -27,6 +27,7 @@ import { coverStyle } from "@/lib/cover";
 import { cn } from "@/lib/utils";
 import { Skeleton } from "@/components/ui/skeleton";
 import { HelpBot } from "@/components/help-bot";
+import { NotificationBell } from "@/components/notification-bell";
 
 export const Route = createFileRoute("/eventos")({
   component: AppShell,
@@ -86,12 +87,13 @@ function AppShell() {
             height={32}
             className="size-8 rounded-lg bg-primary object-contain p-1"
           />
-          <div>
+          <div className="min-w-0 flex-1">
             <span className="font-display text-xl leading-none">Alanna</span>
             <p className="mt-0.5 text-[10px] font-medium uppercase tracking-[0.14em] text-gold">
               Confirmaciones
             </p>
           </div>
+          <NotificationBell />
         </div>
 
         <nav className="space-y-1 px-3">
@@ -273,6 +275,7 @@ function AppShell() {
           />
           <span className="font-display text-lg">Alanna</span>
           <div className="ml-auto flex items-center gap-2 text-muted-foreground">
+            <NotificationBell side="bottom" tone="header" />
             <Link
               to="/eventos/soporte"
               className="relative rounded-md p-1 hover:text-foreground"

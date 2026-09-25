@@ -40,4 +40,20 @@ describe("email.service", () => {
     expect(mail.subject).not.toContain("supersecrettoken");
     expect(mail.html).toContain("http://localhost:8080/restablecer-contrasena?token=supersecrettoken");
   });
+
+  test("sendLaunchNoticeEmail escapa el nombre del evento", async () => {
+    const { sendLaunchNoticeEmail } = await import("../../src/services/email.service.js");
+    await sendLaunchNoticeEmail({
+      to: "ana@test.com",
+      name: "Ana",
+      title: "Campaña por lanzarse",
+      body: "La campaña de «Boda <Ana>» se lanza mañana.",
+      link: "http://localhost:8080/eventos/boda/resumen",
+    });
+    const mail = sendMail.mock.calls[0][0];
+    expect(mail.to).toBe("ana@test.com");
+    expect(mail.subject).toBe("Campaña por lanzarse");
+    expect(mail.html).toContain("Boda &lt;Ana&gt;");
+    expect(mail.html).not.toContain("Boda <Ana>");
+  });
 });
