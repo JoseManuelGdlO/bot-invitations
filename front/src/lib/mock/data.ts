@@ -280,6 +280,7 @@ function defaultAI(assistant: string, hosts: string): AIConfig {
       "Nunca mencionar que eres una IA.",
       "Siempre ser amable y cálida.",
       "Nunca presionar al invitado.",
+      "Solo debes saludar al inicio de la conversación o si el usuario te saluda de regreso.",
       "El primer mensaje ya se envió; no reenvíes la invitación.",
       "Clasifica cada mensaje en faq, asistira, no_asistira, seguimiento o desconocido.",
       "Si es FAQ, responde solo con las FAQs o plantillas de información; si no hay dato, no inventes y ofrece pasar al equipo.",

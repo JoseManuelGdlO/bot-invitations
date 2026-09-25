@@ -7,11 +7,15 @@ export const DEFAULT_ROLES = [
   { role: "Asistente", perms: ["Ver invitados", "Ver conversaciones"] },
 ];
 
+export const GREETING_CONVERSATION_RULE =
+  "Solo debes saludar al inicio de la conversación o si el usuario te saluda de regreso.";
+
 /** Fuente de verdad de reglas de conversación. `technical` no se expone para editar/borrar en la UI. */
 export const DEFAULT_AI_RULE_DEFS = [
   { text: "Nunca mencionar que eres una IA.", technical: false },
   { text: "Siempre ser amable y cálida.", technical: false },
   { text: "Nunca presionar al invitado.", technical: false },
+  { text: GREETING_CONVERSATION_RULE, technical: false },
   { text: "El primer mensaje ya se envió; no reenvíes la invitación.", technical: true },
   { text: "Clasifica cada mensaje en faq, asistira, no_asistira, seguimiento o desconocido.", technical: true },
   { text: "Si es FAQ, responde solo con las FAQs o plantillas de información; si no hay dato, no inventes y ofrece pasar al equipo.", technical: true },
