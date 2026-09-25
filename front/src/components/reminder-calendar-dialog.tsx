@@ -11,7 +11,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import type { UpcomingReminder } from "@/lib/event-ops";
+import { buildCalendarEntries, type UpcomingReminder } from "@/lib/event-ops";
+import type { EventItem } from "@/lib/mock/types";
 
 function dateKey(date: Date) {
   const month = String(date.getMonth() + 1).padStart(2, "0");
@@ -24,36 +25,45 @@ function dateFromKey(key: string) {
   return new Date(year, month - 1, day);
 }
 
-export function ReminderCalendarDialog({ reminders }: { reminders: UpcomingReminder[] }) {
+export function ReminderCalendarDialog({
+  reminders,
+  events = [],
+  size = "sm",
+}: {
+  reminders: UpcomingReminder[];
+  events?: EventItem[];
+  size?: "sm" | "lg";
+}) {
+  const entries = useMemo(() => buildCalendarEntries(events, reminders), [events, reminders]);
   const scheduled = useMemo(() => {
-    const keys = [...new Set(reminders.map((reminder) => reminder.dueOn).filter(Boolean))] as string[];
+    const keys = [...new Set(entries.map((reminder) => reminder.dueOn).filter(Boolean))] as string[];
     return keys.sort().map(dateFromKey);
-  }, [reminders]);
+  }, [entries]);
   const [selectedKey, setSelectedKey] = useState<string | null>(null);
   const fallbackKey = scheduled[0] ? dateKey(scheduled[0]) : null;
   const activeKey = selectedKey ?? fallbackKey;
   const selected = activeKey ? dateFromKey(activeKey) : undefined;
-  const onSelectedDay = reminders.filter((reminder) => reminder.dueOn === activeKey);
+  const onSelectedDay = entries.filter((reminder) => reminder.dueOn === activeKey);
 
   return (
     <Dialog>
       <DialogTrigger asChild>
-        <Button variant="outline" size="sm" className="shrink-0">
+        <Button variant="outline" size={size} className="shrink-0">
           <CalendarDays /> Calendario
         </Button>
       </DialogTrigger>
       <DialogContent className="max-w-md">
         <DialogHeader>
           <DialogTitle className="font-display text-2xl font-normal">
-            Calendario de recordatorios
+            Calendario
           </DialogTitle>
           <DialogDescription>
-            Los días marcados son fechas en las que se enviará un recordatorio.
+            Los días marcados son el evento, una campaña programada o un recordatorio.
           </DialogDescription>
         </DialogHeader>
         {scheduled.length === 0 ? (
           <p className="text-sm text-muted-foreground">
-            No hay fechas programadas. Se agendan al lanzar la campaña y según las reglas de cada evento.
+            No hay fechas de eventos, campañas ni recordatorios.
           </p>
         ) : (
           <div className="space-y-4">
@@ -83,7 +93,7 @@ export function ReminderCalendarDialog({ reminders }: { reminders: UpcomingRemin
               </p>
               {onSelectedDay.length === 0 ? (
                 <p className="mt-2 text-sm text-muted-foreground">
-                  Este día no tiene recordatorios programados.
+                  Este día no tiene eventos, campañas ni recordatorios.
                 </p>
               ) : (
                 <div className="mt-2 space-y-2">

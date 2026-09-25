@@ -78,13 +78,16 @@ function EventsDashboard() {
               por separado.
             </p>
         </div>
-        {session?.usage?.canCreateEvent !== false ? (
-          <Button asChild size="lg">
-            <Link to="/eventos/nuevo">
-              <Plus className="size-4" /> Crear nuevo evento
-            </Link>
-          </Button>
-        ) : null}
+        <div className="flex flex-wrap items-center gap-2">
+          <ReminderCalendarDialog reminders={upcomingReminders} events={events} size="lg" />
+          {session?.usage?.canCreateEvent !== false ? (
+            <Button asChild size="lg">
+              <Link to="/eventos/nuevo">
+                <Plus className="size-4" /> Crear nuevo evento
+              </Link>
+            </Button>
+          ) : null}
+        </div>
       </div>
       <div className="mt-4 space-y-4">
         <PendingPaymentBanner session={session} />
@@ -210,10 +213,7 @@ function EventsDashboard() {
 </div>
 
       <section className="mt-8">
-        <div className="flex items-center justify-between gap-3">
-          <h2 className="font-display text-2xl">Próximos recordatorios</h2>
-          <ReminderCalendarDialog reminders={upcomingReminders} />
-        </div>
+        <h2 className="font-display text-2xl">Próximos recordatorios</h2>
         <div className="mt-4 rounded-2xl border border-border bg-card p-5 shadow-soft">
           {upcomingReminders.length === 0 ? (
             <p className="text-sm text-muted-foreground">

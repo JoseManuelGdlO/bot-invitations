@@ -388,6 +388,7 @@ function Resumen() {
           <h2 className="font-display text-xl sm:text-2xl">Recordatorios</h2>
           <ReminderCalendarDialog
             reminders={reminders.filter((reminder) => reminder.status === "upcoming")}
+            events={event ? [event] : []}
           />
         </div>
         <div className="mt-4 rounded-2xl border border-border bg-card p-5 shadow-soft sm:p-6">

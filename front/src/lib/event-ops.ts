@@ -309,3 +309,49 @@ export function buildUpcomingReminders(
 
   return rows.sort((a, b) => a.sortAt - b.sortAt || a.eventName.localeCompare(b.eventName, "es"));
 }
+
+export function buildCalendarEntries(
+  events: EventItem[],
+  reminders: UpcomingReminder[],
+): UpcomingReminder[] {
+  const rows = reminders.filter((reminder) => reminder.dueOn && reminder.status === "upcoming");
+
+  for (const event of events) {
+    const eventDay = parseDateOnly(event.date);
+    if (eventDay) {
+      rows.push({
+        id: `event-day-${event.id}`,
+        eventId: event.id,
+        eventName: event.name,
+        label: "Día del evento",
+        when: event.venue || event.time,
+        dateLabel: formatDay(eventDay),
+        dueOn: toDateKey(eventDay),
+        detail: event.venue,
+        status: "upcoming",
+        sortAt: eventDay.getTime(),
+      });
+    }
+
+    const campaign = event.campaign;
+    if (campaign?.status === "scheduled" && campaign.scheduledAt) {
+      const scheduled = parseDateOnly(campaign.scheduledAt);
+      if (scheduled) {
+        rows.push({
+          id: `campaign-day-${event.id}`,
+          eventId: event.id,
+          eventName: event.name,
+          label: "Campaña",
+          when: "Programada",
+          dateLabel: formatDay(scheduled),
+          dueOn: toDateKey(scheduled),
+          detail: `Se lanza el ${formatDay(scheduled)}`,
+          status: "upcoming",
+          sortAt: scheduled.getTime(),
+        });
+      }
+    }
+  }
+
+  return rows.sort((a, b) => a.sortAt - b.sortAt || a.eventName.localeCompare(b.eventName, "es"));
+}

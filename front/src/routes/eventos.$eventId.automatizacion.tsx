@@ -502,7 +502,7 @@ function Automatizacion() {
         <section className="rounded-2xl border border-border bg-card p-6 shadow-soft">
           <div className="flex items-center justify-between gap-3">
             <h2 className="font-display text-2xl">Reglas de seguimiento</h2>
-            <ReminderCalendarDialog reminders={upcomingReminders} />
+            <ReminderCalendarDialog reminders={upcomingReminders} events={event ? [event] : []} />
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
             Recordatorios y el recontacto a indecisos. El calendario muestra las fechas de envío con los días que estás configurando.

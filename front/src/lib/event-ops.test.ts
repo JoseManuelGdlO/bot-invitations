@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { buildEventOps, buildUpcomingReminders } from "./event-ops.ts";
+import { buildCalendarEntries, buildEventOps, buildUpcomingReminders } from "./event-ops.ts";
 import type { ActivityItem, EventData, EventItem, Guest } from "./mock/types.ts";
 
 const now = new Date(2026, 8, 25, 12, 0, 0);
@@ -225,4 +225,40 @@ test("buildUpcomingReminders deja de marcar pendiente cuando el invitado contest
   const [row] = buildUpcomingReminders([event()], data, [guest], now);
   assert.match(row?.detail ?? "", /Ya contestó/);
   assert.doesNotMatch(row?.detail ?? "", /pendiente de contestar/);
+});
+
+test("buildCalendarEntries agrega el día del evento y la campaña programada", () => {
+  const rows = buildCalendarEntries(
+    [
+      event({
+        date: "2026-10-20",
+        campaign: {
+          status: "scheduled",
+          scheduledAt: "2026-09-28",
+          launchedAt: null,
+          total: 0,
+          processed: 0,
+          percent: 0,
+        },
+      }),
+      event({
+        id: "xv",
+        name: "XV",
+        date: "2026-11-02",
+        campaign: {
+          status: "done",
+          scheduledAt: "2026-09-01",
+          launchedAt: "2026-09-01T15:00:00.000Z",
+          total: 1,
+          processed: 1,
+          percent: 100,
+        },
+      }),
+    ],
+    [],
+  );
+  assert.deepEqual(
+    rows.map((row) => `${row.label}:${row.dueOn}`),
+    ["Campaña:2026-09-28", "Día del evento:2026-10-20", "Día del evento:2026-11-02"],
+  );
 });
