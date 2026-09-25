@@ -120,7 +120,7 @@ export function buildPlaygroundLogs({ intent = null, tools = [] } = {}) {
       kind: "faq",
       label: "Respondió FAQ / info del evento",
       value: "faq",
-      detail: "Sin tool: texto libre según FAQs/plantillas de información",
+      detail: "Sin tool: texto libre según datos del evento y preguntas frecuentes",
     });
   }
   for (const tool of tools) {
@@ -294,6 +294,7 @@ function buildResponsesRequest({ instructions, items, tools, toolChoice = null }
 export async function processTurn({ instructions, items, executeTool, refreshLock, context = {} }) {
   const openai = getClient();
   const tools = normalizeToolsForResponses(BOT_TOOLS);
+  const windowOpen = context.windowOpen !== false;
   let loops = 0;
   let finalResponse = null;
   let forcedReply = null;
@@ -360,11 +361,12 @@ export async function processTurn({ instructions, items, executeTool, refreshLoc
         call_id: call.call_id,
         output: JSON.stringify(result),
       });
-      if (result?.useAsReply && result?.text) {
+      if (!windowOpen && result?.useAsReply && result?.text) {
         forcedReply = String(result.text);
         forcedExtra = extraReplyFromResponse(response);
       }
     }
+    if (windowOpen && structured.reply) break;
     if (forcedReply) break;
   }
 

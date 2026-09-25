@@ -129,7 +129,8 @@ describe("bot tools", () => {
     expect(guest.status).toBe("seguimiento");
     expect(guest.followUp).toBe(formatFollowUpDate(defaultIndecisoFollowUpDate()));
     expect(guest.followUpsSent).toEqual(["f2"]);
-    expect(result.instruction).toMatch(/No uses ahora la plantilla Seguimiento/);
+    expect(result.instruction).toMatch(/les escribes de nuevo más adelante/);
+    expect(result.instruction).not.toMatch(/plantilla Seguimiento/);
     expect(guest.save).toHaveBeenCalled();
     expect(logActivity).toHaveBeenCalledTimes(1);
   });
@@ -182,49 +183,54 @@ describe("bot tools", () => {
     expect(guest.status).toBe("confirmado");
   });
 
-  test("usar_plantilla sin category ni id falla", async () => {
-    const result = await tools.executeUsarPlantilla(
-      { category: null, id: null },
-      { guest: fakeGuest(), event: fakeEvent(), plannerName: "Ana" },
-    );
-    expect(result).toEqual({
-      success: false,
-      error: "Indica category o id de la plantilla.",
-    });
-    expect(models.Template.findOne).not.toHaveBeenCalled();
-  });
-
-  test("usar_plantilla Confirmación no fuerza reply ni cierra RSVP", async () => {
+  test("usar_plantilla no fuerza el reply en un turno con ventana abierta", async () => {
     const guest = fakeGuest({ status: "en_conversacion", invited: 4, confirmed: 0 });
-    const result = await tools.executeUsarPlantilla(
-      { category: "Confirmación", id: null },
-      { guest, event: fakeEvent(), plannerName: "Ana" },
-    );
-    expect(result).toEqual({
-      success: false,
-      error: "El cierre de RSVP es conversacional: escribe reply. No uses plantilla de Confirmación ni Rechazo.",
-    });
-    expect(result.useAsReply).toBeUndefined();
-    expect(guest.status).toBe("en_conversacion");
-    expect(guest.save).not.toHaveBeenCalled();
-    expect(models.Template.findOne).not.toHaveBeenCalled();
-  });
-
-  test("usar_plantilla interpola y marca useAsReply", async () => {
-    models.Template.findOne.mockResolvedValue({
-      id: "t2",
-      category: "Ubicación",
-      title: "Dónde",
-      body: "Hola {{nombre}}, el evento es en {{lugar}}.",
-    });
-    const guest = fakeGuest({ confirmed: 2 });
     const result = await tools.executeUsarPlantilla(
       { category: "Ubicación", id: null },
       { guest, event: fakeEvent(), plannerName: "Ana" },
     );
-    expect(result.useAsReply).toBe(true);
-    expect(result.text).toBe("Hola Luis, el evento es en Hacienda.");
-    expect(guest.status).toBe("sin_contactar");
+    expect(result.success).toBe(false);
+    expect(result.useAsReply).toBeUndefined();
+    expect(result.text).toBeUndefined();
+    expect(result.error).toMatch(/no se llama a usar_plantilla/);
+    expect(guest.status).toBe("en_conversacion");
+    expect(models.Template.findOne).not.toHaveBeenCalled();
+  });
+
+  test.each(["Recordatorio", "Seguimiento", "Primer contacto"])(
+    "usar_plantilla %s no se envía en la ventana de 24 horas",
+    async (category) => {
+      const guest = fakeGuest({ status: "en_conversacion", invited: 4, confirmed: 0 });
+      const result = await tools.executeUsarPlantilla(
+        { category, id: null },
+        { guest, event: fakeEvent(), plannerName: "Ana" },
+      );
+      expect(result.success).toBe(false);
+      expect(result.useAsReply).toBeUndefined();
+      expect(result.error).toMatch(/ventana de 24 horas/);
+      expect(result.error).toMatch(/mensaje genérico de confirmación/);
+      expect(guest.status).toBe("en_conversacion");
+      expect(models.Template.findOne).not.toHaveBeenCalled();
+    },
+  );
+
+  test("usar_plantilla por id de Recordatorio no fuerza el texto de recontacto", async () => {
+    models.Template.findOne.mockResolvedValue({
+      id: "t-rem",
+      category: "Recordatorio",
+      title: "Recordatorio amable",
+      body: "Hola {{nombre}}, ¿pudiste revisar la invitación? Nos encantaría contar contigo el {{fecha}} ✨",
+    });
+    const guest = fakeGuest({ status: "en_conversacion", invited: 4, confirmed: 0 });
+    const result = await tools.executeUsarPlantilla(
+      { category: null, id: "t-rem" },
+      { guest, event: fakeEvent(), plannerName: "Ana" },
+    );
+    expect(result.success).toBe(false);
+    expect(result.useAsReply).toBeUndefined();
+    expect(result.text).toBeUndefined();
+    expect(result.error).toMatch(/Recordatorio/);
+    expect(guest.status).toBe("en_conversacion");
   });
 
   test("usar_plantilla por id de Confirmación no cierra RSVP", async () => {

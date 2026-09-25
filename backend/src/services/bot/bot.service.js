@@ -188,10 +188,10 @@ async function runGuestTurn({
     const result = await processTurn({
       instructions,
       items,
-      context: { event, guest, dryRun },
       executeTool: (call) =>
         executeBotTool(call, { guest, event, ai: ctx.ai, plannerName: ctx.plannerName, dryRun }),
       refreshLock: () => refreshBotSessionLock(session),
+      context: { event, guest, dryRun, windowOpen: true },
     });
     await saveSessionItems(session, result.items);
     if (typeof guest.reload === "function") {
@@ -208,7 +208,7 @@ async function runGuestTurn({
           guestId: guest.id,
           conversationId: conv.id,
           kind: "message",
-          ...(result.fromTemplate ? { hsmTemplateName: result.hsmTemplateName } : {}),
+          forceSession: true,
         });
         if (waResult?.skipped) {
           botWarn("whatsapp omitido tras turn", {
@@ -223,7 +223,6 @@ async function runGuestTurn({
             from: "ai",
             text: result.reply,
             at: formatClock(undefined, event.timezone),
-            ...(result.fromTemplate ? { kind: "template" } : {}),
             ...(waResult?.providerId ? { providerId: waResult.providerId } : {}),
           });
         }

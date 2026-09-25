@@ -413,4 +413,25 @@ describe("whatsapp.adapter MetaCloudProvider", () => {
     expect(resolveCampaignSendContext).not.toHaveBeenCalled();
     expect(sendTemplateWithRetry).not.toHaveBeenCalled();
   });
+
+  test("un turno con el invitado recién respondiendo no cae a la plantilla de campaña", async () => {
+    models.Event.findByPk.mockResolvedValue(fakeEvent());
+    models.Guest.findByPk.mockResolvedValue(fakeGuest({ status: "sin_contactar" }));
+    models.Conversation.findOne.mockResolvedValue({ id: "conv_1", guestId: "gst_1" });
+    models.Message.findOne.mockResolvedValue({ from: "guest", createdAt: new Date() });
+    const provider = adapter.createWhatsAppProvider();
+    await provider.sendMessage("6183218624", "Quedan confirmadas 4 personas.", {
+      eventId: "evt_1",
+      guestId: "gst_1",
+      kind: "message",
+      forceSession: true,
+    });
+    expect(sendTextWithRetry).toHaveBeenCalledWith({
+      to: "5216183218624",
+      text: "Quedan confirmadas 4 personas.",
+      ...metaAuth,
+    });
+    expect(sendTemplateWithRetry).not.toHaveBeenCalled();
+    expect(resolveCampaignSendContext).not.toHaveBeenCalled();
+  });
 });

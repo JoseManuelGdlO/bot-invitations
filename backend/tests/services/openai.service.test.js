@@ -141,3 +141,102 @@ describe("processTurn límite de tools", () => {
     expect(result.reply.length).toBeGreaterThan(0);
   });
 });
+
+describe("processTurn con ventana de 24 horas abierta", () => {
+  const REMINDER = "Hola Delsy, ¿pudiste revisar la invitación? Nos encantaría contar contigo el 2026-11-19 ✨";
+  let processTurn;
+  let create;
+  let executeTool;
+
+  beforeEach(async () => {
+    process.env.OPENAI_API_KEY = "sk-test-openai";
+    create = jest.fn();
+    executeTool = jest.fn(async (call) => {
+      if (call.name === "actualizar_confirmacion") {
+        return { success: true, status: "confirmado", confirmed: 4 };
+      }
+      if (call.name === "usar_plantilla") {
+        return { success: true, useAsReply: true, text: REMINDER, category: "Recordatorio" };
+      }
+      return { success: false };
+    });
+    const { mod } = await loadWithMocks("src/services/bot/openai.service.js", {
+      extraMocks: {
+        openai: () => ({
+          default: class OpenAI {
+            constructor() {
+              this.responses = { create };
+            }
+          },
+        }),
+      },
+    });
+    processTurn = mod.processTurn;
+  });
+
+  function turnWith(reply, intent, calls = []) {
+    const raw = JSON.stringify({ reply, intent });
+    return {
+      output_text: raw,
+      output: [
+        ...calls,
+        { type: "message", role: "assistant", content: raw },
+      ],
+    };
+  }
+
+  test("los 4 por favor guarda el RSVP y no manda el recordatorio", async () => {
+    const close = "Listo, Delsy. Quedan confirmadas 4 personas. Los esperamos.";
+    create.mockResolvedValueOnce(
+      turnWith(close, "asistira", [
+        {
+          type: "function_call",
+          call_id: "rsvp",
+          name: "actualizar_confirmacion",
+          arguments: JSON.stringify({ status: "confirmado", confirmed: 4 }),
+        },
+        {
+          type: "function_call",
+          call_id: "tpl",
+          name: "usar_plantilla",
+          arguments: JSON.stringify({ category: "Recordatorio", id: null }),
+        },
+      ]),
+    );
+    const result = await processTurn({
+      instructions: "test",
+      items: [{ type: "message", role: "user", content: "los 4 por favor" }],
+      executeTool,
+      context: { windowOpen: true },
+    });
+    expect(executeTool).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "actualizar_confirmacion" }),
+    );
+    expect(result.reply).toBe(close);
+    expect(result.reply).not.toContain("¿pudiste revisar la invitación?");
+    expect(result.fromTemplate).toBeFalsy();
+  });
+
+  test("una duda de ubicación no va precedida del recordatorio", async () => {
+    const where = "La fiesta es en el salón La Cantera. El mapa es https://maps.example/cantera";
+    create.mockResolvedValueOnce(
+      turnWith(where, "faq", [
+        {
+          type: "function_call",
+          call_id: "tpl",
+          name: "usar_plantilla",
+          arguments: JSON.stringify({ category: "Recordatorio", id: null }),
+        },
+      ]),
+    );
+    const result = await processTurn({
+      instructions: "test",
+      items: [{ type: "message", role: "user", content: "me puedes enviar la ubi" }],
+      executeTool,
+      context: { windowOpen: true },
+    });
+    expect(result.reply).toBe(where);
+    expect(result.reply.startsWith("Hola Delsy, ¿pudiste revisar la invitación?")).toBe(false);
+    expect(result.fromTemplate).toBeFalsy();
+  });
+});

@@ -59,19 +59,25 @@ describe("prompt.service", () => {
     expect(text).toContain("## Instrucciones extra del evento");
     expect(text).toContain("Menciona el valet parking.");
     expect(text).toContain("Aislamiento");
-    expect(text).toContain("[Seguimiento] Recontacto");
+    expect(text).not.toContain("[Seguimiento]");
+    expect(text).not.toContain("[Recordatorio]");
+    expect(text).not.toContain("[Primer contacto]");
+    expect(text).toMatch(/ventana de 24 horas/);
+    expect(text).toMatch(/mensaje genérico de confirmación/);
     expect(text).toContain("¿Pueden ir niños?");
     expect(text).toContain("faq | asistira | no_asistira | seguimiento | desconocido");
     expect(text).toContain("llama actualizar_confirmacion");
     expect(text).toContain("PROHIBIDO llamar a 'actualizar_confirmacion'");
     expect(text).toContain("confírmalo de inmediato");
     expect(text).toContain("marcar_seguimiento");
-    expect(text).toContain("{{nombre}}");
+    expect(text).not.toContain("Perfecto {{nombre}}.");
     expect(text).toMatch(/Si NO hay una regla así/);
     expect(text).toMatch(/cierre breve y natural/);
-    expect(text).not.toMatch(/usar_plantilla con category "Confirmación"/);
-    expect(text).not.toContain("[Confirmación]");
-    expect(text).not.toContain("[Rechazo]");
+    expect(text).not.toMatch(/usar_plantilla solo sirve/);
+    expect(text).toMatch(/no se llama a usar_plantilla/);
+    expect(text).not.toContain("Confirmación");
+    expect(text).not.toContain("Rechazo");
+    expect(text).not.toContain("Agradecimiento");
   });
 
   test("buildInstructions cae a defaultPrompt si no hay extras", () => {

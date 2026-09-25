@@ -94,9 +94,10 @@ export class MetaCloudProvider {
 
     const body = String(text || "").trim();
     const guest = meta.guestId ? await Guest.findByPk(meta.guestId) : null;
-    const cold = guest?.status === "sin_contactar" || (await isColdConversation(meta.guestId));
-    const forceTemplate = Boolean(meta.hsmHeaderDocument) || Boolean(meta.hsmHeaderImage) || Boolean(meta.hsmTemplateName);
-    const useTemplate = forceTemplate || cold;
+    const forceSession = meta.forceSession === true;
+    const cold = !forceSession && (guest?.status === "sin_contactar" || (await isColdConversation(meta.guestId)));
+    const forceTemplate = !forceSession && (Boolean(meta.hsmHeaderDocument) || Boolean(meta.hsmHeaderImage) || Boolean(meta.hsmTemplateName));
+    const useTemplate = !forceSession && (forceTemplate || cold);
 
     const { credentials } = await resolveActiveWhatsappMetaByOwner(event.ownerId);
 

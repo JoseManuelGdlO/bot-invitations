@@ -1,4 +1,4 @@
-import { defaultFaqs, faqPackForType } from "../../src/utils/defaults.js";
+import { defaultFaqs, faqPackForType, mergeConversationRules } from "../../src/utils/defaults.js";
 
 describe("faqPackForType", () => {
   test.each([
@@ -43,5 +43,22 @@ describe("defaultFaqs", () => {
     const faqs = defaultFaqs("Jardín", "Brunch");
     expect(faqs.map((f) => f.q)).toContain("¿Puedo llevar acompañantes?");
     expect(faqs[0].a).toContain("Jardín");
+  });
+});
+
+describe("mergeConversationRules", () => {
+  test("la regla de inyectar plantilla no vuelve y el cierre queda en conversación", () => {
+    const rules = mergeConversationRules([
+      "Si confirma o decline con claridad, usa las tools y la plantilla; no parafrasees el cierre.",
+      "Si confirma o decline con claridad, usa actualizar_confirmacion y escribe el cierre en reply; no uses plantilla de Confirmación ni Rechazo.",
+      "Si es FAQ, responde solo con las FAQs o plantillas de información; si no hay dato, no inventes y ofrece pasar al equipo.",
+      "Sé breve.",
+    ]);
+    const text = rules.join("\n");
+    expect(text).not.toMatch(/usa las tools y la plantilla/);
+    expect(text).not.toMatch(/plantilla de Confirmación/);
+    expect(text).not.toMatch(/plantillas de información/);
+    expect(text).toMatch(/mensaje genérico de confirmación/);
+    expect(rules).toContain("Sé breve.");
   });
 });

@@ -1,6 +1,4 @@
 import { logActivity } from "../activity.service.js";
-import { User } from "../../models/index.js";
-import { findTemplate, renderTemplate } from "../templates.service.js";
 import { botLog } from "./bot-logger.js";
 import {
   defaultIndecisoFollowUpDate,
@@ -78,34 +76,11 @@ export const BOT_TOOLS = [
     },
     strict: true,
   },
-  {
-    type: "function",
-    name: "usar_plantilla",
-    description:
-      "Envía exactamente el texto de una plantilla de la biblioteca, ya interpolado. Ese texto se manda al invitado sin reescribirlo.",
-    parameters: {
-      type: "object",
-      properties: {
-        category: {
-          type: ["string", "null"],
-          description: "Categoría de información (Ubicación, etc.). No uses Confirmación ni Rechazo: el cierre de RSVP es conversacional.",
-        },
-        id: {
-          type: ["string", "null"],
-          description: "Id de la plantilla si lo conoces.",
-        },
-      },
-      required: ["category", "id"],
-      additionalProperties: false,
-    },
-    strict: true,
-  },
 ];
 
 const TOOL_ORDER = {
   actualizar_confirmacion: 0,
   marcar_seguimiento: 1,
-  usar_plantilla: 2,
 };
 
 export function sortFunctionCalls(calls) {
@@ -161,8 +136,8 @@ export async function executeActualizarConfirmacion(args, { guest, event, dryRun
   });
   const closeHint =
     status === "no_asistira"
-      ? "Escribe el cierre en reply. Si las reglas de conversación indican cómo redactar un rechazo, síguelas. Si no, cierre breve y natural (tono del cerebro). Agradece el aviso. No llames usar_plantilla ni uses plantillas de Confirmación o Rechazo."
-      : `Escribe el cierre en reply. Si las reglas de conversación indican cómo redactar una confirmación, síguelas. Si no, cierre breve y natural; menciona que confirmamos ${confirmed} persona(s) (cupo ${guest.invited}). Si el sistema recortó al cupo, explica que no hay lugares extra y que avisen al equipo. No llames usar_plantilla para Confirmación ni Rechazo.`;
+      ? "Escribe el cierre en reply. Si las reglas de conversación indican cómo redactar el aviso, síguelas. Si no, cierre breve y natural (tono del cerebro). Agradece el aviso. En este turno no se llama a usar_plantilla."
+      : `Escribe el cierre en reply. La ventana de 24 horas está abierta: es un mensaje normal. Si las reglas de conversación indican cómo redactar el cierre, síguelas. Si no, cierre breve y natural: escribe un mensaje genérico de confirmación de asistencia y menciona que confirmamos ${confirmed} persona(s) (cupo ${guest.invited}). Si el sistema recortó al cupo, explica que no hay lugares extra y que avisen al equipo. En este turno no se llama a usar_plantilla.`;
   return {
     success: true,
     status,
@@ -207,68 +182,20 @@ export async function executeMarcarSeguimiento(args, { guest, event, ai, dryRun 
     status: "seguimiento",
     followUp: guest.followUp || "",
     instruction:
-      "Responde breve confirmando que les escribes de nuevo más adelante. No uses ahora la plantilla Seguimiento ni insistas en un sí o un no.",
+      "Responde breve que les escribes de nuevo más adelante. No insistas en un sí o un no.",
   };
 }
 
-function foldCategory(value) {
-  return String(value || "")
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "");
-}
-
-function isRsvpCloseTemplate(category) {
-  const cat = foldCategory(category);
-  return cat === "confirmacion" || cat === "rechazo";
-}
-
-export async function executeUsarPlantilla(args, { guest, event, plannerName }) {
-  const category = String(args?.category || "").trim() || null;
-  const id = String(args?.id || "").trim() || null;
-  if (!category && !id) {
-    return { success: false, error: "Indica category o id de la plantilla." };
-  }
-  if (isRsvpCloseTemplate(category)) {
-    return {
-      success: false,
-      error: "El cierre de RSVP es conversacional: escribe reply. No uses plantilla de Confirmación ni Rechazo.",
-    };
-  }
-  let name = plannerName;
-  if (!name) {
-    const owner = await User.findByPk(event.ownerId);
-    name = owner?.name || "";
-  }
-  const template = await findTemplate(event.id, { category, id });
-  if (!template) {
-    return { success: false, error: "No hay plantilla para esos criterios." };
-  }
-  if (isRsvpCloseTemplate(template.category)) {
-    return {
-      success: false,
-      error: "El cierre de RSVP es conversacional: escribe reply. No uses plantilla de Confirmación ni Rechazo.",
-    };
-  }
-  const text = renderTemplate(template, event, guest, name);
-  if (!text.trim()) {
-    return { success: false, error: "La plantilla quedó vacía." };
-  }
-  botLog("plantilla resuelta", {
-    guestId: guest.id,
-    category: template.category,
-    title: template.title,
-    id: template.id,
-    preview: text.slice(0, 120),
-  });
+function liveTurnTemplateRefusal() {
   return {
-    success: true,
-    useAsReply: true,
-    text,
-    category: template.category,
-    title: template.title,
-    id: template.id,
+    success: false,
+    error:
+      "La ventana de 24 horas está abierta. En este turno no se llama a usar_plantilla. Escribe en reply un mensaje genérico de confirmación de asistencia, o responde la duda con los datos del evento y las preguntas frecuentes. No envíes Primer contacto, Recordatorio ni Seguimiento.",
   };
+}
+
+export async function executeUsarPlantilla() {
+  return liveTurnTemplateRefusal();
 }
 
 export async function executeBotTool(functionCall, ctx) {

@@ -18,8 +18,8 @@ export const DEFAULT_AI_RULE_DEFS = [
   { text: GREETING_CONVERSATION_RULE, technical: false },
   { text: "El primer mensaje ya se envió; no reenvíes la invitación.", technical: true },
   { text: "Clasifica cada mensaje en faq, asistira, no_asistira, seguimiento o desconocido.", technical: true },
-  { text: "Si es FAQ, responde solo con las FAQs o plantillas de información; si no hay dato, no inventes y ofrece pasar al equipo.", technical: true },
-  { text: "Si confirma o decline con claridad, usa actualizar_confirmacion y escribe el cierre en reply; no uses plantilla de Confirmación ni Rechazo.", technical: true },
+  { text: "Si es FAQ, responde con los datos del evento y las preguntas frecuentes; si no hay dato, no inventes y ofrece pasar al equipo.", technical: true },
+  { text: "Si confirma o decline con claridad, usa actualizar_confirmacion y escribe en reply un mensaje genérico de confirmación de asistencia.", technical: true },
   { text: "Si está indeciso, marca seguimiento; el sistema recontacta según las reglas de seguimiento.", technical: true },
   { text: "Si es desconocido, interpreta y responde; no cierres el RSVP.", technical: true },
   { text: "Si confirma pero no dice con cuántas personas, pregunta el número antes de cerrar.", technical: false },
@@ -44,6 +44,8 @@ export function technicalConversationRules() {
 
 const RETIRED_TECHNICAL_RULES = new Set([
   "Si confirma o decline con claridad, usa las tools y la plantilla; no parafrasees el cierre.",
+  "Si confirma o decline con claridad, usa actualizar_confirmacion y escribe el cierre en reply; no uses plantilla de Confirmación ni Rechazo.",
+  "Si es FAQ, responde solo con las FAQs o plantillas de información; si no hay dato, no inventes y ofrece pasar al equipo.",
 ]);
 
 /** Asegura que las reglas técnicas del sistema no se puedan quitar vía PATCH. */
