@@ -10,6 +10,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { ApiError } from "@/lib/api/client";
+import { BOT_OFF_REMINDER_WARNING } from "@/lib/event-ops";
 import { useStore } from "@/lib/mock/store";
 import type { Guest } from "@/lib/mock/types";
 import { toast } from "sonner";
@@ -23,9 +24,13 @@ export function SendGuestInvitationDialog({
   onClose: () => void;
   onSent?: () => Promise<void> | void;
 }) {
-  const { remindGuest } = useStore();
+  const { remindGuest, data } = useStore();
   const [sending, setSending] = useState(false);
   const isOpening = guest?.status === "sin_contactar";
+  const botOff =
+    !isOpening &&
+    guest != null &&
+    data[guest.eventId]?.ai.botEnabled === false;
 
   return (
     <AlertDialog
@@ -43,6 +48,7 @@ export function SendGuestInvitationDialog({
             {isOpening
               ? "Se enviará la invitación inicial (primer contacto) por WhatsApp."
               : "Se enviará un recordatorio por WhatsApp. Solo confirma si quieres reenviar el mensaje."}
+            {botOff ? ` ${BOT_OFF_REMINDER_WARNING}` : ""}
           </AlertDialogDescription>
         </AlertDialogHeader>
         <AlertDialogFooter>

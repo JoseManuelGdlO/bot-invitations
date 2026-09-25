@@ -8,6 +8,9 @@ import type {
 
 export type EventOpsKind = "campaign" | "reminder" | "system";
 
+export const BOT_OFF_REMINDER_WARNING =
+  "El recordatorio sí se envía. Si el invitado responde, el asistente no le contestará porque está apagado.";
+
 export interface EventOpsItem {
   id: string;
   eventId: string;

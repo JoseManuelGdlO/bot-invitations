@@ -311,6 +311,12 @@ function Automatizacion() {
                   Apaga todos los recordatorios automáticos y el recontacto a
                   indecisos de este evento.
                 </p>
+                {ai.botEnabled === false ? (
+                  <p className="text-xs text-warning">
+                    Los recordatorios sí se envían. Si un invitado responde, el
+                    asistente no le contestará porque está apagado.
+                  </p>
+                ) : null}
               </div>
               <Switch
                 checked={ai.followUpsEnabled !== false}

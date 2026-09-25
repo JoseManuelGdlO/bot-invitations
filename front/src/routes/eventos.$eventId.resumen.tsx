@@ -19,7 +19,7 @@ import {
   unapprovedSecondaryCampaignPurposes,
   type SecondaryCampaignPurpose,
 } from "@/lib/whatsapp-templates";
-import { buildUpcomingReminders } from "@/lib/event-ops";
+import { buildUpcomingReminders, BOT_OFF_REMINDER_WARNING } from "@/lib/event-ops";
 import { statsFor, useEvent, useStore } from "@/lib/mock/store";
 import { daysUntil, formatShortDate } from "@/lib/mock/format";
 import { cn } from "@/lib/utils";
@@ -385,6 +385,9 @@ function Resumen() {
       <section className="mt-6 lg:mt-8">
         <h2 className="font-display text-xl sm:text-2xl">Recordatorios</h2>
         <div className="mt-4 rounded-2xl border border-border bg-card p-5 shadow-soft sm:p-6">
+          {data.ai.botEnabled === false && data.ai.followUpsEnabled !== false ? (
+            <p className="mb-4 text-sm text-warning">{BOT_OFF_REMINDER_WARNING}</p>
+          ) : null}
           {data.ai.followUpsEnabled === false ? (
             <p className="text-sm text-muted-foreground">
               Los recordatorios están desactivados para este evento.
