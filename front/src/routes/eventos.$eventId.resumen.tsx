@@ -13,6 +13,7 @@ import { ProgressRing } from "@/components/progress-ring";
 import { Button } from "@/components/ui/button";
 import { Progress } from "@/components/ui/progress";
 import { LaunchCampaignDialog } from "@/components/launch-campaign-dialog";
+import { ReminderCalendarDialog } from "@/components/reminder-calendar-dialog";
 import { integrationsApi } from "@/lib/api/integrations";
 import {
   campaignTemplateStatus as campaignStatusFromList,
@@ -383,7 +384,12 @@ function Resumen() {
       </div>
 
       <section className="mt-6 lg:mt-8">
-        <h2 className="font-display text-xl sm:text-2xl">Recordatorios</h2>
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="font-display text-xl sm:text-2xl">Recordatorios</h2>
+          <ReminderCalendarDialog
+            reminders={reminders.filter((reminder) => reminder.status === "upcoming")}
+          />
+        </div>
         <div className="mt-4 rounded-2xl border border-border bg-card p-5 shadow-soft sm:p-6">
           {data.ai.botEnabled === false && data.ai.followUpsEnabled !== false ? (
             <p className="mb-4 text-sm text-warning">{BOT_OFF_REMINDER_WARNING}</p>

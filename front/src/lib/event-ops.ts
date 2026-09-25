@@ -27,6 +27,8 @@ export interface UpcomingReminder {
   label: string;
   when: string;
   dateLabel: string;
+  /** Fecha local YYYY-MM-DD del envío, o null si todavía no hay fecha. */
+  dueOn: string | null;
   detail: string;
   status: "upcoming" | "sent" | "waiting";
   sortAt: number;
@@ -81,6 +83,12 @@ function formatDay(date: Date) {
     month: "short",
     year: "numeric",
   });
+}
+
+function toDateKey(date: Date) {
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${date.getFullYear()}-${month}-${day}`;
 }
 
 export function formatRelative(date: Date, now = new Date()) {
@@ -291,6 +299,7 @@ export function buildUpcomingReminders(
         label: rule.label,
         when: pendingLabel,
         dateLabel,
+        dueOn: due ? toDateKey(due) : null,
         detail,
         status,
         sortAt,

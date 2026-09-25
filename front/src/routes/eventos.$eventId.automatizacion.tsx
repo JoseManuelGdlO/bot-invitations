@@ -37,6 +37,8 @@ import { toast } from "sonner";
 import { api, ApiError } from "@/lib/api/client";
 import { botApi } from "@/lib/api/bot";
 import { BotPlayground } from "@/components/bot-playground";
+import { ReminderCalendarDialog } from "@/components/reminder-calendar-dialog";
+import { buildUpcomingReminders } from "@/lib/event-ops";
 import type { FollowUpRule } from "@/lib/mock/types";
 
 export const Route = createFileRoute("/eventos/$eventId/automatizacion")({
@@ -174,8 +176,8 @@ function indecisoDays(followUps: FollowUpRule[]) {
 
 function Automatizacion() {
   const { eventId } = Route.useParams();
-  const { data, guests } = useEvent(eventId);
-  const { updateAI, resetAI } = useStore();
+  const { event, data, guests } = useEvent(eventId);
+  const { updateAI, resetAI, activity } = useStore();
   const ai = data.ai;
   const [extras, setExtras] = useState(ai.prompt || "");
   const [newRule, setNewRule] = useState("");
@@ -279,6 +281,20 @@ function Automatizacion() {
   };
 
   const nudgeDays = indecisoDays(ai.followUps);
+  const previewFollowUps = ai.followUps.map((rule) => {
+    const draft = daysDraft[rule.id];
+    if (draft == null || draft.trim() === "") return rule;
+    return withFollowUpDays(rule, clampFollowUpDays(draft));
+  });
+  const upcomingReminders = event
+    ? buildUpcomingReminders(
+        [event],
+        { [event.id]: { ...data, ai: { ...ai, followUps: previewFollowUps } } },
+        guests,
+        new Date(),
+        activity,
+      ).filter((reminder) => reminder.status === "upcoming")
+    : [];
 
   return (
     <main className="mx-auto grid w-full max-w-7xl flex-1 gap-6 px-5 py-8 md:px-8 lg:grid-cols-[1.35fr_1fr]">
@@ -484,9 +500,12 @@ function Automatizacion() {
         </section>
 
         <section className="rounded-2xl border border-border bg-card p-6 shadow-soft">
-          <h2 className="font-display text-2xl">Reglas de seguimiento</h2>
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="font-display text-2xl">Reglas de seguimiento</h2>
+            <ReminderCalendarDialog reminders={upcomingReminders} />
+          </div>
           <p className="mt-1 text-sm text-muted-foreground">
-            Recordatorios y el recontacto a indecisos.
+            Recordatorios y el recontacto a indecisos. El calendario muestra las fechas de envío con los días que estás configurando.
           </p>
           <div className="mt-4 space-y-3">
             {ai.followUps.filter((f) => !isLaunchFollowUpRule(f)).map((f) => {

@@ -96,6 +96,8 @@ test("buildUpcomingReminders lista reglas futuras por evento", () => {
   assert.equal(rows[0]?.eventName, "Boda Ana");
   assert.match(rows[0]?.when ?? "", /1 pendiente de contestar/);
   assert.equal(rows[0]?.status, "upcoming");
+  assert.equal(rows[0]?.dueOn, "2026-09-27");
+  assert.equal(rows[1]?.dueOn, "2026-10-13");
   assert.match(rows[0]?.detail ?? "", /Se lanza el/);
 });
 

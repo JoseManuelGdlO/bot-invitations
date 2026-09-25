@@ -16,6 +16,7 @@ import {
   CarouselNext,
   CarouselPrevious,
 } from "@/components/ui/carousel";
+import { ReminderCalendarDialog } from "@/components/reminder-calendar-dialog";
 import { StatCard } from "@/components/stat-card";
 import { EventCard } from "@/components/event-card";
 import { buildEventOps, buildUpcomingReminders } from "@/lib/event-ops";
@@ -209,7 +210,10 @@ function EventsDashboard() {
 </div>
 
       <section className="mt-8">
-        <h2 className="font-display text-2xl">Próximos recordatorios</h2>
+        <div className="flex items-center justify-between gap-3">
+          <h2 className="font-display text-2xl">Próximos recordatorios</h2>
+          <ReminderCalendarDialog reminders={upcomingReminders} />
+        </div>
         <div className="mt-4 rounded-2xl border border-border bg-card p-5 shadow-soft">
           {upcomingReminders.length === 0 ? (
             <p className="text-sm text-muted-foreground">
