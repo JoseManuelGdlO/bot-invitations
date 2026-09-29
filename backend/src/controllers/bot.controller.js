@@ -112,6 +112,7 @@ export async function handleInboundWhatsapp({ payload, integration, rawBody = ""
     dryRun: false,
     persistConversation: true,
     awaitTurn: false,
+    messageId: inbound.messageId || null,
   });
   botLog("inbound procesado", {
     eventId: event.id,

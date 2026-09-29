@@ -11,6 +11,7 @@ function getState(key) {
   if (!state) {
     state = {
       texts: [],
+      messageId: null,
       timer: null,
       waiters: [],
       running: false,
@@ -29,9 +30,11 @@ function settleWaiters(waiters, result, error) {
   }
 }
 
-export function pushPending(key, text) {
+export function pushPending(key, text, messageId) {
   const state = getState(key);
   state.texts.push(text);
+  const id = String(messageId || "").trim();
+  if (id) state.messageId = id;
   return state.texts.length;
 }
 
@@ -71,18 +74,21 @@ async function runFlush(key) {
   const waitersForThisFlush = state.waiters;
   state.waiters = [];
   const batch = state.texts.slice();
+  const messageId = state.messageId || null;
   state.texts = [];
   let deferred = false;
   try {
-    const result = await state.flushFn(batch.join("\n"));
+    const result = await state.flushFn(batch.join("\n"), messageId);
     if (result?.deferred) {
       state.texts = [...batch, ...state.texts];
       state.waiters = [...waitersForThisFlush, ...state.waiters];
       deferred = true;
       return;
     }
+    if (state.messageId === messageId) state.messageId = null;
     settleWaiters(waitersForThisFlush, result, null);
   } catch (error) {
+    if (state.messageId === messageId) state.messageId = null;
     settleWaiters(waitersForThisFlush, null, error);
   } finally {
     state.running = false;

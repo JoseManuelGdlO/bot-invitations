@@ -207,7 +207,7 @@ async function metaFetch(body, auth) {
       metaLog.error("Graph messages error", {
         httpStatus: response.status,
         to: body?.to || null,
-        kind: body?.type || null,
+        kind: body?.type || (body?.typing_indicator ? "typing" : null) || body?.status || null,
         template: body?.template?.name || null,
         ...meta,
       });
@@ -268,6 +268,21 @@ async function withRetry(run, { maxAttempts = 3, baseDelayMs = 250 } = {}) {
 }
 
 export const metaClient = {
+  async sendTypingIndicator({ messageId, accessToken, phoneNumberId }) {
+    const id = String(messageId || "").trim();
+    if (!id) throw httpError(400, "Falta el id del mensaje de WhatsApp.");
+    metaLog.info("POST graph messages typing", { messageId: id });
+    return metaFetch(
+      {
+        messaging_product: "whatsapp",
+        status: "read",
+        message_id: id,
+        typing_indicator: { type: "text" },
+      },
+      { accessToken, phoneNumberId },
+    );
+  },
+
   async sendText({ to, text, accessToken, phoneNumberId }) {
     const phone = requirePhone(to);
     const body = String(text || "").trim();

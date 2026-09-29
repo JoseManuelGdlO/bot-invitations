@@ -142,6 +142,22 @@ async function hydrateSessionIfEmpty(session, conv) {
   await session.save();
 }
 
+async function indicateTyping({ event, inboundMessageId, dryRun, persistConversation }) {
+  const messageId = String(inboundMessageId || "").trim();
+  if (dryRun || !persistConversation || !messageId) return;
+  try {
+    const provider = createWhatsAppProvider();
+    if (typeof provider.showTyping !== "function") return;
+    await provider.showTyping(messageId, { eventId: event.id });
+  } catch (error) {
+    botWarn("indicador de escritura falló", {
+      eventId: event?.id,
+      messageId,
+      error: error.message,
+    });
+  }
+}
+
 async function runGuestTurn({
   event,
   guest,
@@ -151,6 +167,7 @@ async function runGuestTurn({
   dryRun,
   persistConversation,
   sessionUserId,
+  inboundMessageId,
 }) {
   const locked = await tryLockBotSession(session);
   if (!locked) {
@@ -160,6 +177,8 @@ async function runGuestTurn({
     );
     return { deferred: true };
   }
+
+  await indicateTyping({ event, inboundMessageId, dryRun, persistConversation });
 
   await hydrateSessionIfEmpty(session, conv);
   if (typeof guest.reload === "function") {
@@ -274,6 +293,7 @@ export async function processGuestMessage({
   persistConversation = true,
   awaitTurn = true,
   debounceMs,
+  messageId,
 }) {
   const message = String(text || "").trim();
   if (!message) throw httpError(400, "El mensaje no puede estar vacío.");
@@ -332,11 +352,11 @@ export async function processGuestMessage({
       : env.botInboundDebounceMs
     : 0;
   const key = inboundBufferKey(event.id, guest.id);
-  pushPending(key, message);
+  pushPending(key, message, messageId);
   const flushPromise = armFlush(key, {
     delayMs: delay,
     debounceMs: delay,
-    flushFn: (combined) =>
+    flushFn: (combined, inboundMessageId) =>
       runGuestTurn({
         event,
         guest,
@@ -346,6 +366,7 @@ export async function processGuestMessage({
         dryRun,
         persistConversation,
         sessionUserId,
+        inboundMessageId,
       }),
   });
 

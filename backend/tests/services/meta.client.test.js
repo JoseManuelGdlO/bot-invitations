@@ -55,6 +55,32 @@ describe("meta.client", () => {
     jest.restoreAllMocks();
   });
 
+  test("sendTypingIndicator marca leído y pide el indicador de escritura", async () => {
+    fetch.mockResolvedValueOnce(jsonResponse(200, { success: true }));
+    await metaClient.sendTypingIndicator({
+      messageId: "wamid.HBgL",
+      ...auth,
+    });
+    expect(fetch).toHaveBeenCalledTimes(1);
+    const [url, init] = fetch.mock.calls[0];
+    expect(url).toBe("https://graph.facebook.com/v21.0/10987654321/messages");
+    expect(init.method).toBe("POST");
+    expect(init.headers.Authorization).toBe("Bearer test-graph-token");
+    expect(JSON.parse(init.body)).toEqual({
+      messaging_product: "whatsapp",
+      status: "read",
+      message_id: "wamid.HBgL",
+      typing_indicator: { type: "text" },
+    });
+  });
+
+  test("sendTypingIndicator 400 sin message id", async () => {
+    await expect(metaClient.sendTypingIndicator({ messageId: "  ", ...auth })).rejects.toMatchObject({
+      status: 400,
+    });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
   test("sendText usa to con lada 521 y Bearer del caller", async () => {
     fetch.mockResolvedValueOnce(jsonResponse(200, { messages: [{ id: "wamid.1" }] }));
     await metaClient.sendText({ to: "6183218624", text: "Hola", ...auth });

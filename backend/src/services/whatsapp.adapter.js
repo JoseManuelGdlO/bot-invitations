@@ -83,6 +83,23 @@ async function resolveHeaderMedia(headerMedia, credentials, type = "document") {
 }
 
 export class MetaCloudProvider {
+  async showTyping(messageId, meta = {}) {
+    const id = String(messageId || "").trim();
+    if (!id) throw httpError(400, "Falta el id del mensaje de WhatsApp.");
+    const eventId = meta.eventId;
+    if (!eventId) throw httpError(400, "Falta eventId para el indicador de escritura.");
+    const event = await Event.findByPk(eventId);
+    if (!event) throw httpError(400, "Evento no encontrado para el indicador de escritura.");
+
+    const { credentials } = await resolveActiveWhatsappMetaByOwner(event.ownerId);
+    await metaClient.sendTypingIndicator({
+      messageId: id,
+      accessToken: credentials.accessToken,
+      phoneNumberId: credentials.phoneNumberId,
+    });
+    return { provider: "meta-cloud", skipped: false };
+  }
+
   async sendMessage(to, text, meta = {}) {
     const eventId = meta.eventId;
     if (!eventId) throw httpError(400, "Falta eventId para enviar por WhatsApp.");

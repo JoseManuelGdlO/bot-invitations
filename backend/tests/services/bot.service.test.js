@@ -10,6 +10,7 @@ describe("bot.service processGuestMessage", () => {
   let tryLockBotSession;
   let session;
   let sendWhatsApp;
+  let showTyping;
 
   async function setup() {
     enqueueJob = jest.fn(async () => undefined);
@@ -18,6 +19,7 @@ describe("bot.service processGuestMessage", () => {
       skipped: false,
       providerId: "wamid.bot",
     }));
+    showTyping = jest.fn(async () => ({ provider: "stub", skipped: false }));
     processTurn = jest.fn(async ({ executeTool }) => {
       await executeTool({
         name: "actualizar_confirmacion",
@@ -39,7 +41,7 @@ describe("bot.service processGuestMessage", () => {
       extraMocks: {
         "src/services/outbound.worker.js": () => ({ enqueueJob }),
         "src/services/whatsapp.adapter.js": () => ({
-          createWhatsAppProvider: () => ({ sendMessage: sendWhatsApp }),
+          createWhatsAppProvider: () => ({ sendMessage: sendWhatsApp, showTyping }),
         }),
         "src/services/bot/openai.service.js": () => ({ processTurn }),
         "src/services/bot/prompt.service.js": () => ({
@@ -113,6 +115,7 @@ describe("bot.service processGuestMessage", () => {
       eventId: event.id,
       guestId: guest.id,
       text: "Hola",
+      messageId: "wamid.first",
       dryRun: false,
       persistConversation: true,
       debounceMs: 2000,
@@ -121,6 +124,7 @@ describe("bot.service processGuestMessage", () => {
       eventId: event.id,
       guestId: guest.id,
       text: "Buen día",
+      messageId: "wamid.second",
       dryRun: false,
       persistConversation: true,
       debounceMs: 2000,
@@ -131,6 +135,8 @@ describe("bot.service processGuestMessage", () => {
     const [r1, r2] = await Promise.all([p1, p2]);
 
     expect(processTurn).toHaveBeenCalledTimes(1);
+    expect(showTyping).toHaveBeenCalledTimes(1);
+    expect(showTyping).toHaveBeenCalledWith("wamid.second", { eventId: event.id });
     const items = processTurn.mock.calls[0][0].items;
     expect(items.at(-1).content).toBe("Hola\nBuen día");
     expect(r1.reply).toBe("Hola, ¿podrán acompañarnos?");
@@ -247,5 +253,94 @@ describe("bot.service processGuestMessage", () => {
     expect(processTurn).toHaveBeenCalledTimes(1);
     expect(result.reply).toBe("Hola de prueba");
     expect(enqueueJob).not.toHaveBeenCalled();
+    expect(showTyping).not.toHaveBeenCalled();
+  });
+
+  test("antes de contestar marca visto y muestra escribiendo", async () => {
+    await setup();
+    const order = [];
+    showTyping.mockImplementation(async () => {
+      order.push("typing");
+      return { skipped: false };
+    });
+    processTurn.mockImplementation(async () => {
+      order.push("turn");
+      return { reply: "Hola, ¿podrán acompañarnos?", items: [], tools: [] };
+    });
+    sendWhatsApp.mockImplementation(async () => {
+      order.push("send");
+      return { provider: "stub", skipped: false, providerId: "wamid.bot" };
+    });
+    const event = fakeEvent();
+    const guest = fakeGuest({ status: "enviado" });
+    const conv = createInstance({ id: "c1", eventId: event.id, guestId: guest.id, aiPaused: false, unread: 0 });
+    models.Event.findByPk.mockResolvedValue(event);
+    models.Guest.findOne.mockResolvedValue(guest);
+    models.Conversation.findOne.mockResolvedValue(conv);
+    models.AiConfig.findOne.mockResolvedValue({ botEnabled: true });
+
+    const result = await service.processGuestMessage({
+      eventId: event.id,
+      guestId: guest.id,
+      text: "Hola",
+      messageId: "wamid.inbound",
+      dryRun: false,
+      persistConversation: true,
+      debounceMs: 0,
+    });
+
+    expect(result.reply).toBe("Hola, ¿podrán acompañarnos?");
+    expect(showTyping).toHaveBeenCalledWith("wamid.inbound", { eventId: event.id });
+    expect(order).toEqual(["typing", "turn", "send"]);
+  });
+
+  test("si el indicador de escritura falla igual contesta", async () => {
+    await setup();
+    showTyping.mockRejectedValue(new Error("meta down"));
+    processTurn.mockImplementation(async () => ({ reply: "Claro", items: [], tools: [] }));
+    const event = fakeEvent();
+    const guest = fakeGuest({ status: "enviado" });
+    const conv = createInstance({ id: "c1", eventId: event.id, guestId: guest.id, aiPaused: false, unread: 0 });
+    models.Event.findByPk.mockResolvedValue(event);
+    models.Guest.findOne.mockResolvedValue(guest);
+    models.Conversation.findOne.mockResolvedValue(conv);
+    models.AiConfig.findOne.mockResolvedValue({ botEnabled: true });
+
+    const result = await service.processGuestMessage({
+      eventId: event.id,
+      guestId: guest.id,
+      text: "Hola",
+      messageId: "wamid.inbound",
+      dryRun: false,
+      persistConversation: true,
+      debounceMs: 0,
+    });
+
+    expect(result.reply).toBe("Claro");
+    expect(sendWhatsApp).toHaveBeenCalled();
+  });
+
+  test("no muestra escribiendo si el bot está apagado", async () => {
+    await setup();
+    const event = fakeEvent();
+    const guest = fakeGuest({ status: "enviado" });
+    const conv = createInstance({ id: "c1", eventId: event.id, guestId: guest.id, aiPaused: false, unread: 0 });
+    models.Event.findByPk.mockResolvedValue(event);
+    models.Guest.findOne.mockResolvedValue(guest);
+    models.Conversation.findOne.mockResolvedValue(conv);
+    models.AiConfig.findOne.mockResolvedValue({ botEnabled: false });
+
+    await service.processGuestMessage({
+      eventId: event.id,
+      guestId: guest.id,
+      text: "Hola",
+      messageId: "wamid.inbound",
+      dryRun: false,
+      persistConversation: true,
+      debounceMs: 0,
+    });
+
+    expect(showTyping).not.toHaveBeenCalled();
+    expect(processTurn).not.toHaveBeenCalled();
   });
 });

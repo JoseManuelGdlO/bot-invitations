@@ -6,6 +6,7 @@ describe("whatsapp.adapter MetaCloudProvider", () => {
   let models;
   let sendTemplateWithRetry;
   let sendTextWithRetry;
+  let sendTypingIndicator;
   let uploadDocument;
   let resolveActiveWhatsappMetaByOwner;
   let resolveCampaignSendContext;
@@ -24,6 +25,7 @@ describe("whatsapp.adapter MetaCloudProvider", () => {
   beforeEach(async () => {
     sendTemplateWithRetry = jest.fn(async () => ({ messages: [{ id: "wamid.tpl" }] }));
     sendTextWithRetry = jest.fn(async () => ({ messages: [{ id: "wamid.txt" }] }));
+    sendTypingIndicator = jest.fn(async () => ({ success: true }));
     uploadDocument = jest.fn(async () => "media_from_path");
     resolveActiveWhatsappMetaByOwner = jest.fn(async () => ({
       credentials: metaAuth,
@@ -37,7 +39,7 @@ describe("whatsapp.adapter MetaCloudProvider", () => {
     ({ mod: adapter, models } = await loadWithMocks("src/services/whatsapp.adapter.js", {
       extraMocks: {
         "src/services/meta.client.js": () => ({
-          metaClient: { sendTemplateWithRetry, sendTextWithRetry, uploadDocument },
+          metaClient: { sendTemplateWithRetry, sendTextWithRetry, sendTypingIndicator, uploadDocument },
           sanitizeMetaBodyParam,
           fillMetaTemplate: (text, values = []) =>
             String(text || "")
@@ -433,5 +435,17 @@ describe("whatsapp.adapter MetaCloudProvider", () => {
     });
     expect(sendTemplateWithRetry).not.toHaveBeenCalled();
     expect(resolveCampaignSendContext).not.toHaveBeenCalled();
+  });
+
+  test("showTyping usa el message id entrante y las credenciales del owner", async () => {
+    models.Event.findByPk.mockResolvedValue(fakeEvent());
+    const provider = adapter.createWhatsAppProvider();
+    const result = await provider.showTyping("wamid.inbound", { eventId: "evt_1" });
+    expect(resolveActiveWhatsappMetaByOwner).toHaveBeenCalledWith("usr_test_1");
+    expect(sendTypingIndicator).toHaveBeenCalledWith({
+      messageId: "wamid.inbound",
+      ...metaAuth,
+    });
+    expect(result).toEqual({ provider: "meta-cloud", skipped: false });
   });
 });
