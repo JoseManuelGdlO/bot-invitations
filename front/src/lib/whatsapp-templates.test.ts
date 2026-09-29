@@ -47,10 +47,9 @@ const ERROR_ADJACENT =
   "No pongas dos variables seguidas. Separa {{1}} y {{2}} con texto.";
 const ERROR_DENSITY =
   "Esta plantilla tiene demasiadas variables en relación con su longitud. Reduce el número de variables o aumenta la longitud del mensaje.";
-const ERROR_REQUIRED =
-  "Incluye {{1}} (nombre) y {{2}} (número de pases). Las dos son obligatorias.";
+const ERROR_REQUIRED = "Incluye {{1}} (nombre). Es obligatoria.";
 const ERROR_SEQUENCE =
-  "Usa {{1}}, {{2}}, {{3}}… en orden, sin saltos. {{1}} es el nombre y {{2}} el número de pases.";
+  "Usa {{1}}, {{2}}, {{3}}… en orden, sin saltos. {{1}} es el nombre.";
 const ERROR_LENGTH = "El cuerpo no puede superar 1024 caracteres.";
 
 const OK_BODY =
@@ -120,10 +119,19 @@ test("metaTemplateBodyErrors acepta cuerpos cortos ya aprobados por Meta", () =>
   assert.deepEqual(metaTemplateBodyErrors(withExtra), []);
 });
 
-test("metaTemplateBodyErrors rechaza Hola {{1}} por final y variables incompletas", () => {
+test("metaTemplateBodyErrors rechaza Hola {{1}} por quedar al final", () => {
   const errors = metaTemplateBodyErrors("Hola {{1}}");
   assert.ok(errors.includes(ERROR_END));
-  assert.ok(errors.includes(ERROR_REQUIRED));
+  assert.equal(errors.includes(ERROR_REQUIRED), false);
+});
+
+test("metaTemplateBodyErrors acepta un cuerpo solo con {{1}}", () => {
+  assert.deepEqual(
+    metaTemplateBodyErrors(
+      "Hola {{1}}, te esperamos con mucho gusto en la celebración.",
+    ),
+    [],
+  );
 });
 
 test("metaTemplateBodyErrors acepta presets Formal / Cercano / Con evento", () => {
@@ -145,10 +153,16 @@ test("metaTemplateBodyErrors rechaza vacío, hueco y longitud", () => {
   );
 });
 
-test("wizardBodyError exige {{1}} y {{2}}", () => {
+test("wizardBodyError exige {{1}} y acepta un cuerpo sin {{2}}", () => {
   assert.equal(typeof wizardBodyError("hola"), "string");
   assert.equal(wizardBodyError("hola"), ERROR_REQUIRED);
   assert.equal(wizardBodyError(OK_BODY), null);
+  assert.equal(
+    wizardBodyError(
+      "Hola {{1}}, te esperamos con mucho gusto en la celebración.",
+    ),
+    null,
+  );
 });
 
 test("wizardBodyError acepta extras {{3}} si hay texto suficiente y no están al filo", () => {
@@ -402,7 +416,7 @@ test("extraSlotOptionLabel muestra texto fijo", () => {
   assert.equal(extraSlotOptionLabel("fecha"), "fecha");
 });
 
-test("mergeEventSlotMappings bloquea 1 y 2 y conserva extras", () => {
+test("mergeEventSlotMappings bloquea 1, deja 2 en pases si no viene mapeo y conserva extras", () => {
   const mappings = mergeEventSlotMappings("Hola {{1}}, pases {{2}} el {{3}}", {
     "1": { type: "field", key: "evento" },
     "3": { type: "field", key: "fecha" },
@@ -410,6 +424,15 @@ test("mergeEventSlotMappings bloquea 1 y 2 y conserva extras", () => {
   assert.deepEqual(mappings["1"], { type: "field", key: "nombre" });
   assert.deepEqual(mappings["2"], { type: "field", key: "numero_invitados" });
   assert.deepEqual(mappings["3"], { type: "field", key: "fecha" });
+});
+
+test("mergeEventSlotMappings conserva {{2}} cuando es otro campo", () => {
+  const mappings = mergeEventSlotMappings(
+    "Hola {{1}}, te esperamos el {{2}} en la celebración.",
+    { "2": { type: "field", key: "fecha" } },
+  );
+  assert.deepEqual(mappings["1"], { type: "field", key: "nombre" });
+  assert.deepEqual(mappings["2"], { type: "field", key: "fecha" });
 });
 
 test("unmappedExtraNotices pide elegir el significado de cada extra", () => {
@@ -862,10 +885,36 @@ test("el editor muestra {{nombre}} y al guardar vuelve a {{1}}", () => {
     "Hola {{nombre}}, tienes {{numero_invitados}} pases para {{fecha}}.",
   );
   assert.equal(
-    editorNotice(
-      "Incluye {{1}} (nombre) y {{2}} (número de pases). Las dos son obligatorias.",
-      stored.slotMappings,
-    ),
-    "Incluye {{nombre}} (nombre) y {{numero_invitados}} (número de pases). Las dos son obligatorias.",
+    editorNotice("Incluye {{1}} (nombre). Es obligatoria.", stored.slotMappings),
+    "Incluye {{nombre}} (nombre). Es obligatoria.",
   );
+});
+
+test("el editor guarda solo {{nombre}} sin reservar el número de pases", () => {
+  const stored = storedBodyFromEditor(
+    "Hola {{nombre}}, te esperamos el {{fecha}} en la celebración.",
+  );
+  assert.equal(
+    stored.body,
+    "Hola {{1}}, te esperamos el {{2}} en la celebración.",
+  );
+  assert.deepEqual(stored.slotMappings["2"], { type: "field", key: "fecha" });
+  assert.equal(metaTemplateBodyErrors(stored.body).length, 0);
+
+  const withoutGuests = storedBodyFromEditor(
+    "Hola {{nombre}}, te esperamos el {{fecha}} en la celebración.",
+    {
+      "1": { type: "field", key: "nombre" },
+      "2": { type: "field", key: "numero_invitados" },
+      "3": { type: "field", key: "fecha" },
+    },
+  );
+  assert.equal(
+    withoutGuests.body,
+    "Hola {{1}}, te esperamos el {{2}} en la celebración.",
+  );
+  assert.deepEqual(withoutGuests.slotMappings["2"], {
+    type: "field",
+    key: "fecha",
+  });
 });

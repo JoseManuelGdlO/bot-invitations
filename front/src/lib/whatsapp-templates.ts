@@ -19,10 +19,9 @@ const META_BODY_ERROR_ADJACENT =
   "No pongas dos variables seguidas. Separa {{1}} y {{2}} con texto.";
 const META_BODY_ERROR_DENSITY =
   "Esta plantilla tiene demasiadas variables en relación con su longitud. Reduce el número de variables o aumenta la longitud del mensaje.";
-const META_BODY_ERROR_REQUIRED =
-  "Incluye {{1}} (nombre) y {{2}} (número de pases). Las dos son obligatorias.";
+const META_BODY_ERROR_REQUIRED = "Incluye {{1}} (nombre). Es obligatoria.";
 const META_BODY_ERROR_SEQUENCE =
-  "Usa {{1}}, {{2}}, {{3}}… en orden, sin saltos. {{1}} es el nombre y {{2}} el número de pases.";
+  "Usa {{1}}, {{2}}, {{3}}… en orden, sin saltos. {{1}} es el nombre.";
 const META_BODY_ERROR_LENGTH = "El cuerpo no puede superar 1024 caracteres.";
 const META_BODY_ERROR_HEADER_IMAGE =
   "Falta el archivo de encabezado (JPEG o PNG de hasta 5 MB).";
@@ -94,13 +93,13 @@ export function metaTemplateBodyErrors(body: string): string[] {
     if (match[1]) ids.push(match[1]);
   }
   const uniqueSorted = [...new Set(ids)].sort((a, b) => Number(a) - Number(b));
-  if (uniqueSorted.length < 2) {
-    errors.push(META_BODY_ERROR_REQUIRED);
-  } else if (
-    ids.some((id) => !CANONICAL_PLACEHOLDER_ID.test(id)) ||
+  const sequenceBroken =
+    ids.some((id) => !id || !CANONICAL_PLACEHOLDER_ID.test(id)) ||
     uniqueSorted.length !== ids.length ||
-    uniqueSorted.some((id, index) => id !== String(index + 1))
-  ) {
+    uniqueSorted.some((id, index) => id !== String(index + 1));
+  if (!uniqueSorted.includes("1")) {
+    errors.push(META_BODY_ERROR_REQUIRED);
+  } else if (sequenceBroken) {
     errors.push(META_BODY_ERROR_SEQUENCE);
   }
 
@@ -325,8 +324,12 @@ export function mergeEventSlotMappings(
   const mappings: Record<string, EventSlotMapping> = {};
   for (const id of extractBodyPlaceholders(body)) {
     if (id === "1") mappings["1"] = LOCKED_SLOT_MAPPINGS["1"];
-    else if (id === "2") mappings["2"] = LOCKED_SLOT_MAPPINGS["2"];
-    else mappings[id] = incoming[id] ?? null;
+    else if (id === "2") {
+      const provided = incoming[id];
+      mappings["2"] = isCompleteMapping(provided)
+        ? provided
+        : LOCKED_SLOT_MAPPINGS["2"];
+    } else mappings[id] = incoming[id] ?? null;
   }
   return mappings;
 }
@@ -429,8 +432,9 @@ export function storedBodyFromEditor(
   mapToStored: (index: number) => number;
 } {
   const source = String(editorText || "");
+  const guestCountPresent = /\{\{numero_invitados\}\}/.test(source);
   const used = new Set<string>();
-  let nextId = 3;
+  let nextId = guestCountPresent ? 3 : 2;
   for (const match of source.matchAll(/\{\{(\d+)\}\}/g)) {
     const id = match[1];
     if (!id) continue;
@@ -440,19 +444,26 @@ export function storedBodyFromEditor(
   }
 
   const nameToId = new Map<string, string>();
+  const reserved = new Set(guestCountPresent ? ["1", "2"] : ["1"]);
   const takeId = (preferred?: string | null) => {
+    const preferredNum = preferred ? Number(preferred) : Number.NaN;
+    const preferredSkips =
+      !guestCountPresent &&
+      Number.isFinite(preferredNum) &&
+      preferredNum > nextId;
     if (
       preferred &&
-      preferred !== "1" &&
-      preferred !== "2" &&
-      !used.has(preferred)
+      !reserved.has(preferred) &&
+      !used.has(preferred) &&
+      !preferredSkips
     ) {
       used.add(preferred);
-      const numeric = Number(preferred);
-      if (numeric >= nextId) nextId = numeric + 1;
+      if (preferredNum >= nextId) nextId = preferredNum + 1;
       return preferred;
     }
-    while (used.has(String(nextId))) nextId += 1;
+    while (used.has(String(nextId)) || reserved.has(String(nextId))) {
+      nextId += 1;
+    }
     const id = String(nextId);
     used.add(id);
     nextId += 1;
@@ -495,7 +506,7 @@ export function storedBodyFromEditor(
     } else {
       const id = idForName(token);
       body += `{{${id}}}`;
-      if (id !== "1" && id !== "2") {
+      if (id !== "1") {
         incoming[id] = { type: "field", key: token };
       }
     }
@@ -541,20 +552,38 @@ export type InsertWizardVariableResult = {
   headerType?: WizardHeaderType;
 };
 
+function reservesGuestCountSlot(
+  body: string,
+  mappings: Record<string, EventSlotMapping>,
+): boolean {
+  if (body.includes("{{numero_invitados}}")) return true;
+  const mapping = mappings["2"];
+  return (
+    body.includes("{{2}}") &&
+    mapping?.type === "field" &&
+    mapping.key === "numero_invitados"
+  );
+}
+
 function placeholderIdForField(
   fieldKey: string,
   body: string,
   mappings: Record<string, EventSlotMapping>,
 ): string {
   if (fieldKey === "nombre") return "1";
-  if (fieldKey === "numero_invitados") return "2";
   for (const [id, mapping] of Object.entries(mappings)) {
-    if (id === "1" || id === "2") continue;
+    if (id === "1") continue;
     if (mapping?.type === "field" && mapping.key === fieldKey) return id;
   }
-  const ids = extractBodyPlaceholders(body).map(Number);
-  const next = Math.max(2, 0, ...ids) + 1;
-  return String(Math.max(next, 3));
+  if (fieldKey === "numero_invitados" && !bodyHasPlaceholder(body, "2")) {
+    return "2";
+  }
+  const used = new Set(extractBodyPlaceholders(body));
+  const reserveTwo =
+    fieldKey !== "numero_invitados" && reservesGuestCountSlot(body, mappings);
+  let next = 2;
+  while (used.has(String(next)) || (reserveTwo && next === 2)) next += 1;
+  return String(next);
 }
 
 function bodyHasPlaceholder(body: string, id: string): boolean {

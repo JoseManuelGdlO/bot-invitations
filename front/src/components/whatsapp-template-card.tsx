@@ -512,7 +512,7 @@ export function WhatsappTemplateCard({
             </ul>
           ) : (
             <p className="text-xs text-muted-foreground">
-              {"{{nombre}} y {{numero_invitados}} son obligatorias."}
+              {"{{nombre}} es obligatoria."}
             </p>
           )}
         </div>
@@ -536,7 +536,6 @@ export function WhatsappTemplateCard({
             Variables fijas
           </p>
           <p className="text-sm">{"{{nombre}}"}</p>
-          <p className="text-sm">{"{{numero_invitados}}"}</p>
         </div>
 
         {extras.length > 0 ? (

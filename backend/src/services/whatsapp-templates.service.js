@@ -138,7 +138,7 @@ function validateWizardTemplate(input) {
     mergeSlotMappings(body, input?.slotMappings || {}),
   );
   for (const [id, mapping] of Object.entries(slotMappings)) {
-    if (id === "1" || id === "2") continue;
+    if (id === "1") continue;
     if (mapping?.type !== "field" || !WIZARD_UNIVERSAL_FIELDS.has(String(mapping.key || ""))) {
       throw httpError(
         400,

@@ -21,10 +21,9 @@ const META_BODY_ERROR_ADJACENT =
   "No pongas dos variables seguidas. Separa {{1}} y {{2}} con texto.";
 const META_BODY_ERROR_DENSITY =
   "Esta plantilla tiene demasiadas variables en relación con su longitud. Reduce el número de variables o aumenta la longitud del mensaje.";
-const META_BODY_ERROR_REQUIRED =
-  "Incluye {{1}} (nombre) y {{2}} (número de pases). Las dos son obligatorias.";
+const META_BODY_ERROR_REQUIRED = "Incluye {{1}} (nombre). Es obligatoria.";
 const META_BODY_ERROR_SEQUENCE =
-  "Usa {{1}}, {{2}}, {{3}}… en orden, sin saltos. {{1}} es el nombre y {{2}} el número de pases.";
+  "Usa {{1}}, {{2}}, {{3}}… en orden, sin saltos. {{1}} es el nombre.";
 const META_BODY_ERROR_LENGTH = "El cuerpo no puede superar 1024 caracteres.";
 
 export function extractBodyPlaceholders(bodyText) {
@@ -72,13 +71,13 @@ function metaTemplateBodyErrors(bodyText) {
     ids.push(match[1]);
   }
   const uniqueSorted = [...new Set(ids)].sort((a, b) => Number(a) - Number(b));
-  if (uniqueSorted.length < 2) {
-    errors.push(META_BODY_ERROR_REQUIRED);
-  } else if (
+  const sequenceBroken =
     ids.some((id) => !CANONICAL_PLACEHOLDER_ID.test(id)) ||
     uniqueSorted.length !== ids.length ||
-    uniqueSorted.some((id, index) => id !== String(index + 1))
-  ) {
+    uniqueSorted.some((id, index) => id !== String(index + 1));
+  if (!uniqueSorted.includes("1")) {
+    errors.push(META_BODY_ERROR_REQUIRED);
+  } else if (sequenceBroken) {
     errors.push(META_BODY_ERROR_SEQUENCE);
   }
 
@@ -153,17 +152,11 @@ export function mergeSlotMappings(bodyText, incoming = {}) {
     Object.prototype.hasOwnProperty.call(incoming, "1") &&
     !isSameMapping(incoming["1"], LOCKED_SLOT_MAPPINGS["1"])
   ) {
-    throw httpError(400, "{{1}} y {{2}} no se pueden remapear.");
-  }
-  if (
-    Object.prototype.hasOwnProperty.call(incoming, "2") &&
-    !isSameMapping(incoming["2"], LOCKED_SLOT_MAPPINGS["2"])
-  ) {
-    throw httpError(400, "{{1}} y {{2}} no se pueden remapear.");
+    throw httpError(400, "{{1}} no se puede remapear.");
   }
 
   for (const id of placeholders) {
-    if (id === "1" || id === "2") continue;
+    if (id === "1") continue;
     if (Object.prototype.hasOwnProperty.call(incoming, id)) {
       mappings[id] = validateMapping(incoming[id]);
     }
@@ -186,11 +179,18 @@ export function exampleValuesFromMappings(mappings) {
   const ids = Object.keys(mappings).sort((a, b) => Number(a) - Number(b));
   return ids.map((id) => {
     const mapping = mappings[id];
+    if (mapping?.type === "literal") return String(mapping.value ?? "");
+    if (mapping?.type === "field") {
+      if (mapping.key === "nombre" || id === "1") return "María";
+      if (mapping.key === "numero_invitados") return "2";
+      return String(mapping.key ?? "");
+    }
     if (id === "1") return "María";
     if (id === "2") return "2";
-    if (mapping.type === "literal") return String(mapping.value ?? "");
-    if (Object.prototype.hasOwnProperty.call(mapping, "value")) return String(mapping.value);
-    return String(mapping.key ?? "");
+    if (mapping && Object.prototype.hasOwnProperty.call(mapping, "value")) {
+      return String(mapping.value);
+    }
+    return String(mapping?.key ?? "");
   });
 }
 

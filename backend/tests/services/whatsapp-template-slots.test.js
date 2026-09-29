@@ -19,10 +19,9 @@ const ERROR_ADJACENT =
   "No pongas dos variables seguidas. Separa {{1}} y {{2}} con texto.";
 const ERROR_DENSITY =
   "Esta plantilla tiene demasiadas variables en relación con su longitud. Reduce el número de variables o aumenta la longitud del mensaje.";
-const ERROR_REQUIRED =
-  "Incluye {{1}} (nombre) y {{2}} (número de pases). Las dos son obligatorias.";
+const ERROR_REQUIRED = "Incluye {{1}} (nombre). Es obligatoria.";
 const ERROR_SEQUENCE =
-  "Usa {{1}}, {{2}}, {{3}}… en orden, sin saltos. {{1}} es el nombre y {{2}} el número de pases.";
+  "Usa {{1}}, {{2}}, {{3}}… en orden, sin saltos. {{1}} es el nombre.";
 const ERROR_LENGTH = "El cuerpo no puede superar 1024 caracteres.";
 
 const OK_BODY =
@@ -114,11 +113,16 @@ describe("whatsapp-template-slots", () => {
     );
   });
 
-  test("assertWizardBody exige {{1}} y {{2}} y un cuerpo válido para Meta", () => {
-    expect(() => assertWizardBody("Hola")).toThrow(/\{\{1\}\}/);
+  test("assertWizardBody exige {{1}} y un cuerpo válido para Meta", () => {
+    expect(() => assertWizardBody("Hola")).toThrow(ERROR_REQUIRED);
     expect(() => assertWizardBody("Hola {{1}}")).toThrow(ERROR_END);
     expect(() => assertWizardBody(SEQUENCE_GAP)).toThrow(ERROR_SEQUENCE);
     expect(assertWizardBody(OK_BODY)).toEqual(["1", "2"]);
+    expect(
+      assertWizardBody(
+        "Hola {{1}}, te esperamos con mucho gusto en la celebración.",
+      ),
+    ).toEqual(["1"]);
   });
 
   test("assertWizardBody acepta {{3}} si el cuerpo cumple Meta", () => {
@@ -144,13 +148,22 @@ describe("whatsapp-template-slots", () => {
     });
   });
 
-  test("mergeSlotMappings rechaza remapear 1 y 2", () => {
+  test("mergeSlotMappings rechaza remapear 1 y acepta otro campo en 2", () => {
     expect(() =>
       mergeSlotMappings("Hola {{1}} {{2}}", {
         "1": { type: "field", key: "fecha" },
         "2": { type: "field", key: "numero_invitados" },
       }),
     ).toThrow(/\{\{1\}\}/);
+    expect(
+      mergeSlotMappings(
+        "Hola {{1}}, te esperamos el {{2}} en la celebración.",
+        { "2": { type: "field", key: "fecha" } },
+      ),
+    ).toEqual({
+      "1": LOCKED_SLOT_MAPPINGS["1"],
+      "2": { type: "field", key: "fecha" },
+    });
   });
 
   test("assertSlotMappingsComplete exige extras mapeados", () => {

@@ -119,7 +119,7 @@ Si WhatsApp no está conectado o la plantilla sigue en revisión, el lanzamiento
 
 Meta tiene que aprobar cada una (Borrador → En revisión → Aprobada). Si editas una Aprobada, vuelve a revisión. Una En revisión no se puede guardar otra vez.
 
-En el cuerpo usa {{1}} (nombre) y {{2}} (número de pases). No las pongas al inicio ni al final. Máximo 10 plantillas por evento.
+En el cuerpo incluye {{nombre}}. Es obligatoria. {{numero_invitados}} es opcional. No pongas variables al inicio ni al final. Máximo 10 plantillas por evento.
 
 Sin WhatsApp conectado no puedes crear ni enviar plantillas.`,
   },
