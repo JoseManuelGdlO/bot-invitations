@@ -10,6 +10,7 @@ import {
 } from "react";
 import { toast } from "sonner";
 import { api, download, getToken, setToken, ApiError } from "@/lib/api/client";
+import { createAiSaveQueue, settleAiSave } from "@/lib/ai-save";
 import { createFaqSaveQueue, settleFaqSave } from "@/lib/faq-save";
 import type {
   ActivityItem,
@@ -25,7 +26,7 @@ import type {
   SessionUser,
   TeamMember,
 } from "./types";
-import { hasEventPerm, type EventAccess } from "@/lib/permissions";
+import { hasEventPerm, PERMS, type EventAccess } from "@/lib/permissions";
 
 interface State {
   session: SessionUser | null;
@@ -210,8 +211,19 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<State>(emptyState);
   const [hydrated, setHydrated] = useState(false);
   const dataRef = useRef(state.data);
+  const accessRef = useRef(state.eventAccess);
+  const confirmedAi = useRef<Record<string, EventData["ai"]>>({});
+  const aiEpoch = useRef<Record<string, number>>({});
   const confirmedFaqs = useRef<Record<string, EventData["faqs"]>>({});
   const displayedFaqs = useRef<Record<string, EventData["faqs"]>>({});
+  const aiQueue = useRef(
+    createAiSaveQueue<EventData["ai"]>((eventId, patch) =>
+      api<EventData["ai"]>(`/events/${eventId}/ai-config`, {
+        method: "PATCH",
+        body: JSON.stringify(patch),
+      }),
+    ),
+  );
   const faqQueue = useRef(
     createFaqSaveQueue<EventData["faqs"][number]>((eventId, faqs) =>
       api<EventData["faqs"]>(`/events/${eventId}/faqs`, {
@@ -221,10 +233,17 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     ),
   );
   dataRef.current = state.data;
+  accessRef.current = state.eventAccess;
 
   const applyDashboard = useCallback((payload: DashboardPayload) => {
     confirmedFaqs.current = {};
     displayedFaqs.current = {};
+    const nextConfirmed: Record<string, EventData["ai"]> = {};
+    for (const [eventId, row] of Object.entries(payload.data ?? {})) {
+      nextConfirmed[eventId] = row.ai;
+      aiEpoch.current[eventId] = (aiEpoch.current[eventId] ?? 0) + 1;
+    }
+    confirmedAi.current = nextConfirmed;
     setState({
       session: payload.session,
       events: payload.events ?? [],
@@ -246,43 +265,76 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const syncEventLive = useCallback(async (eventId: string) => {
     if (!eventId) return;
+    const epoch = aiEpoch.current[eventId] ?? 0;
+    const canSyncAi =
+      hasEventPerm(accessRef.current[eventId], PERMS.CONFIG_AI) &&
+      aiQueue.current.isIdle(eventId);
     try {
-      const [nextGuests, nextConversations] = await Promise.all([
+      const [nextGuests, nextConversations, nextAi] = await Promise.all([
         api<Guest[]>(`/events/${eventId}/guests`).catch(() => null),
         api<Conversation[]>(`/events/${eventId}/conversations`).catch(
           () => null,
         ),
+        canSyncAi
+          ? api<EventData["ai"] | null>(`/events/${eventId}/ai-config`).catch(
+              () => null,
+            )
+          : Promise.resolve(null),
       ]);
-      if (!nextGuests && !nextConversations) return;
-      setState((s) => {
-        const prevGuests = s.guests.filter((g) => g.eventId === eventId);
-        const prevConvs = s.conversations.filter((c) => c.eventId === eventId);
-        const guestsChanged =
-          nextGuests != null &&
-          guestsFingerprint(prevGuests) !== guestsFingerprint(nextGuests);
-        const convsChanged =
-          nextConversations != null &&
-          conversationsFingerprint(prevConvs) !==
-            conversationsFingerprint(nextConversations);
-        if (!guestsChanged && !convsChanged) return s;
-        return {
-          ...s,
-          guests:
-            nextGuests != null
-              ? [
-                  ...s.guests.filter((g) => g.eventId !== eventId),
-                  ...nextGuests,
-                ]
-              : s.guests,
-          conversations:
-            nextConversations != null
-              ? [
-                  ...s.conversations.filter((c) => c.eventId !== eventId),
-                  ...nextConversations,
-                ]
-              : s.conversations,
-        };
-      });
+      if (nextGuests || nextConversations) {
+        setState((s) => {
+          const prevGuests = s.guests.filter((g) => g.eventId === eventId);
+          const prevConvs = s.conversations.filter((c) => c.eventId === eventId);
+          const guestsChanged =
+            nextGuests != null &&
+            guestsFingerprint(prevGuests) !== guestsFingerprint(nextGuests);
+          const convsChanged =
+            nextConversations != null &&
+            conversationsFingerprint(prevConvs) !==
+              conversationsFingerprint(nextConversations);
+          if (!guestsChanged && !convsChanged) return s;
+          return {
+            ...s,
+            guests:
+              nextGuests != null
+                ? [
+                    ...s.guests.filter((g) => g.eventId !== eventId),
+                    ...nextGuests,
+                  ]
+                : s.guests,
+            conversations:
+              nextConversations != null
+                ? [
+                    ...s.conversations.filter((c) => c.eventId !== eventId),
+                    ...nextConversations,
+                  ]
+                : s.conversations,
+          };
+        });
+      }
+      if (
+        nextAi &&
+        (aiEpoch.current[eventId] ?? 0) === epoch &&
+        aiQueue.current.isIdle(eventId)
+      ) {
+        confirmedAi.current[eventId] = nextAi;
+        const row = dataRef.current[eventId];
+        if (row && JSON.stringify(row.ai) !== JSON.stringify(nextAi)) {
+          dataRef.current = {
+            ...dataRef.current,
+            [eventId]: { ...row, ai: nextAi },
+          };
+        }
+        setState((s) => {
+          const current = s.data[eventId];
+          if (!current) return s;
+          if (JSON.stringify(current.ai) === JSON.stringify(nextAi)) return s;
+          return {
+            ...s,
+            data: { ...s.data, [eventId]: { ...current, ai: nextAi } },
+          };
+        });
+      }
     } catch {
       /* poll silencioso */
     }
@@ -527,45 +579,69 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         await download(path, name);
       },
       updateAI: (eventId, patch) => {
-        setState((s) => ({
-          ...s,
-          data: {
-            ...s.data,
-            [eventId]: {
-              ...s.data[eventId]!,
-              ai: { ...s.data[eventId]!.ai, ...patch },
+        const row = dataRef.current[eventId];
+        if (!row) return;
+        aiEpoch.current[eventId] = (aiEpoch.current[eventId] ?? 0) + 1;
+        const optimistic = { ...row.ai, ...patch };
+        dataRef.current = {
+          ...dataRef.current,
+          [eventId]: { ...row, ai: optimistic },
+        };
+        setState((s) => {
+          const current = s.data[eventId];
+          if (!current) return s;
+          return {
+            ...s,
+            data: {
+              ...s.data,
+              [eventId]: { ...current, ai: { ...current.ai, ...patch } },
             },
-          },
-        }));
-        api<EventData["ai"]>(`/events/${eventId}/ai-config`, {
-          method: "PATCH",
-          body: JSON.stringify(patch),
-        })
-          .then((ai) => {
-            setState((s) => ({
+          };
+        });
+        void aiQueue.current.enqueue(eventId, { ...patch }).then((result) => {
+          const currentRow = dataRef.current[eventId];
+          if (!currentRow) return;
+          const confirmed = confirmedAi.current[eventId] ?? currentRow.ai;
+          const settled = settleAiSave(currentRow.ai, confirmed, result);
+          confirmedAi.current[eventId] = settled.confirmed;
+          dataRef.current = {
+            ...dataRef.current,
+            [eventId]: { ...currentRow, ai: settled.displayed },
+          };
+          setState((s) => {
+            const latest = s.data[eventId];
+            if (!latest) return s;
+            return {
               ...s,
               data: {
                 ...s.data,
-                [eventId]: {
-                  ...s.data[eventId]!,
-                  ai,
-                },
+                [eventId]: { ...latest, ai: settled.displayed },
               },
-            }));
-          })
-          .catch((err) => {
+            };
+          });
+          if (settled.notify === "error") {
             const message =
-              err instanceof ApiError
-                ? err.message
+              result.ok === false && result.error instanceof ApiError
+                ? result.error.message
                 : "No se pudo guardar la configuración de IA.";
             toast.error(message);
-          });
+          }
+        });
       },
       resetAI: async (eventId) => {
         const ai = await api<EventData["ai"]>(
           `/events/${eventId}/ai-config/reset`,
           { method: "POST" },
         );
+        confirmedAi.current[eventId] = ai;
+        aiEpoch.current[eventId] = (aiEpoch.current[eventId] ?? 0) + 1;
+        const row = dataRef.current[eventId];
+        if (row) {
+          dataRef.current = {
+            ...dataRef.current,
+            [eventId]: { ...row, ai: { ...row.ai, ...ai } },
+          };
+        }
         setState((s) => ({
           ...s,
           data: {
