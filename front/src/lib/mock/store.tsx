@@ -4,11 +4,13 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type ReactNode,
 } from "react";
 import { toast } from "sonner";
 import { api, download, getToken, setToken, ApiError } from "@/lib/api/client";
+import { createFaqSaveQueue, settleFaqSave } from "@/lib/faq-save";
 import type {
   ActivityItem,
   CampaignSnapshot,
@@ -170,7 +172,12 @@ interface Ctx extends State {
   resetAI: (eventId: string) => Promise<void>;
   setTemplates: (eventId: string, t: EventData["templates"]) => void;
   uploadOpeningDocument: (eventId: string, file: File) => Promise<EventData["templates"][number]>;
-  setFaqs: (eventId: string, f: EventData["faqs"]) => void;
+  setFaqs: (
+    eventId: string,
+    f:
+      | EventData["faqs"]
+      | ((current: EventData["faqs"]) => EventData["faqs"]),
+  ) => Promise<"saved" | "stale" | "error">;
   sendMessage: (convId: string, msg: ChatMessage) => Promise<ChatMessage>;
   toggleAI: (convId: string, paused: boolean) => void;
   logActivity: (item: ActivityItem) => void;
@@ -202,8 +209,22 @@ const StoreContext = createContext<Ctx | null>(null);
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<State>(emptyState);
   const [hydrated, setHydrated] = useState(false);
+  const dataRef = useRef(state.data);
+  const confirmedFaqs = useRef<Record<string, EventData["faqs"]>>({});
+  const displayedFaqs = useRef<Record<string, EventData["faqs"]>>({});
+  const faqQueue = useRef(
+    createFaqSaveQueue<EventData["faqs"][number]>((eventId, faqs) =>
+      api<EventData["faqs"]>(`/events/${eventId}/faqs`, {
+        method: "PUT",
+        body: JSON.stringify(faqs),
+      }),
+    ),
+  );
+  dataRef.current = state.data;
 
   const applyDashboard = useCallback((payload: DashboardPayload) => {
+    confirmedFaqs.current = {};
+    displayedFaqs.current = {};
     setState({
       session: payload.session,
       events: payload.events ?? [],
@@ -593,15 +614,66 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         });
         return next;
       },
-      setFaqs: (eventId, f) => {
-        setState((s) => ({
-          ...s,
-          data: { ...s.data, [eventId]: { ...s.data[eventId]!, faqs: f } },
-        }));
-        api(`/events/${eventId}/faqs`, {
-          method: "PUT",
-          body: JSON.stringify(f),
-        }).catch(console.error);
+      setFaqs: async (eventId, update) => {
+        const current = dataRef.current[eventId]?.faqs ?? [];
+        const next = typeof update === "function" ? update(current) : update;
+        if (!(eventId in confirmedFaqs.current)) {
+          confirmedFaqs.current[eventId] = current;
+        }
+        displayedFaqs.current[eventId] = next;
+        const row = dataRef.current[eventId];
+        if (row) {
+          dataRef.current = {
+            ...dataRef.current,
+            [eventId]: { ...row, faqs: next },
+          };
+        }
+        setState((s) => {
+          const currentRow = s.data[eventId];
+          if (!currentRow) return s;
+          return {
+            ...s,
+            data: { ...s.data, [eventId]: { ...currentRow, faqs: next } },
+          };
+        });
+
+        const result = await faqQueue.current.enqueue(eventId, next);
+        const settled = settleFaqSave(
+          displayedFaqs.current[eventId] ?? next,
+          confirmedFaqs.current[eventId] ?? current,
+          result,
+        );
+        confirmedFaqs.current[eventId] = settled.confirmed;
+        if (settled.notify === "none") return "stale";
+
+        displayedFaqs.current[eventId] = settled.displayed;
+        const savedRow = dataRef.current[eventId];
+        if (savedRow) {
+          dataRef.current = {
+            ...dataRef.current,
+            [eventId]: { ...savedRow, faqs: settled.displayed },
+          };
+        }
+        setState((s) => {
+          const currentRow = s.data[eventId];
+          if (!currentRow) return s;
+          return {
+            ...s,
+            data: {
+              ...s.data,
+              [eventId]: { ...currentRow, faqs: settled.displayed },
+            },
+          };
+        });
+        if (settled.notify === "error") {
+          const message =
+            result.ok === false && result.error instanceof ApiError
+              ? result.error.message
+              : "No se pudieron guardar las respuestas frecuentes.";
+          toast.error(message);
+          return "error";
+        }
+        return "saved";
       },
       sendMessage: async (convId, msg) => {
         try {

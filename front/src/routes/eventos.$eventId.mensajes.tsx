@@ -1,6 +1,6 @@
 import { Link, createFileRoute } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
-import { Loader2, Plus } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { Loader2, Pencil, Plus } from "lucide-react";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -28,8 +28,9 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { WhatsappEventTemplateCreateDialog } from "@/components/whatsapp-event-template-create-dialog";
 import { WhatsappTemplateCard } from "@/components/whatsapp-template-card";
+import { applyFaqDraft, newFaqId } from "@/lib/faq-save";
 import { useEvent, useStore } from "@/lib/mock/store";
-import type { EventItem, Guest } from "@/lib/mock/types";
+import type { EventItem, Faq, Guest } from "@/lib/mock/types";
 import { availableTemplateKeys } from "@/lib/template-vars";
 import { toast } from "sonner";
 import { ApiError } from "@/lib/api/client";
@@ -547,8 +548,56 @@ function Mensajes() {
   const { setFaqs, session } = useStore();
   const [q, setQ] = useState("");
   const [a, setA] = useState("");
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const questionRef = useRef<HTMLInputElement>(null);
+  const draftToken = useRef(0);
   const [purpose, setPurpose] = useState<WhatsappTemplatePurpose>("invitation");
   const plannerName = session?.name.split(" ")[0] ?? "Planner";
+
+  function beginEdit(faq: Faq) {
+    draftToken.current += 1;
+    setEditingId(faq.id);
+    setQ(faq.q);
+    setA(faq.a);
+    queueMicrotask(() => questionRef.current?.focus());
+  }
+
+  function clearDraft() {
+    draftToken.current += 1;
+    setEditingId(null);
+    setQ("");
+    setA("");
+  }
+
+  async function saveFaqs(
+    update: (current: Faq[]) => Faq[],
+    options: { success?: string; clearForm?: boolean },
+  ) {
+    const snapshot = { editingId, q, a };
+    const token = options.clearForm ? ++draftToken.current : draftToken.current;
+    if (options.clearForm) {
+      setEditingId(null);
+      setQ("");
+      setA("");
+    }
+    setSaving(true);
+    try {
+      const outcome = await setFaqs(eventId, update);
+      if (
+        outcome === "error" &&
+        options.clearForm &&
+        draftToken.current === token
+      ) {
+        setEditingId(snapshot.editingId);
+        setQ(snapshot.q);
+        setA(snapshot.a);
+      }
+      if (outcome === "saved" && options.success) toast.success(options.success);
+    } finally {
+      setSaving(false);
+    }
+  }
 
   return (
     <main className="mx-auto w-full max-w-6xl flex-1 px-5 py-8 md:px-8">
@@ -592,17 +641,35 @@ function Mensajes() {
               {data.faqs.map((f) => (
                 <div
                   key={f.id}
-                  className="rounded-2xl border border-border bg-card p-5 shadow-soft"
+                  className={`rounded-2xl border bg-card p-5 shadow-soft ${
+                    editingId === f.id ? "border-primary" : "border-border"
+                  }`}
                 >
-                  <p className="font-medium">{f.q}</p>
-                  <p className="mt-1 text-sm text-muted-foreground">{f.a}</p>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-medium">{f.q}</p>
+                      <p className="mt-1 text-sm text-muted-foreground">{f.a}</p>
+                    </div>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      className="shrink-0"
+                      aria-label={`Editar: ${f.q}`}
+                      onClick={() => beginEdit(f)}
+                    >
+                      <Pencil />
+                    </Button>
+                  </div>
                   <button
-                    onClick={() =>
-                      setFaqs(
-                        eventId,
-                        data.faqs.filter((x) => x.id !== f.id),
-                      )
-                    }
+                    type="button"
+                    onClick={() => {
+                      if (editingId === f.id) clearDraft();
+                      void saveFaqs(
+                        (faqs) => faqs.filter((x) => x.id !== f.id),
+                        {},
+                      );
+                    }}
                     className="mt-3 text-xs text-muted-foreground underline-offset-4 hover:text-destructive hover:underline"
                   >
                     Eliminar
@@ -611,11 +678,14 @@ function Mensajes() {
               ))}
             </div>
             <div className="h-fit rounded-2xl border border-border bg-card p-5 shadow-soft">
-              <h3 className="font-display text-xl">Agregar respuesta</h3>
+              <h3 className="font-display text-xl">
+                {editingId ? "Editar respuesta" : "Agregar respuesta"}
+              </h3>
               <div className="mt-4 space-y-3">
                 <div className="space-y-2">
                   <Label>Pregunta</Label>
                   <Input
+                    ref={questionRef}
                     value={q}
                     onChange={(e) => setQ(e.target.value)}
                     placeholder="¿Hay estacionamiento?"
@@ -631,19 +701,46 @@ function Mensajes() {
                 </div>
                 <Button
                   className="w-full"
+                  disabled={saving || !q.trim()}
                   onClick={() => {
                     if (!q.trim()) return;
-                    setFaqs(eventId, [
-                      ...data.faqs,
-                      { id: `q-${Date.now()}`, q, a },
-                    ]);
-                    setQ("");
-                    setA("");
-                    toast.success("Respuesta agregada");
+                    const id = newFaqId();
+                    const editing = editingId;
+                    void saveFaqs(
+                      (faqs) =>
+                        applyFaqDraft(faqs, {
+                          editingId: editing,
+                          q,
+                          a,
+                          id,
+                        }) ?? faqs,
+                      {
+                        success: editing
+                          ? "Respuesta actualizada"
+                          : "Respuesta agregada",
+                        clearForm: true,
+                      },
+                    );
                   }}
                 >
-                  <Plus className="size-4" /> Agregar
+                  {saving ? (
+                    <Loader2 className="size-4 animate-spin" />
+                  ) : editingId ? null : (
+                    <Plus className="size-4" />
+                  )}
+                  {editingId ? "Guardar" : "Agregar"}
                 </Button>
+                {editingId ? (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="w-full"
+                    disabled={saving}
+                    onClick={clearDraft}
+                  >
+                    Cancelar
+                  </Button>
+                ) : null}
               </div>
             </div>
           </div>

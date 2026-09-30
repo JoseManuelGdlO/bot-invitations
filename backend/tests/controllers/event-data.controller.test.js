@@ -377,4 +377,35 @@ describe("event-data.controller", () => {
     expect(models.Faq.destroy).toHaveBeenCalled();
     expect(res.json).toHaveBeenCalledWith([expect.objectContaining({ q: "¿Dónde?" })]);
   });
+
+  test("setFaqs borra y crea dentro de la misma transacción", async () => {
+    models.Faq.bulkCreate.mockImplementation(async (rows) => rows);
+    const { res } = await callHandler(controller.setFaqs, {
+      req: createMockReq({ body: [{ id: "11111111-1111-1111-1111-111111111111", q: "¿Dónde?", a: "Hacienda" }] }),
+    });
+    expect(models.sequelize.transaction).toHaveBeenCalled();
+    const transaction = models.Faq.destroy.mock.calls.at(-1)[0].transaction;
+    expect(transaction).toBeTruthy();
+    expect(models.Event.findByPk).toHaveBeenCalledWith(
+      "evt_1",
+      expect.objectContaining({ transaction, lock: transaction.LOCK.UPDATE }),
+    );
+    expect(models.Faq.bulkCreate).toHaveBeenCalledWith(
+      [expect.objectContaining({ id: "11111111-1111-1111-1111-111111111111", q: "¿Dónde?", a: "Hacienda" })],
+      expect.objectContaining({ transaction }),
+    );
+    expect(res.json).toHaveBeenCalledWith([
+      expect.objectContaining({ id: "11111111-1111-1111-1111-111111111111", q: "¿Dónde?" }),
+    ]);
+  });
+
+  test("setFaqs no responde éxito si falla la creación", async () => {
+    models.Faq.bulkCreate.mockRejectedValue(new Error("db"));
+    const { res, next } = await callHandler(controller.setFaqs, {
+      req: createMockReq({ body: [{ q: "¿Dónde?", a: "Hacienda" }] }),
+    });
+    expect(models.sequelize.transaction).toHaveBeenCalled();
+    expect(next).toHaveBeenCalledWith(expect.any(Error));
+    expect(res.json).not.toHaveBeenCalled();
+  });
 });

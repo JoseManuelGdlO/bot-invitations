@@ -1,4 +1,4 @@
-import { AiConfig, Faq, Template } from "../models/index.js";
+import { AiConfig, Event, Faq, Template, sequelize } from "../models/index.js";
 import { saveOpeningDocument, getOpeningDocumentFile } from "../services/opening-document.service.js";
 import { asyncHandler } from "../utils/async.js";
 import { requireEvent, requirePermission, PERMS } from "../services/access.service.js";
@@ -163,14 +163,18 @@ export const setFaqs = asyncHandler(async (req, res) => {
   if (!(await requirePermission(req, res, event, PERMS.CONFIG_AI))) return;
   const incoming = Array.isArray(req.body) ? req.body : req.body?.faqs;
   if (!Array.isArray(incoming)) return res.status(400).json({ error: "Se esperaba un arreglo de FAQs." });
-  await Faq.destroy({ where: { eventId: event.id } });
-  const created = await Faq.bulkCreate(
-    incoming.map((f) => ({
-      id: f.id && String(f.id).length === 36 ? f.id : undefined,
-      eventId: event.id,
-      q: f.q,
-      a: f.a,
-    })),
-  );
+  const created = await sequelize.transaction(async (transaction) => {
+    await Event.findByPk(event.id, { transaction, lock: transaction.LOCK.UPDATE });
+    await Faq.destroy({ where: { eventId: event.id }, transaction });
+    return Faq.bulkCreate(
+      incoming.map((f) => ({
+        id: f.id && String(f.id).length === 36 ? f.id : undefined,
+        eventId: event.id,
+        q: f.q,
+        a: f.a,
+      })),
+      { transaction },
+    );
+  });
   res.json(created.map(serializeFaq));
 });
