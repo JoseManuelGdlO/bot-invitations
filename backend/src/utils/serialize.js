@@ -87,6 +87,7 @@ export function serializeGuest(guest, eventSlug) {
       guest.customData && typeof guest.customData === "object" && !Array.isArray(guest.customData)
         ? guest.customData
         : {},
+    hasInvitationImage: Boolean(String(guest.invitationImagePath || "").trim()),
     status: guest.status,
     whatsapp: guest.whatsapp,
     lastMessage: guest.lastMessage || "",

@@ -7,6 +7,7 @@ export const IMPORT_FIELDS = [
   { id: "guestType", label: "Tipo de invitado" },
   { id: "notes", label: "Notas" },
   { id: "tag", label: "Etiqueta" },
+  { id: "image", label: "Imagen o QR" },
   { id: "ignore", label: "No importar" },
 ] as const;
 
@@ -35,9 +36,36 @@ export const TEMPLATE_FIELD_HEADERS: Record<TemplateCoreFieldId, string> = {
   guestType: "Tipo",
   notes: "Notas",
   tag: "Etiqueta",
+  image: "Imagen",
 };
 
 export const MAX_CUSTOM_TEMPLATE_COLUMNS = 30;
+
+export type ImageImportStatus = "image" | "link" | "empty";
+
+export function imageImportStatus(
+  columns: string[],
+  rows: string[][],
+  mapping: Record<string, string>,
+  extra: {
+    sheetRows?: number[];
+    hyperlinks?: string[][];
+    embeddedImageCells?: string[];
+  } = {},
+): ImageImportStatus[] {
+  const colIndex = columns.findIndex((col) => mapping[col] === "image");
+  const embedded = new Set(extra.embeddedImageCells || []);
+  return rows.map((row, index) => {
+    if (colIndex < 0) return "empty";
+    const sheetRow = extra.sheetRows?.[index] ?? index + 2;
+    if (embedded.has(`${sheetRow}:${colIndex + 1}`)) return "image";
+    const link = extra.hyperlinks?.[index]?.[colIndex]?.trim() || "";
+    const text = String(row[colIndex] || "").trim();
+    const candidate = /^https?:\/\//i.test(link) ? link : text;
+    if (/^https:\/\//i.test(candidate)) return "link";
+    return "empty";
+  });
+}
 
 export function guestTemplateHeaders(
   selectedIds: Iterable<string>,

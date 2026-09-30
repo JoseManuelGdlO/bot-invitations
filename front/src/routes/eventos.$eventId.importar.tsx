@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   CheckCircle2,
   FileSpreadsheet,
@@ -31,7 +31,7 @@ import { ApiError } from "@/lib/api/client";
 import { PlanLimitBanner, isUpgradeError } from "@/components/plan-limit";
 import { DownloadTemplateButton } from "@/components/download-template-dialog";
 import { columnVarKeys } from "@/lib/import-vars";
-import { FIELD_IDS, IMPORT_FIELDS } from "@/lib/import-fields";
+import { FIELD_IDS, imageImportStatus, IMPORT_FIELDS } from "@/lib/import-fields";
 
 export const Route = createFileRoute("/eventos/$eventId/importar")({
   head: () => ({
@@ -142,6 +142,15 @@ function Importar() {
   const [importedCount, setImportedCount] = useState(0);
   const [importing, setImporting] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
+  const imageStatuses = useMemo(
+    () =>
+      preview
+        ? imageImportStatus(preview.columns, preview.rows, mapping, preview)
+        : [],
+    [preview, mapping],
+  );
+  const imageCount = imageStatuses.filter((status) => status === "image").length;
+  const linkCount = imageStatuses.filter((status) => status === "link").length;
 
   const startProcessing = async (file: File) => {
     setPhase("processing");
@@ -190,6 +199,7 @@ function Importar() {
         columns: preview.columns,
         rows: preview.rows,
         mapping,
+        ...(preview.importToken ? { importToken: preview.importToken } : {}),
       });
       const discarded = res.discarded ?? 0;
       if (res.imported === 0) {
@@ -219,6 +229,11 @@ function Importar() {
       if (discarded > 0) {
         toast.info(
           `${discarded} filas se omitieron por falta de nombre o teléfono.`,
+        );
+      }
+      if (res.imageWarnings?.length) {
+        toast.warning(
+          `${res.imageWarnings.length} invitados se importaron sin imagen.`,
         );
       }
     } catch (err) {
@@ -313,6 +328,25 @@ function Importar() {
               {preview?.filename} · {preview?.rows.length ?? 0} filas detectadas
               · {preview?.columns.length ?? 0} columnas
             </p>
+            {imageCount > 0 || linkCount > 0 ? (
+              <p className="mt-2 text-sm text-muted-foreground">
+                {[
+                  imageCount === 1
+                    ? "1 fila trae imagen en la celda"
+                    : imageCount > 1
+                      ? `${imageCount} filas traen imagen en la celda`
+                      : "",
+                  linkCount === 1
+                    ? "1 fila trae un enlace"
+                    : linkCount > 1
+                      ? `${linkCount} filas traen un enlace`
+                      : "",
+                ]
+                  .filter(Boolean)
+                  .join(" y ")}
+                . Si un enlace falla, el invitado se importa igual.
+              </p>
+            ) : null}
             <div className="mt-5 min-w-0 overflow-x-auto rounded-xl border border-border">
               <Table>
                 <TableHeader>

@@ -221,6 +221,34 @@ describe("guests.controller", () => {
     );
   });
 
+  test("confirmImport crea al invitado aunque el enlace de imagen no sea público", async () => {
+    models.Guest.findAll.mockResolvedValue([]);
+    models.Guest.create.mockImplementation(async (data) => fakeGuest(data));
+    const { res } = await callHandler(controller.confirmImport, {
+      req: createMockReq({
+        user: fakeUser(),
+        params: { eventId: "boda-ana" },
+        body: {
+          columns: ["Nombre", "Teléfono", "Imagen"],
+          rows: [["Luis Pérez", "5511111111", "https://127.0.0.1/qr.png"]],
+          mapping: { Nombre: "rep", Teléfono: "phone", Imagen: "image" },
+        },
+      }),
+    });
+    expect(models.Guest.create).toHaveBeenCalled();
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({
+        imported: 1,
+        imageWarnings: [
+          expect.objectContaining({
+            rep: "Luis Pérez",
+            reason: "No se pudo descargar la imagen del enlace.",
+          }),
+        ],
+      }),
+    );
+  });
+
   test("exportGuests csv llama send", async () => {
     models.Guest.findAll.mockResolvedValue([fakeGuest()]);
     const { res } = await callHandler(controller.exportGuests, {

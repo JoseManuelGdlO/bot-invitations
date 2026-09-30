@@ -152,8 +152,14 @@ interface Ctx extends State {
       columns: string[];
       rows: string[][];
       mapping: Record<string, string>;
+      importToken?: string;
     },
-  ) => Promise<{ imported: number; skipped: number; discarded: number }>;
+  ) => Promise<{
+    imported: number;
+    skipped: number;
+    discarded: number;
+    imageWarnings?: { sheetRow: number; rep: string; reason: string }[];
+  }>;
   exportGuests: (
     eventId: string,
     format: "xlsx" | "csv" | "pdf",
@@ -478,6 +484,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           imported: number;
           skipped: number;
           discarded: number;
+          imageWarnings?: { sheetRow: number; rep: string; reason: string }[];
         }>(`/events/${eventId}/guests/import/confirm`, {
           method: "POST",
           body: JSON.stringify(payload),

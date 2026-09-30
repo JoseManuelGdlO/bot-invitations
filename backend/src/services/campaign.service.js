@@ -18,6 +18,7 @@ import { logActivity } from "./activity.service.js";
 import { recordCampaignSendResult } from "./campaign-progress.js";
 import { activateEvent } from "./event-status.service.js";
 import { resolveCampaignSendContext } from "./whatsapp-templates.service.js";
+import { headerImageForGuest } from "./guest-image.service.js";
 import { fillMetaTemplate } from "./meta.client.js";
 import { bodyTextFromComponents } from "./whatsapp-template-slots.js";
 
@@ -227,6 +228,7 @@ export async function executeCampaignLaunch(job) {
     await guest.reload();
     claimedCount += 1;
     const params = await ctx.hsmParamsFor(guest, plannerName);
+    const headerImage = headerImageForGuest(ctx, guest);
     try {
       const conv = await deliverAiMessage({
         event,
@@ -235,7 +237,7 @@ export async function executeCampaignLaunch(job) {
         hsmParams: params,
         hsmTemplateName: ctx.hsmTemplateName,
         ...(ctx.hsmHeaderDocument ? { hsmHeaderDocument: ctx.hsmHeaderDocument } : {}),
-        ...(ctx.hsmHeaderImage ? { hsmHeaderImage: ctx.hsmHeaderImage } : {}),
+        ...(headerImage ? { hsmHeaderImage: headerImage } : {}),
         kind: "campaign",
         campaignId: campaign.id,
       });

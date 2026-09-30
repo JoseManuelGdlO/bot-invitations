@@ -24,7 +24,23 @@ import * as botDev from "../controllers/bot-dev.controller.js";
 import { requireAdmin } from "../middleware/admin.js";
 import { env } from "../config/env.js";
 
-const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 8 * 1024 * 1024 } });
+const importUpload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 25 * 1024 * 1024 },
+});
+
+function handleImportUpload(req, res, next) {
+  importUpload.single("file")(req, res, (err) => {
+    if (!err) return next();
+    if (err.code === "LIMIT_FILE_SIZE") {
+      err.status = 400;
+      err.message = "El archivo no puede superar 25 MB.";
+    } else if (!err.status) {
+      err.status = 400;
+    }
+    next(err);
+  });
+}
 const openingDocUpload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 },
@@ -164,7 +180,7 @@ router.post("/events/:eventId/guests", guests.createGuest);
 router.patch("/guests/:guestId", guests.updateGuest);
 router.delete("/guests/:guestId", guests.deleteGuest);
 router.post("/guests/:guestId/remind", guests.remindGuest);
-router.post("/events/:eventId/guests/import/preview", upload.single("file"), guests.previewImport);
+router.post("/events/:eventId/guests/import/preview", handleImportUpload, guests.previewImport);
 router.post("/events/:eventId/guests/import/confirm", guests.confirmImport);
 router.get("/events/:eventId/guests/export", guests.exportGuests);
 router.get("/events/:eventId/final-list/export", guests.exportFinalList);

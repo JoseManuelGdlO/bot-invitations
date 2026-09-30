@@ -130,6 +130,7 @@ export const Guest = sequelize.define(
     notes: { type: DataTypes.TEXT, allowNull: true },
     tag: { type: DataTypes.STRING(80), allowNull: true, defaultValue: "Sin etiqueta" },
     customData: { type: DataTypes.JSON, allowNull: true },
+    invitationImagePath: { type: DataTypes.STRING(500), allowNull: true },
     status: {
       type: DataTypes.ENUM(
         "sin_contactar",
@@ -762,6 +763,27 @@ export async function ensureGuestCustomData() {
     console.log("[db] columna guests.customData creada");
   } catch (err) {
     console.error("[db] no se pudo crear guests.customData", err?.message || err);
+  }
+}
+
+export async function ensureGuestInvitationImage() {
+  const qi = sequelize.getQueryInterface();
+  let table;
+  try {
+    table = await qi.describeTable("guests");
+  } catch (err) {
+    console.error("[db] no se pudo describir guests para invitationImagePath", err?.message || err);
+    return;
+  }
+  if (table.invitationImagePath) return;
+  try {
+    await qi.addColumn("guests", "invitationImagePath", {
+      type: DataTypes.STRING(500),
+      allowNull: true,
+    });
+    console.log("[db] columna guests.invitationImagePath creada");
+  } catch (err) {
+    console.error("[db] no se pudo crear guests.invitationImagePath", err?.message || err);
   }
 }
 

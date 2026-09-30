@@ -77,4 +77,25 @@ describe("import.service", () => {
     );
     expect(mapped[0].customData).toEqual({});
   });
+
+  test("suggestMapping reconoce imagen y qr", () => {
+    expect(suggestMapping(["Nombre", "Teléfono", "Imagen", "QR"])).toEqual({
+      Nombre: "rep",
+      Teléfono: "phone",
+      Imagen: "image",
+      QR: "image",
+    });
+  });
+
+  test("mapRows no guarda la imagen en customData y prefiere el hipervínculo", () => {
+    const mapped = mapRows(
+      ["Nombre", "Teléfono", "Imagen"],
+      [["Luis Pérez", "5511111111", "QR"]],
+      { Nombre: "rep", Teléfono: "phone", Imagen: "image" },
+      { sheetRows: [2], hyperlinks: [["", "", "https://cdn.example/qr.png"]] },
+    );
+    expect(mapped[0].customData).toEqual({});
+    expect(mapped[0].imageCell).toBe("https://cdn.example/qr.png");
+    expect(mapped[0].sheetRow).toBe(2);
+  });
 });

@@ -6,6 +6,7 @@ import { metaClient, sanitizeMetaBodyParam } from "./meta.client.js";
 import { resolveOpeningDocumentFilePath } from "./opening-document.service.js";
 import { resolveActiveWhatsappMetaByOwner } from "./whatsapp-meta.service.js";
 import { resolveCampaignSendContext } from "./whatsapp-templates.service.js";
+import { headerImageForGuest } from "./guest-image.service.js";
 
 const CUSTOMER_CARE_WINDOW_MS = 24 * 60 * 60 * 1000;
 const mediaIdByFile = new Map();
@@ -140,7 +141,7 @@ export class MetaCloudProvider {
           fromJob = (await ctx.hsmParamsFor(guest)).map((value) => sanitizeMetaBodyParam(value));
         }
         headerSource = headerSource || ctx.hsmHeaderDocument;
-        imageSource = imageSource || ctx.hsmHeaderImage;
+        imageSource = imageSource || headerImageForGuest(ctx, guest);
       }
       const nombre = sanitizeMetaBodyParam(eventGuestVars(event, guest).nombre) || "invitado";
       const bodyParam = sanitizeMetaBodyParam(body);

@@ -20,6 +20,11 @@ const FIELD_ALIASES = {
   notas: "notes",
   etiqueta: "tag",
   tag: "tag",
+  imagen: "image",
+  image: "image",
+  qr: "image",
+  "codigo qr": "image",
+  codigo_qr: "image",
 };
 
 export const CORE_IMPORT_FIELDS = new Set([
@@ -89,11 +94,23 @@ export function parseSpreadsheet(buffer) {
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
   const matrix = XLSX.utils.sheet_to_json(sheet, { header: 1, defval: "" });
   const columns = (matrix[0] || []).map((c) => String(c || "").trim() || "Columna");
-  const rows = matrix
-    .slice(1)
-    .filter((row) => row.some((cell) => String(cell).trim() !== ""))
-    .map((row) => columns.map((_, i) => String(row[i] ?? "").trim()));
-  return { filename: "", columns, rows };
+  const rows = [];
+  const sheetRows = [];
+  const hyperlinks = [];
+  for (let r = 1; r < matrix.length; r += 1) {
+    const row = matrix[r] || [];
+    const cells = columns.map((_, i) => String(row[i] ?? "").trim());
+    const links = columns.map((_, i) => {
+      const addr = XLSX.utils.encode_cell({ r, c: i });
+      const target = sheet?.[addr]?.l?.Target;
+      return target ? String(target).trim() : "";
+    });
+    if (!cells.some((cell) => cell !== "")) continue;
+    rows.push(cells);
+    sheetRows.push(r + 1);
+    hyperlinks.push(links);
+  }
+  return { filename: "", columns, rows, sheetRows, hyperlinks };
 }
 
 export function suggestMapping(columns) {
@@ -105,10 +122,12 @@ export function suggestMapping(columns) {
   return mapping;
 }
 
-export function mapRows(columns, rows, mapping) {
+export function mapRows(columns, rows, mapping, options = {}) {
+  const sheetRows = options.sheetRows || [];
+  const hyperlinks = options.hyperlinks || [];
   const varKeys = columnVarKeys(columns);
   return rows
-    .map((row) => {
+    .map((row, rowIndex) => {
       const item = {
         rep: "",
         phone: "",
@@ -119,12 +138,20 @@ export function mapRows(columns, rows, mapping) {
         notes: "",
         tag: "Sin etiqueta",
         customData: {},
+        imageCell: "",
+        sheetRow: sheetRows[rowIndex] || rowIndex + 2,
       };
       let extraCount = 0;
       columns.forEach((col, i) => {
         const field = mapping[col];
         if (!field || field === "ignore") return;
         const value = row[i] ?? "";
+        if (field === "image") {
+          const link = String(hyperlinks[rowIndex]?.[i] || "").trim();
+          const text = String(value || "").trim();
+          item.imageCell = /^https?:\/\//i.test(link) ? link : (text || link);
+          return;
+        }
         if (CORE_IMPORT_FIELDS.has(field)) {
           if (field === "invited") item.invited = Math.max(1, Number(value) || 1);
           else item[field] = String(value);

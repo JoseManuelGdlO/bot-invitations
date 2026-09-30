@@ -62,6 +62,7 @@ export interface Guest {
   notes: string;
   tag: string;
   customData?: Record<string, string>;
+  hasInvitationImage?: boolean;
   status: ConfirmationStatus;
   whatsapp: WhatsappStatus;
   lastMessage: string;
@@ -239,4 +240,9 @@ export interface ImportPreview {
   columns: string[];
   rows: string[][];
   suggestedMapping: Record<string, string>;
+  importToken?: string;
+  sheetRows?: number[];
+  hyperlinks?: string[][];
+  embeddedImageCells?: string[];
+  imageStatus?: Array<"image" | "link" | "empty">;
 }

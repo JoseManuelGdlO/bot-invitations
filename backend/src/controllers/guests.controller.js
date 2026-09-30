@@ -4,6 +4,17 @@ import { serializeGuest } from "../utils/serialize.js";
 import { requireEvent, userEventIds, requirePermission, hasEventPermission, PERMS } from "../services/access.service.js";
 import { logActivity } from "../services/activity.service.js";
 import { mapRows, parseSpreadsheet, suggestMapping } from "../services/import.service.js";
+import {
+  deleteGuestImage,
+  embeddedImageCells,
+  extractSheetImages,
+  guestImageStatuses,
+  headerImageForGuest,
+  markEmbeddedImageCells,
+  resolveGuestImageBytes,
+  saveGuestImage,
+} from "../services/guest-image.service.js";
+import { discardStagedSpreadsheet, readStagedSpreadsheet, stageSpreadsheet } from "../services/import-staging.service.js";
 import { guestsToRows, toCsv, toPdf, toXlsx } from "../services/export.service.js";
 import { assertCanAddGuestsForEvent, assertCanSendInvitations } from "../services/plans.service.js";
 import { assertWhatsappReady } from "../services/integration-resolver.service.js";
@@ -133,6 +144,7 @@ export const deleteGuest = asyncHandler(async (req, res) => {
     await BotSession.destroy({ where: { guestId: guest.id }, transaction: t });
     await guest.destroy({ transaction: t });
   });
+  await deleteGuestImage(guest.invitationImagePath);
   await logActivity(event.id, `Se eliminó a ${guest.rep} de la lista de invitados`, "system");
   res.json({ ok: true });
 });
@@ -167,6 +179,7 @@ async function deliverPurposeHsm({
     ? await resolveCampaignSendContext(event)
     : await resolvePurposeSendContext(event, purpose);
   const params = await ctx.hsmParamsFor(guest, plannerName);
+  const headerImage = headerImageForGuest(ctx, guest);
   return deliverAiMessage({
     event,
     guest,
@@ -174,7 +187,7 @@ async function deliverPurposeHsm({
     hsmParams: params,
     hsmTemplateName: ctx.hsmTemplateName,
     ...(ctx.hsmHeaderDocument ? { hsmHeaderDocument: ctx.hsmHeaderDocument } : {}),
-    ...(ctx.hsmHeaderImage ? { hsmHeaderImage: ctx.hsmHeaderImage } : {}),
+    ...(headerImage ? { hsmHeaderImage: headerImage } : {}),
     kind,
     sync,
     ...(followUpId ? { followUpId } : {}),
@@ -219,11 +232,25 @@ export const previewImport = asyncHandler(async (req, res) => {
   if (!(await requirePermission(req, res, event, PERMS.EDIT_ALL))) return;
   if (!req.file?.buffer) return res.status(400).json({ error: "Sube un archivo .xlsx, .xls o .csv" });
   const parsed = parseSpreadsheet(req.file.buffer);
+  const suggestedMapping = suggestMapping(parsed.columns);
+  const images = await extractSheetImages(req.file.buffer);
+  const imageStatus = guestImageStatuses({ ...parsed, mapping: suggestedMapping, images });
+  const importToken = await stageSpreadsheet({
+    userId: req.user.id,
+    eventId: event.id,
+    buffer: req.file.buffer,
+    filename: req.file.originalname,
+  });
   res.json({
     filename: req.file.originalname,
     columns: parsed.columns,
-    rows: parsed.rows,
-    suggestedMapping: suggestMapping(parsed.columns),
+    rows: markEmbeddedImageCells({ rows: parsed.rows, sheetRows: parsed.sheetRows, images }),
+    suggestedMapping,
+    importToken,
+    sheetRows: parsed.sheetRows,
+    hyperlinks: parsed.hyperlinks,
+    embeddedImageCells: embeddedImageCells(images),
+    imageStatus,
   });
 });
 
@@ -231,9 +258,28 @@ export const confirmImport = asyncHandler(async (req, res) => {
   const event = await requireEvent(req, res);
   if (!event) return;
   if (!(await requirePermission(req, res, event, PERMS.EDIT_ALL))) return;
-  const { columns, rows, mapping } = req.body || {};
-  if (!columns || !rows || !mapping) return res.status(400).json({ error: "Faltan columnas, filas o mapeo." });
-  const mapped = mapRows(columns, rows, mapping);
+  const { mapping, importToken } = req.body || {};
+  if (!mapping) return res.status(400).json({ error: "Faltan columnas, filas o mapeo." });
+  let columns = req.body?.columns;
+  let rows = req.body?.rows;
+  let sheetRows;
+  let hyperlinks;
+  let fileBuffer = null;
+  if (importToken) {
+    const staged = await readStagedSpreadsheet({
+      token: importToken,
+      userId: req.user.id,
+      eventId: event.id,
+    });
+    const parsed = parseSpreadsheet(staged.buffer);
+    columns = parsed.columns;
+    rows = parsed.rows;
+    sheetRows = parsed.sheetRows;
+    hyperlinks = parsed.hyperlinks;
+    fileBuffer = staged.buffer;
+  }
+  if (!columns || !rows) return res.status(400).json({ error: "Faltan columnas, filas o mapeo." });
+  const mapped = mapRows(columns, rows, mapping, { sheetRows, hyperlinks });
   const discarded = Math.max(0, rows.length - mapped.length);
   const existing = await Guest.findAll({ where: { eventId: event.id }, attributes: ["phone"] });
   const phones = new Set(existing.map((g) => g.phone.replace(/\s/g, "")));
@@ -241,7 +287,10 @@ export const confirmImport = asyncHandler(async (req, res) => {
   const incomingPeople = incoming.reduce((sum, row) => sum + (Number(row.invited) || 1), 0);
   await assertCanAddGuestsForEvent(req.user, event, incomingPeople);
   const created = [];
+  const imageWarnings = [];
   let skipped = 0;
+  const imageCol = columns.findIndex((col) => mapping[col] === "image");
+  const images = fileBuffer ? await extractSheetImages(fileBuffer) : new Map();
   for (const row of mapped) {
     const key = row.phone.replace(/\s/g, "");
     if (phones.has(key)) {
@@ -249,20 +298,51 @@ export const confirmImport = asyncHandler(async (req, res) => {
       continue;
     }
     phones.add(key);
-    created.push(
-      await Guest.create({
-        eventId: event.id,
-        ...row,
-        status: "sin_contactar",
-        whatsapp: "pendiente",
-      }),
-    );
+    const guest = await Guest.create({
+      eventId: event.id,
+      rep: row.rep,
+      phone: row.phone,
+      invited: row.invited,
+      table: row.table,
+      family: row.family,
+      guestType: row.guestType,
+      notes: row.notes,
+      tag: row.tag,
+      customData: row.customData,
+      status: "sin_contactar",
+      whatsapp: "pendiente",
+    });
+    if (imageCol >= 0) {
+      const embedded = images.get(`${row.sheetRow}:${imageCol + 1}`) || null;
+      const resolved = await resolveGuestImageBytes({ embedded, cellText: row.imageCell });
+      if (resolved.warning) {
+        imageWarnings.push({ sheetRow: row.sheetRow, rep: row.rep, reason: resolved.warning });
+      } else if (resolved.buffer) {
+        try {
+          guest.invitationImagePath = await saveGuestImage({
+            eventId: event.id,
+            guestId: guest.id,
+            buffer: resolved.buffer,
+          });
+          await guest.save();
+        } catch {
+          imageWarnings.push({
+            sheetRow: row.sheetRow,
+            rep: row.rep,
+            reason: "No se pudo guardar la imagen.",
+          });
+        }
+      }
+    }
+    created.push(guest);
   }
+  if (importToken) await discardStagedSpreadsheet(importToken);
   await logActivity(event.id, `Se importaron ${created.length} invitaciones desde Excel`, "system");
   res.json({
     imported: created.length,
     skipped,
     discarded,
+    imageWarnings,
     guests: created.map((g) => serializeGuest(g, event.slug)),
   });
 });
