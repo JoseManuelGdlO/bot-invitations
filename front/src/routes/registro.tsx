@@ -218,38 +218,42 @@ function Registro() {
     }
   };
 
+  const enterAsInvitee = async () => {
+    if (googleIdToken) {
+      if (!name.trim()) {
+        toast.error("Completa tu nombre para continuar");
+        return;
+      }
+      await submitInviteWithGoogle(googleIdToken, name.trim());
+      return;
+    }
+    if (!name.trim() || !email.trim() || password.length < 6) {
+      toast.error(
+        "Completa nombre, correo y contraseña (mín. 6) para continuar",
+      );
+      return;
+    }
+    setLoading(true);
+    try {
+      await registerInvite({ name, email, password });
+      toast.success("Cuenta creada", {
+        description: "Ya puedes ver el evento al que te invitaron.",
+      });
+      navigate({ to: "/eventos" });
+    } catch (err) {
+      const message =
+        err instanceof ApiError ? err.message : "No se pudo crear la cuenta";
+      if (err instanceof ApiError) setEmailError(message);
+      toast.error(message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const submit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isInvite) {
-      if (googleIdToken) {
-        if (!name.trim()) {
-          toast.error("Completa tu nombre para continuar");
-          return;
-        }
-        await submitInviteWithGoogle(googleIdToken, name.trim());
-        return;
-      }
-      if (!name.trim() || !email.trim() || password.length < 6) {
-        toast.error(
-          "Completa nombre, correo y contraseña (mín. 6) para continuar",
-        );
-        return;
-      }
-      setLoading(true);
-      try {
-        await registerInvite({ name, email, password });
-        toast.success("Cuenta creada", {
-          description: "Ya puedes ver el evento al que te invitaron.",
-        });
-        navigate({ to: "/eventos" });
-      } catch (err) {
-        const message =
-          err instanceof ApiError ? err.message : "No se pudo crear la cuenta";
-        if (err instanceof ApiError) setEmailError(message);
-        toast.error(message);
-      } finally {
-        setLoading(false);
-      }
+      await enterAsInvitee();
       return;
     }
     if (step === 0) {
@@ -662,6 +666,20 @@ function Registro() {
                 Pagar y crear cuenta
               </Button>
             </div>
+            <Button
+              type="button"
+              variant="outline"
+              className="w-full"
+              size="lg"
+              disabled={loading}
+              onClick={() => void enterAsInvitee()}
+            >
+              Entrar como invitado
+            </Button>
+            <p className="text-center text-sm text-muted-foreground">
+              Si te invitaron a un evento, entra sin pagar. Solo verás ese
+              evento. Para crear el tuyo necesitas un plan.
+            </p>
           </>
         )}
         <p className="text-center text-xs text-muted-foreground">
