@@ -14,9 +14,12 @@ function isValidEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
-async function sendInviteEmail(member, event, cleanEmail) {
+async function sendInviteEmail(member, event, cleanEmail, hasAccount) {
   const base = String(env.clientUrl || "").replace(/\/$/, "");
-  const inviteLink = `${base}/iniciar-sesion?email=${encodeURIComponent(cleanEmail)}`;
+  const emailQuery = `email=${encodeURIComponent(cleanEmail)}`;
+  const inviteLink = hasAccount
+    ? `${base}/iniciar-sesion?${emailQuery}`
+    : `${base}/registro?${emailQuery}&invite=1`;
   await sendTeamInvitationEmail({
     to: cleanEmail,
     name: member.name,
@@ -76,7 +79,7 @@ export const inviteMember = asyncHandler(async (req, res) => {
   let emailSent = true;
   let emailError = null;
   try {
-    await sendInviteEmail(member, event, cleanEmail);
+    await sendInviteEmail(member, event, cleanEmail, Boolean(existingUser));
   } catch (err) {
     emailSent = false;
     emailError = err?.message || "No se pudo enviar el correo de invitación.";

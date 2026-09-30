@@ -52,7 +52,7 @@ describe("team.controller", () => {
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ error: "El rol no es válido para este evento." }));
   });
 
-  test("inviteMember envía enlace a iniciar-sesion con el correo", async () => {
+  test("inviteMember envía a crear cuenta si el correo no tiene usuario", async () => {
     const { res } = await callHandler(controller.inviteMember, {
       req: createMockReq({ body: { name: "Luis", email: "Luis@Test.com", role: "Asistente" } }),
     });
@@ -61,7 +61,7 @@ describe("team.controller", () => {
       expect.objectContaining({
         to: "luis@test.com",
         inviteLink: expect.stringMatching(
-          /^https?:\/\/.+\/iniciar-sesion\?email=luis%40test\.com$/,
+          /^https?:\/\/.+\/registro\?email=luis%40test\.com&invite=1$/,
         ),
       }),
     );
@@ -88,6 +88,13 @@ describe("team.controller", () => {
       req: createMockReq({ body: { name: "Luis", email: "luis@test.com", role: "Asistente" } }),
     });
     expect(models.EventMember.create).toHaveBeenCalledWith(expect.objectContaining({ userId: "usr_existing" }));
+    expect(sendTeamInvitationEmail).toHaveBeenCalledWith(
+      expect.objectContaining({
+        inviteLink: expect.stringMatching(
+          /^https?:\/\/.+\/iniciar-sesion\?email=luis%40test\.com$/,
+        ),
+      }),
+    );
   });
 
   test("deleteMember 404", async () => {
