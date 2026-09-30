@@ -1,5 +1,16 @@
+import fs from "node:fs/promises";
+import path from "node:path";
 import { jest } from "@jest/globals";
+import JSZip from "jszip";
+import XLSX from "xlsx";
+import { env } from "../../src/config/env.js";
+import { stageSpreadsheet } from "../../src/services/import-staging.service.js";
 import { callHandler, createMockReq, loadWithMocks, fakeEvent, fakeGuest, fakeUser, PERMS } from "../helpers/controller.js";
+
+const TINY_PNG = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+  "base64",
+);
 
 describe("guests.controller", () => {
   let controller;
@@ -247,6 +258,62 @@ describe("guests.controller", () => {
         ],
       }),
     );
+  });
+
+  test("confirmImport actualiza la imagen si el teléfono ya existe", async () => {
+    const wb = XLSX.utils.book_new();
+    const sheet = XLSX.utils.aoa_to_sheet([
+      ["Nombre", "Teléfono", "Imagen"],
+      ["Luis Pérez", "5511111111", ""],
+    ]);
+    XLSX.utils.book_append_sheet(wb, sheet, "Invitados");
+    const zip = await JSZip.loadAsync(XLSX.write(wb, { type: "buffer", bookType: "xlsx" }));
+    const xml = await zip.file("xl/worksheets/sheet1.xml").async("string");
+    zip.file(
+      "xl/worksheets/sheet1.xml",
+      xml.replace(/<row r="2"[^>]*>/, (row) => `${row}<c r="C2"><f>DISPIMG(&quot;ID_QR1&quot;,1)</f></c>`),
+    );
+    zip.file("xl/media/image1.png", TINY_PNG);
+    zip.file("xl/cellimages.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+      <etc:cellImages><etc:cellImage><xdr:cNvPr name="ID_QR1"/><a:blip r:embed="rId1"/></etc:cellImage></etc:cellImages>`);
+    zip.file("xl/_rels/cellimages.xml.rels", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+      <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+        <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image1.png"/>
+      </Relationships>`);
+    const buffer = await zip.generateAsync({ type: "nodebuffer" });
+    const token = await stageSpreadsheet({
+      userId: "usr_test_1",
+      eventId: "evt_1",
+      buffer,
+      filename: "lista.xlsx",
+    });
+    const guest = fakeGuest({
+      phone: "5511111111",
+      invitationImagePath: "guest-images/evt_1/gst_1.jpg",
+    });
+    models.Guest.findAll.mockResolvedValue([guest]);
+    const saved = path.join(env.uploadsDir, "guest-images", "evt_1", "gst_1.png");
+    try {
+      const { res } = await callHandler(controller.confirmImport, {
+        req: createMockReq({
+          user: fakeUser(),
+          params: { eventId: "boda-ana" },
+          body: {
+            mapping: { Nombre: "rep", Teléfono: "phone", Imagen: "image" },
+            importToken: token,
+          },
+        }),
+      });
+      expect(models.Guest.create).not.toHaveBeenCalled();
+      expect(guest.invitationImagePath).toBe("guest-images/evt_1/gst_1.png");
+      expect(guest.save).toHaveBeenCalled();
+      await expect(fs.readFile(saved)).resolves.toEqual(TINY_PNG);
+      expect(res.json).toHaveBeenCalledWith(
+        expect.objectContaining({ imported: 0, skipped: 1, imagesUpdated: 1 }),
+      );
+    } finally {
+      await fs.unlink(saved).catch(() => {});
+    }
   });
 
   test("exportGuests csv llama send", async () => {

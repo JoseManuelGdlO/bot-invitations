@@ -6,6 +6,9 @@ import path from "node:path";
 import JSZip from "jszip";
 import { env } from "../config/env.js";
 import { httpError } from "../utils/http-error.js";
+import { Logger } from "../utils/logger.js";
+
+const log = new Logger("GuestImage");
 
 export const GUEST_IMAGE_MAX_BYTES = 5 * 1024 * 1024;
 const DOWNLOAD_TIMEOUT_MS = 10_000;
@@ -412,7 +415,44 @@ export async function saveGuestImage({ eventId, guestId, buffer, uploadsDir } = 
 export async function deleteGuestImage(relativePath, uploadsDir) {
   const absolute = guestImageAbsolutePath(relativePath, uploadsDir);
   if (!absolute) return;
-  await fsPromises.unlink(absolute).catch(() => {});
+  try {
+    await fsPromises.unlink(absolute);
+  } catch (err) {
+    if (err?.code === "ENOENT") return;
+    log.warn("No se pudo borrar la foto del invitado.", {
+      invitationImagePath: relativePath,
+      error: err?.message || String(err),
+    });
+  }
+}
+
+export async function deleteStoredGuestImage(guest, uploadsDir) {
+  const paths = new Set();
+  const stored = String(guest?.invitationImagePath || "").trim().replace(/\\/g, "/");
+  if (stored) paths.add(stored);
+  const eventId = String(guest?.eventId || "").trim();
+  const guestId = String(guest?.id || "").trim();
+  if (ID_RE.test(eventId) && ID_RE.test(guestId)) {
+    paths.add(`guest-images/${eventId}/${guestId}.png`);
+    paths.add(`guest-images/${eventId}/${guestId}.jpg`);
+  }
+  for (const relativePath of paths) {
+    await deleteGuestImage(relativePath, uploadsDir);
+  }
+}
+
+export async function deleteEventGuestImages(eventId, uploadsDir) {
+  const event = safeId(eventId, "Evento");
+  const root = uploadsRoot(uploadsDir);
+  const dir = path.resolve(root, "guest-images", event);
+  const prefix = root.endsWith(path.sep) ? root : `${root}${path.sep}`;
+  if (dir !== root && !dir.startsWith(prefix)) return;
+  await fsPromises.rm(dir, { recursive: true, force: true }).catch((err) => {
+    log.warn("No se pudo borrar la carpeta de fotos del evento.", {
+      eventId: event,
+      error: err?.message || String(err),
+    });
+  });
 }
 
 export function headerImageForGuest(ctx, guest, { exists = fs.existsSync, uploadsDir } = {}) {
@@ -429,6 +469,13 @@ export function headerImageForGuest(ctx, guest, { exists = fs.existsSync, upload
       mime: rel.toLowerCase().endsWith(".png") ? "image/png" : "image/jpeg",
       ...(guest?.eventId ? { eventId: guest.eventId } : {}),
     };
+  }
+  if (rel) {
+    log.warn("La foto del invitado no está en disco; el envío usa la imagen de la plantilla.", {
+      guestId: guest?.id || null,
+      eventId: guest?.eventId || null,
+      invitationImagePath: rel,
+    });
   }
   return templateImage;
 }

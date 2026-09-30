@@ -23,6 +23,7 @@ import { assertCanCreateEvent } from "../services/plans.service.js";
 import { findCurrentCampaign } from "../services/campaign.service.js";
 import { DEFAULT_EVENT_TIMEZONE, validateTimezone } from "../utils/timezone.js";
 import { Logger } from "../utils/logger.js";
+import { deleteEventGuestImages } from "../services/guest-image.service.js";
 
 const DEFAULT_COVER = "linear-gradient(135deg, var(--gold-soft), var(--rose))";
 const whatsappTemplatesLog = new Logger("WhatsAppTemplates");
@@ -163,6 +164,7 @@ export const deleteEvent = asyncHandler(async (req, res) => {
     await Campaign.destroy({ where: { eventId: event.id }, transaction: t });
     await event.destroy({ transaction: t });
   });
+  await deleteEventGuestImages(event.id);
   res.json({ ok: true });
 });
 

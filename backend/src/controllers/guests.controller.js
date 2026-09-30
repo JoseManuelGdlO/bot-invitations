@@ -5,7 +5,7 @@ import { requireEvent, userEventIds, requirePermission, hasEventPermission, PERM
 import { logActivity } from "../services/activity.service.js";
 import { mapRows, parseSpreadsheet, suggestMapping } from "../services/import.service.js";
 import {
-  deleteGuestImage,
+  deleteStoredGuestImage,
   embeddedImageCells,
   extractSheetImages,
   guestImageStatuses,
@@ -13,6 +13,7 @@ import {
   markEmbeddedImageCells,
   resolveGuestImageBytes,
   saveGuestImage,
+  deleteGuestImage,
 } from "../services/guest-image.service.js";
 import { discardStagedSpreadsheet, readStagedSpreadsheet, stageSpreadsheet } from "../services/import-staging.service.js";
 import { guestsToRows, toCsv, toPdf, toXlsx } from "../services/export.service.js";
@@ -144,7 +145,7 @@ export const deleteGuest = asyncHandler(async (req, res) => {
     await BotSession.destroy({ where: { guestId: guest.id }, transaction: t });
     await guest.destroy({ transaction: t });
   });
-  await deleteGuestImage(guest.invitationImagePath);
+  await deleteStoredGuestImage(guest);
   await logActivity(event.id, `Se eliminó a ${guest.rep} de la lista de invitados`, "system");
   res.json({ ok: true });
 });
@@ -254,6 +255,36 @@ export const previewImport = asyncHandler(async (req, res) => {
   });
 });
 
+async function storeImportedGuestImage(guest, row, { images, imageCol, imageWarnings }) {
+  if (imageCol < 0) return false;
+  const embedded = images.get(`${row.sheetRow}:${imageCol + 1}`) || null;
+  const resolved = await resolveGuestImageBytes({ embedded, cellText: row.imageCell });
+  if (resolved.warning) {
+    imageWarnings.push({ sheetRow: row.sheetRow, rep: row.rep, reason: resolved.warning });
+    return false;
+  }
+  if (!resolved.buffer) return false;
+  try {
+    const previous = String(guest.invitationImagePath || "").trim().replace(/\\/g, "/");
+    const next = await saveGuestImage({
+      eventId: guest.eventId,
+      guestId: guest.id,
+      buffer: resolved.buffer,
+    });
+    if (previous && previous !== next) await deleteGuestImage(previous);
+    guest.invitationImagePath = next;
+    await guest.save();
+    return true;
+  } catch {
+    imageWarnings.push({
+      sheetRow: row.sheetRow,
+      rep: row.rep,
+      reason: "No se pudo guardar la imagen.",
+    });
+    return false;
+  }
+}
+
 export const confirmImport = asyncHandler(async (req, res) => {
   const event = await requireEvent(req, res);
   if (!event) return;
@@ -281,23 +312,27 @@ export const confirmImport = asyncHandler(async (req, res) => {
   if (!columns || !rows) return res.status(400).json({ error: "Faltan columnas, filas o mapeo." });
   const mapped = mapRows(columns, rows, mapping, { sheetRows, hyperlinks });
   const discarded = Math.max(0, rows.length - mapped.length);
-  const existing = await Guest.findAll({ where: { eventId: event.id }, attributes: ["phone"] });
-  const phones = new Set(existing.map((g) => g.phone.replace(/\s/g, "")));
-  const incoming = mapped.filter((row) => !phones.has(row.phone.replace(/\s/g, "")));
+  const existing = await Guest.findAll({ where: { eventId: event.id } });
+  const guestsByPhone = new Map(existing.map((guest) => [guest.phone.replace(/\s/g, ""), guest]));
+  const incoming = mapped.filter((row) => !guestsByPhone.has(row.phone.replace(/\s/g, "")));
   const incomingPeople = incoming.reduce((sum, row) => sum + (Number(row.invited) || 1), 0);
   await assertCanAddGuestsForEvent(req.user, event, incomingPeople);
   const created = [];
   const imageWarnings = [];
   let skipped = 0;
+  let imagesUpdated = 0;
   const imageCol = columns.findIndex((col) => mapping[col] === "image");
   const images = fileBuffer ? await extractSheetImages(fileBuffer) : new Map();
   for (const row of mapped) {
     const key = row.phone.replace(/\s/g, "");
-    if (phones.has(key)) {
+    if (guestsByPhone.has(key)) {
       skipped += 1;
+      const current = guestsByPhone.get(key);
+      if (await storeImportedGuestImage(current, row, { images, imageCol, imageWarnings })) {
+        imagesUpdated += 1;
+      }
       continue;
     }
-    phones.add(key);
     const guest = await Guest.create({
       eventId: event.id,
       rep: row.rep,
@@ -312,28 +347,8 @@ export const confirmImport = asyncHandler(async (req, res) => {
       status: "sin_contactar",
       whatsapp: "pendiente",
     });
-    if (imageCol >= 0) {
-      const embedded = images.get(`${row.sheetRow}:${imageCol + 1}`) || null;
-      const resolved = await resolveGuestImageBytes({ embedded, cellText: row.imageCell });
-      if (resolved.warning) {
-        imageWarnings.push({ sheetRow: row.sheetRow, rep: row.rep, reason: resolved.warning });
-      } else if (resolved.buffer) {
-        try {
-          guest.invitationImagePath = await saveGuestImage({
-            eventId: event.id,
-            guestId: guest.id,
-            buffer: resolved.buffer,
-          });
-          await guest.save();
-        } catch {
-          imageWarnings.push({
-            sheetRow: row.sheetRow,
-            rep: row.rep,
-            reason: "No se pudo guardar la imagen.",
-          });
-        }
-      }
-    }
+    guestsByPhone.set(key, guest);
+    await storeImportedGuestImage(guest, row, { images, imageCol, imageWarnings });
     created.push(guest);
   }
   if (importToken) await discardStagedSpreadsheet(importToken);
@@ -342,6 +357,7 @@ export const confirmImport = asyncHandler(async (req, res) => {
     imported: created.length,
     skipped,
     discarded,
+    imagesUpdated,
     imageWarnings,
     guests: created.map((g) => serializeGuest(g, event.slug)),
   });

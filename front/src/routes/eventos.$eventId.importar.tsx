@@ -202,8 +202,15 @@ function Importar() {
         ...(preview.importToken ? { importToken: preview.importToken } : {}),
       });
       const discarded = res.discarded ?? 0;
+      const imagesUpdated = res.imagesUpdated ?? 0;
       if (res.imported === 0) {
-        if (res.skipped > 0) {
+        if (imagesUpdated > 0) {
+          toast.success(
+            imagesUpdated === 1
+              ? "Se actualizó la imagen de 1 invitado que ya estaba en la lista."
+              : `Se actualizó la imagen de ${imagesUpdated} invitados que ya estaban en la lista.`,
+          );
+        } else if (res.skipped > 0) {
           toast.warning(
             `Ningún invitado nuevo: ${res.skipped} ya estaban en la lista.`,
           );
@@ -216,12 +223,23 @@ function Importar() {
             "No se importó ningún invitado. Revisa el archivo y el mapeo.",
           );
         }
+        if (res.imageWarnings?.length) {
+          toast.warning(
+            `${res.imageWarnings.length} invitados se importaron sin imagen.`,
+          );
+        }
         return;
       }
       setImportedCount(res.imported);
       setPhase("done");
       toast.success(`${res.imported} invitaciones importadas`);
-      if (res.skipped > 0) {
+      if (imagesUpdated > 0) {
+        toast.info(
+          imagesUpdated === 1
+            ? "Se actualizó la imagen de 1 invitado que ya estaba en la lista."
+            : `Se actualizó la imagen de ${imagesUpdated} invitados que ya estaban en la lista.`,
+        );
+      } else if (res.skipped > 0) {
         toast.info(
           `${res.skipped} filas se omitieron porque el teléfono ya existía.`,
         );

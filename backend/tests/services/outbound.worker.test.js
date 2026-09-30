@@ -1,7 +1,15 @@
+import fs from "node:fs/promises";
+import path from "node:path";
 import { jest } from "@jest/globals";
 import { Op } from "sequelize";
+import { env } from "../../src/config/env.js";
 import { loadWithMocks } from "../helpers/loadWithMocks.js";
 import { createInstance } from "../helpers/models.js";
+
+const TINY_PNG = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+  "base64",
+);
 
 function opVal(obj, op) {
   if (!obj || typeof obj !== "object") return undefined;
@@ -218,6 +226,54 @@ describe("outbound.worker", () => {
     );
     expect(models.Template.findOne).not.toHaveBeenCalled();
     expect(assertOpeningDocumentReady).not.toHaveBeenCalled();
+  });
+
+  test("processJob whatsapp.send vuelve a leer la foto del invitado", async () => {
+    const relative = "guest-images/evt_1/gst_worker_img.png";
+    const absolute = path.join(env.uploadsDir, "guest-images", "evt_1", "gst_worker_img.png");
+    await fs.mkdir(path.dirname(absolute), { recursive: true });
+    await fs.writeFile(absolute, TINY_PNG);
+    sendMessage.mockResolvedValueOnce({ provider: "stub", skipped: false });
+    models.Guest.findByPk.mockResolvedValue(createInstance({
+      id: "gst_worker_img",
+      eventId: "evt_1",
+      phone: "6183218624",
+      invitationImagePath: relative,
+    }));
+    const job = createInstance({
+      type: "whatsapp.send",
+      attempts: 0,
+      payload: {
+        to: "6183218624",
+        text: "compuesto",
+        kind: "campaign",
+        eventId: "evt_1",
+        guestId: "gst_worker_img",
+        hsmParams: ["Luis"],
+        hsmTemplateName: "alanna_pc_aa_1",
+        hsmHeaderImage: {
+          relativePath: "template-headers/evt_1/plantilla.png",
+          fileName: "plantilla.png",
+          mime: "image/png",
+        },
+      },
+    });
+    try {
+      await service.processJob(job);
+    } finally {
+      await fs.unlink(absolute).catch(() => {});
+    }
+    expect(sendMessage).toHaveBeenCalledWith(
+      "5216183218624",
+      "compuesto",
+      expect.objectContaining({
+        hsmHeaderImage: expect.objectContaining({
+          relativePath: relative,
+          fileName: "gst_worker_img.png",
+          eventId: "evt_1",
+        }),
+      }),
+    );
   });
 
   test("processJob campaign sin header en el payload no consulta nombres de env", async () => {

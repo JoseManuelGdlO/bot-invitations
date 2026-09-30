@@ -158,6 +158,7 @@ interface Ctx extends State {
     imported: number;
     skipped: number;
     discarded: number;
+    imagesUpdated?: number;
     imageWarnings?: { sheetRow: number; rep: string; reason: string }[];
   }>;
   exportGuests: (
@@ -484,6 +485,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           imported: number;
           skipped: number;
           discarded: number;
+          imagesUpdated?: number;
           imageWarnings?: { sheetRow: number; rep: string; reason: string }[];
         }>(`/events/${eventId}/guests/import/confirm`, {
           method: "POST",

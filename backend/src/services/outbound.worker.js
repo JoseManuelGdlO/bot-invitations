@@ -1,6 +1,7 @@
 import { Op } from "sequelize";
 import { Event, Guest, Message, OutboundJob } from "../models/index.js";
 import { createWhatsAppProvider, isColdConversation } from "./whatsapp.adapter.js";
+import { headerImageForGuest } from "./guest-image.service.js";
 import { env } from "../config/env.js";
 import { Logger } from "../utils/logger.js";
 import { formatClock } from "../utils/time.js";
@@ -152,10 +153,17 @@ function skipWhatsappSendReason(payload) {
   return null;
 }
 
-async function resolveCampaignHeader(payload = {}) {
+async function resolveCampaignHeader(payload = {}, guest = null) {
+  let hsmHeaderImage = payload.hsmHeaderImage || null;
+  if (guest && hsmHeaderImage) {
+    hsmHeaderImage = headerImageForGuest(
+      { hsmHeaderImage, template: { headerType: "image" } },
+      guest,
+    ) || hsmHeaderImage;
+  }
   return {
     hsmHeaderDocument: payload.hsmHeaderDocument || null,
-    hsmHeaderImage: payload.hsmHeaderImage || null,
+    hsmHeaderImage,
     hsmTemplateName: payload.hsmTemplateName || null,
   };
 }
@@ -218,11 +226,12 @@ export async function processJob(job) {
         return;
       }
       to = formatWhatsappTo(job.payload.to);
+      let guest = null;
       if (job.payload?.guestId) {
-        const guest = await Guest.findByPk(job.payload.guestId);
+        guest = await Guest.findByPk(job.payload.guestId);
         if (guest) to = resolveWhatsappTo(guest) || to;
       }
-      const { hsmHeaderDocument, hsmHeaderImage, hsmTemplateName } = await resolveCampaignHeader(job.payload);
+      const { hsmHeaderDocument, hsmHeaderImage, hsmTemplateName } = await resolveCampaignHeader(job.payload, guest);
       waLog.info("enviando whatsapp.send", sendMeta(job, {
         to,
         hsmTemplateName,

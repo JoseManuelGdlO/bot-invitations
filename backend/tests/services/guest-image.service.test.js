@@ -12,6 +12,8 @@ import {
   headerImageForGuest,
   isPrivateIp,
   resolveGuestImageBytes,
+  deleteEventGuestImages,
+  deleteStoredGuestImage,
   saveGuestImage,
 } from "../../src/services/guest-image.service.js";
 
@@ -247,5 +249,39 @@ describe("guest-image.service", () => {
       { uploadsDir: root },
     );
     expect(storedOnly).toBeNull();
+  });
+
+  test("avisa y usa la plantilla si la ruta del invitado no tiene archivo", () => {
+    const warn = jest.spyOn(console, "warn").mockImplementation(() => {});
+    const header = headerImageForGuest(
+      {
+        template: { headerType: "image" },
+        hsmHeaderImage: { relativePath: "template-headers/a.png", fileName: "a.png", mime: "image/png" },
+      },
+      { id: "gst_1", eventId: "evt_1", invitationImagePath: "guest-images/evt_1/missing.png" },
+      { uploadsDir: os.tmpdir() },
+    );
+    expect(header.relativePath).toBe("template-headers/a.png");
+    expect(warn).toHaveBeenCalled();
+    const text = warn.mock.calls.map((call) => call.join(" ")).join("\n");
+    expect(text).toContain("no está en disco");
+    expect(text).toContain("guest-images/evt_1/missing.png");
+    warn.mockRestore();
+  });
+
+  test("borra el png y el jpg del invitado aunque la columna esté vacía", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "guest-img-"));
+    await saveGuestImage({ eventId: "evt_1", guestId: "gst_1", buffer: PNG, uploadsDir: root });
+    const jpg = path.join(root, "guest-images", "evt_1", "gst_1.jpg");
+    await fs.writeFile(jpg, Buffer.from([0xff, 0xd8, 0xff]));
+    await deleteStoredGuestImage({ id: "gst_1", eventId: "evt_1", invitationImagePath: "" }, root);
+    await expect(fs.readdir(path.join(root, "guest-images", "evt_1"))).resolves.toEqual([]);
+  });
+
+  test("borrar el evento quita la carpeta de fotos", async () => {
+    const root = await fs.mkdtemp(path.join(os.tmpdir(), "guest-img-"));
+    await saveGuestImage({ eventId: "evt_1", guestId: "gst_1", buffer: PNG, uploadsDir: root });
+    await deleteEventGuestImages("evt_1", root);
+    await expect(fs.access(path.join(root, "guest-images", "evt_1"))).rejects.toThrow();
   });
 });
