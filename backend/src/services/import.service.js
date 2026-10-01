@@ -20,6 +20,9 @@ const FIELD_ALIASES = {
   notas: "notes",
   etiqueta: "tag",
   tag: "tag",
+  enlace: "enlace",
+  link: "enlace",
+  url: "enlace",
   imagen: "image",
   image: "image",
   qr: "image",
@@ -55,10 +58,19 @@ export const RESERVED_TEMPLATE_KEYS = new Set([
   "tipo",
   "notas",
   "etiqueta",
+  "enlace",
 ]);
 
 const MAX_CUSTOM_COLUMNS = 30;
 const MAX_CUSTOM_VALUE = 240;
+const ENLACE_MAX = 1000;
+
+function enlaceFromCell(text, hyperlink) {
+  const link = String(hyperlink || "").trim();
+  const value = String(text || "").trim();
+  const stored = /^https?:\/\//i.test(link) ? link : value;
+  return stored.slice(0, ENLACE_MAX);
+}
 
 export function slugifyColumn(header) {
   const raw = String(header || "")
@@ -150,6 +162,11 @@ export function mapRows(columns, rows, mapping, options = {}) {
           const link = String(hyperlinks[rowIndex]?.[i] || "").trim();
           const text = String(value || "").trim();
           item.imageCell = /^https?:\/\//i.test(link) ? link : (text || link);
+          return;
+        }
+        if (field === "enlace") {
+          const stored = enlaceFromCell(value, hyperlinks[rowIndex]?.[i]);
+          if (stored) item.customData.enlace = stored;
           return;
         }
         if (CORE_IMPORT_FIELDS.has(field)) {

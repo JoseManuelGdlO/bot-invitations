@@ -15,6 +15,7 @@ export const WIZARD_UNIVERSAL_FIELDS = [
   "hora",
   "planner",
   "nombre_completo",
+  "enlace",
 ] as const;
 
 export const WIZARD_EXTRA_FIELDS = WIZARD_UNIVERSAL_FIELDS.filter(

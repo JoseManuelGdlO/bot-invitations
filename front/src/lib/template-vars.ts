@@ -15,6 +15,7 @@ export const TEMPLATE_VARIABLES = [
   "tipo",
   "notas",
   "etiqueta",
+  "enlace",
   "evento",
   "fecha",
   "lugar",
@@ -51,6 +52,7 @@ const ALWAYS_TEMPLATE_KEYS: readonly TemplateVariable[] = [
   "lugar",
   "hora",
   "planner",
+  "enlace",
 ];
 
 const OPTIONAL_GUEST_KEYS: {
@@ -207,6 +209,7 @@ export function guestTemplateVars(
     tipo: guest.guestType || "",
     notas: guest.notes || "",
     etiqueta: guest.tag || "",
+    enlace: String(guest.customData?.enlace ?? ""),
     evento: event.name,
     fecha: formatDate(event.date),
     lugar: event.venue,

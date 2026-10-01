@@ -285,6 +285,18 @@ async function storeImportedGuestImage(guest, row, { images, imageCol, imageWarn
   }
 }
 
+async function storeImportedEnlace(guest, row) {
+  const enlace = String(row.customData?.enlace || "").trim();
+  if (!enlace) return;
+  const current =
+    guest.customData && typeof guest.customData === "object" && !Array.isArray(guest.customData)
+      ? guest.customData
+      : {};
+  if (String(current.enlace || "") === enlace) return;
+  guest.customData = { ...current, enlace };
+  await guest.save();
+}
+
 export const confirmImport = asyncHandler(async (req, res) => {
   const event = await requireEvent(req, res);
   if (!event) return;
@@ -331,6 +343,7 @@ export const confirmImport = asyncHandler(async (req, res) => {
       if (await storeImportedGuestImage(current, row, { images, imageCol, imageWarnings })) {
         imagesUpdated += 1;
       }
+      await storeImportedEnlace(current, row);
       continue;
     }
     const guest = await Guest.create({

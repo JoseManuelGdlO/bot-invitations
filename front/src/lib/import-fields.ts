@@ -7,6 +7,7 @@ export const IMPORT_FIELDS = [
   { id: "guestType", label: "Tipo de invitado" },
   { id: "notes", label: "Notas" },
   { id: "tag", label: "Etiqueta" },
+  { id: "enlace", label: "Enlace" },
   { id: "image", label: "Imagen o QR" },
   { id: "ignore", label: "No importar" },
 ] as const;
@@ -36,6 +37,7 @@ export const TEMPLATE_FIELD_HEADERS: Record<TemplateCoreFieldId, string> = {
   guestType: "Tipo",
   notes: "Notas",
   tag: "Etiqueta",
+  enlace: "Enlace",
   image: "Imagen",
 };
 

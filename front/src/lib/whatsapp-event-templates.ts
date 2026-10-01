@@ -49,8 +49,10 @@ export type EventTemplateCardDraft = {
   headerType: WizardHeaderType;
   headerFile: File | null;
   headerFileName: string | null;
+  savedBody: string;
   savedHeaderType: WizardHeaderType;
   savedHeaderFileName: string | null;
+  savedDisplayName: string;
   isCampaign: boolean;
   isWabaDefault: boolean;
   status: string | null;
@@ -115,6 +117,50 @@ export function shouldConfirmMetaResubmit(input: {
     Boolean(input.persisted) &&
     (input.status === "APPROVED" || input.status === "REJECTED")
   );
+}
+
+export const EVENT_TEMPLATE_META_SAVE_LABEL = "Enviar a revisión de Meta";
+export const EVENT_TEMPLATE_LOCAL_SAVE_LABEL = "Guardar";
+
+export function eventTemplateNeedsMetaReview(draft: {
+  persisted: boolean;
+  body: string;
+  savedBody: string;
+  headerType: string;
+  savedHeaderType: string;
+  headerFile?: File | null;
+  isWabaDefault?: boolean;
+  displayName?: string;
+  savedDisplayName?: string;
+}): boolean {
+  if (!draft.persisted) return true;
+  if (draft.headerFile) return true;
+  if (draft.headerType !== draft.savedHeaderType) return true;
+  if (draft.body !== draft.savedBody) return true;
+  if (
+    draft.isWabaDefault &&
+    normalizeDisplayName(draft.displayName) !==
+      normalizeDisplayName(draft.savedDisplayName)
+  ) {
+    return true;
+  }
+  return false;
+}
+
+export function eventTemplateSaveLabel(draft: {
+  persisted: boolean;
+  body: string;
+  savedBody: string;
+  headerType: string;
+  savedHeaderType: string;
+  headerFile?: File | null;
+  isWabaDefault?: boolean;
+  displayName?: string;
+  savedDisplayName?: string;
+}): string {
+  return eventTemplateNeedsMetaReview(draft)
+    ? EVENT_TEMPLATE_META_SAVE_LABEL
+    : EVENT_TEMPLATE_LOCAL_SAVE_LABEL;
 }
 
 export function canEditEventExtraMappings(input: {
@@ -185,8 +231,10 @@ export function dtoToEventTemplateDraft(
     headerType,
     headerFile: null,
     headerFileName: dto.template.headerFileName,
+    savedBody: body,
     savedHeaderType: headerType,
     savedHeaderFileName: dto.template.headerFileName,
+    savedDisplayName: dto.template.displayName || "",
     isCampaign: dto.isCampaign,
     isWabaDefault: Boolean(dto.template.isWabaDefault),
     status: dto.template.status,
@@ -221,8 +269,10 @@ export function accountTemplateToDraft(
     headerType,
     headerFile: null,
     headerFileName: template.headerFileName ?? null,
+    savedBody: body,
     savedHeaderType: headerType,
     savedHeaderFileName: template.headerFileName ?? null,
+    savedDisplayName: template.displayName || "",
     isCampaign: false,
     isWabaDefault: Boolean(template.isWabaDefault),
     status: template.status,
@@ -249,8 +299,10 @@ export function blankEventTemplateDraft(
     headerType: "none",
     headerFile: null,
     headerFileName: null,
+    savedBody: "",
     savedHeaderType: "none",
     savedHeaderFileName: null,
+    savedDisplayName: "",
     isCampaign,
     isWabaDefault: false,
     status: "DRAFT",

@@ -187,6 +187,7 @@ export function eventGuestVars(event, guest, plannerName = "") {
           "tipo",
           "notas",
           "etiqueta",
+          "enlace",
         ].includes(key)
       ) {
         continue;
@@ -205,6 +206,7 @@ export function eventGuestVars(event, guest, plannerName = "") {
     tipo: String(guest?.guestType || ""),
     notas: String(guest?.notes || ""),
     etiqueta: String(guest?.tag || ""),
+    enlace: String(raw?.enlace ?? ""),
     evento: event?.name || "",
     fecha: event?.date || "",
     lugar: event?.venue || "",

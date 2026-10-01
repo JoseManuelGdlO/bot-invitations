@@ -15,6 +15,10 @@ import {
   displayNameOrPreview,
   draftsFromEventTemplates,
   EVENT_TEMPLATE_CAP,
+  EVENT_TEMPLATE_LOCAL_SAVE_LABEL,
+  EVENT_TEMPLATE_META_SAVE_LABEL,
+  eventTemplateNeedsMetaReview,
+  eventTemplateSaveLabel,
   eventTemplateSlotFromDto,
   eventTemplateVariableKeys,
   extraSlotOptionsForEventTemplate,
@@ -149,6 +153,63 @@ test("shouldConfirmMetaResubmit si la plantilla persistida está APPROVED o REJE
   assert.match(META_RESUBMIT_WARNING_ACCOUNT, /todos los eventos/);
 });
 
+test("el botón guarda sin Meta si solo cambia el QR y pide revisión si cambia el texto", () => {
+  const saved = {
+    persisted: true,
+    body: OK_BODY,
+    savedBody: OK_BODY,
+    headerType: "image",
+    savedHeaderType: "image",
+    headerFile: null,
+    isWabaDefault: false,
+    displayName: "Invitación",
+    savedDisplayName: "Invitación",
+  };
+  assert.equal(eventTemplateNeedsMetaReview(saved), false);
+  assert.equal(eventTemplateSaveLabel(saved), EVENT_TEMPLATE_LOCAL_SAVE_LABEL);
+  assert.equal(
+    eventTemplateNeedsMetaReview({
+      ...saved,
+      body: `${OK_BODY} Gracias.`,
+    }),
+    true,
+  );
+  assert.equal(
+    eventTemplateSaveLabel({ ...saved, body: `${OK_BODY} Gracias.` }),
+    EVENT_TEMPLATE_META_SAVE_LABEL,
+  );
+  assert.equal(
+    eventTemplateNeedsMetaReview({ ...saved, headerType: "none" }),
+    true,
+  );
+  assert.equal(
+    eventTemplateNeedsMetaReview({
+      ...saved,
+      headerFile: new File(["img"], "portada.jpg", { type: "image/jpeg" }),
+    }),
+    true,
+  );
+  assert.equal(
+    eventTemplateNeedsMetaReview({ ...saved, persisted: false }),
+    true,
+  );
+  assert.equal(
+    eventTemplateNeedsMetaReview({
+      ...saved,
+      isWabaDefault: true,
+      displayName: "Copia del evento",
+    }),
+    true,
+  );
+  assert.equal(
+    eventTemplateNeedsMetaReview({
+      ...saved,
+      displayName: "Otro nombre",
+    }),
+    false,
+  );
+});
+
 test("extras del default se mapean con dropdown de universales; literales y mesa solo en personalizada", () => {
   assert.equal(canEditEventExtraMappings({ isWabaDefault: true }), false);
   assert.equal(canEditEventExtraMappings({ isWabaDefault: false }), true);
@@ -177,6 +238,7 @@ test("extras del default se mapean con dropdown de universales; literales y mesa
     "hora",
     "planner",
     "nombre_completo",
+    "enlace",
   ]);
   assert.deepEqual(eventTemplateVariableKeys(false, ["mesa", "vip"]), [
     "mesa",

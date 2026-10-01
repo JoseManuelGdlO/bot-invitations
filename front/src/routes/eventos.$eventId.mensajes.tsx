@@ -47,6 +47,7 @@ import {
   META_RESUBMIT_WARNING_EVENT,
   parsePrimerContactoSelectorValue,
   selectorValueForDraft,
+  eventTemplateNeedsMetaReview,
   shouldConfirmEventTemplateFork,
   shouldConfirmMetaResubmit,
   shouldShowDefaultTemplateBanner,
@@ -274,6 +275,7 @@ function PurposeTemplates({
 
   const saveDraft = async (draft: EventTemplateCardDraft) => {
     if (savingSlot || error || loading) return;
+    const needsReview = eventTemplateNeedsMetaReview(draft);
     setSavingSlot(draft.slot);
     try {
       const { template } = await integrationsApi.putEventWhatsappTemplate(
@@ -294,12 +296,16 @@ function PurposeTemplates({
       if (!next) return;
       setDrafts((prev) => mergeSavedDraft(prev, next));
       setFocusedSlot(next.slot);
-      toast.success("Plantilla enviada a revisión");
+      toast.success(
+        needsReview ? "Plantilla enviada a revisión" : "Plantilla guardada",
+      );
     } catch (err) {
       toast.error(
         err instanceof ApiError
           ? err.message
-          : "No se pudo enviar la plantilla a revisión",
+          : needsReview
+            ? "No se pudo enviar la plantilla a revisión"
+            : "No se pudo guardar la plantilla",
       );
     } finally {
       setSavingSlot(null);
@@ -308,9 +314,11 @@ function PurposeTemplates({
 
   const requestSave = (draft: EventTemplateCardDraft) => {
     if (isMetaTemplateInReview(draft.status)) return;
+    const needsReview = eventTemplateNeedsMetaReview(draft);
     if (
-      shouldConfirmEventTemplateFork(draft) ||
-      shouldConfirmMetaResubmit(draft)
+      needsReview &&
+      (shouldConfirmEventTemplateFork(draft) ||
+        shouldConfirmMetaResubmit(draft))
     ) {
       setForkDraft(draft);
       return;

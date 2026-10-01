@@ -30,6 +30,7 @@ test("WIZARD_UNIVERSAL_FIELDS es la lista cerrada del wizard", () => {
       "hora",
       "planner",
       "nombre_completo",
+      "enlace",
     ],
   );
 });

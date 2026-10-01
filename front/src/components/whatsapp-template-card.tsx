@@ -34,6 +34,7 @@ import { wrapSelection } from "@/lib/whatsapp-markup";
 import {
   canEditEventExtraMappings,
   displayNameOrPreview,
+  eventTemplateSaveLabel,
   extraSlotOptionsForEventTemplate,
   eventTemplateVariableKeys,
   type EventTemplateCardDraft,
@@ -176,6 +177,7 @@ export function WhatsappTemplateCard({
   const status = draft.status || "DRAFT";
   const inReview = isMetaTemplateInReview(draft.status);
   const ready = isEventTemplateCardReady(draft);
+  const saveLabel = eventTemplateSaveLabel(draft);
   const title =
     displayNameOrPreview({
       displayName: draft.displayName,
@@ -713,7 +715,7 @@ export function WhatsappTemplateCard({
               <TooltipTrigger asChild>
                 <span className="inline-flex w-full">
                   <Button type="button" className="w-full" disabled>
-                    Guardar y enviar a revisión
+                    {saveLabel}
                   </Button>
                 </span>
               </TooltipTrigger>
@@ -728,7 +730,7 @@ export function WhatsappTemplateCard({
             onClick={onSave}
           >
             {submitting ? <Loader2 className="size-4 animate-spin" /> : null}
-            Guardar y enviar a revisión
+            {saveLabel}
           </Button>
         )}
       </CardFooter>

@@ -27,6 +27,7 @@ import { customAccountTemplateEditWarning } from "@/lib/whatsapp-account-templat
 import {
   accountTemplateToDraft,
   displayNameOrPreview,
+  eventTemplateNeedsMetaReview,
   META_RESUBMIT_TITLE_ACCOUNT,
   META_RESUBMIT_WARNING_ACCOUNT,
   shouldConfirmMetaResubmit,
@@ -76,6 +77,7 @@ export function WhatsappAccountTemplateEditDialog({
 
   const submit = async () => {
     if (!template?.id || !draft || submitting) return;
+    const needsReview = eventTemplateNeedsMetaReview(draft);
     setSubmitting(true);
     try {
       await integrationsApi.putAccountWhatsappTemplate(
@@ -89,7 +91,9 @@ export function WhatsappAccountTemplateEditDialog({
           headerFile: draft.headerFile,
         }),
       );
-      toast.success("Plantilla enviada a revisión");
+      toast.success(
+        needsReview ? "Plantilla enviada a revisión" : "Plantilla guardada",
+      );
       setConfirmOpen(false);
       onOpenChange(false);
       await onSaved();
@@ -97,7 +101,9 @@ export function WhatsappAccountTemplateEditDialog({
       toast.error(
         err instanceof ApiError
           ? err.message
-          : "No se pudo enviar la plantilla a revisión",
+          : needsReview
+            ? "No se pudo enviar la plantilla a revisión"
+            : "No se pudo guardar la plantilla",
       );
     } finally {
       setSubmitting(false);
@@ -105,8 +111,9 @@ export function WhatsappAccountTemplateEditDialog({
   };
 
   const requestSave = () => {
-    if (isMetaTemplateInReview(template?.status)) return;
+    if (!draft || isMetaTemplateInReview(template?.status)) return;
     if (
+      eventTemplateNeedsMetaReview(draft) &&
       shouldConfirmMetaResubmit({
         persisted: true,
         status: template?.status,

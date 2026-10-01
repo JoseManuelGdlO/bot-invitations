@@ -78,6 +78,34 @@ describe("import.service", () => {
     expect(mapped[0].customData).toEqual({});
   });
 
+  test("suggestMapping reconoce enlace y lo guarda aparte de la imagen", () => {
+    expect(suggestMapping(["Nombre", "Teléfono", "Enlace", "QR"])).toEqual({
+      Nombre: "rep",
+      Teléfono: "phone",
+      Enlace: "enlace",
+      QR: "image",
+    });
+  });
+
+  test("mapRows guarda el enlace en customData y prefiere el hipervínculo", () => {
+    const mapped = mapRows(
+      ["Nombre", "Teléfono", "Enlace"],
+      [["Luis Pérez", "5511111111", "pase"]],
+      { Nombre: "rep", Teléfono: "phone", Enlace: "enlace" },
+      { hyperlinks: [["", "", "https://deskoplus.com/acceso/?rol=pase&t=abc"]] },
+    );
+    expect(mapped[0].customData).toEqual({
+      enlace: "https://deskoplus.com/acceso/?rol=pase&t=abc",
+    });
+
+    const textOnly = mapRows(
+      ["Nombre", "Teléfono", "Link"],
+      [["Luis Pérez", "5511111111", "token-del-pase"]],
+      { Nombre: "rep", Teléfono: "phone", Link: "enlace" },
+    );
+    expect(textOnly[0].customData.enlace).toBe("token-del-pase");
+  });
+
   test("suggestMapping reconoce imagen y qr", () => {
     expect(suggestMapping(["Nombre", "Teléfono", "Imagen", "QR"])).toEqual({
       Nombre: "rep",

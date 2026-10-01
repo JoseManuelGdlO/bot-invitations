@@ -26,6 +26,14 @@ describe("guestTemplateHeaders", () => {
     );
   });
 
+  test("incluye Enlace cuando se selecciona", () => {
+    assert.deepEqual(guestTemplateHeaders(["rep", "phone", "enlace"], []), [
+      "Nombre",
+      "Teléfono",
+      "Enlace",
+    ]);
+  });
+
   test("incluye Imagen cuando se selecciona", () => {
     assert.deepEqual(guestTemplateHeaders(["rep", "phone", "image"], []), [
       "Nombre",

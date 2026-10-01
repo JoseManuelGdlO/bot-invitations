@@ -1601,6 +1601,7 @@ test("submit persiste displayName en update in-place de personalizada", async ()
     status: "APPROVED",
     isWabaDefault: false,
     displayName: "Viejo",
+    components: [{ type: "BODY", text: WIZARD_BODY }],
     update: jest.fn(async function update(patch) {
       Object.assign(this, patch);
       return this;
@@ -1633,11 +1634,11 @@ test("submit persiste displayName en update in-place de personalizada", async ()
     displayName: "  Invitación con mesa  ",
   });
 
-  expect(updateMessageTemplate).toHaveBeenCalledTimes(1);
-  expect(template.update).toHaveBeenCalledWith(expect.objectContaining({
+  expect(updateMessageTemplate).not.toHaveBeenCalled();
+  expect(template.status).toBe("APPROVED");
+  expect(template.update).toHaveBeenCalledWith({
     displayName: "Invitación con mesa",
-  }));
-  expect(updateMessageTemplate.mock.calls[0][0].payload).not.toHaveProperty("displayName");
+  });
 });
 
 test("submit recrea en Graph el draft del slot 2 sin metaTemplateId", async () => {
@@ -1913,7 +1914,13 @@ test("submit crea la segunda plantilla y su pivot cuando el slot está vacío", 
   models.Event.findAll.mockResolvedValue([]);
   models.EventWhatsappTemplate.findOne.mockResolvedValue(null);
   models.WhatsappMessageTemplate.create.mockResolvedValue(row);
-  models.EventWhatsappTemplate.create.mockImplementation(async (pivot) => pivot);
+  models.EventWhatsappTemplate.create.mockImplementation(async (data) => ({
+    ...data,
+    update: jest.fn(async function update(patch) {
+      Object.assign(this, patch);
+      return this;
+    }),
+  }));
 
   const result = await mod.submitEventTemplate({
     eventId: event.id,
@@ -2846,6 +2853,83 @@ test("submit acepta slot 3 y rechaza slot 0", async () => {
   });
 });
 
+test("submit guarda el QR sin llamar a Meta si el texto y el encabezado no cambian", async () => {
+  const updateMessageTemplate = jest.fn();
+  const createMessageTemplate = jest.fn();
+  const uploadResumableHeader = jest.fn();
+  const { mod, models } = await loadWithMocks("src/services/whatsapp-templates.service.js", {
+    extraMocks: {
+      ...ownerMetaMocks(),
+      "src/services/meta-graph.client.js": () => ({
+        resolveTemplateCrudToken: (token) => token || "sys_tok",
+        ensurePlatformCanManageWaba: jest.fn(async () => ({ shared: true, assigned: true })),
+        createMessageTemplate,
+        updateMessageTemplate,
+        uploadResumableHeader,
+        deleteMessageTemplate: jest.fn(),
+      }),
+    },
+  });
+  const event = fakeEvent({ id: "evt_1", ownerId: "usr_1" });
+  const template = {
+    id: "tpl_3",
+    metaTemplateId: "meta_3",
+    wabaId: "waba_1",
+    name: "alanna_pc_3",
+    language: "es_MX",
+    category: "MARKETING",
+    headerType: "image",
+    headerHandle: "handle_1",
+    status: "APPROVED",
+    isWabaDefault: false,
+    displayName: "Invitación formal",
+    components: [{ type: "BODY", text: WIZARD_BODY }],
+    update: jest.fn(async function update(patch) {
+      Object.assign(this, patch);
+      return this;
+    }),
+  };
+  const pivot = {
+    eventId: event.id,
+    slot: 3,
+    whatsappMessageTemplateId: template.id,
+    template,
+    update: jest.fn(async function update(patch) {
+      Object.assign(this, patch);
+      return this;
+    }),
+  };
+  models.Event.findOne.mockResolvedValue(event);
+  models.EventWhatsappTemplate.findAll.mockResolvedValue([pivot]);
+  models.WhatsappMessageTemplate.findAll.mockResolvedValue([]);
+  models.EventWhatsappTemplate.findOne.mockResolvedValue(pivot);
+  models.EventWhatsappTemplate.count.mockResolvedValue(1);
+
+  const result = await mod.submitEventTemplate({
+    eventId: event.id,
+    ownerUserId: "usr_1",
+    slot: 3,
+    body: WIZARD_BODY,
+    headerType: "image",
+    slotMappings: LOCKED_MAPPINGS,
+    isCampaign: false,
+    imageAttachment: "qr",
+    qrContent: " https://deskoplus.com/acceso/?rol=recepcion&qr={{enlace}} ",
+  });
+
+  expect(updateMessageTemplate).not.toHaveBeenCalled();
+  expect(createMessageTemplate).not.toHaveBeenCalled();
+  expect(uploadResumableHeader).not.toHaveBeenCalled();
+  expect(template.update).not.toHaveBeenCalled();
+  expect(template.status).toBe("APPROVED");
+  expect(pivot.update).toHaveBeenCalledWith({
+    slotMappings: LOCKED_MAPPINGS,
+    imageAttachment: "qr",
+    qrContent: "https://deskoplus.com/acceso/?rol=recepcion&qr={{enlace}}",
+  });
+  expect(result).toBe(template);
+});
+
 test("submit hace fork cuando la HSM es default aunque solo tenga un pivot", async () => {
   const createMessageTemplate = jest.fn(async () => ({ id: "meta_fork" }));
   const updateMessageTemplate = jest.fn();
@@ -3215,7 +3299,7 @@ test("submitOwnerCustomTemplate permite editar el default de reminder", async ()
   await mod.submitOwnerCustomTemplate({
     ownerUserId: "usr_1",
     templateId: "tpl_custom",
-    body: REMINDER_BODY,
+    body: `${REMINDER_BODY} Gracias.`,
     headerType: "none",
     slotMappings: REMINDER_MAPPINGS,
   });
@@ -3223,7 +3307,32 @@ test("submitOwnerCustomTemplate permite editar el default de reminder", async ()
   expect(updateMessageTemplate).toHaveBeenCalled();
   expect(template.update).toHaveBeenCalledWith(expect.objectContaining({
     displayName: "Recordatorio amable",
+    status: "PENDING",
   }));
+});
+
+test("submitOwnerCustomTemplate no llama a Meta si el texto no cambia", async () => {
+  const { mod, models, updateMessageTemplate, createMessageTemplate } =
+    await loadOwnerCustomSubmitService();
+  const template = ownerCustomTemplate();
+  const link = ownerCustomLink();
+  models.WhatsappMessageTemplate.findOne.mockResolvedValue(template);
+  models.EventWhatsappTemplate.findAll.mockResolvedValue([link]);
+
+  await mod.submitOwnerCustomTemplate({
+    ownerUserId: "usr_1",
+    templateId: "tpl_custom",
+    body: WIZARD_BODY,
+    headerType: "none",
+    slotMappings: LOCKED_MAPPINGS,
+    displayName: "Nombre local",
+  });
+
+  expect(updateMessageTemplate).not.toHaveBeenCalled();
+  expect(createMessageTemplate).not.toHaveBeenCalled();
+  expect(template.status).toBe("APPROVED");
+  expect(template.update).toHaveBeenCalledWith({ displayName: "Nombre local" });
+  expect(link.update).toHaveBeenCalledWith({ slotMappings: LOCKED_MAPPINGS });
 });
 
 test("submitOwnerCustomTemplate 404 si la plantilla no es del owner/WABA", async () => {

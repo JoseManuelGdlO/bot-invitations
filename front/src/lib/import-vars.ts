@@ -15,6 +15,7 @@ const RESERVED = new Set([
   "tipo",
   "notas",
   "etiqueta",
+  "enlace",
 ]);
 
 export function slugifyColumn(header: string) {

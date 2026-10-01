@@ -55,6 +55,7 @@ const WIZARD_UNIVERSAL_FIELDS = new Set([
   "hora",
   "planner",
   "nombre_completo",
+  "enlace",
 ]);
 const TEMPLATE_STATUS_EVENTS = new Set([
   "PENDING",
@@ -1189,6 +1190,19 @@ function persistableDisplayName(payloadName, fallbackName) {
   return normalizeDisplayName(fallbackName);
 }
 
+function templateMetaContentUnchanged({ template, bodyText, headerType, headerFile }) {
+  if (!template?.metaTemplateId) return false;
+  if (headerFile) return false;
+  const storedHeader = String(template.headerType || "none").toLowerCase();
+  if (storedHeader !== String(headerType || "none").toLowerCase()) return false;
+  return bodyTextFromComponents(template.components) === String(bodyText || "");
+}
+
+function defaultTemplateRename(template, displayName) {
+  if (!template?.isWabaDefault || displayName === undefined) return false;
+  return normalizeDisplayName(displayName) !== normalizeDisplayName(template.displayName);
+}
+
 function assertValidEventSlot(slot) {
   const numericSlot = Number(slot);
   if (!Number.isInteger(numericSlot) || numericSlot < 1) {
@@ -1485,6 +1499,24 @@ export async function submitEventTemplate({
   const { credentials } = await resolveActiveWhatsappMetaByOwner(ownerUserId);
   const wabaId = String(credentials?.wabaId || "").trim();
   if (!wabaId) throw httpError(400, "WhatsApp (Meta) no está configurado.");
+  const skipMeta =
+    templateMetaContentUnchanged({
+      template,
+      bodyText,
+      headerType: normalizedHeaderType,
+      headerFile,
+    }) && !defaultTemplateRename(template, displayName);
+  if (pivot && skipMeta) {
+    const nextName = persistableDisplayName(displayName, template.displayName);
+    if (!template.isWabaDefault && nextName !== normalizeDisplayName(template.displayName)) {
+      await template.update({ displayName: nextName });
+    }
+    await pivot.update({ slotMappings: mappings, ...qrFields });
+    if (isCampaign === true) {
+      await setCampaignSlot({ eventId, slot: numericSlot });
+    }
+    return template;
+  }
   const token = resolveTemplateCrudToken(credentials.accessToken);
   const header = await editableHeader({
     template,
@@ -1676,6 +1708,13 @@ export async function submitOwnerCustomTemplate({
     bodyText,
     mergeSlotMappings(bodyText, slotMappings || {}),
   );
+  const skipMeta = templateMetaContentUnchanged({
+    template,
+    bodyText,
+    headerType: normalizedHeaderType,
+    headerFile,
+  });
+  if (!skipMeta) {
   const token = resolveTemplateCrudToken(credentials.accessToken);
   const header = await editableHeader({
     template,
@@ -1734,6 +1773,12 @@ export async function submitOwnerCustomTemplate({
 
   if (header.headerFile) {
     await persistHeaderFile({ ownerUserId, template, headerFile: header.headerFile });
+  }
+  } else {
+    const nextName = persistableDisplayName(displayName, template.displayName);
+    if (nextName !== normalizeDisplayName(template.displayName)) {
+      await template.update({ displayName: nextName });
+    }
   }
 
   const links = await EventWhatsappTemplate.findAll({
