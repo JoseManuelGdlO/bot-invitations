@@ -1,4 +1,5 @@
 import XLSX from "xlsx";
+import { normalizeGuestPhoneDigits } from "../utils/whatsapp-identity.js";
 
 const FIELD_ALIASES = {
   nombre: "rep",
@@ -171,6 +172,7 @@ export function mapRows(columns, rows, mapping, options = {}) {
         }
         if (CORE_IMPORT_FIELDS.has(field)) {
           if (field === "invited") item.invited = Math.max(1, Number(value) || 1);
+          else if (field === "phone") item.phone = normalizeGuestPhoneDigits(value);
           else item[field] = String(value);
           return;
         }

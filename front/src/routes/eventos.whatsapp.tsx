@@ -51,9 +51,9 @@ import { cn } from "@/lib/utils";
 import { toast } from "sonner";
 import { WHATSAPP_CONNECTED_NEXT_STEP } from "@/lib/whatsapp-templates";
 import {
-  MX_PHONE_HINT,
-  mxPhoneError,
-  sanitizeMxPhoneInput,
+  GUEST_PHONE_HINT,
+  guestPhoneError,
+  sanitizeGuestPhoneInput,
 } from "@/lib/mx-phone";
 
 export const Route = createFileRoute("/eventos/whatsapp")({
@@ -273,8 +273,8 @@ function WhatsAppMetaPage() {
 
   const sendTest = async (e: React.FormEvent) => {
     e.preventDefault();
-    const to = sanitizeMxPhoneInput(testTo);
-    const phoneError = mxPhoneError(to);
+    const to = sanitizeGuestPhoneInput(testTo);
+    const phoneError = guestPhoneError(to);
     if (phoneError) {
       toast.error(phoneError);
       return;
@@ -590,11 +590,11 @@ function WhatsAppMetaPage() {
               inputMode="numeric"
               autoComplete="tel"
               value={testTo}
-              onChange={(e) => setTestTo(sanitizeMxPhoneInput(e.target.value))}
+              onChange={(e) => setTestTo(sanitizeGuestPhoneInput(e.target.value))}
               placeholder="5512345678"
               required
             />
-            <p className="text-xs text-muted-foreground">{MX_PHONE_HINT}</p>
+            <p className="text-xs text-muted-foreground">{GUEST_PHONE_HINT}</p>
           </div>
           {testType === "template" ? (
             <div className="rounded-lg border border-border bg-muted/30 px-3 py-3 text-sm">

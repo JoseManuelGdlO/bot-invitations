@@ -21,6 +21,7 @@ import { assertCanAddGuestsForEvent, assertCanSendInvitations } from "../service
 import { assertWhatsappReady } from "../services/integration-resolver.service.js";
 import { deliverAiMessage } from "../services/guest-message.service.js";
 import { phonesMatch } from "../services/bot/session.service.js";
+import { normalizeGuestPhoneDigits } from "../utils/whatsapp-identity.js";
 import { resolveCampaignSendContext, resolvePurposeSendContext } from "../services/whatsapp-templates.service.js";
 import { fillMetaTemplate } from "../services/meta.client.js";
 import { bodyTextFromComponents } from "../services/whatsapp-template-slots.js";
@@ -325,8 +326,9 @@ export const confirmImport = asyncHandler(async (req, res) => {
   const mapped = mapRows(columns, rows, mapping, { sheetRows, hyperlinks });
   const discarded = Math.max(0, rows.length - mapped.length);
   const existing = await Guest.findAll({ where: { eventId: event.id } });
-  const guestsByPhone = new Map(existing.map((guest) => [guest.phone.replace(/\s/g, ""), guest]));
-  const incoming = mapped.filter((row) => !guestsByPhone.has(row.phone.replace(/\s/g, "")));
+  const phoneKey = (value) => normalizeGuestPhoneDigits(value) || String(value || "").replace(/\s/g, "");
+  const guestsByPhone = new Map(existing.map((guest) => [phoneKey(guest.phone), guest]));
+  const incoming = mapped.filter((row) => !guestsByPhone.has(phoneKey(row.phone)));
   const incomingPeople = incoming.reduce((sum, row) => sum + (Number(row.invited) || 1), 0);
   await assertCanAddGuestsForEvent(req.user, event, incomingPeople);
   const created = [];
@@ -336,7 +338,7 @@ export const confirmImport = asyncHandler(async (req, res) => {
   const imageCol = columns.findIndex((col) => mapping[col] === "image");
   const images = fileBuffer ? await extractSheetImages(fileBuffer) : new Map();
   for (const row of mapped) {
-    const key = row.phone.replace(/\s/g, "");
+    const key = phoneKey(row.phone);
     if (guestsByPhone.has(key)) {
       skipped += 1;
       const current = guestsByPhone.get(key);

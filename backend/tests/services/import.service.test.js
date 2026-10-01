@@ -36,6 +36,23 @@ describe("import.service", () => {
     });
   });
 
+  test("mapRows normaliza lada extranjera y descarta teléfonos inválidos", () => {
+    const mapped = mapRows(
+      ["Nombre", "Teléfono"],
+      [
+        ["Ana", "+1 817-727-2994"],
+        ["Luis", "618 321 8624"],
+        ["Corto", "12345"],
+        ["Largo", "1234567890123456"],
+      ],
+      { Nombre: "rep", Teléfono: "phone" },
+    );
+    expect(mapped.map((row) => [row.rep, row.phone])).toEqual([
+      ["Ana", "18177272994"],
+      ["Luis", "6183218624"],
+    ]);
+  });
+
   test("mapRows descarta filas sin nombre o teléfono", () => {
     const mapped = mapRows(
       ["Nombre", "Teléfono", "Invitados"],

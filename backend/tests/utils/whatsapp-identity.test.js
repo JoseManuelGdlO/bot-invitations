@@ -27,6 +27,10 @@ describe("formatWhatsappTo", () => {
     expect(formatWhatsappTo("6181020927@s.whatsapp.net")).toBe("5216181020927@s.whatsapp.net");
   });
 
+  test("no antepone 521 si los 10 dígitos ya empiezan con lada 1", () => {
+    expect(formatWhatsappTo("1668222044")).toBe("1668222044");
+  });
+
   test("no inventa 521 en vacío o corto", () => {
     expect(formatWhatsappTo("")).toBe("");
     expect(formatWhatsappTo("   ")).toBe("");
@@ -64,6 +68,17 @@ describe("formatWhatsappGraphTo", () => {
     expect(formatWhatsappGraphTo("")).toBe("");
     expect(formatWhatsappGraphTo("55")).toBe("");
     expect(formatWhatsappGraphTo("abc@lid")).toBe("");
+  });
+
+  test("conserva la lada cuando hay más de 10 dígitos", () => {
+    expect(formatWhatsappGraphTo("18177272994")).toBe("18177272994");
+    expect(formatWhatsappGraphTo("+1 817-727-2994")).toBe("18177272994");
+    expect(formatWhatsappGraphTo("1668222044")).toBe("1668222044");
+    expect(formatWhatsappGraphTo("526183218624")).toBe("526183218624");
+  });
+
+  test("rechaza más de 15 dígitos", () => {
+    expect(formatWhatsappGraphTo("1234567890123456")).toBe("");
   });
 });
 

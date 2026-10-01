@@ -82,24 +82,44 @@ export function extractInboundIdentity(payload = {}) {
   };
 }
 
+const NATIONAL_DIGITS = 10;
+const MAX_PHONE_DIGITS = 15;
+
 /** Últimos 10 dígitos del wa_id / teléfono (p. ej. 5216183218624 → 6183218624). */
 export function normalizeWaIdTo10(value) {
   const digits = String(value || "").replace(/\D/g, "");
   if (!digits) return "";
-  return digits.length <= 10 ? digits : digits.slice(-10);
+  return digits.length <= NATIONAL_DIGITS ? digits : digits.slice(-NATIONAL_DIGITS);
+}
+
+/**
+ * Teléfono de invitado: 10 dígitos locales, o lada + 10 (hasta 15).
+ * Vacío si no cumple.
+ */
+export function normalizeGuestPhoneDigits(value) {
+  const digits = String(value || "").replace(/\D/g, "");
+  if (digits.length === NATIONAL_DIGITS) return digits;
+  if (digits.length > NATIONAL_DIGITS && digits.length <= MAX_PHONE_DIGITS) return digits;
+  return "";
 }
 
 function formatMxDigits(digits) {
   if (!digits) return "";
-  if (digits.length === 10) return `521${digits}`;
+  if (digits.length === NATIONAL_DIGITS && !digits.startsWith("1")) return `521${digits}`;
+  if (digits.length > NATIONAL_DIGITS && digits.length <= MAX_PHONE_DIGITS) return digits;
   return digits;
 }
 
-/** Destinatario Graph: siempre 521 + 10 dígitos locales (sin + ni JID). */
+/**
+ * Destinatario Graph, sin + ni JID.
+ * 10 dígitos que no empiezan con 1 se envían como México (521 + local).
+ * Si empiezan con 1, o hay más de 10, esa cifra inicial es la lada.
+ */
 export function formatWhatsappGraphTo(value) {
-  const local = normalizeWaIdTo10(value);
-  if (local.length !== 10) return "";
-  return `521${local}`;
+  const digits = normalizeGuestPhoneDigits(value);
+  if (!digits) return "";
+  if (digits.length === NATIONAL_DIGITS && !digits.startsWith("1")) return `521${digits}`;
+  return digits;
 }
 
 export function formatWhatsappTo(value) {

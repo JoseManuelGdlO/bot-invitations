@@ -15,6 +15,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import { StatusBadge } from "@/components/status-badge";
+import { Badge } from "@/components/ui/badge";
 import {
   Table,
   TableBody,
@@ -61,9 +62,10 @@ import { SendGuestInvitationDialog } from "@/components/send-guest-invitation-di
 import { PERMS } from "@/lib/permissions";
 import { ApiError } from "@/lib/api/client";
 import {
-  MX_PHONE_HINT,
-  mxPhoneError,
-  sanitizeMxPhoneInput,
+  GUEST_PHONE_HINT,
+  guestPhoneError,
+  isUsGuestPhone,
+  sanitizeGuestPhoneInput,
 } from "@/lib/mx-phone";
 
 const TAG_OPTIONS = [
@@ -248,8 +250,8 @@ function Invitados() {
                 onSubmit={async (e) => {
                   e.preventDefault();
                   const rep = form.rep.trim();
-                  const phone = sanitizeMxPhoneInput(form.phone);
-                  const phoneError = mxPhoneError(phone);
+                  const phone = sanitizeGuestPhoneInput(form.phone);
+                  const phoneError = guestPhoneError(phone);
                   if (!rep) {
                     toast.error("Nombre y teléfono son requeridos");
                     return;
@@ -310,13 +312,21 @@ function Invitados() {
                     onChange={(e) =>
                       setForm((f) => ({
                         ...f,
-                        phone: sanitizeMxPhoneInput(e.target.value),
+                        phone: sanitizeGuestPhoneInput(e.target.value),
                       }))
                     }
                     required
                   />
-                  <p className="text-xs text-muted-foreground">
-                    {MX_PHONE_HINT}
+                  <p className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <span>{GUEST_PHONE_HINT}</span>
+                    {isUsGuestPhone(form.phone) ? (
+                      <Badge
+                        variant="outline"
+                        className="rounded-full px-1.5 py-0 text-[10px] font-medium leading-4"
+                      >
+                        EE.UU.
+                      </Badge>
+                    ) : null}
                   </p>
                 </div>
                 <div className="space-y-2">
@@ -476,8 +486,16 @@ function Invitados() {
                     </span>
                     <div>
                       <p className="font-medium leading-tight">{g.rep}</p>
-                      <p className="text-[11px] text-muted-foreground">
-                        {g.phone}
+                      <p className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                        <span>{g.phone}</span>
+                        {isUsGuestPhone(g.phone) ? (
+                          <Badge
+                            variant="outline"
+                            className="rounded-full px-1.5 py-0 text-[10px] font-medium leading-4"
+                          >
+                            EE.UU.
+                          </Badge>
+                        ) : null}
                       </p>
                     </div>
                   </div>
