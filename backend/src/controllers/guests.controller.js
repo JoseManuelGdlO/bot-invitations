@@ -9,12 +9,12 @@ import {
   embeddedImageCells,
   extractSheetImages,
   guestImageStatuses,
-  headerImageForGuest,
   markEmbeddedImageCells,
   resolveGuestImageBytes,
   saveGuestImage,
   deleteGuestImage,
 } from "../services/guest-image.service.js";
+import { headerImageForSend } from "../services/guest-qr.service.js";
 import { discardStagedSpreadsheet, readStagedSpreadsheet, stageSpreadsheet } from "../services/import-staging.service.js";
 import { guestsToRows, toCsv, toPdf, toXlsx } from "../services/export.service.js";
 import { assertCanAddGuestsForEvent, assertCanSendInvitations } from "../services/plans.service.js";
@@ -180,7 +180,7 @@ async function deliverPurposeHsm({
     ? await resolveCampaignSendContext(event)
     : await resolvePurposeSendContext(event, purpose);
   const params = await ctx.hsmParamsFor(guest, plannerName);
-  const headerImage = headerImageForGuest(ctx, guest);
+  const headerImage = await headerImageForSend(ctx, guest);
   return deliverAiMessage({
     event,
     guest,

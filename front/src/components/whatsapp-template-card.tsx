@@ -112,6 +112,7 @@ export function WhatsappTemplateCard({
   submitting = false,
   showCampaignRadio = true,
   highlighted = false,
+  allowGeneratedQr = true,
   guests = [],
   event,
   plannerName,
@@ -125,6 +126,7 @@ export function WhatsappTemplateCard({
   submitting?: boolean;
   showCampaignRadio?: boolean;
   highlighted?: boolean;
+  allowGeneratedQr?: boolean;
   guests?: Guest[];
   event?: EventItem | undefined;
   plannerName?: string | undefined;
@@ -135,6 +137,7 @@ export function WhatsappTemplateCard({
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const qrRef = useRef<HTMLTextAreaElement>(null);
   const caretRef = useRef({ start: 0, end: 0 });
   const rememberCaret = (el?: HTMLTextAreaElement | null) => {
     const target = el ?? textareaRef.current;
@@ -216,6 +219,21 @@ export function WhatsappTemplateCard({
     }
     onChange({ headerFile: file, headerFileName: file.name });
     return true;
+  };
+
+  const insertQrVariable = (token: string) => {
+    const current = draft.qrContent || "";
+    const el = qrRef.current;
+    const start = el?.selectionStart ?? current.length;
+    const end = el?.selectionEnd ?? current.length;
+    onChange({ qrContent: `${current.slice(0, start)}${token}${current.slice(end)}` });
+    requestAnimationFrame(() => {
+      const next = qrRef.current;
+      if (!next) return;
+      const pos = start + token.length;
+      next.focus();
+      next.setSelectionRange(pos, pos);
+    });
   };
 
   const setExtraMapping = (id: string, mapping: EventSlotMapping) => {
@@ -420,6 +438,64 @@ export function WhatsappTemplateCard({
                   : "PDF o Word de hasta 10 MB."}
               </p>
             )}
+            {draft.headerType === "image" && draft.imageAttachment === "qr" ? (
+              <p className="text-xs text-muted-foreground">
+                Esta imagen es la muestra que revisa WhatsApp. En el envío, cada invitado recibe su QR.
+              </p>
+            ) : null}
+          </div>
+        ) : null}
+
+        {allowGeneratedQr && draft.headerType === "image" ? (
+          <div className="space-y-2">
+            <Label>Imagen del envío</Label>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {(
+                [
+                  ["file", "Subir imagen"],
+                  ["qr", "Adjuntar QR generado"],
+                ] as const
+              ).map(([value, label]) => (
+                <button
+                  key={value}
+                  type="button"
+                  className={cn(
+                    "rounded-xl border border-border p-3 text-left text-sm font-medium",
+                    draft.imageAttachment === value && "border-primary",
+                  )}
+                  onClick={() => onChange({ imageAttachment: value })}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+            {draft.imageAttachment === "qr" ? (
+              <div className="space-y-2">
+                <Label htmlFor={`event-template-qr-${draft.slot}`}>
+                  Contenido del QR
+                </Label>
+                <Textarea
+                  id={`event-template-qr-${draft.slot}`}
+                  ref={qrRef}
+                  value={draft.qrContent}
+                  onChange={(e) => onChange({ qrContent: e.target.value })}
+                  placeholder="https://deskoplus.com/acceso/?rol=recepcion&qr={{enlace}}"
+                  rows={3}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Escribe el enlace o el texto de este invitado. Si el dato es un pase de Deskoplus (rol=pase y t=), el QR apunta a la recepción.
+                </p>
+                {!String(draft.qrContent || "").trim() ? (
+                  <p className="text-xs text-destructive">
+                    Escribe qué va dentro del QR.
+                  </p>
+                ) : null}
+                <TemplateVariableMenu
+                  variables={variables}
+                  onInsert={insertQrVariable}
+                />
+              </div>
+            ) : null}
           </div>
         ) : null}
 

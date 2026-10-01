@@ -192,6 +192,8 @@ export function WhatsappEventTemplateCreateDialog({
           slotMappings: draft.slotMappings,
           headerFile: draft.headerFile,
           purpose,
+          imageAttachment: draft.imageAttachment,
+          qrContent: draft.qrContent,
         }),
       );
       toast.success("Plantilla enviada a revisión");

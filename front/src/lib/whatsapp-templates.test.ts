@@ -565,6 +565,32 @@ test("buildEventTemplateFormData manda payload JSON y header", () => {
   assert.equal(form.get("header"), file);
 });
 
+test("buildEventTemplateFormData manda el contenido del QR en plantillas con imagen", () => {
+  const form = buildEventTemplateFormData({
+    body: OK_BODY,
+    headerType: "image",
+    isCampaign: true,
+    imageAttachment: "qr",
+    qrContent: " {{enlace}} ",
+    slotMappings: mergeEventSlotMappings(OK_BODY, {}),
+    headerFile: new File(["img"], "portada.png", { type: "image/png" }),
+  });
+  const payload = JSON.parse(String(form.get("payload")));
+  assert.equal(payload.imageAttachment, "qr");
+  assert.equal(payload.qrContent, "{{enlace}}");
+  assert.equal(
+    isEventTemplateCardReady({
+      body: OK_BODY,
+      headerType: "image",
+      headerFileName: "portada.png",
+      imageAttachment: "qr",
+      qrContent: "  ",
+      slotMappings: mergeEventSlotMappings(OK_BODY, {}),
+    }),
+    false,
+  );
+});
+
 test("buildEventTemplateFormData incluye displayName en el payload", () => {
   const form = buildEventTemplateFormData({
     displayName: "  Invitación con mesa  ",

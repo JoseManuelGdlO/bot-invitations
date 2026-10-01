@@ -778,8 +778,14 @@ export function isEventTemplateCardReady(draft: {
   headerFile?: File | null;
   headerFileName?: string | null;
   slotMappings: Record<string, EventSlotMapping>;
+  imageAttachment?: "file" | "qr";
+  qrContent?: string;
 }): boolean {
-  return isWizardCardReady(draft);
+  if (!isWizardCardReady(draft)) return false;
+  if (draft.headerType === "image" && draft.imageAttachment === "qr") {
+    return Boolean(String(draft.qrContent || "").trim());
+  }
+  return true;
 }
 
 export function buildEventTemplateFormData(input: {
@@ -789,6 +795,8 @@ export function buildEventTemplateFormData(input: {
   slotMappings: Record<string, EventSlotMapping>;
   isCampaign: boolean;
   headerFile?: File | null;
+  imageAttachment?: "file" | "qr";
+  qrContent?: string;
 }): FormData {
   const form = new FormData();
   form.append(
@@ -800,6 +808,12 @@ export function buildEventTemplateFormData(input: {
       isCampaign: input.isCampaign,
       ...(input.displayName !== undefined
         ? { displayName: input.displayName }
+        : {}),
+      ...(input.headerType === "image" && input.imageAttachment === "qr"
+        ? {
+            imageAttachment: "qr",
+            qrContent: String(input.qrContent || "").trim(),
+          }
         : {}),
     }),
   );

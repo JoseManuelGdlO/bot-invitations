@@ -118,6 +118,8 @@ function serializeLink(link) {
     slot: Number(link?.slot),
     isCampaign: Boolean(link?.isCampaign),
     slotMappings: link?.slotMappings || {},
+    imageAttachment: link?.imageAttachment === "qr" ? "qr" : "file",
+    qrContent: link?.qrContent || "",
     template: serializeTemplate(link?.template),
   };
 }
@@ -204,6 +206,8 @@ export const postEventWhatsappTemplate = asyncHandler(async (req, res) => {
     headerFile: uploadedFile(fieldFile(req, "header")),
     slotMappings: payload.slotMappings,
     purpose: payload.purpose,
+    imageAttachment: payload.imageAttachment,
+    qrContent: payload.qrContent,
   });
   res.status(201).json({ template: serializeLink(result.link) });
 });
@@ -242,6 +246,8 @@ export const putEventWhatsappTemplate = asyncHandler(async (req, res) => {
     slotMappings: payload.slotMappings,
     isCampaign: payload.isCampaign,
     displayName: payload.displayName,
+    imageAttachment: payload.imageAttachment,
+    qrContent: payload.qrContent,
   });
   const link = await EventWhatsappTemplate.findOne({
     where: { eventId: event.id, slot: Number(slot) },

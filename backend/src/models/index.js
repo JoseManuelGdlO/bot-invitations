@@ -435,6 +435,8 @@ export const EventWhatsappTemplate = sequelize.define(
     slot: { type: DataTypes.TINYINT, allowNull: false },
     isCampaign: { type: DataTypes.BOOLEAN, allowNull: false, defaultValue: false },
     slotMappings: { type: DataTypes.JSON, allowNull: false, defaultValue: {} },
+    imageAttachment: { type: DataTypes.STRING(16), allowNull: false, defaultValue: "file" },
+    qrContent: { type: DataTypes.TEXT, allowNull: true },
   },
   {
     indexes: [
@@ -784,6 +786,32 @@ export async function ensureGuestInvitationImage() {
     console.log("[db] columna guests.invitationImagePath creada");
   } catch (err) {
     console.error("[db] no se pudo crear guests.invitationImagePath", err?.message || err);
+  }
+}
+
+export async function ensureEventTemplateQrColumns() {
+  const qi = sequelize.getQueryInterface();
+  let table;
+  try {
+    table = await qi.describeTable("event_whatsapp_templates");
+  } catch (err) {
+    console.error("[db] no se pudo describir event_whatsapp_templates para el QR", err?.message || err);
+    return;
+  }
+  if (!table.imageAttachment) {
+    await qi.addColumn("event_whatsapp_templates", "imageAttachment", {
+      type: DataTypes.STRING(16),
+      allowNull: false,
+      defaultValue: "file",
+    });
+    console.log("[db] columna event_whatsapp_templates.imageAttachment creada");
+  }
+  if (!table.qrContent) {
+    await qi.addColumn("event_whatsapp_templates", "qrContent", {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    });
+    console.log("[db] columna event_whatsapp_templates.qrContent creada");
   }
 }
 

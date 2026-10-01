@@ -100,6 +100,8 @@ export type EventWhatsappTemplateDto = {
   slot: number;
   isCampaign: boolean;
   slotMappings: Record<string, WhatsappSlotMappingDto>;
+  imageAttachment?: "file" | "qr" | null;
+  qrContent?: string | null;
   template: {
     id: string | null;
     name: string | null;

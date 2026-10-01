@@ -155,7 +155,7 @@ function skipWhatsappSendReason(payload) {
 
 async function resolveCampaignHeader(payload = {}, guest = null) {
   let hsmHeaderImage = payload.hsmHeaderImage || null;
-  if (guest && hsmHeaderImage) {
+  if (guest && hsmHeaderImage && hsmHeaderImage.source !== "qr") {
     hsmHeaderImage = headerImageForGuest(
       { hsmHeaderImage, template: { headerType: "image" } },
       guest,

@@ -286,6 +286,8 @@ function PurposeTemplates({
           slotMappings: draft.slotMappings,
           isCampaign: draft.isCampaign,
           headerFile: draft.headerFile,
+          imageAttachment: draft.imageAttachment,
+          qrContent: draft.qrContent,
         }),
       );
       const next = draftsFromEventTemplates([template])[0];

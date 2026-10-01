@@ -1,5 +1,5 @@
 import { env } from "./config/env.js";
-import { sequelize, ensureEventMemberRemovedAt, ensureInboundEventDedupTable, ensureCampaignColumns, ensureTemplateGreetingVar, ensureTemplateBodyVars, ensureTemplateDocumentColumns, ensureWhatsappMetaTables, ensureWhatsappTemplateTables, ensureMessageProviderId, ensureMessageKind, ensureGuestCustomData, ensureGuestInvitationImage, ensureEventTimezone, ensureChannelIntegrationMetaColumns, ensureAiConfigToggles, ensureGuestPhoneDigits, ensureUserGoogleOAuth, ensureUserInvitationWizardStatus, ensureNotificationsTable } from "./models/index.js";
+import { sequelize, ensureEventMemberRemovedAt, ensureInboundEventDedupTable, ensureCampaignColumns, ensureTemplateGreetingVar, ensureTemplateBodyVars, ensureTemplateDocumentColumns, ensureWhatsappMetaTables, ensureWhatsappTemplateTables, ensureMessageProviderId, ensureMessageKind, ensureGuestCustomData, ensureGuestInvitationImage, ensureEventTemplateQrColumns, ensureEventTimezone, ensureChannelIntegrationMetaColumns, ensureAiConfigToggles, ensureGuestPhoneDigits, ensureUserGoogleOAuth, ensureUserInvitationWizardStatus, ensureNotificationsTable } from "./models/index.js";
 import { createApp } from "./app.js";
 import { startOutboundWorker } from "./services/outbound.worker.js";
 import { startFollowUpScheduler } from "./services/follow-up.scheduler.js";
@@ -22,6 +22,7 @@ try {
   await ensureMessageKind();
   await ensureGuestCustomData();
   await ensureGuestInvitationImage();
+  await ensureEventTemplateQrColumns();
   await ensureEventTimezone();
   await ensureGuestPhoneDigits();
   await ensureChannelIntegrationMetaColumns();

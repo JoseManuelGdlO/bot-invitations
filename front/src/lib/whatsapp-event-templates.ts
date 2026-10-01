@@ -56,6 +56,8 @@ export type EventTemplateCardDraft = {
   status: string | null;
   rejectedReason: string | null;
   slotMappings: Record<string, EventSlotMapping>;
+  imageAttachment: "file" | "qr";
+  qrContent: string;
   persisted: boolean;
   purpose: WhatsappTemplatePurpose;
 };
@@ -190,6 +192,8 @@ export function dtoToEventTemplateDraft(
     status: dto.template.status,
     rejectedReason: dto.template.rejectedReason,
     slotMappings: mergeEventSlotMappings(body, dto.slotMappings || {}),
+    imageAttachment: dto.imageAttachment === "qr" ? "qr" : "file",
+    qrContent: dto.qrContent || "",
     persisted: true,
     purpose: normalizeTemplatePurpose(dto.template.purpose),
   };
@@ -224,6 +228,8 @@ export function accountTemplateToDraft(
     status: template.status,
     rejectedReason: template.rejectedReason,
     slotMappings: mergeEventSlotMappings(body, template.slotMappings || {}),
+    imageAttachment: "file",
+    qrContent: "",
     persisted: true,
     purpose: normalizeTemplatePurpose(template.purpose),
   };
@@ -250,6 +256,8 @@ export function blankEventTemplateDraft(
     status: "DRAFT",
     rejectedReason: null,
     slotMappings: mergeEventSlotMappings("", {}),
+    imageAttachment: "file",
+    qrContent: "",
     persisted: false,
     purpose,
   };
@@ -356,6 +364,8 @@ export function buildCreateEventTemplateFormData(input: {
   slotMappings: Record<string, EventSlotMapping>;
   headerFile?: File | null;
   purpose?: WhatsappTemplatePurpose;
+  imageAttachment?: "file" | "qr";
+  qrContent?: string;
 }): FormData {
   const form = new FormData();
   form.append(
@@ -367,6 +377,12 @@ export function buildCreateEventTemplateFormData(input: {
       body: input.body,
       slotMappings: mergeEventSlotMappings(input.body, input.slotMappings),
       purpose: input.purpose || DEFAULT_TEMPLATE_PURPOSE,
+      ...(input.headerType === "image" && input.imageAttachment === "qr"
+        ? {
+            imageAttachment: "qr",
+            qrContent: String(input.qrContent || "").trim(),
+          }
+        : {}),
     }),
   );
   if (input.headerFile && needsHeaderFile(input.headerType)) {

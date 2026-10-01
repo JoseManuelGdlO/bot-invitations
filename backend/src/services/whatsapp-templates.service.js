@@ -9,6 +9,7 @@ import {
 } from "../models/index.js";
 import { eventGuestVars } from "../utils/defaults.js";
 import { httpError } from "../utils/http-error.js";
+import { normalizeImageAttachment } from "./guest-qr.service.js";
 import {
   createMessageTemplate,
   deleteMessageTemplate,
@@ -1003,6 +1004,9 @@ function sendContextFrom(link, event) {
       ? { ...header, ...(eventId ? { eventId } : {}) }
       : null,
     hsmHeaderImage: template.headerType === "image" ? header : null,
+    event,
+    imageAttachment: template.headerType === "image" && link.imageAttachment === "qr" ? "qr" : "file",
+    qrContent: link.qrContent || "",
   };
 }
 
@@ -1299,6 +1303,8 @@ export async function createEventCustomTemplate({
   headerFile,
   slotMappings,
   purpose,
+  imageAttachment,
+  qrContent,
 }) {
   await requireOwnedEvent(eventId, ownerUserId);
   const { credentials } = await resolveActiveWhatsappMetaByOwner(ownerUserId);
@@ -1385,6 +1391,11 @@ export async function createEventCustomTemplate({
     slot,
     isCampaign: false,
     slotMappings: mappings,
+    ...normalizeImageAttachment({
+      headerType: resolvedHeaderType,
+      imageAttachment,
+      qrContent,
+    }),
   });
   return linkResult(link, template);
 }
@@ -1439,12 +1450,19 @@ export async function submitEventTemplate({
   slotMappings,
   isCampaign,
   displayName,
+  imageAttachment,
+  qrContent,
 }) {
   const numericSlot = assertValidEventSlot(slot);
   const normalizedHeaderType = String(headerType || "none").toLowerCase();
   if (!HEADER_TYPES.has(normalizedHeaderType)) {
     throw httpError(400, "El tipo de encabezado no es válido.");
   }
+  const qrFields = normalizeImageAttachment({
+    headerType: normalizedHeaderType,
+    imageAttachment,
+    qrContent,
+  });
 
   const event = await Event.findOne({
     where: { id: eventId, ownerId: ownerUserId },
@@ -1616,6 +1634,8 @@ export async function submitEventTemplate({
       template = clone;
     }
   }
+
+  if (pivot) await pivot.update(qrFields);
 
   if (isCampaign === true) {
     await setCampaignSlot({ eventId, slot: numericSlot });

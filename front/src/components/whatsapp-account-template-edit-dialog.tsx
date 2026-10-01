@@ -142,6 +142,7 @@ export function WhatsappAccountTemplateEditDialog({
               plannerName={plannerName}
               submitting={submitting}
               showCampaignRadio={false}
+              allowGeneratedQr={false}
               onChange={(patch) =>
                 setDraft((prev) => (prev ? { ...prev, ...patch } : prev))
               }

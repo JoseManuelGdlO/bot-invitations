@@ -3,7 +3,7 @@ import { AiConfig, Conversation, Event, Guest, User } from "../models/index.js";
 import { assertWhatsappReady } from "./integration-resolver.service.js";
 import { deliverAiMessage } from "./guest-message.service.js";
 import { resolvePurposeSendContext } from "./whatsapp-templates.service.js";
-import { headerImageForGuest } from "./guest-image.service.js";
+import { headerImageForSend } from "./guest-qr.service.js";
 import { fillMetaTemplate } from "./meta.client.js";
 import { bodyTextFromComponents } from "./whatsapp-template-slots.js";
 import { logActivity } from "./activity.service.js";
@@ -94,7 +94,14 @@ async function processIndecisoNudges(event, guests, paused, plannerName, budget,
     if (!due || !isDue(due, now)) continue;
 
     const params = await ctx.hsmParamsFor(guest, plannerName);
-    const headerImage = headerImageForGuest(ctx, guest);
+    let headerImage = null;
+    try {
+      headerImage = await headerImageForSend(ctx, guest);
+    } catch (err) {
+      if (err?.name !== "GuestQrError") throw err;
+      log.warn(err.message, { eventId: event.id, guestId: guest.id });
+      continue;
+    }
     await deliverAiMessage({
       event,
       guest,
@@ -162,7 +169,14 @@ async function processDripReminders(event, guests, paused, plannerName, budget, 
       if (!due || !isDue(due, now)) continue;
 
       const params = await ctx.hsmParamsFor(guest, plannerName);
-      const headerImage = headerImageForGuest(ctx, guest);
+      let headerImage = null;
+      try {
+        headerImage = await headerImageForSend(ctx, guest);
+      } catch (err) {
+        if (err?.name !== "GuestQrError") throw err;
+        log.warn(err.message, { eventId: event.id, guestId: guest.id });
+        continue;
+      }
       await deliverAiMessage({
         event,
         guest,

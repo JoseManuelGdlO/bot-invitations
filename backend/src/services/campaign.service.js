@@ -18,7 +18,7 @@ import { logActivity } from "./activity.service.js";
 import { recordCampaignSendResult } from "./campaign-progress.js";
 import { activateEvent } from "./event-status.service.js";
 import { resolveCampaignSendContext } from "./whatsapp-templates.service.js";
-import { headerImageForGuest } from "./guest-image.service.js";
+import { headerImageForSend } from "./guest-qr.service.js";
 import { fillMetaTemplate } from "./meta.client.js";
 import { bodyTextFromComponents } from "./whatsapp-template-slots.js";
 
@@ -226,9 +226,20 @@ export async function executeCampaignLaunch(job) {
     );
     if (!taken) continue;
     await guest.reload();
+    let headerImage = null;
+    try {
+      headerImage = await headerImageForSend(ctx, guest);
+    } catch (err) {
+      if (err?.name !== "GuestQrError") throw err;
+      await Guest.update(
+        { status: "sin_contactar", whatsapp: "pendiente", contactedAt: null },
+        { where: { id: guest.id, status: "enviado" } },
+      );
+      log.warn(err.message, { eventId: event.id, guestId: guest.id, campaignId: campaign.id });
+      continue;
+    }
     claimedCount += 1;
     const params = await ctx.hsmParamsFor(guest, plannerName);
-    const headerImage = headerImageForGuest(ctx, guest);
     try {
       const conv = await deliverAiMessage({
         event,
