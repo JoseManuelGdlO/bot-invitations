@@ -67,6 +67,10 @@ import {
   isUsGuestPhone,
   sanitizeGuestPhoneInput,
 } from "@/lib/mx-phone";
+import {
+  customDataFromManualFields,
+  manualGuestFields,
+} from "@/lib/manual-guest-fields";
 
 const TAG_OPTIONS = [
   "Sin etiqueta",
@@ -85,6 +89,7 @@ const EMPTY_GUEST_FORM = {
   guestType: "",
   tag: "Sin etiqueta" as string,
   notes: "",
+  variables: {} as Record<string, string>,
 };
 
 const PAGE_SIZES = [20, 30, 40, 50] as const;
@@ -135,6 +140,7 @@ function Invitados() {
   const [addOpen, setAddOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState(EMPTY_GUEST_FORM);
+  const variableFields = useMemo(() => manualGuestFields(guests), [guests]);
   const showTableColumn = guests.some((g) => (g.table ?? "").trim() !== "");
 
   const rows = useMemo(
@@ -261,6 +267,8 @@ function Invitados() {
                     return;
                   }
                   const invited = Number(form.invited) || 1;
+                  const customData = customDataFromManualFields(form.variables);
+                  const imageUrl = String(form.variables.image || "").trim();
                   setSaving(true);
                   try {
                     await createGuest(eventId, {
@@ -272,6 +280,8 @@ function Invitados() {
                       guestType: form.guestType.trim(),
                       tag: form.tag.trim(),
                       notes: form.notes.trim(),
+                      ...(Object.keys(customData).length ? { customData } : {}),
+                      ...(imageUrl ? { imageUrl } : {}),
                     });
                     toast.success("Invitado agregado");
                     setForm(EMPTY_GUEST_FORM);
@@ -409,6 +419,45 @@ function Invitados() {
                       setForm((f) => ({ ...f, notes: e.target.value }))
                     }
                   />
+                </div>
+                <div className="space-y-3 border-t border-border pt-3">
+                  <div>
+                    <p className="text-sm font-medium">Variables de la invitación</p>
+                    <p className="text-xs text-muted-foreground">
+                      Enlace, imagen y columnas extra de este evento.
+                    </p>
+                  </div>
+                  {variableFields.map((field) => (
+                    <div key={field.id} className="space-y-2">
+                      <Label htmlFor={`guest-var-${field.id}`}>{field.label}</Label>
+                      <Input
+                        id={`guest-var-${field.id}`}
+                        type={field.kind === "image" ? "url" : "text"}
+                        inputMode={field.kind === "image" ? "url" : undefined}
+                        placeholder={
+                          field.kind === "image"
+                            ? "https://..."
+                            : field.id === "enlace"
+                              ? "https://... o token del pase"
+                              : undefined
+                        }
+                        value={form.variables[field.id] ?? ""}
+                        disabled={saving}
+                        onChange={(e) =>
+                          setForm((current) => ({
+                            ...current,
+                            variables: {
+                              ...current.variables,
+                              [field.id]: e.target.value,
+                            },
+                          }))
+                        }
+                      />
+                      <p className="font-mono text-[10px] text-muted-foreground">
+                        {field.hint}
+                      </p>
+                    </div>
+                  ))}
                 </div>
                 <Button type="submit" className="w-full" disabled={saving}>
                   {saving ? "Guardando…" : "Guardar"}

@@ -149,6 +149,54 @@ describe("guests.controller", () => {
 
     expect(assertCanAddGuests).toHaveBeenCalledWith(expect.any(Object), expect.objectContaining({ id: "evt_1" }), 2);
     expect(res.status).toHaveBeenCalledWith(201);
+    expect(models.Guest.create).toHaveBeenCalledWith(
+      expect.objectContaining({ customData: {} }),
+    );
+  });
+
+  test("createGuest guarda enlace y columnas extra", async () => {
+    const { res } = await callHandler(controller.createGuest, {
+      req: createMockReq({
+        user: fakeUser(),
+        params: { eventId: "boda-ana" },
+        body: {
+          rep: "Ana López",
+          phone: "5511111111",
+          customData: {
+            enlace: " https://pase.example/a ",
+            menu_especial: "vegano",
+            mesa: "4",
+          },
+        },
+      }),
+    });
+
+    expect(res.status).toHaveBeenCalledWith(201);
+    expect(models.Guest.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        customData: {
+          enlace: "https://pase.example/a",
+          menu_especial: "vegano",
+        },
+      }),
+    );
+  });
+
+  test("createGuest rechaza una imagen que no es https", async () => {
+    const { res } = await callHandler(controller.createGuest, {
+      req: createMockReq({
+        user: fakeUser(),
+        params: { eventId: "boda-ana" },
+        body: {
+          rep: "Ana López",
+          phone: "5511111111",
+          imageUrl: "http://cdn.example/foto.png",
+        },
+      }),
+    });
+
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(models.Guest.create).not.toHaveBeenCalled();
   });
 
   test("updateGuest 404", async () => {

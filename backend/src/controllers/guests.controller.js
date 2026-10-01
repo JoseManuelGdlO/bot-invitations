@@ -3,7 +3,7 @@ import { asyncHandler } from "../utils/async.js";
 import { serializeGuest } from "../utils/serialize.js";
 import { requireEvent, userEventIds, requirePermission, hasEventPermission, PERMS } from "../services/access.service.js";
 import { logActivity } from "../services/activity.service.js";
-import { mapRows, parseSpreadsheet, suggestMapping } from "../services/import.service.js";
+import { mapRows, parseSpreadsheet, sanitizeGuestCustomData, suggestMapping } from "../services/import.service.js";
 import {
   deleteStoredGuestImage,
   embeddedImageCells,
@@ -51,6 +51,17 @@ export const createGuest = asyncHandler(async (req, res) => {
   if (invited == null) return res.status(400).json({ error: "El número de invitados debe ser al menos 1." });
   await assertCanAddGuestsForEvent(req.user, event, invited);
   if (!(await requirePermission(req, res, event, PERMS.EDIT_ALL))) return;
+  const customData = sanitizeGuestCustomData(body.customData);
+  const imageUrl = String(body.imageUrl || "").trim();
+  let imageBytes = null;
+  if (imageUrl) {
+    const resolved = await resolveGuestImageBytes({ cellText: imageUrl });
+    if (resolved.warning) return res.status(400).json({ error: resolved.warning });
+    if (!resolved.buffer) {
+      return res.status(400).json({ error: "El enlace de la imagen debe usar https." });
+    }
+    imageBytes = resolved;
+  }
   const guest = await Guest.create({
     eventId: event.id,
     rep: body.rep,
@@ -62,9 +73,23 @@ export const createGuest = asyncHandler(async (req, res) => {
     guestType: body.guestType || "",
     notes: body.notes || "",
     tag: body.tag || "Sin etiqueta",
+    customData,
     status: body.status || "sin_contactar",
     whatsapp: body.whatsapp || "pendiente",
   });
+  if (imageBytes) {
+    try {
+      guest.invitationImagePath = await saveGuestImage({
+        eventId: guest.eventId,
+        guestId: guest.id,
+        buffer: imageBytes.buffer,
+      });
+      await guest.save();
+    } catch (err) {
+      await Guest.destroy({ where: { id: guest.id } });
+      throw err;
+    }
+  }
   res.status(201).json(serializeGuest(guest, event.slug));
 });
 

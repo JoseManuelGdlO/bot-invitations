@@ -1,5 +1,11 @@
 import XLSX from "xlsx";
-import { parseSpreadsheet, suggestMapping, mapRows, columnVarKeys } from "../../src/services/import.service.js";
+import {
+  parseSpreadsheet,
+  suggestMapping,
+  mapRows,
+  columnVarKeys,
+  sanitizeGuestCustomData,
+} from "../../src/services/import.service.js";
 
 function xlsxBuffer() {
   const wb = XLSX.utils.book_new();
@@ -142,5 +148,27 @@ describe("import.service", () => {
     expect(mapped[0].customData).toEqual({});
     expect(mapped[0].imageCell).toBe("https://cdn.example/qr.png");
     expect(mapped[0].sheetRow).toBe(2);
+  });
+
+  test("sanitizeGuestCustomData guarda enlace y columnas extra", () => {
+    expect(
+      sanitizeGuestCustomData({
+        enlace: " https://pase.example/a ",
+        menu_especial: "vegano",
+        mesa: "4",
+        image: "https://cdn.example/a.png",
+        "": "x",
+        "no vale": "x",
+      }),
+    ).toEqual({
+      enlace: "https://pase.example/a",
+      menu_especial: "vegano",
+    });
+  });
+
+  test("sanitizeGuestCustomData ignora valores vacíos y datos que no son objeto", () => {
+    expect(sanitizeGuestCustomData(null)).toEqual({});
+    expect(sanitizeGuestCustomData(["enlace"])).toEqual({});
+    expect(sanitizeGuestCustomData({ enlace: "  ", alergias: "" })).toEqual({});
   });
 });

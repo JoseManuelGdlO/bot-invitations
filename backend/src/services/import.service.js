@@ -65,6 +65,25 @@ export const RESERVED_TEMPLATE_KEYS = new Set([
 const MAX_CUSTOM_COLUMNS = 30;
 const MAX_CUSTOM_VALUE = 240;
 const ENLACE_MAX = 1000;
+const BLOCKED_CUSTOM_KEYS = new Set(["__proto__", "prototype", "constructor", "image"]);
+
+export function sanitizeGuestCustomData(raw) {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const out = {};
+  let count = 0;
+  for (const [key, value] of Object.entries(raw)) {
+    if (count >= MAX_CUSTOM_COLUMNS) break;
+    if (BLOCKED_CUSTOM_KEYS.has(key)) continue;
+    if (!/^\w{1,40}$/.test(key)) continue;
+    if (key !== "enlace" && RESERVED_TEMPLATE_KEYS.has(key)) continue;
+    const text = String(value ?? "").trim();
+    if (!text) continue;
+    const max = key === "enlace" ? ENLACE_MAX : MAX_CUSTOM_VALUE;
+    out[key] = text.slice(0, max);
+    count += 1;
+  }
+  return out;
+}
 
 function enlaceFromCell(text, hyperlink) {
   const link = String(hyperlink || "").trim();

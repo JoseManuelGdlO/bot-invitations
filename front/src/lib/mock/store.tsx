@@ -143,6 +143,8 @@ interface Ctx extends State {
       guestType?: string;
       tag?: string;
       notes?: string;
+      customData?: Record<string, string>;
+      imageUrl?: string;
     },
   ) => Promise<Guest>;
   deleteGuest: (id: string) => Promise<void>;
