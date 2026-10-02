@@ -36,6 +36,25 @@ describe("stripe.service", () => {
     expect(result.updated).toBe(false);
   });
 
+  test("startCheckout usa mode payment para el plan de prueba", async () => {
+    const plan = fakePlan({ slug: "prueba", priceMxn: 5, stripePriceId: "price_once" });
+    const user = fakeUser({ subscriptionStatus: "pending" });
+    stripeClient.products.retrieve.mockResolvedValue({ id: "prod_1" });
+    stripeClient.products.update.mockResolvedValue({});
+    stripeClient.prices.retrieve.mockResolvedValue({ id: "price_once", active: true });
+    stripeClient.customers.create.mockResolvedValue({ id: "cus_1" });
+    stripeClient.checkout.sessions.create.mockResolvedValue({ url: "https://checkout.stripe.test/once" });
+    const result = await service.startCheckout(user, plan);
+    expect(result.checkoutUrl).toContain("checkout.stripe.test/once");
+    expect(stripeClient.checkout.sessions.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        mode: "payment",
+        metadata: expect.objectContaining({ interval: "once" }),
+      }),
+    );
+    expect(stripeClient.checkout.sessions.create.mock.calls[0][0].subscription_data).toBeUndefined();
+  });
+
   test("createPortalSession lanza 400 sin customer", async () => {
     await expect(service.createPortalSession(fakeUser({ stripeCustomerId: null }))).rejects.toMatchObject({
       status: 400,

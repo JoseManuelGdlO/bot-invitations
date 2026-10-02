@@ -160,6 +160,7 @@ export interface SubscriptionPlan {
   eventLimit: number;
   guestLimit: number;
   highlighted: boolean;
+  once?: boolean;
 }
 
 export interface PlanUsage {
