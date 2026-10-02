@@ -47,6 +47,19 @@ async function respondWithTokens(res, user, rememberMe = false) {
   return { accessToken: issued.accessToken, user: await userWithPlan(user) };
 }
 
+async function checkoutPaidPlan(user, plan, billingInterval) {
+  try {
+    const checkout = await startCheckout(user, plan, { interval: billingInterval });
+    if (checkout?.checkoutUrl) return checkout.checkoutUrl;
+    const err = new Error("No se pudo abrir Stripe Checkout. Revisa las llaves y el webhook.");
+    err.status = 502;
+    throw err;
+  } catch (err) {
+    await user.destroy().catch(() => undefined);
+    throw err;
+  }
+}
+
 export const listPlans = asyncHandler(async (_req, res) => {
   const plans = await Plan.findAll({ order: [["sortOrder", "ASC"]] });
   res.json(plans.map(serializePlan));
@@ -82,16 +95,16 @@ export const register = asyncHandler(async (req, res) => {
     billingInterval,
     subscriptionStatus: "pending",
   });
-  await claimPendingInvitations(user);
-  const tokens = await respondWithTokens(res, user, false);
-  const checkout = await startCheckout(user, plan, { interval: billingInterval });
-  const checkoutUrl = checkout.checkoutUrl;
-  if (!checkoutUrl) {
-    return res.status(502).json({
-      ...tokens,
-      error: "No se pudo abrir Stripe Checkout. Revisa las llaves y el webhook.",
+  let checkoutUrl;
+  try {
+    checkoutUrl = await checkoutPaidPlan(user, plan, billingInterval);
+  } catch (err) {
+    return res.status(err.status || 502).json({
+      error: err.message || "No se pudo abrir Stripe Checkout. Revisa las llaves y el webhook.",
     });
   }
+  await claimPendingInvitations(user);
+  const tokens = await respondWithTokens(res, user, false);
   res.status(201).json({ ...tokens, checkoutUrl });
 });
 
@@ -247,16 +260,16 @@ export const google = asyncHandler(async (req, res) => {
     billingInterval,
     subscriptionStatus: "pending",
   });
-  await claimPendingInvitations(user);
-  const tokens = await respondWithTokens(res, user, false);
-  const checkout = await startCheckout(user, plan, { interval: billingInterval });
-  const checkoutUrl = checkout.checkoutUrl;
-  if (!checkoutUrl) {
-    return res.status(502).json({
-      ...tokens,
-      error: "No se pudo abrir Stripe Checkout. Revisa las llaves y el webhook.",
+  let checkoutUrl;
+  try {
+    checkoutUrl = await checkoutPaidPlan(user, plan, billingInterval);
+  } catch (err) {
+    return res.status(err.status || 502).json({
+      error: err.message || "No se pudo abrir Stripe Checkout. Revisa las llaves y el webhook.",
     });
   }
+  await claimPendingInvitations(user);
+  const tokens = await respondWithTokens(res, user, false);
   return res.status(201).json({ ...tokens, checkoutUrl });
 });
 

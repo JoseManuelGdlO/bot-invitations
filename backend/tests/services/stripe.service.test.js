@@ -37,11 +37,15 @@ describe("stripe.service", () => {
   });
 
   test("startCheckout usa mode payment para el plan de prueba", async () => {
-    const plan = fakePlan({ slug: "prueba", priceMxn: 5, stripePriceId: "price_once" });
+    const plan = fakePlan({ slug: "prueba", priceMxn: 10, stripePriceId: "price_once" });
     const user = fakeUser({ subscriptionStatus: "pending" });
     stripeClient.products.retrieve.mockResolvedValue({ id: "prod_1" });
     stripeClient.products.update.mockResolvedValue({});
-    stripeClient.prices.retrieve.mockResolvedValue({ id: "price_once", active: true });
+    stripeClient.prices.retrieve.mockResolvedValue({
+      id: "price_once",
+      active: true,
+      unit_amount: 1000,
+    });
     stripeClient.customers.create.mockResolvedValue({ id: "cus_1" });
     stripeClient.checkout.sessions.create.mockResolvedValue({ url: "https://checkout.stripe.test/once" });
     const result = await service.startCheckout(user, plan);
