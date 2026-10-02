@@ -1,3 +1,4 @@
+import { jest } from "@jest/globals";
 import { loadWithMocks, fakePlan, fakeUser } from "../helpers/loadWithMocks.js";
 
 describe("plans.service", () => {
@@ -20,9 +21,9 @@ describe("plans.service", () => {
   });
 
   test("serializePlan marca prueba como pago único", () => {
-    const json = service.serializePlan(fakePlan({ slug: "prueba", priceMxn: 5 }));
+    const json = service.serializePlan(fakePlan({ slug: "prueba", priceMxn: 10 }));
     expect(json.once).toBe(true);
-    expect(json.yearlyPriceMxn).toBe(5);
+    expect(json.yearlyPriceMxn).toBe(10);
   });
 
   test("isSubscriptionUsable es false si la cuenta está cancelada", () => {
@@ -72,5 +73,26 @@ describe("plans.service", () => {
     models.Plan.findAll.mockResolvedValue(service.PLAN_DEFS);
     await service.ensurePlans();
     expect(models.Plan.create).toHaveBeenCalledTimes(service.PLAN_DEFS.length);
+  });
+
+  test("ensurePlans actualiza el precio de prueba si cambió", async () => {
+    const prueba = {
+      slug: "prueba",
+      priceMxn: 5,
+      stripePriceId: "price_old",
+      stripeYearlyPriceId: null,
+      save: jest.fn(async function save() {
+        return this;
+      }),
+    };
+    models.Plan.findOne.mockImplementation(async ({ where }) =>
+      where.slug === "prueba" ? prueba : { slug: where.slug, priceMxn: 500, save: jest.fn() },
+    );
+    models.Plan.findAll.mockResolvedValue([]);
+    await service.ensurePlans();
+    expect(prueba.priceMxn).toBe(10);
+    expect(prueba.stripePriceId).toBeNull();
+    expect(prueba.save).toHaveBeenCalled();
+    expect(models.Plan.create).not.toHaveBeenCalled();
   });
 });

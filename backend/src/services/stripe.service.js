@@ -52,14 +52,22 @@ async function upsertRecurringPrice(stripe, plan, { interval, amountMxn, current
 }
 
 async function upsertOneTimePrice(stripe, plan, { amountMxn, currentId, rotate }) {
+  const expected = Number(amountMxn) * 100;
   if (currentId && !rotate) {
     const existing = await retrieveOrNull(() => stripe.prices.retrieve(currentId));
-    if (existing && existing.active !== false && !existing.recurring) return currentId;
+    if (
+      existing &&
+      existing.active !== false &&
+      !existing.recurring &&
+      Number(existing.unit_amount) === expected
+    ) {
+      return currentId;
+    }
   }
   const price = await stripe.prices.create({
     product: plan.stripeProductId,
     currency: "mxn",
-    unit_amount: Number(amountMxn) * 100,
+    unit_amount: expected,
     metadata: { planId: plan.id, slug: plan.slug, interval: "once" },
   });
   if (currentId) {

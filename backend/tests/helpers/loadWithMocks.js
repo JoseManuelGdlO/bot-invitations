@@ -112,10 +112,16 @@ export function fakeUser(overrides = {}) {
     reload: jest.fn(async function reload() {
       return this;
     }),
+    destroy: jest.fn(async function destroy() {
+      return this;
+    }),
     ...overrides,
   };
   user.save.mockImplementation(async () => user);
   user.reload.mockImplementation(async () => user);
+  if (typeof user.destroy.mockImplementation === "function") {
+    user.destroy.mockImplementation(async () => user);
+  }
   return user;
 }
 

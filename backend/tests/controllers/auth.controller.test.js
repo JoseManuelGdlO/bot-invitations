@@ -125,10 +125,51 @@ describe("auth.controller", () => {
       }),
     );
     expect(startCheckout).toHaveBeenCalledWith(user, plan, { interval: "month" });
+    expect(user.destroy).not.toHaveBeenCalled();
     expect(res.status).toHaveBeenCalledWith(201);
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({ checkoutUrl: "https://checkout.test", accessToken: expect.any(String) }),
     );
+  });
+
+  test("register 502 borra el usuario si Stripe no abre Checkout", async () => {
+    stripeOn = true;
+    startCheckout.mockResolvedValue({ checkoutUrl: null, updated: false });
+    const plan = fakePlan({ id: "plan_1", slug: "estudio" });
+    const user = fakeUser({ id: "usr_reg_fail", planId: "plan_1", email: "ana@test.com" });
+    models.Plan.findByPk.mockResolvedValue(plan);
+    models.User.findOne.mockResolvedValue(null);
+    models.User.create.mockResolvedValue(user);
+
+    const { res } = await callHandler(controller.register, {
+      req: createMockReq({ body: registerBody }),
+    });
+
+    expect(user.destroy).toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(502);
+    expect(res.json).toHaveBeenCalledWith({
+      error: "No se pudo abrir Stripe Checkout. Revisa las llaves y el webhook.",
+    });
+  });
+
+  test("register 502 borra el usuario si Stripe rechaza el monto", async () => {
+    stripeOn = true;
+    startCheckout.mockRejectedValue(new Error("Amount must be at least $10.00 mxn"));
+    const plan = fakePlan({ id: "plan_1", slug: "prueba" });
+    const user = fakeUser({ id: "usr_reg_amt", planId: "plan_1", email: "ana@test.com" });
+    models.Plan.findByPk.mockResolvedValue(plan);
+    models.User.findOne.mockResolvedValue(null);
+    models.User.create.mockResolvedValue(user);
+
+    const { res } = await callHandler(controller.register, {
+      req: createMockReq({ body: registerBody }),
+    });
+
+    expect(user.destroy).toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(502);
+    expect(res.json).toHaveBeenCalledWith({
+      error: "Amount must be at least $10.00 mxn",
+    });
   });
 
   test("login 401 con credenciales inválidas", async () => {
@@ -469,6 +510,7 @@ describe("auth.controller", () => {
       }),
     );
     expect(startCheckout).toHaveBeenCalledWith(user, plan, { interval: "month" });
+    expect(user.destroy).not.toHaveBeenCalled();
     expect(res.status).toHaveBeenCalledWith(201);
     expect(res.json).toHaveBeenCalledWith(
       expect.objectContaining({ checkoutUrl: "https://checkout.test", accessToken: expect.any(String) }),
