@@ -8,8 +8,10 @@ describe("auth.controller", () => {
   let scheduleCancelAtPeriodEnd;
   let sendPasswordResetEmail;
   let verifyGoogleIdToken;
+  let stripeOn;
 
   beforeEach(async () => {
+    stripeOn = false;
     startCheckout = jest.fn(async () => ({ checkoutUrl: "https://checkout.test", updated: false }));
     scheduleCancelAtPeriodEnd = jest.fn(async () => ({ scheduled: true, periodEnd: new Date() }));
     sendPasswordResetEmail = jest.fn(async () => ({ messageId: "mail_1" }));
@@ -34,7 +36,7 @@ describe("auth.controller", () => {
           sendTeamInvitationEmail: jest.fn(),
         }),
         "src/services/stripe.service.js": () => ({
-          stripeEnabled: () => false,
+          stripeEnabled: () => stripeOn,
           startCheckout,
           scheduleCancelAtPeriodEnd,
           createPortalSession: jest.fn(),
@@ -75,7 +77,35 @@ describe("auth.controller", () => {
     expect(res.status).toHaveBeenCalledWith(400);
   });
 
-  test("register 201 crea usuario sin Stripe", async () => {
+  const registerBody = {
+    name: "Ana",
+    email: "ana@test.com",
+    password: "secret12",
+    planId: "plan_1",
+    phone: "5511111111",
+    state: "CDMX",
+    businessName: "Studio Ana",
+  };
+
+  test("register 503 si Stripe no está configurado", async () => {
+    const plan = fakePlan({ id: "plan_1", slug: "estudio" });
+    models.Plan.findByPk.mockResolvedValue(plan);
+    models.User.findOne.mockResolvedValue(null);
+
+    const { res } = await callHandler(controller.register, {
+      req: createMockReq({ body: registerBody }),
+    });
+
+    expect(models.User.create).not.toHaveBeenCalled();
+    expect(startCheckout).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(503);
+    expect(res.json).toHaveBeenCalledWith({
+      error: "Stripe no está configurado. No se puede contratar un plan.",
+    });
+  });
+
+  test("register 201 crea usuario pending y abre Checkout", async () => {
+    stripeOn = true;
     const plan = fakePlan({ id: "plan_1", slug: "estudio" });
     const user = fakeUser({ id: "usr_reg_1", planId: "plan_1", email: "ana@test.com" });
 
@@ -84,22 +114,21 @@ describe("auth.controller", () => {
     models.User.create.mockResolvedValue(user);
 
     const { res } = await callHandler(controller.register, {
-      req: createMockReq({
-        body: {
-          name: "Ana",
-          email: "ana@test.com",
-          password: "secret12",
-          planId: "plan_1",
-          phone: "5511111111",
-          state: "CDMX",
-          businessName: "Studio Ana",
-        },
-      }),
+      req: createMockReq({ body: registerBody }),
     });
 
-    expect(models.User.create).toHaveBeenCalled();
+    expect(models.User.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        email: "ana@test.com",
+        planId: "plan_1",
+        subscriptionStatus: "pending",
+      }),
+    );
+    expect(startCheckout).toHaveBeenCalledWith(user, plan, { interval: "month" });
     expect(res.status).toHaveBeenCalledWith(201);
-    expect(startCheckout).not.toHaveBeenCalled();
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ checkoutUrl: "https://checkout.test", accessToken: expect.any(String) }),
+    );
   });
 
   test("login 401 con credenciales inválidas", async () => {
@@ -391,7 +420,35 @@ describe("auth.controller", () => {
     expect(models.User.create).not.toHaveBeenCalled();
   });
 
-  test("google register 201 crea usuario sin password y sin Stripe", async () => {
+  const googleRegisterBody = {
+    idToken: "ok",
+    intent: "register",
+    name: "Ana",
+    planId: "plan_1",
+    phone: "5511111111",
+    state: "CDMX",
+    businessName: "Studio Ana",
+  };
+
+  test("google register 503 si Stripe no está configurado", async () => {
+    const plan = fakePlan({ id: "plan_1" });
+    models.User.findOne.mockResolvedValue(null);
+    models.Plan.findByPk.mockResolvedValue(plan);
+
+    const { res } = await callHandler(controller.google, {
+      req: createMockReq({ body: googleRegisterBody }),
+    });
+
+    expect(models.User.create).not.toHaveBeenCalled();
+    expect(startCheckout).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(503);
+    expect(res.json).toHaveBeenCalledWith({
+      error: "Stripe no está configurado. No se puede contratar un plan.",
+    });
+  });
+
+  test("google register 201 crea usuario pending sin password y abre Checkout", async () => {
+    stripeOn = true;
     const plan = fakePlan({ id: "plan_1" });
     const user = fakeUser({ id: "usr_g_1", email: "ana@test.com", planId: "plan_1", passwordHash: null, googleId: "g-123" });
     models.User.findOne.mockResolvedValue(null);
@@ -399,17 +456,7 @@ describe("auth.controller", () => {
     models.User.create.mockResolvedValue(user);
 
     const { res } = await callHandler(controller.google, {
-      req: createMockReq({
-        body: {
-          idToken: "ok",
-          intent: "register",
-          name: "Ana",
-          planId: "plan_1",
-          phone: "5511111111",
-          state: "CDMX",
-          businessName: "Studio Ana",
-        },
-      }),
+      req: createMockReq({ body: googleRegisterBody }),
     });
 
     expect(models.User.create).toHaveBeenCalledWith(
@@ -418,11 +465,14 @@ describe("auth.controller", () => {
         passwordHash: null,
         googleId: "g-123",
         planId: "plan_1",
+        subscriptionStatus: "pending",
       }),
     );
-    expect(startCheckout).not.toHaveBeenCalled();
+    expect(startCheckout).toHaveBeenCalledWith(user, plan, { interval: "month" });
     expect(res.status).toHaveBeenCalledWith(201);
-    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ accessToken: expect.any(String) }));
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ checkoutUrl: "https://checkout.test", accessToken: expect.any(String) }),
+    );
   });
 
   test("google register-invite 403 sin invitación pendiente", async () => {

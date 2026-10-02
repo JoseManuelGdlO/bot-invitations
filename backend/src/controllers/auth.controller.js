@@ -67,6 +67,9 @@ export const register = asyncHandler(async (req, res) => {
   if (!plan) return res.status(400).json({ error: "El plan seleccionado no existe." });
   const exists = await User.findOne({ where: { email: cleanEmail } });
   if (exists) return res.status(409).json({ error: "Ese correo ya está registrado." });
+  if (!stripeEnabled()) {
+    return res.status(503).json({ error: "Stripe no está configurado. No se puede contratar un plan." });
+  }
   const user = await User.create({
     name: name.trim(),
     email: cleanEmail,
@@ -77,20 +80,17 @@ export const register = asyncHandler(async (req, res) => {
     state: state.trim(),
     planId: plan.id,
     billingInterval,
-    subscriptionStatus: stripeEnabled() ? "pending" : "active",
+    subscriptionStatus: "pending",
   });
   await claimPendingInvitations(user);
   const tokens = await respondWithTokens(res, user, false);
-  let checkoutUrl = null;
-  if (stripeEnabled()) {
-    const checkout = await startCheckout(user, plan, { interval: billingInterval });
-    checkoutUrl = checkout.checkoutUrl;
-    if (!checkoutUrl) {
-      return res.status(502).json({
-        ...tokens,
-        error: "No se pudo abrir Stripe Checkout. Revisa las llaves y el webhook.",
-      });
-    }
+  const checkout = await startCheckout(user, plan, { interval: billingInterval });
+  const checkoutUrl = checkout.checkoutUrl;
+  if (!checkoutUrl) {
+    return res.status(502).json({
+      ...tokens,
+      error: "No se pudo abrir Stripe Checkout. Revisa las llaves y el webhook.",
+    });
   }
   res.status(201).json({ ...tokens, checkoutUrl });
 });
@@ -230,6 +230,9 @@ export const google = asyncHandler(async (req, res) => {
   if (!planId) return res.status(400).json({ error: "Selecciona un plan para continuar." });
   const plan = await Plan.findByPk(planId);
   if (!plan) return res.status(400).json({ error: "El plan seleccionado no existe." });
+  if (!stripeEnabled()) {
+    return res.status(503).json({ error: "Stripe no está configurado. No se puede contratar un plan." });
+  }
 
   user = await User.create({
     name: displayName,
@@ -242,20 +245,17 @@ export const google = asyncHandler(async (req, res) => {
     state: state.trim(),
     planId: plan.id,
     billingInterval,
-    subscriptionStatus: stripeEnabled() ? "pending" : "active",
+    subscriptionStatus: "pending",
   });
   await claimPendingInvitations(user);
   const tokens = await respondWithTokens(res, user, false);
-  let checkoutUrl = null;
-  if (stripeEnabled()) {
-    const checkout = await startCheckout(user, plan, { interval: billingInterval });
-    checkoutUrl = checkout.checkoutUrl;
-    if (!checkoutUrl) {
-      return res.status(502).json({
-        ...tokens,
-        error: "No se pudo abrir Stripe Checkout. Revisa las llaves y el webhook.",
-      });
-    }
+  const checkout = await startCheckout(user, plan, { interval: billingInterval });
+  const checkoutUrl = checkout.checkoutUrl;
+  if (!checkoutUrl) {
+    return res.status(502).json({
+      ...tokens,
+      error: "No se pudo abrir Stripe Checkout. Revisa las llaves y el webhook.",
+    });
   }
   return res.status(201).json({ ...tokens, checkoutUrl });
 });

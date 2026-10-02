@@ -9,12 +9,14 @@ import {
   Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { api } from "@/lib/api/client";
+import { api, ApiError } from "@/lib/api/client";
+import { toast } from "sonner";
 import { pageHead, faqJsonLd, businessJsonLd } from "@/lib/seo";
 import type { BillingInterval, SubscriptionPlan } from "@/lib/mock/types";
 import { useStore } from "@/lib/mock/store";
 import { BillingToggle, PlanPrice } from "@/components/billing-toggle";
 import { MarketingShell } from "@/components/marketing-shell";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -78,6 +80,19 @@ const fallbackPlans: SubscriptionPlan[] = [
     eventLimit: 15,
     guestLimit: 3000,
     highlighted: false,
+  },
+  {
+    id: "prueba",
+    slug: "prueba",
+    name: "Prueba",
+    tagline: "Cobro de verificación: un evento chico para validar el pago.",
+    priceMxn: 5,
+    yearlyPriceMxn: 60,
+    annualDiscountPercent: 0,
+    eventLimit: 1,
+    guestLimit: 10,
+    highlighted: false,
+    once: true,
   },
 ];
 
@@ -201,19 +216,20 @@ function Landing() {
           <div className="mt-6">
             <BillingToggle value={interval} onChange={setInterval} />
           </div>
-          <div className="mt-8 grid gap-5 lg:grid-cols-3">
+          <div className="mt-8 grid gap-5 md:grid-cols-2 lg:grid-cols-4">
             {plans.map((plan) => (
               <article
                 key={plan.slug}
-                className={`flex flex-col rounded-2xl border bg-card p-6 shadow-soft ${plan.highlighted ? "border-gold shadow-lift" : "border-border"}`}
+                className={cn(
+                  "flex flex-col rounded-2xl border bg-card p-6 shadow-soft transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lift",
+                  plan.highlighted ? "border-gold shadow-lift" : "border-border",
+                )}
               >
-                {plan.highlighted ? (
-                  <p className="mb-3 text-[11px] font-medium uppercase tracking-[0.14em] text-gold">
-                    Más elegido
-                  </p>
-                ) : null}
+                <p className="mb-3 min-h-5 text-[11px] font-medium uppercase tracking-[0.14em] text-gold">
+                  {plan.highlighted ? "Más elegido" : "\u00a0"}
+                </p>
                 <h3 className="font-display text-3xl">{plan.name}</h3>
-                <p className="mt-1 text-sm text-muted-foreground">
+                <p className="mt-1 min-h-10 text-sm text-muted-foreground">
                   {plan.tagline}
                 </p>
                 <div className="mt-5">
@@ -233,34 +249,48 @@ function Landing() {
                     importación y lista final
                   </li>
                 </ul>
-                {session && !session.isAdmin ? (
-                  <Button
-                    className="mt-6"
-                    variant={plan.highlighted ? "default" : "outline"}
-                    onClick={async () => {
-                      try {
-                        const res = await startCheckout(plan.id, interval);
-                        if (res.checkoutUrl)
-                          window.location.href = res.checkoutUrl;
-                        else window.location.assign("/eventos");
-                      } catch {
-                        window.location.assign("/iniciar-sesion");
-                      }
-                    }}
-                  >
-                    Cambiar a {plan.name}
-                  </Button>
-                ) : (
-                  <Button
-                    className="mt-6"
-                    variant={plan.highlighted ? "default" : "outline"}
-                    asChild
-                  >
-                    <Link to="/registro" search={{ plan: plan.slug }}>
-                      Contratar {plan.name}
-                    </Link>
-                  </Button>
-                )}
+                <div className="mt-auto pt-6">
+                  {session ? (
+                    <Button
+                      className="w-full"
+                      variant={plan.highlighted ? "default" : "outline"}
+                      onClick={async () => {
+                        try {
+                          const res = await startCheckout(plan.id, interval);
+                          if (res.checkoutUrl) {
+                            window.location.href = res.checkoutUrl;
+                            return;
+                          }
+                          if (res.updated) {
+                            window.location.assign("/eventos");
+                            return;
+                          }
+                          toast.error(
+                            "No se pudo abrir Stripe Checkout. Revisa que Stripe esté configurado.",
+                          );
+                        } catch (err) {
+                          toast.error(
+                            err instanceof ApiError
+                              ? err.message
+                              : "No se pudo abrir el pago",
+                          );
+                        }
+                      }}
+                    >
+                      Cambiar a {plan.name}
+                    </Button>
+                  ) : (
+                    <Button
+                      className="w-full"
+                      variant={plan.highlighted ? "default" : "outline"}
+                      asChild
+                    >
+                      <Link to="/registro" search={{ plan: plan.slug }}>
+                        Contratar {plan.name}
+                      </Link>
+                    </Button>
+                  )}
+                </div>
               </article>
             ))}
           </div>

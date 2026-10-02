@@ -16,6 +16,13 @@ describe("plans.service", () => {
     const json = service.serializePlan(fakePlan());
     expect(json.yearlyPriceMxn).toBe(11520);
     expect(json.slug).toBe("estudio");
+    expect(json.once).toBe(false);
+  });
+
+  test("serializePlan marca prueba como pago único", () => {
+    const json = service.serializePlan(fakePlan({ slug: "prueba", priceMxn: 5 }));
+    expect(json.once).toBe(true);
+    expect(json.yearlyPriceMxn).toBe(5);
   });
 
   test("isSubscriptionUsable es false si la cuenta está cancelada", () => {

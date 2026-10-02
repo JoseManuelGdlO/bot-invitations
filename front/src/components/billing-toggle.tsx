@@ -56,6 +56,14 @@ export function PlanPrice({
   plan: SubscriptionPlan;
   interval: BillingInterval;
 }) {
+  if (plan.once || plan.slug === "prueba") {
+    return (
+      <p className="font-display text-4xl">
+        ${plan.priceMxn.toLocaleString("es-MX")}
+        <span className="ml-1 text-base text-muted-foreground">MXN único</span>
+      </p>
+    );
+  }
   const yearly = yearlyAmount(plan);
   const discount = plan.annualDiscountPercent ?? 20;
   if (interval === "year") {

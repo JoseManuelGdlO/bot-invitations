@@ -34,6 +34,17 @@ export const PLAN_DEFS = [
     sortOrder: 3,
     annualDiscountPercent: 20,
   },
+  {
+    slug: "prueba",
+    name: "Prueba",
+    tagline: "Cobro de verificación: un evento chico para validar el pago.",
+    priceMxn: 5,
+    eventLimit: 1,
+    guestLimit: 10,
+    highlighted: false,
+    sortOrder: 4,
+    annualDiscountPercent: 0,
+  },
 ];
 
 export function annualDiscountOf(plan) {
@@ -44,19 +55,25 @@ export function yearlyPriceMxn(plan) {
   return Math.max(0, Math.round(Number(plan.priceMxn) * 12 * (1 - annualDiscountOf(plan) / 100)));
 }
 
+export function isOneTimePlan(plan) {
+  return plan?.slug === "prueba";
+}
+
 export function serializePlan(plan) {
   const discount = annualDiscountOf(plan);
+  const once = isOneTimePlan(plan);
   return {
     id: plan.id,
     slug: plan.slug,
     name: plan.name,
     tagline: plan.tagline,
     priceMxn: plan.priceMxn,
-    yearlyPriceMxn: yearlyPriceMxn(plan),
+    yearlyPriceMxn: once ? plan.priceMxn : yearlyPriceMxn(plan),
     annualDiscountPercent: discount,
     eventLimit: plan.eventLimit,
     guestLimit: plan.guestLimit,
     highlighted: !!plan.highlighted,
+    once,
   };
 }
 

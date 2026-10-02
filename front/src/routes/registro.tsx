@@ -168,8 +168,6 @@ function Registro() {
       .catch(() => toast.error("No se pudieron cargar los planes"));
   }, [planSlug, isInvite]);
 
-  const selected = plans.find((p) => p.id === planId);
-
   const checkEmailAvailable = async (targetEmail: string) => {
     await api<{ available: true }>(
       `/auth/email-available?email=${encodeURIComponent(targetEmail.trim())}`,
@@ -323,12 +321,9 @@ function Registro() {
         window.location.href = checkoutUrl;
         return;
       }
-      toast.success("Cuenta creada", {
-        description: selected
-          ? `Activamos el plan ${selected.name}.`
-          : undefined,
-      });
-      navigate({ to: "/eventos" });
+      toast.error(
+        "No se pudo abrir Stripe Checkout. No activamos el plan sin pago.",
+      );
     } catch (err) {
       const message =
         err instanceof ApiError ? err.message : "No se pudo crear la cuenta";
@@ -609,10 +604,10 @@ function Registro() {
                   type="button"
                   onClick={() => setPlanId(plan.id)}
                   className={cn(
-                    "rounded-2xl border p-5 text-left transition-colors",
+                    "rounded-2xl border p-5 text-left transition-all duration-300 hover:-translate-y-0.5 hover:shadow-lift",
                     planId === plan.id
-                      ? "border-gold bg-gold-soft/40"
-                      : "border-border bg-card hover:bg-secondary/50",
+                      ? "border-gold bg-gold-soft/40 shadow-lift"
+                      : "border-border bg-card",
                   )}
                 >
                   <div className="flex items-start justify-between gap-3">
@@ -623,9 +618,11 @@ function Registro() {
                       </p>
                     </div>
                     <p className="font-display text-2xl">
-                      {interval === "year"
-                        ? `$${yearlyAmount(plan).toLocaleString("es-MX")}`
-                        : `$${plan.priceMxn.toLocaleString("es-MX")}`}
+                      {plan.once || plan.slug === "prueba"
+                        ? `$${plan.priceMxn.toLocaleString("es-MX")}`
+                        : interval === "year"
+                          ? `$${yearlyAmount(plan).toLocaleString("es-MX")}`
+                          : `$${plan.priceMxn.toLocaleString("es-MX")}`}
                     </p>
                   </div>
                   <ul className="mt-3 flex flex-wrap gap-4 text-sm text-muted-foreground">
@@ -639,9 +636,11 @@ function Registro() {
                     </li>
                     <li className="flex items-center gap-1.5">
                       <Check className="size-3.5 text-success" />{" "}
-                      {interval === "year"
-                        ? `MXN / año · ${plan.annualDiscountPercent ?? 20}% off`
-                        : "MXN / mes"}
+                      {plan.once || plan.slug === "prueba"
+                        ? "MXN único"
+                        : interval === "year"
+                          ? `MXN / año · ${plan.annualDiscountPercent ?? 20}% off`
+                          : "MXN / mes"}
                     </li>
                   </ul>
                 </button>

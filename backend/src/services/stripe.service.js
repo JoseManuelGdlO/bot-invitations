@@ -2,7 +2,7 @@ import Stripe from "stripe";
 import { Op } from "sequelize";
 import { Plan, User } from "../models/index.js";
 import { env } from "../config/env.js";
-import { yearlyPriceMxn } from "./plans.service.js";
+import { yearlyPriceMxn, isOneTimePlan } from "./plans.service.js";
 
 let client = null;
 
@@ -51,6 +51,23 @@ async function upsertRecurringPrice(stripe, plan, { interval, amountMxn, current
   return price.id;
 }
 
+async function upsertOneTimePrice(stripe, plan, { amountMxn, currentId, rotate }) {
+  if (currentId && !rotate) {
+    const existing = await retrieveOrNull(() => stripe.prices.retrieve(currentId));
+    if (existing && existing.active !== false && !existing.recurring) return currentId;
+  }
+  const price = await stripe.prices.create({
+    product: plan.stripeProductId,
+    currency: "mxn",
+    unit_amount: Number(amountMxn) * 100,
+    metadata: { planId: plan.id, slug: plan.slug, interval: "once" },
+  });
+  if (currentId) {
+    await stripe.prices.update(currentId, { active: false }).catch(() => undefined);
+  }
+  return price.id;
+}
+
 export async function ensureStripePrice(plan, { rotate = false } = {}) {
   const stripe = getStripe();
   if (!stripe || !plan) return plan;
@@ -72,6 +89,16 @@ export async function ensureStripePrice(plan, { rotate = false } = {}) {
       name: `Alanna ${plan.name}`,
       description: plan.tagline,
     });
+  }
+  if (isOneTimePlan(plan)) {
+    plan.stripePriceId = await upsertOneTimePrice(stripe, plan, {
+      amountMxn: plan.priceMxn,
+      currentId: plan.stripePriceId,
+      rotate,
+    });
+    plan.stripeYearlyPriceId = null;
+    await plan.save();
+    return plan;
   }
   plan.stripePriceId = await upsertRecurringPrice(stripe, plan, {
     interval: "month",
@@ -171,7 +198,8 @@ export async function startCheckout(user, plan, { successPath, cancelPath, inter
     err.status = 503;
     throw err;
   }
-  const billingInterval = normalizeInterval(interval);
+  const oneTime = isOneTimePlan(plan);
+  const billingInterval = oneTime ? "month" : normalizeInterval(interval);
   try {
     await ensureStripePrice(plan);
   } catch (err) {
@@ -182,7 +210,7 @@ export async function startCheckout(user, plan, { successPath, cancelPath, inter
     await plan.save();
     await ensureStripePrice(plan, { rotate: true });
   }
-  const priceId = priceIdFor(plan, billingInterval);
+  const priceId = oneTime ? plan.stripePriceId : priceIdFor(plan, billingInterval);
   if (!priceId) {
     const err = new Error("Este plan aún no tiene precio de Stripe.");
     err.status = 503;
@@ -190,7 +218,7 @@ export async function startCheckout(user, plan, { successPath, cancelPath, inter
   }
   const customerId = await ensureCustomer(user);
 
-  if (user.stripeSubscriptionId && user.subscriptionStatus === "active") {
+  if (!oneTime && user.stripeSubscriptionId && user.subscriptionStatus === "active") {
     const subscription = await stripe.subscriptions.retrieve(user.stripeSubscriptionId);
     const item = subscription.items.data[0];
     if (item) {
@@ -209,13 +237,29 @@ export async function startCheckout(user, plan, { successPath, cancelPath, inter
     return { checkoutUrl: null, updated: true };
   }
 
+  const successUrl = `${env.clientUrl}${successPath || "/pago/exito"}?session_id={CHECKOUT_SESSION_ID}`;
+  const cancelUrl = `${env.clientUrl}${cancelPath || "/registro?pago=cancelado"}`;
+  if (oneTime) {
+    const session = await stripe.checkout.sessions.create({
+      mode: "payment",
+      customer: customerId,
+      locale: "es",
+      line_items: [{ price: priceId, quantity: 1 }],
+      success_url: successUrl,
+      cancel_url: cancelUrl,
+      metadata: { userId: user.id, planId: plan.id, interval: "once" },
+      allow_promotion_codes: true,
+    });
+    return { checkoutUrl: session.url, updated: false };
+  }
+
   const session = await stripe.checkout.sessions.create({
     mode: "subscription",
     customer: customerId,
     locale: "es",
     line_items: [{ price: priceId, quantity: 1 }],
-    success_url: `${env.clientUrl}${successPath || "/pago/exito"}?session_id={CHECKOUT_SESSION_ID}`,
-    cancel_url: `${env.clientUrl}${cancelPath || "/registro?pago=cancelado"}`,
+    success_url: successUrl,
+    cancel_url: cancelUrl,
     metadata: { userId: user.id, planId: plan.id, interval: billingInterval },
     subscription_data: { metadata: { userId: user.id, planId: plan.id, interval: billingInterval } },
     allow_promotion_codes: true,
