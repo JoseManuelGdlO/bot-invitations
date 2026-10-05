@@ -35,7 +35,7 @@ export function statsFor(guests) {
   const rejected = guests.filter((g) => g.status === "no_asistira");
   const rejectedPeople = rejected.reduce((a, g) => a + g.invited, 0);
   const noReply = guests.filter((g) =>
-    ["enviado", "entregado", "sin_contactar"].includes(g.status),
+    ["enviado", "entregado", "sin_contactar", "reagendado"].includes(g.status),
   );
   const pending = guests.filter((g) =>
     ["seguimiento", "en_conversacion"].includes(g.status),

@@ -20,6 +20,7 @@ import { guestsToRows, toCsv, toPdf, toXlsx } from "../services/export.service.j
 import { assertCanAddGuestsForEvent, assertCanSendInvitations } from "../services/plans.service.js";
 import { assertWhatsappReady } from "../services/integration-resolver.service.js";
 import { deliverAiMessage } from "../services/guest-message.service.js";
+import { cancelEcosystemRetries } from "../services/ecosystem-retry.service.js";
 import { phonesMatch } from "../services/bot/session.service.js";
 import { normalizeGuestPhoneDigits } from "../utils/whatsapp-identity.js";
 import { resolveCampaignSendContext, resolvePurposeSendContext } from "../services/whatsapp-templates.service.js";
@@ -230,8 +231,11 @@ export const remindGuest = asyncHandler(async (req, res) => {
   assertCanSendInvitations(req.user);
   await assertWhatsappReady(event);
 
-  const sendOpening = guest.status === "sin_contactar";
+  const sendOpening = guest.status === "sin_contactar" || guest.status === "reagendado";
   if (sendOpening) {
+    if (guest.status === "reagendado") {
+      await cancelEcosystemRetries(guest.id, "envío manual de la invitación");
+    }
     await deliverOpeningInvitation({ event, guest, plannerName: req.user.name, sync: true });
     await logActivity(event.id, `Se envió la invitación inicial a ${guest.rep}`, "message");
   } else {

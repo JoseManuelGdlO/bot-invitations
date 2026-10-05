@@ -55,6 +55,7 @@ describe("matchesConversationFilter", () => {
     assert.equal(matchesConversationFilter(row("sin_contactar"), "sin_contestar"), true);
     assert.equal(matchesConversationFilter(row("enviado"), "sin_contestar"), true);
     assert.equal(matchesConversationFilter(row("entregado"), "sin_contestar"), true);
+    assert.equal(matchesConversationFilter(row("reagendado"), "sin_contestar"), true);
     assert.equal(matchesConversationFilter(row("en_conversacion"), "sin_contestar"), false);
     assert.equal(matchesConversationFilter(row("confirmado"), "sin_contestar"), false);
   });

@@ -43,6 +43,7 @@ const META_CODE_MESSAGES = {
   131026: "El número de destino no es un WhatsApp válido.",
   131042: "Hay un problema de facturación en tu cuenta de WhatsApp Business. Configura el país y la moneda en Meta Business Manager.",
   131047: "Han pasado más de 24 horas. Debes usar una plantilla aprobada.",
+  131049: "WhatsApp no entregó el mensaje para cuidar la frecuencia de contacto. Se reintentará más tarde.",
   131051: "El tipo de mensaje no está soportado.",
   132000: "La plantilla de WhatsApp fue rechazada o no existe.",
   132001: "La plantilla no está disponible en este idioma.",

@@ -141,6 +141,7 @@ export const Guest = sequelize.define(
         "parcial",
         "no_asistira",
         "seguimiento",
+        "reagendado",
       ),
       allowNull: false,
       defaultValue: "sin_contactar",
@@ -941,6 +942,7 @@ const GUEST_STATUS_ENUM = [
   "parcial",
   "no_asistira",
   "seguimiento",
+  "reagendado",
 ];
 
 /** Remapea estados legacy y estrecha el ENUM de guests.status. */
@@ -969,13 +971,15 @@ export async function ensureGuestStatusCleanup() {
   }
 
   const type = String(table.status.type || "");
-  if (!/respondio|sin_respuesta/i.test(type)) return;
+  const hasLegacy = /respondio|sin_respuesta/i.test(type);
+  const missingReagendado = !type.toLowerCase().includes("reagendado");
+  if (!hasLegacy && !missingReagendado) return;
 
   const enumSql = GUEST_STATUS_ENUM.map((s) => `'${s}'`).join(",");
   await sequelize.query(
     `ALTER TABLE guests MODIFY COLUMN status ENUM(${enumSql}) NOT NULL DEFAULT 'sin_contactar'`,
   );
-  console.log("[db] guests.status ENUM sin valores legacy");
+  console.log("[db] guests.status ENUM actualizado");
 }
 
 export async function ensureGuestPhoneDigits() {

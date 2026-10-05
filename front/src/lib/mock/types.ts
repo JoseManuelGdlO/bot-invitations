@@ -6,7 +6,8 @@ export type ConfirmationStatus =
   | "confirmado"
   | "parcial"
   | "no_asistira"
-  | "seguimiento";
+  | "seguimiento"
+  | "reagendado";
 
 export type GuestType = "VIP";
 export type WhatsappStatus =

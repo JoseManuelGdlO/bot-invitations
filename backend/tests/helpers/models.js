@@ -9,6 +9,7 @@ export function createSequelizeMock() {
     fn: jest.fn((name, ...args) => ({ fn: name, args })),
     col: jest.fn((name) => ({ col: name })),
     literal: jest.fn((value) => ({ literal: value })),
+    where: jest.fn((lhs, rhs) => ({ lhs, rhs })),
   };
 }
 

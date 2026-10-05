@@ -36,7 +36,15 @@ export const STATUS_META: Record<
     label: "Requiere seguimiento",
     className: "bg-warning-soft text-warning border-transparent",
   },
+  reagendado: {
+    label: "Reagendado",
+    className: "bg-warning-soft text-warning border-transparent",
+  },
 };
+
+export function isInitialInvitationStatus(status?: string) {
+  return status === "sin_contactar" || status === "reagendado";
+}
 
 export const GUEST_TYPE: Record<
   GuestType,

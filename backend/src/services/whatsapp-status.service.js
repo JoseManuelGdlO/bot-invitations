@@ -2,6 +2,10 @@ import { Conversation, Guest, Message } from "../models/index.js";
 import { Logger } from "../utils/logger.js";
 import { summarizeMetaErrors } from "../utils/meta-error.js";
 import { recordTestDeliveryStatus } from "./whatsapp-test-delivery.js";
+import {
+  ECOSYSTEM_ENGAGEMENT_CODE,
+  rescheduleEcosystemDelivery,
+} from "./ecosystem-retry.service.js";
 
 const log = new Logger("WhatsApp");
 
@@ -20,6 +24,11 @@ const STATUS_TO_WHATSAPP = {
 };
 
 const RSVP_MARK_ENTREGADO = new Set(["enviado"]);
+
+function isEcosystemEngagement(status) {
+  const errors = summarizeMetaErrors(status?.errors);
+  return Number(errors[0]?.code) === ECOSYSTEM_ENGAGEMENT_CODE;
+}
 
 function canAdvanceWhatsapp(current, next) {
   if (!next) return false;
@@ -63,6 +72,16 @@ export async function applyWhatsappDeliveryStatus(status = {}) {
 
   const message = await Message.findOne({ where: { providerId: messageId } });
   if (!message) {
+    if (delivery === "failed" && isEcosystemEngagement(status)) {
+      const scheduled = await rescheduleEcosystemDelivery({ messageId });
+      if (scheduled.ok) {
+        log.error("status failed", failedMeta(status, {
+          rescheduled: true,
+          retryAt: scheduled.retryAt instanceof Date ? scheduled.retryAt.toISOString() : scheduled.retryAt || null,
+        }));
+        return { processed: true, reason: "failed_rescheduled" };
+      }
+    }
     if (delivery === "failed") {
       log.error("status failed: mensaje desconocido", failedMeta(status));
     }
@@ -86,6 +105,20 @@ export async function applyWhatsappDeliveryStatus(status = {}) {
   }
 
   if (delivery === "failed") {
+    if (isEcosystemEngagement(status)) {
+      const scheduled = await rescheduleEcosystemDelivery({ guest, messageId });
+      if (scheduled.ok) {
+        log.error("status failed", failedMeta(status, {
+          guestId: guest.id,
+          phone: guest.phone || null,
+          name: guest.rep || null,
+          reverted: false,
+          rescheduled: true,
+          retryAt: scheduled.retryAt instanceof Date ? scheduled.retryAt.toISOString() : scheduled.retryAt || null,
+        }));
+        return { processed: true, reason: "failed_rescheduled" };
+      }
+    }
     const reverted = await revertFailedCampaignGuest(guest);
     log.error("status failed", failedMeta(status, {
       guestId: guest.id,

@@ -10,6 +10,7 @@ import { processTurn } from "./openai.service.js";
 import { executeBotTool } from "./tools.js";
 import { botError, botLog, botTurnContext, botTurnResult, botWarn } from "./bot-logger.js";
 import { armFlush, inboundBufferKey, pushPending } from "./inbound-buffer.js";
+import { cancelEcosystemRetries } from "../ecosystem-retry.service.js";
 import {
   appendSessionItems,
   asItems,
@@ -41,7 +42,7 @@ function markGuestReplied(guest, text, timeZone) {
   guest.lastReply = String(text || "").slice(0, 240);
   guest.lastReplyAt = formatClock(undefined, timeZone);
   guest.whatsapp = "respondido";
-  if (["sin_contactar", "enviado", "entregado"].includes(previous)) {
+  if (["sin_contactar", "enviado", "entregado", "reagendado"].includes(previous)) {
     guest.status = "en_conversacion";
   }
 }
@@ -321,6 +322,7 @@ export async function processGuestMessage({
       at: formatClock(undefined, event.timezone),
     });
     markGuestReplied(guest, message, event.timezone);
+    await cancelEcosystemRetries(guest.id, "el invitado respondió");
     await Conversation.increment({ unread: 1 }, { where: { id: conv.id } });
     conv.unread = (conv.unread || 0) + 1;
     await guest.save();

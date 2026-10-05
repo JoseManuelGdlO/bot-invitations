@@ -147,6 +147,12 @@ async function syncWhatsappSendJob(job, { ok, result } = {}) {
   await maybeRecordCampaignProgress(job);
 }
 
+function ecosystemRetryStillApplies(guest) {
+  if (!guest) return false;
+  if (guest.lastReply || guest.whatsapp === "respondido") return false;
+  return guest.status === "reagendado" || guest.status === "enviado";
+}
+
 function skipWhatsappSendReason(payload) {
   if (!String(payload?.text || "").trim()) return "texto vacío";
   if (!String(payload?.to || "").trim()) return "sin destinatario";
@@ -230,6 +236,11 @@ export async function processJob(job) {
       if (job.payload?.guestId) {
         guest = await Guest.findByPk(job.payload.guestId);
         if (guest) to = resolveWhatsappTo(guest) || to;
+      }
+      if (job.payload?.ecosystemRetryOf && !ecosystemRetryStillApplies(guest)) {
+        await job.update({ status: "skipped", lastError: "reenvío ya no aplica" });
+        waLog.info("whatsapp.send skipped: reenvío ya no aplica", sendMeta(job, { status: "skipped" }));
+        return;
       }
       const { hsmHeaderDocument, hsmHeaderImage, hsmTemplateName } = await resolveCampaignHeader(job.payload, guest);
       waLog.info("enviando whatsapp.send", sendMeta(job, {

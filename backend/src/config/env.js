@@ -35,6 +35,25 @@ function parseWaMaxInitialConversations() {
   return Math.floor(n);
 }
 
+const DAY_MS = 24 * 60 * 60 * 1000;
+
+function parseEcosystemRetryMs() {
+  const raw = process.env.WA_ECOSYSTEM_RETRY_MS;
+  if (raw == null || String(raw).trim() === "") return DAY_MS;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n <= 0) return DAY_MS;
+  return Math.floor(n);
+}
+
+function parseEcosystemRetryMax() {
+  const DEFAULT_MAX = 3;
+  const raw = process.env.WA_ECOSYSTEM_RETRY_MAX;
+  if (raw == null || String(raw).trim() === "") return DEFAULT_MAX;
+  const n = Number(raw);
+  if (!Number.isFinite(n) || n < 1) return DEFAULT_MAX;
+  return Math.floor(n);
+}
+
 const LOG_LEVELS = new Set(["error", "warn", "info", "debug"]);
 
 function parseLogLevel(nodeEnv) {
@@ -78,7 +97,11 @@ export const env = {
     process.env.FRONTEND_RESET_URL ||
     `${(process.env.CLIENT_URL || "http://localhost:8080").replace(/\/$/, "")}/restablecer-contrasena`,
   workerIntervalMs: Number(process.env.WORKER_INTERVAL_MS || 5000),
-  waSend: { maxInitialPer24h: parseWaMaxInitialConversations() },
+  waSend: {
+    maxInitialPer24h: parseWaMaxInitialConversations(),
+    ecosystemRetryMs: parseEcosystemRetryMs(),
+    ecosystemRetryMax: parseEcosystemRetryMax(),
+  },
   stripe: {
     secret: process.env.STRIPE_SECRET_KEY || "",
     webhookSecret: process.env.STRIPE_WEBHOOK_SECRET || "",
@@ -118,7 +141,7 @@ export const env = {
     accessToken: process.env.META_ACCESS_TOKEN || process.env.META_SYSTEM_USER_TOKEN || "",
     templateLanguage: process.env.META_TEMPLATE_LANGUAGE || "es_MX",
     graphVersion: (process.env.META_GRAPH_VERSION || "v21.0").replace(/^\/*/, ""),
-    timeoutMs: Number(process.env.META_TIMEOUT_MS || 8000),
+    timeoutMs: Number(process.env.META_TIMEOUT_MS || 10000),
     mediaTimeoutMs: Number(process.env.META_MEDIA_TIMEOUT_MS || 60000),
     appId: process.env.META_APP_ID || "",
     appSecret: process.env.META_APP_SECRET || "",

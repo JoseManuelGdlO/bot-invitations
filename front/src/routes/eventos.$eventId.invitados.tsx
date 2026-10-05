@@ -54,6 +54,7 @@ import {
   GUEST_TYPE,
   STATUS_FILTER_OPTIONS,
   WHATSAPP_LABEL,
+  isInitialInvitationStatus,
 } from "@/lib/mock/format";
 import type { Guest } from "@/lib/mock/types";
 import { toast } from "sonner";
@@ -577,7 +578,7 @@ function Invitados() {
                         size="sm"
                         variant="ghost"
                         aria-label={
-                          g.status === "sin_contactar"
+                          isInitialInvitationStatus(g.status)
                             ? `Enviar invitación a ${g.rep}`
                             : `Enviar recordatorio a ${g.rep}`
                         }

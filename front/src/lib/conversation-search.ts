@@ -1,4 +1,4 @@
-const NO_REPLY_STATUSES = new Set(["sin_contactar", "enviado", "entregado"]);
+const NO_REPLY_STATUSES = new Set(["sin_contactar", "enviado", "entregado", "reagendado"]);
 
 export function normalizePhoneDigits(phone: string | undefined): string {
   return String(phone || "").replace(/\D/g, "");
