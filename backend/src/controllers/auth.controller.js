@@ -62,7 +62,7 @@ async function checkoutPaidPlan(user, plan, billingInterval) {
 
 export const listPlans = asyncHandler(async (_req, res) => {
   const plans = await Plan.findAll({ order: [["sortOrder", "ASC"]] });
-  res.json(plans.map(serializePlan));
+  res.json(plans.filter((plan) => plan.slug !== "prueba").map(serializePlan));
 });
 
 export const register = asyncHandler(async (req, res) => {
@@ -78,6 +78,9 @@ export const register = asyncHandler(async (req, res) => {
   if (!planId) return res.status(400).json({ error: "Selecciona un plan para continuar." });
   const plan = await Plan.findByPk(planId);
   if (!plan) return res.status(400).json({ error: "El plan seleccionado no existe." });
+  if (plan.slug === "prueba") {
+    return res.status(400).json({ error: "Ese plan ya no está disponible." });
+  }
   const exists = await User.findOne({ where: { email: cleanEmail } });
   if (exists) return res.status(409).json({ error: "Ese correo ya está registrado." });
   if (!stripeEnabled()) {
@@ -243,6 +246,9 @@ export const google = asyncHandler(async (req, res) => {
   if (!planId) return res.status(400).json({ error: "Selecciona un plan para continuar." });
   const plan = await Plan.findByPk(planId);
   if (!plan) return res.status(400).json({ error: "El plan seleccionado no existe." });
+  if (plan.slug === "prueba") {
+    return res.status(400).json({ error: "Ese plan ya no está disponible." });
+  }
   if (!stripeEnabled()) {
     return res.status(503).json({ error: "Stripe no está configurado. No se puede contratar un plan." });
   }

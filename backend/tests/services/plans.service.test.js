@@ -73,26 +73,6 @@ describe("plans.service", () => {
     models.Plan.findAll.mockResolvedValue(service.PLAN_DEFS);
     await service.ensurePlans();
     expect(models.Plan.create).toHaveBeenCalledTimes(service.PLAN_DEFS.length);
-  });
-
-  test("ensurePlans actualiza el precio de prueba si cambió", async () => {
-    const prueba = {
-      slug: "prueba",
-      priceMxn: 5,
-      stripePriceId: "price_old",
-      stripeYearlyPriceId: null,
-      save: jest.fn(async function save() {
-        return this;
-      }),
-    };
-    models.Plan.findOne.mockImplementation(async ({ where }) =>
-      where.slug === "prueba" ? prueba : { slug: where.slug, priceMxn: 500, save: jest.fn() },
-    );
-    models.Plan.findAll.mockResolvedValue([]);
-    await service.ensurePlans();
-    expect(prueba.priceMxn).toBe(10);
-    expect(prueba.stripePriceId).toBeNull();
-    expect(prueba.save).toHaveBeenCalled();
-    expect(models.Plan.create).not.toHaveBeenCalled();
+    expect(service.PLAN_DEFS.some((plan) => plan.slug === "prueba")).toBe(false);
   });
 });

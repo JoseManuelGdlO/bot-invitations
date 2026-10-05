@@ -102,11 +102,19 @@ describe("billing.controller", () => {
     );
   });
 
-  test("confirmSession 200 si paid o complete", async () => {
+  test("confirmSession 200 si paid", async () => {
     const { res } = await callHandler(controller.confirmSession, {
       req: createMockReq({ params: { sessionId: "cs_ok" }, query: {} }),
     });
     expect(res.json).toHaveBeenCalledWith({ ok: true, status: "complete", paymentStatus: "paid" });
     expect(res.status).not.toHaveBeenCalled();
+  });
+
+  test("confirmSession 409 si complete pero no paid", async () => {
+    confirmCheckoutSession.mockResolvedValue({ status: "complete", payment_status: "unpaid" });
+    const { res } = await callHandler(controller.confirmSession, {
+      req: createMockReq({ params: { sessionId: "cs_unpaid" }, query: {} }),
+    });
+    expect(res.status).toHaveBeenCalledWith(409);
   });
 });
