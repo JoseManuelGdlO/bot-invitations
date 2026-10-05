@@ -14,9 +14,16 @@ import { resolveWhatsappTo } from "../utils/whatsapp-identity.js";
 import { getEventCampaignSnapshot, planCampaign } from "../services/campaign.service.js";
 import { createWhatsAppProvider } from "../services/whatsapp.adapter.js";
 import { httpError } from "../utils/http-error.js";
+import { literal } from "sequelize";
 import { Logger } from "../utils/logger.js";
 
 const log = new Logger("WhatsApp");
+
+function readBaselineCount(value) {
+  const count = Number(value);
+  if (!Number.isFinite(count)) return 0;
+  return Math.max(0, Math.floor(count));
+}
 
 async function accessibleConversation(userId, conversationId) {
   const ids = await userEventIds(userId);
@@ -41,10 +48,31 @@ export const listConversations = asyncHandler(async (req, res) => {
 export const toggleConversation = asyncHandler(async (req, res) => {
   const found = await accessibleConversation(req.user.id, req.params.conversationId);
   if (!found) return res.status(404).json({ error: "Conversación no encontrada." });
-  if (!(await requirePermission(req, res, found.event, PERMS.REPLY))) return;
+  const markingRead =
+    req.body?.readBaseline !== undefined &&
+    req.body?.aiPaused === undefined &&
+    req.body?.unread === undefined;
+  const perm = markingRead ? PERMS.VIEW_CHATS : PERMS.REPLY;
+  if (!(await requirePermission(req, res, found.event, perm))) return;
   if (req.body?.aiPaused !== undefined) found.conv.aiPaused = !!req.body.aiPaused;
-  if (req.body?.unread !== undefined) found.conv.unread = Number(req.body.unread) || 0;
-  await found.conv.save();
+  if (req.body?.readBaseline === undefined && req.body?.unread !== undefined) {
+    found.conv.unread = Number(req.body.unread) || 0;
+  }
+  if (
+    req.body?.aiPaused !== undefined ||
+    (req.body?.readBaseline === undefined && req.body?.unread !== undefined)
+  ) {
+    await found.conv.save();
+  }
+  const baseline =
+    req.body?.readBaseline !== undefined ? readBaselineCount(req.body.readBaseline) : 0;
+  if (baseline > 0) {
+    await Conversation.update(
+      { unread: literal(`GREATEST(\`unread\` - ${baseline}, 0)`) },
+      { where: { id: found.conv.id } },
+    );
+    await found.conv.reload();
+  }
   const messages = await Message.findAll({
     where: { conversationId: found.conv.id },
     order: [["createdAt", "ASC"]],

@@ -182,6 +182,7 @@ interface Ctx extends State {
       | ((current: EventData["faqs"]) => EventData["faqs"]),
   ) => Promise<"saved" | "stale" | "error">;
   sendMessage: (convId: string, msg: ChatMessage) => Promise<ChatMessage>;
+  markConversationRead: (convId: string, baseline: number) => void;
   toggleAI: (convId: string, paused: boolean) => void;
   logActivity: (item: ActivityItem) => void;
   launchCampaign: (
@@ -776,6 +777,25 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           toast.error(message);
           throw err;
         }
+      },
+      markConversationRead: (convId, baseline) => {
+        const seen = Math.max(0, Math.floor(Number(baseline) || 0));
+        if (!convId || seen <= 0) return;
+        setState((s) => ({
+          ...s,
+          conversations: s.conversations.map((c) =>
+            c.id === convId
+              ? { ...c, unread: Math.max(0, c.unread - seen) }
+              : c,
+          ),
+        }));
+        api(`/conversations/${convId}`, {
+          method: "PATCH",
+          body: JSON.stringify({ readBaseline: seen }),
+        }).catch((err) => {
+          console.error(err);
+          void refresh();
+        });
       },
       toggleAI: (convId, paused) => {
         setState((s) => ({

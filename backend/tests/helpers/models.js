@@ -20,6 +20,7 @@ export function createModelMock(name = "Model") {
     findByPk: jest.fn(async () => null),
     create: jest.fn(async (data = {}) => createInstance(data)),
     update: jest.fn(async () => [1]),
+    increment: jest.fn(async () => [1]),
     destroy: jest.fn(async () => 1),
     count: jest.fn(async () => 0),
     findAndCountAll: jest.fn(async () => ({ count: 0, rows: [] })),

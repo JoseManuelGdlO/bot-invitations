@@ -50,6 +50,53 @@ describe("conversations.controller", () => {
     expect(res.json).toHaveBeenCalledWith([expect.objectContaining({ id: "c1" })]);
   });
 
+  test("mark read descuenta el baseline y conserva mensajes nuevos", async () => {
+    const requirePermission = jest.fn(async () => true);
+    ({ mod: controller, models } = await loadWithMocks("src/controllers/conversations.controller.js", {
+      extraMocks: {
+        "src/services/access.service.js": () => ({
+          requireEvent: jest.fn(async () => fakeEvent()),
+          userEventIds: jest.fn(async () => ["evt_1"]),
+          requirePermission,
+          PERMS,
+        }),
+        "src/services/outbound.worker.js": () => ({ enqueueJob: jest.fn(async () => undefined) }),
+        "src/services/plans.service.js": () => ({ assertCanSendInvitations: jest.fn() }),
+        "src/services/campaign.service.js": () => ({ planCampaign, getEventCampaignSnapshot }),
+      },
+    }));
+    const conv = createInstance({
+      id: "c1",
+      eventId: "evt_1",
+      guestId: "gst_1",
+      aiPaused: false,
+      unread: 4,
+    });
+    models.Conversation.findOne.mockResolvedValue(conv);
+    models.Event.findByPk.mockResolvedValue(fakeEvent());
+    models.Message.findAll.mockResolvedValue([]);
+
+    const { res } = await callHandler(controller.toggleConversation, {
+      req: createMockReq({
+        params: { conversationId: "c1" },
+        body: { readBaseline: 2 },
+      }),
+    });
+
+    expect(requirePermission).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.anything(),
+      expect.anything(),
+      PERMS.VIEW_CHATS,
+    );
+    expect(models.Conversation.update).toHaveBeenCalledWith(
+      { unread: expect.objectContaining({ val: "GREATEST(`unread` - 2, 0)" }) },
+      { where: { id: "c1" } },
+    );
+    expect(conv.reload).toHaveBeenCalled();
+    expect(res.status).not.toHaveBeenCalledWith(403);
+  });
+
   test("toggleConversation 404", async () => {
     models.Conversation.findOne.mockResolvedValue(null);
     const { res } = await callHandler(controller.toggleConversation, {

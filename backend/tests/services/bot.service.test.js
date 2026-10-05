@@ -226,6 +226,10 @@ describe("bot.service processGuestMessage", () => {
       .filter((row) => row.from === "guest")
       .map((row) => row.text);
     expect(guestTexts).toEqual(["Hola"]);
+    expect(models.Conversation.increment).toHaveBeenCalledWith(
+      { unread: 1 },
+      { where: { id: "c1" } },
+    );
   });
 
   test("playground ignora botEnabled apagado", async () => {

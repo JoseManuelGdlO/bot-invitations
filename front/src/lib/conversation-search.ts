@@ -1,5 +1,23 @@
+const NO_REPLY_STATUSES = new Set(["sin_contactar", "enviado", "entregado"]);
+
 export function normalizePhoneDigits(phone: string | undefined): string {
   return String(phone || "").replace(/\D/g, "");
+}
+
+export function matchesConversationFilter(
+  row: {
+    guest: { status?: string } | null | undefined;
+    conv?: { unread?: number; aiPaused?: boolean } | null;
+  },
+  filter: string,
+): boolean {
+  const value = filter.trim();
+  if (!value || value === "todos") return true;
+  if (!row.guest) return false;
+  if (value === "sin_contestar") return NO_REPLY_STATUSES.has(row.guest.status ?? "");
+  if (value === "sin_leer") return (row.conv?.unread ?? 0) > 0;
+  if (value === "tomada") return Boolean(row.conv?.aiPaused);
+  return row.guest.status === value;
 }
 
 export function matchesConversationSearch(

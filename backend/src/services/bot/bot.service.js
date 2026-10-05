@@ -321,8 +321,8 @@ export async function processGuestMessage({
       at: formatClock(undefined, event.timezone),
     });
     markGuestReplied(guest, message, event.timezone);
+    await Conversation.increment({ unread: 1 }, { where: { id: conv.id } });
     conv.unread = (conv.unread || 0) + 1;
-    await conv.save();
     await guest.save();
   }
 

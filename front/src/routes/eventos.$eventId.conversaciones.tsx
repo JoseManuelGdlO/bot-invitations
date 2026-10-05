@@ -50,10 +50,22 @@ import {
   buildConversationInboxRows,
   conversationHasMessages,
 } from "@/lib/conversation-inbox";
-import { matchesConversationSearch } from "@/lib/conversation-search";
+import {
+  matchesConversationFilter,
+  matchesConversationSearch,
+} from "@/lib/conversation-search";
+import { STATUS_FILTER_OPTIONS } from "@/lib/mock/format";
 import { formatChatDayLabel, formatMessageTime, getZonedDayKey } from "@/lib/datetime";
 import type { Guest } from "@/lib/mock/types";
 import { ApiError } from "@/lib/api/client";
+
+const CONVERSATION_FILTERS = [
+  { value: "todos", label: "Todos" },
+  { value: "sin_contestar", label: "Sin contestar" },
+  { value: "sin_leer", label: "Sin leer" },
+  { value: "tomada", label: "Tomada por el equipo" },
+  ...STATUS_FILTER_OPTIONS,
+];
 
 const TAG_OPTIONS = [
   "Sin etiqueta",
@@ -94,6 +106,7 @@ function Conversaciones() {
   const { conversations, guests, event } = useEvent(eventId);
   const {
     sendMessage,
+    markConversationRead,
     toggleAI,
     updateGuest,
     hasPerm,
@@ -112,6 +125,7 @@ function Conversaciones() {
   const initial = guestId ?? rows[0]?.guest.id ?? null;
   const [activeGuestId, setActiveGuestId] = useState<string | null>(initial);
   const [q, setQ] = useState("");
+  const [filter, setFilter] = useState("todos");
   const [draft, setDraft] = useState("");
   const [simulateGuest, setSimulateGuest] = useState(false);
   const [devBot, setDevBot] = useState(false);
@@ -120,6 +134,7 @@ function Conversaciones() {
   const [guestToInvite, setGuestToInvite] = useState<Guest | null>(null);
   const [deleting, setDeleting] = useState(false);
   const messagesRef = useRef<HTMLDivElement>(null);
+  const pendingReadKey = useRef<string | null>(null);
   const prevActiveIdRef = useRef<string | null>(null);
   const nearBottomRef = useRef(true);
   const timeZone = event?.timezone;
@@ -143,8 +158,13 @@ function Conversaciones() {
   }, [guestId, rows, activeGuestId]);
 
   const list = useMemo(
-    () => rows.filter((x) => matchesConversationSearch(x.guest, q)),
-    [rows, q],
+    () =>
+      rows.filter(
+        (x) =>
+          matchesConversationSearch(x.guest, q) &&
+          matchesConversationFilter(x, filter),
+      ),
+    [rows, q, filter],
   );
 
   const active = rows.find((x) => x.guest.id === activeGuestId) ?? rows[0];
@@ -152,6 +172,19 @@ function Conversaciones() {
   const lastMessageId = hasThread
     ? active?.conv?.messages[active.conv.messages.length - 1]?.id
     : undefined;
+
+  useEffect(() => {
+    const convId = active?.conv?.id;
+    const unread = active?.conv?.unread ?? 0;
+    if (!convId || unread <= 0) {
+      pendingReadKey.current = null;
+      return;
+    }
+    const key = `${convId}:${unread}`;
+    if (pendingReadKey.current === key) return;
+    pendingReadKey.current = key;
+    markConversationRead(convId, unread);
+  }, [active?.conv?.id, active?.conv?.unread, markConversationRead]);
 
   useEffect(() => {
     const switched = prevActiveIdRef.current !== activeGuestId;
@@ -229,7 +262,7 @@ function Conversaciones() {
     <main className="grid h-full min-h-0 flex-1 grid-cols-1 grid-rows-1 overflow-hidden lg:grid-cols-[300px_minmax(0,1fr)_290px]">
       {/* Lista */}
       <aside className="hidden min-h-0 flex-col overflow-hidden border-r border-border bg-card lg:flex">
-        <div className="border-b border-border p-3">
+        <div className="space-y-2 border-b border-border p-3">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
             <Input
@@ -239,6 +272,18 @@ function Conversaciones() {
               className="pl-9"
             />
           </div>
+          <Select value={filter} onValueChange={setFilter}>
+            <SelectTrigger aria-label="Filtrar conversaciones">
+              <SelectValue placeholder="Todos" />
+            </SelectTrigger>
+            <SelectContent>
+              {CONVERSATION_FILTERS.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto">
           {list.length === 0 ? (
