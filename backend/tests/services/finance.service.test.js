@@ -38,6 +38,53 @@ describe("finance.service", () => {
     expect(row.id).toBe("pay_1");
   });
 
+  test("recordPaidCheckoutSession ignora sesiones sin id", async () => {
+    const { mod } = await loadWithMocks("src/services/finance.service.js", {
+      extraMocks: {
+        "src/services/stripe.service.js": () => ({
+          stripeEnabled: () => false,
+          getStripe: () => null,
+        }),
+      },
+    });
+    await expect(mod.recordPaidCheckoutSession({})).resolves.toBeNull();
+  });
+
+  test("recordPaidCheckoutSession hace findOrCreate con session.id", async () => {
+    const { mod, models } = await loadWithMocks("src/services/finance.service.js", {
+      extraMocks: {
+        "src/services/stripe.service.js": () => ({
+          stripeEnabled: () => false,
+          getStripe: () => null,
+        }),
+      },
+    });
+    const payment = createInstance({ id: "pay_cs_1" });
+    models.Payment.findOrCreate.mockResolvedValue([payment, true]);
+    models.User.findByPk.mockResolvedValue(fakeUser({ stripeCustomerId: "cus_1" }));
+    const row = await mod.recordPaidCheckoutSession({
+      id: "cs_1",
+      amount_total: 1000,
+      currency: "mxn",
+      payment_status: "paid",
+      mode: "payment",
+      customer: "cus_1",
+      metadata: { userId: "usr_test_1", planId: "plan_1", interval: "once" },
+      created: Math.floor(Date.now() / 1000),
+    });
+    expect(row.id).toBe("pay_cs_1");
+    expect(models.Payment.findOrCreate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { stripeInvoiceId: "cs_1" },
+        defaults: expect.objectContaining({
+          amountMxn: 10,
+          interval: "once",
+          status: "paid",
+        }),
+      }),
+    );
+  });
+
   test("getFinanceSnapshot arma MRR estimado sin Stripe", async () => {
     const { mod, models } = await loadWithMocks("src/services/finance.service.js", {
       extraMocks: {
