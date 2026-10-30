@@ -20,6 +20,7 @@ import { activateEvent } from "./event-status.service.js";
 import { resolveCampaignSendContext } from "./whatsapp-templates.service.js";
 import { fillMetaTemplate } from "./meta.client.js";
 import { bodyTextFromComponents } from "./whatsapp-template-slots.js";
+import { isSubscriptionUsable } from "./plans.service.js";
 
 const log = new Logger("Campaign");
 const ACTIVE_STATUSES = ["queued", "running"];
@@ -189,6 +190,11 @@ export async function executeCampaignLaunch(job) {
     return {};
   }
 
+  const owner = await User.findByPk(event.ownerId);
+  if (!isSubscriptionUsable(owner)) {
+    return { retryAt: new Date(Date.now() + 6 * 60 * 60 * 1000), reason: "suscripción inactiva" };
+  }
+
   const guests = await Guest.findAll({ where: { eventId: event.id, status: "sin_contactar" } });
   if (guests.length) {
     try {
@@ -212,7 +218,6 @@ export async function executeCampaignLaunch(job) {
   await activateEvent(event);
 
   const ai = await AiConfig.findOne({ where: { eventId: event.id } });
-  const owner = await User.findByPk(event.ownerId);
   const plannerName = owner?.name || "";
   const now = new Date();
   let claimedCount = 0;

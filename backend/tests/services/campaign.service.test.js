@@ -1,5 +1,5 @@
 import { jest } from "@jest/globals";
-import { loadWithMocks, fakeEvent, fakeGuest } from "../helpers/loadWithMocks.js";
+import { loadWithMocks, fakeEvent, fakeGuest, fakeUser } from "../helpers/loadWithMocks.js";
 import { createInstance } from "../helpers/models.js";
 
 describe("campaign.service", () => {
@@ -34,6 +34,7 @@ describe("campaign.service", () => {
         "src/services/whatsapp-templates.service.js": () => ({ resolveCampaignSendContext }),
       },
     }));
+    models.User.findByPk.mockResolvedValue(fakeUser({ name: "Ana" }));
   });
 
   test("planCampaign now crea campaña queued y job inmediato", async () => {
@@ -223,7 +224,7 @@ describe("campaign.service", () => {
     models.Guest.findAll.mockResolvedValue([guest]);
     models.Guest.update.mockResolvedValue([1]);
     models.AiConfig.findOne.mockResolvedValue({ openingMessage: "Hola {{nombre}}", assistantName: "Sofía" });
-    models.User.findByPk.mockResolvedValue({ name: "Ana" });
+    models.User.findByPk.mockResolvedValue(fakeUser({ name: "Ana" }));
 
     await service.executeCampaignLaunch({ payload: { campaignId: "cmp_1", eventId: "evt_1" } });
 
@@ -256,6 +257,26 @@ describe("campaign.service", () => {
 
     await service.executeCampaignLaunch({ payload: { campaignId: "cmp_1" } });
 
+    expect(deliverAiMessage).not.toHaveBeenCalled();
+  });
+
+  test("executeCampaignLaunch aplaza si la suscripción del dueño no es usable", async () => {
+    const campaign = createInstance({ id: "cmp_1", eventId: "evt_1", status: "queued" });
+    const event = fakeEvent({ status: "borrador" });
+    const guest = fakeGuest({ status: "sin_contactar" });
+    models.Campaign.findByPk.mockResolvedValue(campaign);
+    models.Event.findByPk.mockResolvedValue(event);
+    models.Guest.findAll.mockResolvedValue([guest]);
+    models.User.findByPk.mockResolvedValue(fakeUser({ subscriptionStatus: "canceled" }));
+
+    const result = await service.executeCampaignLaunch({ payload: { campaignId: "cmp_1" } });
+
+    expect(result.retryAt).toBeInstanceOf(Date);
+    expect(result.reason).toBe("suscripción inactiva");
+    expect(campaign.status).toBe("queued");
+    expect(event.status).toBe("borrador");
+    expect(models.Campaign.update).not.toHaveBeenCalled();
+    expect(models.Guest.update).not.toHaveBeenCalled();
     expect(deliverAiMessage).not.toHaveBeenCalled();
   });
 
@@ -330,7 +351,7 @@ describe("campaign.service", () => {
     models.Guest.findAll.mockResolvedValue([guest]);
     models.Guest.update.mockResolvedValue([1]);
     models.AiConfig.findOne.mockResolvedValue({ openingMessage: "fallback", assistantName: "Sofía" });
-    models.User.findByPk.mockResolvedValue({ name: "Ana" });
+    models.User.findByPk.mockResolvedValue(fakeUser({ name: "Ana" }));
 
     await service.executeCampaignLaunch({ payload: { campaignId: "cmp_1", eventId: "evt_1" } });
 
@@ -374,7 +395,7 @@ describe("campaign.service", () => {
       hsmHeaderImage: null,
     });
     models.AiConfig.findOne.mockResolvedValue({ openingMessage: "fallback", assistantName: "Sofía" });
-    models.User.findByPk.mockResolvedValue({ name: "Ana" });
+    models.User.findByPk.mockResolvedValue(fakeUser({ name: "Ana" }));
 
     await service.executeCampaignLaunch({ payload: { campaignId: "cmp_1", eventId: "evt_1" } });
 

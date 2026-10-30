@@ -306,6 +306,25 @@ describe("outbound.worker", () => {
     );
   });
 
+  test("processJob campaign.launch reencola si la suscripción está inactiva", async () => {
+    const retryAt = new Date("2026-08-28T22:00:00");
+    executeCampaignLaunch.mockResolvedValueOnce({ retryAt, reason: "suscripción inactiva" });
+    const job = createInstance({
+      id: "launch_1",
+      type: "campaign.launch",
+      attempts: 0,
+      payload: { eventId: "evt_1", campaignId: "cmp_1" },
+    });
+    await service.processJob(job);
+    expect(job.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "queued",
+        scheduledAt: retryAt,
+        lastError: "suscripción inactiva",
+      }),
+    );
+  });
+
   test("processJob campaign.launch no relanza si execute no hace nada", async () => {
     executeCampaignLaunch.mockResolvedValueOnce({});
     const job = createInstance({

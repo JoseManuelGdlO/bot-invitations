@@ -75,6 +75,56 @@ describe("plans.service", () => {
     expect(usage.canSendInvitations).toBe(false);
   });
 
+  test("invitado activo sin planId no pasa el paywall de envío ni WhatsApp", async () => {
+    const user = fakeUser({ subscriptionStatus: "active", planId: null });
+    expect(() => service.assertCanConnectWhatsapp(user)).toThrow(
+      expect.objectContaining({
+        status: 402,
+        upgrade: true,
+        message: "Necesitas un plan activo para conectar WhatsApp.",
+      }),
+    );
+    expect(() => service.assertCanSendInvitations(user)).toThrow(
+      expect.objectContaining({
+        status: 402,
+        upgrade: true,
+        message: "Tu suscripción no está activa. Paga tu plan para enviar mensajes de WhatsApp.",
+      }),
+    );
+  });
+
+  test("getPlanUsage.canSendInvitations es false sin planId", async () => {
+    models.Event.count.mockResolvedValue(0);
+    models.Event.findAll.mockResolvedValue([]);
+    const usage = await service.getPlanUsage(fakeUser({ subscriptionStatus: "active", planId: null }));
+    expect(usage.canSendInvitations).toBe(false);
+  });
+
+  test("cancelAtPeriodEnd con currentPeriodEnd futuro sigue permitiendo envío", async () => {
+    models.Plan.findByPk.mockResolvedValue(fakePlan());
+    models.Event.count.mockResolvedValue(0);
+    models.Event.findAll.mockResolvedValue([]);
+    const user = fakeUser({
+      subscriptionStatus: "active",
+      cancelAtPeriodEnd: true,
+      currentPeriodEnd: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000),
+    });
+    expect(service.isSubscriptionUsable(user)).toBe(true);
+    expect(service.assertCanSendInvitations(user)).toBeUndefined();
+    const usage = await service.getPlanUsage(user);
+    expect(usage.canSendInvitations).toBe(true);
+  });
+
+  test("admin sin planId sigue pudiendo enviar y conectar WhatsApp", async () => {
+    models.Event.count.mockResolvedValue(0);
+    models.Event.findAll.mockResolvedValue([]);
+    const admin = fakeUser({ isAdmin: true, planId: null, subscriptionStatus: "canceled" });
+    expect(service.assertCanSendInvitations(admin)).toBeUndefined();
+    expect(service.assertCanConnectWhatsapp(admin)).toBeUndefined();
+    const usage = await service.getPlanUsage(admin);
+    expect(usage.canSendInvitations).toBe(true);
+  });
+
   test("planError usa status 402", () => {
     const err = service.planError("mejora tu plan");
     expect(err.status).toBe(402);

@@ -105,7 +105,7 @@ export async function getPlanUsage(user) {
     guestLimit,
     canCreateEvent: user.isAdmin || (active && !!plan && eventCount < eventLimit),
     remainingGuests: user.isAdmin ? Number.MAX_SAFE_INTEGER : Math.max(0, guestLimit - guestCount),
-    canSendInvitations: user.isAdmin || active,
+    canSendInvitations: user.isAdmin || (active && !!plan),
   };
 }
 
@@ -123,11 +123,17 @@ export function assertCanSendInvitations(user) {
   if (!isSubscriptionUsable(user)) {
     throw planError("Tu suscripción no está activa. Paga tu plan para enviar mensajes de WhatsApp.");
   }
+  if (!user?.planId) {
+    throw planError("Tu suscripción no está activa. Paga tu plan para enviar mensajes de WhatsApp.");
+  }
 }
 
 export function assertCanConnectWhatsapp(user) {
   if (user?.isAdmin) return;
   if (!isSubscriptionUsable(user)) {
+    throw planError("Necesitas un plan activo para conectar WhatsApp.");
+  }
+  if (!user?.planId) {
     throw planError("Necesitas un plan activo para conectar WhatsApp.");
   }
 }
