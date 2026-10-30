@@ -62,7 +62,13 @@ describe("follow-up.scheduler", () => {
     models.AiConfig.findOne.mockResolvedValue(ai);
     models.Guest.findAll.mockResolvedValue(guests);
     models.Conversation.findAll.mockResolvedValue([]);
-    models.User.findByPk.mockResolvedValue({ name: "Ana" });
+    models.User.findByPk.mockResolvedValue({
+      name: "Ana",
+      isAdmin: false,
+      subscriptionStatus: "active",
+      cancelAtPeriodEnd: false,
+      currentPeriodEnd: null,
+    });
     return event;
   }
 
@@ -86,6 +92,24 @@ describe("follow-up.scheduler", () => {
     );
     expect(guest.followUp).toBe("");
     expect(guest.followUpsSent).toContain(INDECISO_NUDGE_ID);
+  });
+
+  test("no envía follow-ups si la suscripción del dueño no está activa", async () => {
+    const guest = fakeGuest({
+      status: "seguimiento",
+      followUp: formatFollowUpDate(addDays(new Date(), -1)),
+      followUpsSent: [],
+    });
+    stubEventGuests([guest]);
+    models.User.findByPk.mockResolvedValue({
+      name: "Ana",
+      isAdmin: false,
+      subscriptionStatus: "canceled",
+      cancelAtPeriodEnd: false,
+      currentPeriodEnd: null,
+    });
+    await scheduler.tickFollowUps();
+    expect(deliverAiMessage).not.toHaveBeenCalled();
   });
 
   test("no envía si la fecha de seguimiento aún no vence", async () => {

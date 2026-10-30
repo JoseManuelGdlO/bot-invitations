@@ -21,6 +21,7 @@ import {
 } from "./follow-up.service.js";
 import { Logger } from "../utils/logger.js";
 import { finalizePastEvents } from "./event-status.service.js";
+import { isSubscriptionUsable } from "./plans.service.js";
 
 const log = new Logger("FollowUp");
 
@@ -206,6 +207,10 @@ async function processEventFollowUps(event, budget) {
     return;
   }
 
+  const owner = await User.findByPk(event.ownerId);
+  if (!isSubscriptionUsable(owner)) return;
+  const plannerName = owner?.name || "";
+
   const guests = await Guest.findAll({
     where: { eventId: event.id, status: { [Op.in]: OPEN_STATUSES } },
   });
@@ -216,8 +221,6 @@ async function processEventFollowUps(event, budget) {
     attributes: ["guestId", "aiPaused"],
   });
   const paused = new Set(convs.filter((c) => c.aiPaused).map((c) => c.guestId));
-  const owner = await User.findByPk(event.ownerId);
-  const plannerName = owner?.name || "";
   const now = new Date();
 
   const followUps = Array.isArray(ai.followUps) ? ai.followUps : [];
