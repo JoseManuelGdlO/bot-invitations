@@ -1,6 +1,7 @@
 import { Op } from "sequelize";
-import { Event, Guest, Message, OutboundJob } from "../models/index.js";
+import { Event, Guest, Message, OutboundJob, User } from "../models/index.js";
 import { createWhatsAppProvider, isColdConversation } from "./whatsapp.adapter.js";
+import { isSubscriptionUsable } from "./plans.service.js";
 import { env } from "../config/env.js";
 import { Logger } from "../utils/logger.js";
 import { formatWhatsappTo, resolveWhatsappTo } from "../utils/whatsapp-identity.js";
@@ -17,6 +18,7 @@ const workerLog = new Logger("Worker");
 const waLog = new Logger("WhatsApp");
 const DUE_BATCH = 50;
 const UNKNOWN_OWNER = "_unknown";
+const SUBSCRIPTION_RETRY_MS = 6 * 60 * 60 * 1000;
 
 function sendMeta(job, extra = {}) {
   const payload = job.payload || {};
@@ -117,7 +119,6 @@ export async function processJob(job) {
     return;
   }
   let to = null;
-  // Jobs already queued keep sending even if the owner's subscription expired or was canceled.
   try {
     if (job.type === "campaign.launch") {
       const { executeCampaignLaunch } = await import("./campaign.service.js");
@@ -259,7 +260,17 @@ export async function tickWorker() {
     const ownerByEvent = new Map(events.map((event) => [event.id, event.ownerId]));
     const ownerState = new Map();
     const ownerEvents = new Map();
+    const ownerPaid = new Map();
     const max = Number(env.waSend?.maxInitialPer24h) || 0;
+
+    async function subscriptionOk(ownerId) {
+      if (!ownerId || ownerId === UNKNOWN_OWNER) return true;
+      if (ownerPaid.has(ownerId)) return ownerPaid.get(ownerId);
+      const owner = await User.findByPk(ownerId);
+      const ok = isSubscriptionUsable(owner);
+      ownerPaid.set(ownerId, ok);
+      return ok;
+    }
 
     async function stateFor(ownerId) {
       if (ownerState.has(ownerId)) return ownerState.get(ownerId);
@@ -279,6 +290,18 @@ export async function tickWorker() {
         continue;
       }
       const ownerId = ownerByEvent.get(job.payload?.eventId) || UNKNOWN_OWNER;
+      if (!(await subscriptionOk(ownerId))) {
+        const retryAt = new Date(Date.now() + SUBSCRIPTION_RETRY_MS);
+        await job.update({
+          status: "queued",
+          scheduledAt: retryAt,
+          lastError: "suscripción inactiva",
+        });
+        workerLog.info(`owner ${ownerId} aplazado: suscripción inactiva hasta ${retryAt.toISOString()}`, {
+          jobId: job.id,
+        });
+        continue;
+      }
       const starts = await wouldStartConversation(job);
       if (starts && max > 0) {
         const state = await stateFor(ownerId);

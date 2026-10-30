@@ -124,6 +124,13 @@ describe("outbound.worker", () => {
         }),
       },
     }));
+    models.User.findByPk.mockResolvedValue({
+      id: "owner_1",
+      isAdmin: false,
+      subscriptionStatus: "active",
+      cancelAtPeriodEnd: false,
+      currentPeriodEnd: null,
+    });
   });
 
   afterEach(() => {
@@ -794,6 +801,33 @@ describe("outbound.worker", () => {
     expect(sendMessage).not.toHaveBeenCalled();
     expect(pending.status).toBe("queued");
     expect(new Date(pending.scheduledAt).getTime()).toBe(sentAt.getTime() + 24 * 60 * 60 * 1000);
+  });
+
+  test("aplaza whatsapp.send si el dueño no tiene suscripción usable", async () => {
+    const job = campaignJob({
+      id: "job_unpaid",
+      eventId: "evt_1",
+      guestId: "gst_1",
+      to: "6183218624",
+    });
+    stubOwnerQueue(models, [job], [{ id: "evt_1", ownerId: "usr_1" }]);
+    models.User.findByPk.mockResolvedValue({
+      id: "usr_1",
+      isAdmin: false,
+      subscriptionStatus: "canceled",
+      cancelAtPeriodEnd: false,
+      currentPeriodEnd: null,
+    });
+    await service.tickWorker();
+    expect(sendMessage).not.toHaveBeenCalled();
+    expect(job.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        status: "queued",
+        lastError: "suscripción inactiva",
+      }),
+    );
+    const patch = job.update.mock.calls[0][0];
+    expect(new Date(patch.scheduledAt).getTime()).toBeGreaterThan(Date.now() + 5 * 60 * 60 * 1000);
   });
 
   test("tickWorker no cuenta un masivo en conversación caliente contra el tope de 24 h", async () => {
