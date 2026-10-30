@@ -115,6 +115,10 @@ describe("whatsapp-templates.controller", () => {
           attachEventTemplate,
           setCampaignSlot,
         }),
+        "src/services/plans.service.js": () => ({
+          assertCanConnectWhatsapp: jest.fn(),
+          assertCanSendInvitationsForEvent: jest.fn(async () => undefined),
+        }),
       },
     }));
   });

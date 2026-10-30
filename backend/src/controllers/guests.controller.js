@@ -5,7 +5,7 @@ import { requireEvent, userEventIds, requirePermission, hasEventPermission, PERM
 import { logActivity } from "../services/activity.service.js";
 import { mapRows, parseSpreadsheet, suggestMapping } from "../services/import.service.js";
 import { guestsToRows, toCsv, toPdf, toXlsx } from "../services/export.service.js";
-import { assertCanAddGuestsForEvent, assertCanSendInvitations } from "../services/plans.service.js";
+import { assertCanAddGuestsForEvent, assertCanSendInvitationsForEvent } from "../services/plans.service.js";
 import { assertWhatsappReady } from "../services/integration-resolver.service.js";
 import { deliverAiMessage } from "../services/guest-message.service.js";
 import { phonesMatch } from "../services/bot/session.service.js";
@@ -184,7 +184,7 @@ export const remindGuest = asyncHandler(async (req, res) => {
   if (!guest) return res.status(404).json({ error: "Invitado no encontrado." });
   if (!event) return res.status(404).json({ error: "Evento no encontrado." });
   if (!(await requirePermission(req, res, event, PERMS.REPLY))) return;
-  assertCanSendInvitations(req.user);
+  await assertCanSendInvitationsForEvent(req.user, event);
   await assertWhatsappReady(event);
 
     const sendOpening = guest.status === "sin_contactar";

@@ -59,6 +59,7 @@ describe("guests.controller", () => {
         "src/services/plans.service.js": () => ({
           assertCanAddGuestsForEvent: assertCanAddGuests,
           assertCanSendInvitations: jest.fn(() => undefined),
+          assertCanSendInvitationsForEvent: jest.fn(async () => undefined),
         }),
         "src/services/guest-message.service.js": () => ({ deliverAiMessage }),
         "src/services/templates.service.js": () => ({
@@ -346,6 +347,7 @@ describe("guests.controller Asistente", () => {
         "src/services/plans.service.js": () => ({
           assertCanAddGuestsForEvent: jest.fn(async () => undefined),
           assertCanSendInvitations: jest.fn(() => undefined),
+          assertCanSendInvitationsForEvent: jest.fn(async () => undefined),
         }),
         "src/services/export.service.js": () => ({
           guestsToRows: jest.fn((guests) => guests || []),

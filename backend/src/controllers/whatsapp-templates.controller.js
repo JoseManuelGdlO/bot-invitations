@@ -5,6 +5,7 @@ import {
   WhatsappMessageTemplate,
 } from "../models/index.js";
 import { requireEvent, requirePermission, PERMS } from "../services/access.service.js";
+import { assertCanConnectWhatsapp, assertCanSendInvitationsForEvent } from "../services/plans.service.js";
 import { resolveActiveWhatsappMetaByOwner } from "../services/whatsapp-meta.service.js";
 import {
   attachEventTemplate,
@@ -130,6 +131,7 @@ async function authorizedEvent(req, res) {
 }
 
 export const postWizardTemplates = asyncHandler(async (req, res) => {
+  assertCanConnectWhatsapp(req.user);
   const payload = parsePayload(req);
   let item;
   try {
@@ -168,6 +170,7 @@ export const getOwnerWhatsappTemplates = asyncHandler(async (req, res) => {
 });
 
 export const deleteOwnerWhatsappTemplate = asyncHandler(async (req, res) => {
+  assertCanConnectWhatsapp(req.user);
   await deleteOwnerTemplate({
     ownerUserId: req.user.id,
     templateId: req.params.id,
@@ -176,6 +179,7 @@ export const deleteOwnerWhatsappTemplate = asyncHandler(async (req, res) => {
 });
 
 export const putOwnerWhatsappTemplate = asyncHandler(async (req, res) => {
+  assertCanConnectWhatsapp(req.user);
   const payload = parsePayload(req);
   const template = await submitOwnerCustomTemplate({
     ownerUserId: req.user.id,
@@ -192,6 +196,7 @@ export const putOwnerWhatsappTemplate = asyncHandler(async (req, res) => {
 export const postEventWhatsappTemplate = asyncHandler(async (req, res) => {
   const event = await authorizedEvent(req, res);
   if (!event) return;
+  await assertCanSendInvitationsForEvent(req.user, event);
   const payload = parsePayload(req);
   const result = await createEventCustomTemplate({
     eventId: event.id,
@@ -211,6 +216,7 @@ export const postEventWhatsappTemplate = asyncHandler(async (req, res) => {
 export const attachEventWhatsappTemplate = asyncHandler(async (req, res) => {
   const event = await authorizedEvent(req, res);
   if (!event) return;
+  await assertCanSendInvitationsForEvent(req.user, event);
   const result = await attachEventTemplate({
     eventId: event.id,
     ownerUserId: event.ownerId,
@@ -230,6 +236,7 @@ export const getEventWhatsappTemplates = asyncHandler(async (req, res) => {
 export const putEventWhatsappTemplate = asyncHandler(async (req, res) => {
   const event = await authorizedEvent(req, res);
   if (!event) return;
+  await assertCanSendInvitationsForEvent(req.user, event);
   const payload = parsePayload(req);
   const slot = req.params.slot;
   await submitEventTemplate({
@@ -254,6 +261,7 @@ export const putEventWhatsappTemplate = asyncHandler(async (req, res) => {
 export const patchEventWhatsappTemplate = asyncHandler(async (req, res) => {
   const event = await authorizedEvent(req, res);
   if (!event) return;
+  await assertCanSendInvitationsForEvent(req.user, event);
   if (req.body?.isCampaign !== true) {
     throw httpError(400, "isCampaign debe ser true.");
   }

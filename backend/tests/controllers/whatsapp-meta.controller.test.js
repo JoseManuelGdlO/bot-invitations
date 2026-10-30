@@ -13,6 +13,8 @@ describe("whatsapp-meta.controller", () => {
   let upsertWhatsappMetaCredentials;
   let waitForTestDelivery;
   let getOwnerPricingAnalytics;
+  let assertCanConnectWhatsapp;
+  let assertCanSendInvitations;
   const envState = {
     nodeEnv: "development",
     meta: {
@@ -64,6 +66,8 @@ describe("whatsapp-meta.controller", () => {
       },
     }));
     waitForTestDelivery = jest.fn(async () => null);
+    assertCanConnectWhatsapp = jest.fn();
+    assertCanSendInvitations = jest.fn();
     getOwnerPricingAnalytics = jest.fn(async () => ({
       range: "30d",
       start: 1,
@@ -116,6 +120,10 @@ describe("whatsapp-meta.controller", () => {
         }),
         "src/services/whatsapp-test-delivery.js": () => ({
           waitForTestDelivery,
+        }),
+        "src/services/plans.service.js": () => ({
+          assertCanConnectWhatsapp,
+          assertCanSendInvitations,
         }),
       },
     }));
@@ -287,6 +295,20 @@ describe("whatsapp-meta.controller", () => {
       req: createMockReq(),
     });
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ configured: false }));
+  });
+
+  test("postWhatsappMetaCredentials exige plan activo", async () => {
+    const err = Object.assign(new Error("conecta"), { status: 402, upgrade: true });
+    assertCanConnectWhatsapp.mockImplementation(() => {
+      throw err;
+    });
+    const { next } = await callHandler(controller.postWhatsappMetaCredentials, {
+      req: createMockReq({
+        body: { accessToken: "tok", wabaId: "waba_1", phoneNumberId: "10987654321" },
+      }),
+    });
+    expect(next).toHaveBeenCalledWith(err);
+    expect(upsertWhatsappMetaCredentials).not.toHaveBeenCalled();
   });
 
   test("credentials upsert guarda el token del usuario", async () => {

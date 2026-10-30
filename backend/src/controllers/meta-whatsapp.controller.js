@@ -2,6 +2,7 @@ import { asyncHandler } from "../utils/async.js";
 import { verifyMetaWebhook } from "./whatsapp-connect-webhook.controller.js";
 import { assertMetaWebhookSignature, processMetaWhatsappWebhook } from "../services/meta-webhook.service.js";
 import { completeEmbeddedSignup, disconnectMetaWhatsapp, publicMetaSignupConfig } from "../services/meta-signup.service.js";
+import { assertCanConnectWhatsapp } from "../services/plans.service.js";
 import { ChannelCredential, ChannelIntegration } from "../models/index.js";
 import { META_WHATSAPP_PROVIDER, WHATSAPP_CHANNEL } from "../services/integration-resolver.service.js";
 import { Logger } from "../utils/logger.js";
@@ -56,6 +57,7 @@ export const getMetaSignupConfig = asyncHandler(async (_req, res) => {
 });
 
 export const postMetaEmbeddedSignup = asyncHandler(async (req, res) => {
+  assertCanConnectWhatsapp(req.user);
   const result = await completeEmbeddedSignup({
     ownerUserId: req.user.id,
     code: req.body?.code,

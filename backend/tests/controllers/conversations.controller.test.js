@@ -7,6 +7,7 @@ describe("conversations.controller", () => {
   let models;
   let planCampaign;
   let getEventCampaignSnapshot;
+  let assertCanSendInvitationsForEvent;
 
   beforeEach(async () => {
     planCampaign = jest.fn(async () => ({
@@ -25,6 +26,7 @@ describe("conversations.controller", () => {
       processed: 0,
       percent: 0,
     }));
+    assertCanSendInvitationsForEvent = jest.fn(async () => undefined);
     ({ mod: controller, models } = await loadWithMocks("src/controllers/conversations.controller.js", {
       extraMocks: {
         "src/services/access.service.js": () => ({
@@ -34,7 +36,10 @@ describe("conversations.controller", () => {
           PERMS,
         }),
         "src/services/outbound.worker.js": () => ({ enqueueJob: jest.fn(async () => undefined) }),
-        "src/services/plans.service.js": () => ({ assertCanSendInvitations: jest.fn() }),
+        "src/services/plans.service.js": () => ({
+          assertCanSendInvitations: jest.fn(),
+          assertCanSendInvitationsForEvent,
+        }),
         "src/services/campaign.service.js": () => ({ planCampaign, getEventCampaignSnapshot }),
       },
     }));
@@ -75,7 +80,21 @@ describe("conversations.controller", () => {
       expect.objectContaining({ id: "evt_1" }),
       { mode: "now" },
     );
+    expect(assertCanSendInvitationsForEvent).toHaveBeenCalledWith(
+      expect.objectContaining({ id: "usr_test_1" }),
+      expect.objectContaining({ id: "evt_1" }),
+    );
     expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ status: "scheduled" }));
+  });
+
+  test("launchCampaign propaga 402 si el dueño no pagó", async () => {
+    const err = Object.assign(new Error("paga"), { status: 402, upgrade: true });
+    assertCanSendInvitationsForEvent.mockRejectedValue(err);
+    const { next, res } = await callHandler(controller.launchCampaign, {
+      req: createMockReq({ params: { eventId: "boda-ana" }, body: { mode: "now" } }),
+    });
+    expect(next).toHaveBeenCalledWith(err);
+    expect(res.json).not.toHaveBeenCalled();
   });
 
   test("launchCampaign 409 si ya está en curso", async () => {
@@ -124,7 +143,10 @@ describe("conversations.controller GET 403", () => {
         }),
         "src/services/outbound.worker.js": () => ({ enqueueJob: jest.fn(async () => undefined) }),
         "src/services/activity.service.js": () => ({ logActivity: jest.fn(async () => undefined) }),
-        "src/services/plans.service.js": () => ({ assertCanSendInvitations: jest.fn() }),
+        "src/services/plans.service.js": () => ({
+          assertCanSendInvitations: jest.fn(),
+          assertCanSendInvitationsForEvent: jest.fn(async () => undefined),
+        }),
         "src/services/guest-message.service.js": () => ({
           deliverAiMessage: jest.fn(async () => undefined),
         }),

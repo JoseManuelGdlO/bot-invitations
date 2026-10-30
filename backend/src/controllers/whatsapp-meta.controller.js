@@ -18,6 +18,7 @@ import {
 } from "../services/whatsapp-meta.service.js";
 import { getOwnerPricingAnalytics } from "../services/meta-pricing-analytics.service.js";
 import { waitForTestDelivery } from "../services/whatsapp-test-delivery.js";
+import { assertCanConnectWhatsapp, assertCanSendInvitations } from "../services/plans.service.js";
 import { summarizeMetaErrors, userFacingMetaCodeMessage } from "../utils/meta-error.js";
 
 const log = new Logger("WhatsApp");
@@ -128,6 +129,7 @@ export const getWhatsappMetaStatus = asyncHandler(async (req, res) => {
 });
 
 export const postWhatsappMetaCredentials = asyncHandler(async (req, res) => {
+  assertCanConnectWhatsapp(req.user);
   const parsed = parseWhatsappMetaCredentials(req.body || {});
   const { integration } = await upsertWhatsappMetaCredentials({
     ownerUserId: req.user.id,
@@ -167,6 +169,7 @@ export const getWhatsappPricingAnalytics = asyncHandler(async (req, res) => {
 });
 
 export const postWhatsappMetaSendTest = asyncHandler(async (req, res) => {
+  assertCanSendInvitations(req.user);
   const to = String(req.body?.to || "").trim();
   const type = String(req.body?.type || "text").trim().toLowerCase();
   const text = String(req.body?.text || "").trim();

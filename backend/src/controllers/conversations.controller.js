@@ -9,7 +9,7 @@ import { formatClock } from "../utils/time.js";
 import { serializeConversation, serializeMessage } from "../utils/serialize.js";
 import { requireEvent, userEventIds, requirePermission, PERMS } from "../services/access.service.js";
 import { enqueueJob } from "../services/outbound.worker.js";
-import { assertCanSendInvitations } from "../services/plans.service.js";
+import { assertCanSendInvitationsForEvent } from "../services/plans.service.js";
 import { appendOutboundToSession } from "../services/bot/bot.service.js";
 import { resolveWhatsappTo } from "../utils/whatsapp-identity.js";
 import { getEventCampaignSnapshot, planCampaign } from "../services/campaign.service.js";
@@ -55,7 +55,7 @@ export const sendMessage = asyncHandler(async (req, res) => {
   const found = await accessibleConversation(req.user.id, req.params.conversationId);
   if (!found) return res.status(404).json({ error: "Conversación no encontrada." });
   if (!(await requirePermission(req, res, found.event, PERMS.REPLY))) return;
-  assertCanSendInvitations(req.user);
+  await assertCanSendInvitationsForEvent(req.user, found.event);
   const text = String(req.body?.text || "").trim();
   if (!text) return res.status(400).json({ error: "El mensaje no puede estar vacío." });
   const from = found.conv.aiPaused ? "planner" : req.body?.from || "planner";
@@ -94,7 +94,7 @@ export const launchCampaign = asyncHandler(async (req, res) => {
   const event = await requireEvent(req, res);
   if (!event) return;
   if (!(await requirePermission(req, res, event, PERMS.REPLY))) return;
-  assertCanSendInvitations(req.user);
+  await assertCanSendInvitationsForEvent(req.user, event);
   log.info("planificando campaña", { eventId: event.id, mode: req.body?.mode || "now" });
   try {
     const campaign = await planCampaign(event, req.body || {});
