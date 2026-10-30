@@ -24,7 +24,7 @@ const STATUS_COPY: Record<
   },
   approved: {
     label: "No se renovará",
-    text: "Aceptamos la baja. Terminas el periodo que ya pagaste; después no podrás crear eventos ni agregar invitados. Los envíos de tus eventos actuales siguen.",
+    text: "Aceptamos la baja. Terminas el periodo que ya pagaste; después no podrás crear eventos ni agregar invitados. Al terminar el periodo se detienen los envíos de WhatsApp.",
   },
   rejected: {
     label: "No aceptada",
@@ -197,7 +197,7 @@ function ClientSubscription() {
           <p className="text-sm text-muted-foreground">
             Si el administrador acepta, no se corta hoy: terminas el periodo
             pagado. Después, para crear o agregar más, hay que volver a pagar.
-            Los envíos siguen.
+            Al terminar el periodo pagado se detienen los envíos de WhatsApp.
           </p>
           <div className="space-y-2">
             <Label htmlFor="reason">Motivo</Label>
