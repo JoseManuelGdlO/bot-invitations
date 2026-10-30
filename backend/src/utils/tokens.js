@@ -76,7 +76,7 @@ export function serializeUser(user, plan = null, usage = null, extras = {}) {
       guestLimit: plan?.guestLimit || 0,
       canCreateEvent: false,
       remainingGuests: 0,
-      canSendInvitations: true,
+      canSendInvitations: false,
     },
     cancellation: extras.cancellation || null,
   };

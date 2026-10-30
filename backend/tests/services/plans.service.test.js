@@ -23,8 +23,56 @@ describe("plans.service", () => {
     expect(service.isSubscriptionUsable(fakeUser({ isAdmin: true, subscriptionStatus: "canceled" }))).toBe(true);
   });
 
-  test("assertCanSendInvitations es un no-op", () => {
-    expect(service.assertCanSendInvitations(fakeUser())).toBeUndefined();
+  test("assertCanSendInvitations lanza 402 si la suscripción no es usable", () => {
+    expect(() => service.assertCanSendInvitations(fakeUser({ subscriptionStatus: "pending" }))).toThrow(
+      expect.objectContaining({
+        status: 402,
+        upgrade: true,
+        message: "Tu suscripción no está activa. Paga tu plan para enviar mensajes de WhatsApp.",
+      }),
+    );
+  });
+
+  test("assertCanSendInvitations pasa con plan activo o admin", () => {
+    expect(service.assertCanSendInvitations(fakeUser({ subscriptionStatus: "active" }))).toBeUndefined();
+    expect(
+      service.assertCanSendInvitations(fakeUser({ isAdmin: true, subscriptionStatus: "canceled" })),
+    ).toBeUndefined();
+  });
+
+  test("assertCanConnectWhatsapp lanza 402 si no hay plan activo", () => {
+    expect(() => service.assertCanConnectWhatsapp(fakeUser({ subscriptionStatus: "canceled" }))).toThrow(
+      expect.objectContaining({
+        status: 402,
+        message: "Necesitas un plan activo para conectar WhatsApp.",
+      }),
+    );
+  });
+
+  test("assertCanSendInvitationsForEvent usa el plan del dueño", async () => {
+    const owner = fakeUser({ id: "usr_owner", subscriptionStatus: "pending" });
+    const member = fakeUser({ id: "usr_member", subscriptionStatus: "active" });
+    models.User.findByPk.mockResolvedValue(owner);
+    await expect(
+      service.assertCanSendInvitationsForEvent(member, { ownerId: "usr_owner" }),
+    ).rejects.toMatchObject({ status: 402 });
+    expect(models.User.findByPk).toHaveBeenCalledWith("usr_owner");
+  });
+
+  test("assertCanSendInvitationsForEvent no pega a User si el actor es el dueño", async () => {
+    const owner = fakeUser({ id: "usr_owner", subscriptionStatus: "active" });
+    await expect(
+      service.assertCanSendInvitationsForEvent(owner, { ownerId: "usr_owner" }),
+    ).resolves.toBeUndefined();
+    expect(models.User.findByPk).not.toHaveBeenCalled();
+  });
+
+  test("getPlanUsage.canSendInvitations refleja la suscripción", async () => {
+    models.Plan.findByPk.mockResolvedValue(fakePlan());
+    models.Event.count.mockResolvedValue(0);
+    models.Event.findAll.mockResolvedValue([]);
+    const usage = await service.getPlanUsage(fakeUser({ subscriptionStatus: "canceled" }));
+    expect(usage.canSendInvitations).toBe(false);
   });
 
   test("planError usa status 402", () => {

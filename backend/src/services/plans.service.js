@@ -105,12 +105,8 @@ export async function getPlanUsage(user) {
     guestLimit,
     canCreateEvent: user.isAdmin || (active && !!plan && eventCount < eventLimit),
     remainingGuests: user.isAdmin ? Number.MAX_SAFE_INTEGER : Math.max(0, guestLimit - guestCount),
-    canSendInvitations: true,
+    canSendInvitations: user.isAdmin || active,
   };
-}
-
-export function assertCanSendInvitations(_user) {
-  return;
 }
 
 export function isSubscriptionUsable(user) {
@@ -120,6 +116,33 @@ export function isSubscriptionUsable(user) {
     return false;
   }
   return true;
+}
+
+export function assertCanSendInvitations(user) {
+  if (user?.isAdmin) return;
+  if (!isSubscriptionUsable(user)) {
+    throw planError("Tu suscripción no está activa. Paga tu plan para enviar mensajes de WhatsApp.");
+  }
+}
+
+export function assertCanConnectWhatsapp(user) {
+  if (user?.isAdmin) return;
+  if (!isSubscriptionUsable(user)) {
+    throw planError("Necesitas un plan activo para conectar WhatsApp.");
+  }
+}
+
+export async function assertCanSendInvitationsForEvent(actor, event) {
+  if (actor?.isAdmin) return;
+  const ownerId = event?.ownerId;
+  if (!ownerId) {
+    throw planError("No se encontró al dueño del evento.");
+  }
+  const owner = actor?.id === ownerId ? actor : await User.findByPk(ownerId);
+  if (!owner) {
+    throw planError("No se encontró al dueño del evento.");
+  }
+  return assertCanSendInvitations(owner);
 }
 
 export async function settleExpiredSubscription(user) {
