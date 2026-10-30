@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { Link, createFileRoute } from "@tanstack/react-router";
 import { useCallback, useEffect, useState } from "react";
 import {
   CheckCircle2,
@@ -49,6 +49,11 @@ import {
 } from "@/lib/meta-embedded-signup";
 import { cn } from "@/lib/utils";
 import { toast } from "sonner";
+import { useStore } from "@/lib/mock/store";
+import {
+  sessionCanUseWhatsApp,
+  SUBSCRIPTION_REQUIRED_WHATSAPP,
+} from "@/lib/subscription-gates";
 import { WHATSAPP_CONNECTED_NEXT_STEP } from "@/lib/whatsapp-templates";
 import {
   MX_PHONE_HINT,
@@ -101,6 +106,8 @@ const emptyCredentialsForm = {
 };
 
 function WhatsAppMetaPage() {
+  const { session } = useStore();
+  const paid = sessionCanUseWhatsApp(session);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [savingCreds, setSavingCreds] = useState(false);
@@ -155,6 +162,10 @@ function WhatsAppMetaPage() {
     : null;
 
   const connectMeta = async () => {
+    if (!paid) {
+      toast.error(SUBSCRIPTION_REQUIRED_WHATSAPP);
+      return;
+    }
     if (!metaConfig?.configured) {
       toast.error("Embedded Signup no está configurado en el servidor.");
       return;
@@ -330,6 +341,18 @@ function WhatsAppMetaPage() {
         </p>
       </div>
 
+      {!paid ? (
+        <div className="rounded-2xl border border-gold/40 bg-gold-soft/50 p-5">
+          <p className="text-sm font-medium">Activa tu suscripción</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            {SUBSCRIPTION_REQUIRED_WHATSAPP}
+          </p>
+          <Button asChild className="mt-4" size="sm">
+            <Link to="/eventos/suscripcion">Ir a suscripción</Link>
+          </Button>
+        </div>
+      ) : null}
+
       <section className="rounded-2xl border border-border bg-card p-6 shadow-soft">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="flex items-start gap-3">
@@ -375,7 +398,7 @@ function WhatsAppMetaPage() {
                 type="button"
                 size="sm"
                 onClick={connectMeta}
-                disabled={connectingMeta || !metaConfig?.configured}
+                disabled={connectingMeta || !metaConfig?.configured || !paid}
               >
                 {connectingMeta ? (
                   <Loader2 className="size-3.5 animate-spin" />
@@ -518,6 +541,10 @@ function WhatsAppMetaPage() {
             enviar invitaciones.
           </p>
         )}
+        <p className="mt-3 text-xs text-muted-foreground">
+          La mensualidad de Alanna es aparte de lo que Meta cobre por
+          conversaciones de WhatsApp.
+        </p>
       </section>
 
       <section className="rounded-2xl border border-border bg-card p-6 shadow-soft">

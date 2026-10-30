@@ -77,8 +77,8 @@ function AdminCancellations() {
       <h1 className="mt-1 font-display text-4xl">Cancelaciones</h1>
       <p className="mt-1 text-sm text-muted-foreground">
         Si aceptas, Stripe deja de renovar y el cliente termina el periodo que
-        ya pagó. Los envíos de invitaciones no se detienen. Cuando se venza,
-        para crear o agregar más tendrá que pagar.
+        ya pagó. Cuando se venza el periodo, se detienen los envíos de WhatsApp
+        y no podrá crear eventos ni agregar invitados hasta pagar.
       </p>
 
       <div className="mt-6 max-w-xs">

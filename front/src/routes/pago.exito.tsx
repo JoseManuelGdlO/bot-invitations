@@ -91,9 +91,9 @@ function PagoExito() {
           await refresh();
         }
         if (cancelled) return;
-        setMessage("Pago recibido. Entrando a tu panel…");
+        setMessage("Pago recibido. Ahora conecta tu WhatsApp…");
         if (getToken()) {
-          navigate({ to: "/eventos", replace: true });
+          navigate({ to: "/eventos/whatsapp", replace: true });
           return;
         }
         navigate({ to: "/iniciar-sesion", replace: true });

@@ -165,8 +165,8 @@ export function PendingPaymentBanner({
       </p>
       <p className="mt-1 text-sm text-muted-foreground">
         {ending
-          ? `Sigues usando el plan${until ? ` hasta el ${until}` : " hasta que termine el periodo pagado"}. Los envíos de invitaciones no se detienen. Cuando se venza, para crear eventos o agregar invitados tendrás que pagar.`
-          : "Los envíos de invitaciones de tus eventos actuales no se detienen. Para crear otro evento o agregar invitados, vuelve a pagar."}
+          ? `Sigues usando el plan${until ? ` hasta el ${until}` : " hasta que termine el periodo pagado"}. Los envíos siguen hasta esa fecha. Después hay que reactivar el plan para conectar WhatsApp o mandar invitaciones.`
+          : "Los envíos de WhatsApp se detienen hasta que reactives el plan. Tus eventos y listas se quedan."}
       </p>
       {expired ? (
         <Button className="mt-4" size="sm" onClick={pay} disabled={loading}>

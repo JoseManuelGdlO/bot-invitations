@@ -268,7 +268,7 @@ Para cambiar la tarjeta o ver facturas:
 1. En Suscripción pulsa “Actualizar método de pago”.
 2. Stripe abre el portal. No canceles desde ahí: en Alanna la baja se pide en esa misma pantalla y la acepta un administrador.
 
-Si el plan no se renovó o ya venció, el botón de pagar te lleva a Stripe. Sigues viendo tus eventos y los envíos no se paran. Para crear otro evento o agregar invitados hay que volver a pagar.`,
+Si el plan no se renovó o ya venció, el botón de pagar te lleva a Stripe. Sigues viendo tus eventos. Los envíos de WhatsApp se detienen hasta que el plan esté activo otra vez.`,
   },
   {
     id: "cancelar",
@@ -280,8 +280,7 @@ Si el plan no se renovó o ya venció, el botón de pagar te lleva a Stripe. Sig
 1. En Suscripción escribe el motivo y envía la solicitud.
 2. Un administrador de Alanna debe aceptarla.
 3. Si la acepta, terminas el periodo que ya pagaste. No se corta el mismo día.
-4. Cuando se vence, ya no puedes crear eventos ni agregar invitados.
-5. Los envíos de invitaciones de eventos actuales siguen.
+4. Cuando se vence, ya no puedes crear eventos, agregar invitados ni enviar WhatsApp.
 
 Si cambias de opinión antes de que la acepten, retira la solicitud.`,
   },

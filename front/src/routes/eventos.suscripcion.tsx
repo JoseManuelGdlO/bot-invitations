@@ -102,8 +102,8 @@ function ClientSubscription() {
       <h1 className="mt-1 font-display text-4xl">Suscripción</h1>
       <p className="mt-1 text-sm text-muted-foreground">
         Puedes pedir la baja; un administrador debe aceptarla. Si la acepta,
-        terminas el periodo pagado y después la cuenta deja de crecer. Las
-        invitaciones en curso no se detienen.
+        terminas el periodo pagado y después la cuenta deja de crecer. Al
+        terminar el periodo pagado se detienen los envíos de WhatsApp.
       </p>
 
       <section className="mt-8 rounded-2xl border border-border bg-card p-5 shadow-soft">

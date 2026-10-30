@@ -175,6 +175,11 @@ export function LaunchCampaignDialog({
             <Link to="/eventos/whatsapp">{WHATSAPP_SETUP_CTA_LABEL}</Link>
           </Button>
         ) : null}
+        {error && /suscripción no está activa/i.test(error) ? (
+          <Button type="button" asChild variant="outline">
+            <Link to="/eventos/suscripcion">Ir a suscripción</Link>
+          </Button>
+        ) : null}
         {error ? (
           <p className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2 text-sm text-destructive">
             {error}

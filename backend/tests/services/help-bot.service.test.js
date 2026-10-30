@@ -102,4 +102,10 @@ describe("help-bot.service", () => {
     expect(result.reply).toMatch(/Actualizar método de pago/);
     expect(result.href).toBe("/eventos/suscripcion");
   });
+
+  test("pago vencido explica que se detienen los envíos", () => {
+    const result = answerHelp("pendiente de pago", { name: "Ana" });
+    expect(result.reply).toMatch(/se detienen/i);
+    expect(result.reply).not.toMatch(/no se paran/i);
+  });
 });
