@@ -71,6 +71,8 @@ import {
   customDataFromManualFields,
   manualGuestFields,
 } from "@/lib/manual-guest-fields";
+import { useIsShortHeight } from "@/hooks/use-short-height";
+import { cn } from "@/lib/utils";
 
 const TAG_OPTIONS = [
   "Sin etiqueta",
@@ -117,6 +119,7 @@ export const Route = createFileRoute("/eventos/$eventId/invitados")({
 function Invitados() {
   const { eventId } = Route.useParams();
   const { guests } = useEvent(eventId);
+  const isShortHeight = useIsShortHeight();
   const {
     updateGuest,
     createGuest,
@@ -170,19 +173,24 @@ function Invitados() {
   }, [page, totalPages]);
 
   return (
-    <main className="mx-auto flex h-full min-h-0 w-full min-w-0 max-w-[1400px] flex-1 flex-col overflow-hidden px-5 py-8 md:px-8">
-      <div className="flex shrink-0 flex-wrap items-center gap-3">
-        <div className="relative min-w-56 flex-1">
+    <main
+      className={cn(
+        "mx-auto flex h-full min-h-0 w-full min-w-0 max-w-[1400px] flex-1 flex-col overflow-hidden",
+        isShortHeight ? "px-3 py-2" : "px-5 py-8 md:px-8",
+      )}
+    >
+      <div className="flex shrink-0 items-center gap-2 overflow-x-auto pb-1 [-webkit-overflow-scrolling:touch]">
+        <div className="relative min-w-48 flex-1 sm:min-w-56">
           <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
           <Input
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Buscar representante o teléfono"
-            className="pl-9"
+            className="min-w-48 pl-9"
           />
         </div>
         <Select value={status} onValueChange={setStatus}>
-          <SelectTrigger className="w-56">
+          <SelectTrigger className="w-44 shrink-0 sm:w-56">
             <SlidersHorizontal className="size-4" />
             <SelectValue placeholder="Todos los estados" />
           </SelectTrigger>
@@ -206,7 +214,7 @@ function Invitados() {
             setPageSize(Number(value) as (typeof PAGE_SIZES)[number])
           }
         >
-          <SelectTrigger className="w-40">
+          <SelectTrigger className="w-36 shrink-0 sm:w-40">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
@@ -220,6 +228,7 @@ function Invitados() {
         {canExport ? (
           <Button
             variant="outline"
+            className="shrink-0"
             onClick={async () => {
               try {
                 await exportGuests(eventId, "xlsx");
@@ -243,7 +252,7 @@ function Invitados() {
             }}
           >
             <DialogTrigger asChild>
-              <Button>
+              <Button className="shrink-0">
                 <Plus className="size-4" /> Agregar invitado
               </Button>
             </DialogTrigger>
@@ -468,16 +477,28 @@ function Invitados() {
         ) : null}
       </div>
 
-      <p className="mt-3 shrink-0 text-xs text-muted-foreground">
-        {rows.length} invitaciones · {rows.reduce((a, g) => a + g.invited, 0)}{" "}
-        personas totales
-      </p>
-      <div className="mt-4 shrink-0">
-        <PlanLimitBanner session={session} kind="guest" />
-      </div>
+      {!isShortHeight ? (
+        <>
+          <p className="mt-3 shrink-0 text-xs text-muted-foreground">
+            {rows.length} invitaciones ·{" "}
+            {rows.reduce((a, g) => a + g.invited, 0)} personas totales
+          </p>
+          <div className="mt-4 shrink-0">
+            <PlanLimitBanner session={session} kind="guest" />
+          </div>
+        </>
+      ) : null}
 
-      <div className="mt-4 min-h-0 min-w-0 max-w-full flex-1 overflow-auto rounded-2xl border border-border bg-card shadow-soft [&_.relative]:overflow-visible">
-        <Table className="min-w-[980px]">
+      <div
+        className={cn(
+          "min-h-0 min-w-0 max-w-full flex-1 overflow-x-auto overflow-y-auto overscroll-contain rounded-2xl border border-border bg-card shadow-soft [-webkit-overflow-scrolling:touch]",
+          isShortHeight ? "mt-2 min-h-[180px]" : "mt-4",
+        )}
+      >
+        <Table
+          className="min-w-[980px]"
+          containerClassName="w-max min-w-full overflow-visible"
+        >
           <TableHeader className="sticky top-0 z-10 bg-card">
             <TableRow className="hover:bg-transparent">
               <TableHead className="whitespace-nowrap">Representante</TableHead>
@@ -612,12 +633,21 @@ function Invitados() {
       </div>
 
       {rows.length > 0 ? (
-        <div className="mt-4 flex shrink-0 flex-col gap-3">
-          <p className="text-sm text-muted-foreground items-start justify-start">
-            Mostrando {(safePage - 1) * pageSize + 1}–
-            {Math.min(safePage * pageSize, rows.length)} de {rows.length}{" "}
-            invitaciones
-          </p>
+        <div
+          className={cn(
+            "flex shrink-0 items-center gap-2",
+            isShortHeight
+              ? "mt-2 justify-between"
+              : "mt-4 flex-col gap-3 sm:flex-row sm:justify-between",
+          )}
+        >
+          {!isShortHeight ? (
+            <p className="text-sm text-muted-foreground">
+              Mostrando {(safePage - 1) * pageSize + 1}–
+              {Math.min(safePage * pageSize, rows.length)} de {rows.length}{" "}
+              invitaciones
+            </p>
+          ) : null}
           <div className="flex items-center justify-center gap-2">
             <Button
               type="button"
@@ -627,10 +657,10 @@ function Invitados() {
               onClick={() => setPage(safePage - 1)}
             >
               <ChevronLeft className="size-4" />
-              Anterior
+              {isShortHeight ? null : "Anterior"}
             </Button>
-            <span className="min-w-24 text-center text-sm text-muted-foreground">
-              Página {safePage} de {totalPages}
+            <span className="min-w-16 text-center text-xs text-muted-foreground sm:min-w-24 sm:text-sm">
+              {safePage}/{totalPages}
             </span>
             <Button
               type="button"
@@ -639,7 +669,7 @@ function Invitados() {
               disabled={safePage >= totalPages}
               onClick={() => setPage(safePage + 1)}
             >
-              Siguiente
+              {isShortHeight ? null : "Siguiente"}
               <ChevronRight className="size-4" />
             </Button>
           </div>
