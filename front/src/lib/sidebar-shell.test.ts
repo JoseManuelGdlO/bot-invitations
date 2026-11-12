@@ -29,3 +29,12 @@ test("mobile icons vs full", () => {
   assert.equal(sidebarNeedsHeaderBrand("mobile-icons"), true);
   assert.equal(sidebarNeedsHeaderBrand("mobile-full"), true);
 });
+
+test("short height forces mobile chrome regardless of width", () => {
+  assert.equal(resolveSidebarMode(false, false, true), "mobile-icons");
+  assert.equal(resolveSidebarMode(false, true, true), "mobile-full");
+  assert.equal(resolveSidebarMode(true, false, true), "mobile-icons");
+  assert.equal(sidebarNeedsHeaderBrand("mobile-icons", true), false);
+  assert.equal(sidebarNeedsHeaderBrand("mobile-full", true), false);
+  assert.equal(sidebarNeedsHeaderBrand("desktop-closed", true), false);
+});

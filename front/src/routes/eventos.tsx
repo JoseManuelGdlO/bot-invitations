@@ -29,6 +29,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { HelpBot } from "@/components/help-bot";
 import { NotificationBell } from "@/components/notification-bell";
 import { useIsMobile } from "@/hooks/use-mobile";
+import { useIsShortHeight } from "@/hooks/use-short-height";
 import {
   resolveSidebarMode,
   sidebarAsideVisible,
@@ -47,8 +48,10 @@ function AppShell() {
   const navigate = useNavigate();
   const pathname = useRouterState({ select: (s) => s.location.pathname });
   const isMobile = useIsMobile();
+  const isShortHeight = useIsShortHeight();
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [supportUnread, setSupportUnread] = useState(0);
+  const useCompactChrome = isMobile || isShortHeight;
   const eventSlug = pathname.match(/^\/eventos\/([^/]+)/)?.[1];
   const reservedShell = new Set([
     "nuevo",
@@ -76,20 +79,20 @@ function AppShell() {
   }, [session, pathname]);
 
   useEffect(() => {
-    setSidebarOpen(!isMobile);
-  }, [isMobile]);
+    setSidebarOpen(!useCompactChrome);
+  }, [useCompactChrome]);
 
-  const mode = resolveSidebarMode(isMobile, sidebarOpen);
+  const mode = resolveSidebarMode(isMobile, sidebarOpen, isShortHeight);
   const showLabels = sidebarShowsLabels(mode);
   const iconOnly = sidebarIconOnly(mode);
   const showAside = sidebarAsideVisible(mode);
   const showBackdrop = sidebarNeedsBackdrop(mode);
-  const showHeaderBrand = sidebarNeedsHeaderBrand(mode);
+  const showHeaderBrand = sidebarNeedsHeaderBrand(mode, isShortHeight);
 
   const toggleSidebar = () => setSidebarOpen((value) => !value);
   const closeSidebar = () => setSidebarOpen(false);
   const onNavClick = () => {
-    if (isMobile) closeSidebar();
+    if (useCompactChrome) closeSidebar();
   };
 
   if (!hydrated || !session) {
@@ -134,7 +137,8 @@ function AppShell() {
         >
           <div
             className={cn(
-              "flex items-center py-6",
+              "flex items-center",
+              isShortHeight ? "py-3" : "py-6",
               iconOnly ? "flex-col gap-3 px-2" : "gap-2.5 px-5",
             )}
           >
@@ -167,6 +171,9 @@ function AppShell() {
               ) : null}
             </button>
             {showLabels ? <NotificationBell /> : null}
+            {iconOnly && isShortHeight ? (
+              <NotificationBell side="bottom" tone="sidebar" />
+            ) : null}
           </div>
 
           <nav className={cn("space-y-1", iconOnly ? "px-1.5" : "px-3")}>

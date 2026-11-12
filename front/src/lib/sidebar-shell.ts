@@ -7,8 +7,9 @@ export type SidebarMode =
 export function resolveSidebarMode(
   isMobile: boolean,
   open: boolean,
+  isShortHeight = false,
 ): SidebarMode {
-  if (isMobile) return open ? "mobile-full" : "mobile-icons";
+  if (isShortHeight || isMobile) return open ? "mobile-full" : "mobile-icons";
   return open ? "desktop-open" : "desktop-closed";
 }
 
@@ -28,6 +29,10 @@ export function sidebarNeedsBackdrop(mode: SidebarMode): boolean {
   return mode === "mobile-full";
 }
 
-export function sidebarNeedsHeaderBrand(mode: SidebarMode): boolean {
+export function sidebarNeedsHeaderBrand(
+  mode: SidebarMode,
+  isShortHeight = false,
+): boolean {
+  if (isShortHeight) return false;
   return mode !== "desktop-open";
 }
