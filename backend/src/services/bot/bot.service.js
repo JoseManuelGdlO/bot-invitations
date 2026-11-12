@@ -324,7 +324,7 @@ export async function processGuestMessage({
     markGuestReplied(guest, message, event.timezone);
     await cancelEcosystemRetries(guest.id, "el invitado respondió");
     await Conversation.increment({ unread: 1 }, { where: { id: conv.id } });
-    conv.unread = (conv.unread || 0) + 1;
+    await conv.reload();
     await guest.save();
   }
 

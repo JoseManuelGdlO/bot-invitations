@@ -232,6 +232,46 @@ describe("bot.service processGuestMessage", () => {
     );
   });
 
+  test("el unread en memoria queda igual al de la base tras el incremento", async () => {
+    await setup();
+    const event = fakeEvent();
+    const guest = fakeGuest({ status: "enviado" });
+    const conv = createInstance({
+      id: "c1",
+      eventId: event.id,
+      guestId: guest.id,
+      aiPaused: false,
+      unread: 2,
+    });
+    const order = [];
+    models.Conversation.increment.mockImplementation(async () => {
+      order.push("increment");
+      return [1];
+    });
+    conv.reload.mockImplementation(async () => {
+      order.push("reload");
+      conv.unread = 5;
+      return conv;
+    });
+    models.Event.findByPk.mockResolvedValue(event);
+    models.Guest.findOne.mockResolvedValue(guest);
+    models.Conversation.findOne.mockResolvedValue(conv);
+    models.AiConfig.findOne.mockResolvedValue({ botEnabled: false });
+
+    await service.processGuestMessage({
+      eventId: event.id,
+      guestId: guest.id,
+      text: "Hola",
+      dryRun: false,
+      persistConversation: true,
+      debounceMs: 0,
+    });
+
+    expect(order).toEqual(["increment", "reload"]);
+    expect(conv.unread).toBe(5);
+    expect(conv.save).not.toHaveBeenCalled();
+  });
+
   test("playground ignora botEnabled apagado", async () => {
     await setup();
     const event = fakeEvent();
