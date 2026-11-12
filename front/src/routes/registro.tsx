@@ -5,7 +5,7 @@ import {
   useChildMatches,
   useNavigate,
 } from "@tanstack/react-router";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { CalendarHeart, Check, Loader2, Users } from "lucide-react";
 import logo from "@/assets/alanna-logo.png";
 import { Button } from "@/components/ui/button";
@@ -117,9 +117,12 @@ function Registro() {
   const [planId, setPlanId] = useState("");
   const [interval, setInterval] = useState<BillingInterval>("month");
   const [loading, setLoading] = useState(false);
+  const [openingCheckout, setOpeningCheckout] = useState(false);
+  const goingToCheckout = useRef(false);
   const hasChildRoute = childMatches.length > 0;
 
   useEffect(() => {
+    if (goingToCheckout.current) return;
     if (hydrated && session && !hasChildRoute) {
       navigate({ to: "/eventos", replace: true });
     }
@@ -158,11 +161,12 @@ function Registro() {
     if (isInvite) return;
     api<SubscriptionPlan[]>("/plans")
       .then((rows) => {
-        setPlans(rows);
+        const catalog = (rows || []).filter((plan) => plan.slug !== "prueba");
+        setPlans(catalog);
         const preferred =
-          rows.find((p) => p.slug === planSlug) ??
-          rows.find((p) => p.highlighted) ??
-          rows[0];
+          catalog.find((p) => p.slug === planSlug) ??
+          catalog.find((p) => p.highlighted) ??
+          catalog[0];
         if (preferred) setPlanId(preferred.id);
       })
       .catch(() => toast.error("No se pudieron cargar los planes"));
@@ -293,6 +297,8 @@ function Registro() {
       toast.error("Selecciona un plan para continuar");
       return;
     }
+    goingToCheckout.current = true;
+    setOpeningCheckout(true);
     setLoading(true);
     try {
       const { checkoutUrl } = googleIdToken
@@ -316,15 +322,20 @@ function Registro() {
           });
       if (checkoutUrl) {
         toast.success("Cuenta creada", {
-          description: "Te llevamos a Stripe para pagar tu plan.",
+          description:
+            "Te llevamos a Stripe para pagar. El cargo es inmediato; en tu banco puede tardar unos días.",
         });
-        window.location.href = checkoutUrl;
+        window.location.replace(checkoutUrl);
         return;
       }
+      goingToCheckout.current = false;
+      setOpeningCheckout(false);
       toast.error(
         "No se pudo abrir Stripe Checkout. No activamos el plan sin pago.",
       );
     } catch (err) {
+      goingToCheckout.current = false;
+      setOpeningCheckout(false);
       const message =
         err instanceof ApiError ? err.message : "No se pudo crear la cuenta";
       if (err instanceof ApiError && err.status === 409) {
@@ -338,6 +349,25 @@ function Registro() {
   };
 
   if (hasChildRoute) return <Outlet />;
+  if (openingCheckout) {
+    return (
+      <main className="mx-auto flex min-h-screen w-full max-w-lg flex-col items-center justify-center px-6 text-center">
+        <img
+          src={logo}
+          alt="Alanna"
+          width={40}
+          height={40}
+          className="size-10 rounded-xl bg-primary object-contain p-1.5"
+        />
+        <Loader2 className="mt-8 size-6 animate-spin text-gold" />
+        <h1 className="mt-4 font-display text-3xl">Abriendo el pago…</h1>
+        <p className="mt-2 text-sm text-muted-foreground">
+          Te llevamos a Stripe. El cargo es inmediato; en tu banco puede verse
+          en 1 a 3 días hábiles.
+        </p>
+      </main>
+    );
+  }
   if (hydrated && session) return null;
 
   return (

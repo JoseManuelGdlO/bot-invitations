@@ -73,6 +73,38 @@ export async function recordPaidInvoice(invoice, extras = {}) {
   return row;
 }
 
+export async function recordPaidCheckoutSession(session, extras = {}) {
+  if (!session?.id) return null;
+  if (session.payment_status && session.payment_status !== "paid") return null;
+  const amountMxn = Math.round((Number(session.amount_total || 0) / 100) * 100) / 100;
+  const customerId = typeof session.customer === "string" ? session.customer : session.customer?.id;
+  const user =
+    extras.user ||
+    (session.metadata?.userId
+      ? await User.findByPk(session.metadata.userId)
+      : null) ||
+    (customerId ? await User.findOne({ where: { stripeCustomerId: customerId } }) : null);
+  const paidAt = session.created ? new Date(session.created * 1000) : new Date();
+  const once = session.mode === "payment" || session.metadata?.interval === "once";
+  const [row] = await Payment.findOrCreate({
+    where: { stripeInvoiceId: session.id },
+    defaults: {
+      userId: user?.id || null,
+      planId: extras.planId || session.metadata?.planId || user?.planId || null,
+      stripeInvoiceId: session.id,
+      stripeCustomerId: customerId || user?.stripeCustomerId || null,
+      amountMxn,
+      currency: (session.currency || "mxn").toLowerCase(),
+      interval: once ? "once" : session.metadata?.interval || user?.billingInterval || null,
+      customerEmail: session.customer_email || session.customer_details?.email || user?.email || null,
+      customerName: session.customer_details?.name || user?.name || null,
+      paidAt,
+      status: "paid",
+    },
+  });
+  return row;
+}
+
 async function syncStripeInvoices() {
   const stripe = getStripe();
   if (!stripe) return { availableMxn: 0, pendingMxn: 0, synced: 0 };

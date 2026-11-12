@@ -34,17 +34,6 @@ export const PLAN_DEFS = [
     sortOrder: 3,
     annualDiscountPercent: 20,
   },
-  {
-    slug: "prueba",
-    name: "Prueba",
-    tagline: "Cobro de verificación: un evento chico para validar el pago.",
-    priceMxn: 10,
-    eventLimit: 1,
-    guestLimit: 10,
-    highlighted: false,
-    sortOrder: 4,
-    annualDiscountPercent: 0,
-  },
 ];
 
 export function annualDiscountOf(plan) {
@@ -80,16 +69,7 @@ export function serializePlan(plan) {
 export async function ensurePlans() {
   for (const def of PLAN_DEFS) {
     const existing = await Plan.findOne({ where: { slug: def.slug } });
-    if (!existing) {
-      await Plan.create(def);
-      continue;
-    }
-    if (def.slug === "prueba" && Number(existing.priceMxn) !== Number(def.priceMxn)) {
-      existing.priceMxn = def.priceMxn;
-      existing.stripePriceId = null;
-      existing.stripeYearlyPriceId = null;
-      await existing.save();
-    }
+    if (!existing) await Plan.create(def);
   }
   return Plan.findAll({ order: [["sortOrder", "ASC"]] });
 }

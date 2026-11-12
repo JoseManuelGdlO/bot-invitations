@@ -66,10 +66,25 @@ describe("auth.controller", () => {
     models.PasswordReset.create.mockResolvedValue({});
   });
 
-  test("listPlans serializa planes", async () => {
-    models.Plan.findAll.mockResolvedValue([fakePlan()]);
+  test("listPlans serializa planes y omite prueba", async () => {
+    models.Plan.findAll.mockResolvedValue([
+      fakePlan(),
+      fakePlan({ id: "plan_prueba", slug: "prueba", name: "Prueba" }),
+    ]);
     const { res } = await callHandler(controller.listPlans);
     expect(res.json).toHaveBeenCalledWith([expect.objectContaining({ slug: "estudio" })]);
+    const payload = res.json.mock.calls[0][0];
+    expect(payload.some((plan) => plan.slug === "prueba")).toBe(false);
+  });
+
+  test("register 400 si el plan prueba ya no está en catálogo", async () => {
+    models.Plan.findByPk.mockResolvedValue(fakePlan({ id: "plan_prueba", slug: "prueba" }));
+    const { res } = await callHandler(controller.register, {
+      req: createMockReq({ body: { ...registerBody, planId: "plan_prueba" } }),
+    });
+    expect(models.User.create).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({ error: "Ese plan ya no está disponible." });
   });
 
   test("register 400 si faltan datos", async () => {
@@ -155,7 +170,7 @@ describe("auth.controller", () => {
   test("register 502 borra el usuario si Stripe rechaza el monto", async () => {
     stripeOn = true;
     startCheckout.mockRejectedValue(new Error("Amount must be at least $10.00 mxn"));
-    const plan = fakePlan({ id: "plan_1", slug: "prueba" });
+    const plan = fakePlan({ id: "plan_1", slug: "estudio" });
     const user = fakeUser({ id: "usr_reg_amt", planId: "plan_1", email: "ana@test.com" });
     models.Plan.findByPk.mockResolvedValue(plan);
     models.User.findOne.mockResolvedValue(null);
@@ -486,6 +501,17 @@ describe("auth.controller", () => {
     expect(res.json).toHaveBeenCalledWith({
       error: "Stripe no está configurado. No se puede contratar un plan.",
     });
+  });
+
+  test("google register 400 si el plan prueba ya no está en catálogo", async () => {
+    models.User.findOne.mockResolvedValue(null);
+    models.Plan.findByPk.mockResolvedValue(fakePlan({ id: "plan_prueba", slug: "prueba" }));
+    const { res } = await callHandler(controller.google, {
+      req: createMockReq({ body: { ...googleRegisterBody, planId: "plan_prueba" } }),
+    });
+    expect(models.User.create).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({ error: "Ese plan ya no está disponible." });
   });
 
   test("google register 201 crea usuario pending sin password y abre Checkout", async () => {

@@ -81,19 +81,6 @@ const fallbackPlans: SubscriptionPlan[] = [
     guestLimit: 3000,
     highlighted: false,
   },
-  {
-    id: "prueba",
-    slug: "prueba",
-    name: "Prueba",
-    tagline: "Cobro de verificación: un evento chico para validar el pago.",
-    priceMxn: 10,
-    yearlyPriceMxn: 10,
-    annualDiscountPercent: 0,
-    eventLimit: 1,
-    guestLimit: 10,
-    highlighted: false,
-    once: true,
-  },
 ];
 
 function Landing() {
@@ -104,7 +91,8 @@ function Landing() {
   useEffect(() => {
     api<SubscriptionPlan[]>("/plans")
       .then((rows) => {
-        if (rows?.length) setPlans(rows);
+        const catalog = (rows || []).filter((plan) => plan.slug !== "prueba");
+        if (catalog.length) setPlans(catalog);
       })
       .catch(() => undefined);
   }, []);
@@ -216,7 +204,7 @@ function Landing() {
           <div className="mt-6">
             <BillingToggle value={interval} onChange={setInterval} />
           </div>
-          <div className="mt-8 grid gap-5 md:grid-cols-2 lg:grid-cols-4">
+          <div className="mt-8 grid gap-5 md:grid-cols-2 lg:grid-cols-3">
             {plans.map((plan) => (
               <article
                 key={plan.slug}
@@ -258,7 +246,7 @@ function Landing() {
                         try {
                           const res = await startCheckout(plan.id, interval);
                           if (res.checkoutUrl) {
-                            window.location.href = res.checkoutUrl;
+                            window.location.replace(res.checkoutUrl);
                             return;
                           }
                           if (res.updated) {

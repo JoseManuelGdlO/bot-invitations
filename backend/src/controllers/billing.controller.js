@@ -50,7 +50,7 @@ export const portal = asyncHandler(async (req, res) => {
 });
 
 function sessionPaid(session) {
-  return session.payment_status === "paid" || session.status === "complete";
+  return session.payment_status === "paid";
 }
 
 export const confirmSession = asyncHandler(async (req, res) => {

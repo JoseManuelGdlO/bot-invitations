@@ -351,7 +351,7 @@ export async function confirmCheckoutSession(sessionId) {
   const stripe = getStripe();
   if (!stripe) return null;
   const session = await stripe.checkout.sessions.retrieve(sessionId);
-  if (session.payment_status !== "paid" && session.status !== "complete") return session;
+  if (session.payment_status !== "paid") return session;
   await applySubscription({
     userId: session.metadata?.userId,
     planId: session.metadata?.planId,
@@ -361,6 +361,10 @@ export async function confirmCheckoutSession(sessionId) {
     interval: session.metadata?.interval,
     cancelAtPeriodEnd: false,
   });
+  if (session.mode === "payment" || session.metadata?.interval === "once") {
+    const { recordPaidCheckoutSession } = await import("./finance.service.js");
+    await recordPaidCheckoutSession(session);
+  }
   return session;
 }
 
@@ -374,15 +378,21 @@ async function planByPriceId(priceId) {
 export async function handleStripeEvent(event) {
   const object = event.data.object;
   if (event.type === "checkout.session.completed") {
-    await applySubscription({
-      userId: object.metadata?.userId,
-      planId: object.metadata?.planId,
-      customerId: object.customer,
-      subscriptionId: object.subscription,
-      status: "active",
-      interval: object.metadata?.interval,
-      cancelAtPeriodEnd: false,
-    });
+    if (object.payment_status === "paid") {
+      await applySubscription({
+        userId: object.metadata?.userId,
+        planId: object.metadata?.planId,
+        customerId: object.customer,
+        subscriptionId: object.subscription,
+        status: "active",
+        interval: object.metadata?.interval,
+        cancelAtPeriodEnd: false,
+      });
+      if (object.mode === "payment" || object.metadata?.interval === "once") {
+        const { recordPaidCheckoutSession } = await import("./finance.service.js");
+        await recordPaidCheckoutSession(object);
+      }
+    }
     return;
   }
   if (

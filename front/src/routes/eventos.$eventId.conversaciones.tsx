@@ -2,6 +2,8 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import {
   Bot,
+  ChevronLeft,
+  ChevronRight,
   FileText,
   Play,
   Search,
@@ -135,9 +137,20 @@ function Conversaciones() {
   const [deleting, setDeleting] = useState(false);
   const messagesRef = useRef<HTMLDivElement>(null);
   const pendingReadKey = useRef<string | null>(null);
+  const panelsRef = useRef<HTMLElement>(null);
   const prevActiveIdRef = useRef<string | null>(null);
   const nearBottomRef = useRef(true);
   const timeZone = event?.timezone;
+
+  const scrollToPanel = (index: number) => {
+    const root = panelsRef.current;
+    if (!root) return;
+    if (window.matchMedia("(min-width: 1024px)").matches) return;
+    root.scrollTo({
+      left: index * root.clientWidth,
+      behavior: "smooth",
+    });
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -223,7 +236,13 @@ function Conversaciones() {
       search: { guestId: nextGuestId },
       replace: true,
     });
+    requestAnimationFrame(() => scrollToPanel(1));
   };
+
+  useEffect(() => {
+    if (!guestId) return;
+    requestAnimationFrame(() => scrollToPanel(1));
+  }, [guestId]);
 
   const send = async () => {
     if (!draft.trim() || !active.conv) return;
@@ -259,9 +278,12 @@ function Conversaciones() {
   };
 
   return (
-    <main className="grid h-full min-h-0 flex-1 grid-cols-1 grid-rows-1 overflow-hidden lg:grid-cols-[300px_minmax(0,1fr)_290px]">
+    <main
+      ref={panelsRef}
+      className="flex h-full min-h-0 flex-1 snap-x snap-mandatory overflow-x-auto overflow-y-hidden lg:grid lg:snap-none lg:grid-cols-[300px_minmax(0,1fr)_290px] lg:overflow-hidden"
+    >
       {/* Lista */}
-      <aside className="hidden min-h-0 flex-col overflow-hidden border-r border-border bg-card lg:flex">
+      <aside className="flex h-full min-h-0 w-full min-w-full shrink-0 snap-start flex-col overflow-hidden border-r border-border bg-card lg:min-w-0 lg:w-auto lg:shrink">
         <div className="space-y-2 border-b border-border p-3">
           <div className="relative">
             <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -341,14 +363,34 @@ function Conversaciones() {
       </aside>
 
       {/* Hilo */}
-      <section className="flex min-h-0 flex-col overflow-hidden">
+      <section className="flex h-full min-h-0 w-full min-w-full shrink-0 snap-start flex-col overflow-hidden lg:min-w-0 lg:w-auto lg:shrink">
         <div className="flex flex-wrap items-center gap-2 border-b border-border bg-card px-4 py-3">
-          <div>
-            <p className="font-medium">{active.guest.rep}</p>
-            <p className="text-[11px] text-muted-foreground">
+          <button
+            type="button"
+            onClick={() => scrollToPanel(0)}
+            className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground lg:hidden"
+            aria-label="Ver lista de conversaciones"
+          >
+            <ChevronLeft className="size-5" />
+          </button>
+          <button
+            type="button"
+            onClick={() => scrollToPanel(2)}
+            className="min-w-0 flex-1 text-left lg:flex-none lg:pointer-events-none"
+          >
+            <p className="truncate font-medium">{active.guest.rep}</p>
+            <p className="truncate text-[11px] text-muted-foreground">
               {active.guest.phone} · {event?.name}
             </p>
-          </div>
+          </button>
+          <button
+            type="button"
+            onClick={() => scrollToPanel(2)}
+            className="rounded-md p-1.5 text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground lg:hidden"
+            aria-label="Ver detalle del invitado"
+          >
+            <ChevronRight className="size-5" />
+          </button>
           <div className="ml-auto flex flex-wrap gap-2">
             {canReply && hasThread && active.conv ? (
               active.conv.aiPaused ? (
@@ -515,7 +557,14 @@ function Conversaciones() {
       </section>
 
       {/* Perfil */}
-      <aside className="hidden min-h-0 overflow-y-auto border-l border-border bg-card p-5 lg:flex lg:flex-col">
+      <aside className="flex h-full min-h-0 w-full min-w-full shrink-0 snap-start flex-col overflow-y-auto border-l border-border bg-card p-5 lg:min-w-0 lg:w-auto lg:shrink">
+        <button
+          type="button"
+          onClick={() => scrollToPanel(1)}
+          className="mb-4 flex items-center gap-1 self-start rounded-md px-1 py-1.5 text-sm text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground lg:hidden"
+        >
+          <ChevronLeft className="size-4" /> Volver al chat
+        </button>
         <div className="flex flex-col items-center text-center">
           <span className="flex size-14 items-center justify-center rounded-full bg-gold-soft font-display text-lg text-gold-foreground">
             {active.guest.rep

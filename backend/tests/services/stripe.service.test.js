@@ -14,6 +14,7 @@ describe("stripe.service", () => {
         }),
         "src/services/finance.service.js": () => ({
           recordPaidInvoice: jest.fn(async () => ({ id: "pay_1" })),
+          recordPaidCheckoutSession: jest.fn(async () => ({ id: "pay_cs_1" })),
         }),
       },
     }));
@@ -70,6 +71,7 @@ describe("stripe.service", () => {
     stripeClient.checkout.sessions.retrieve.mockResolvedValue({
       payment_status: "paid",
       status: "complete",
+      mode: "subscription",
       customer: "cus_1",
       subscription: "sub_1",
       metadata: { userId: "usr_test_1", planId: "plan_1", interval: "month" },
@@ -77,6 +79,36 @@ describe("stripe.service", () => {
     const session = await service.confirmCheckoutSession("cs_test");
     expect(session.status).toBe("complete");
     expect(models.User.findByPk).toHaveBeenCalled();
+  });
+
+  test("confirmCheckoutSession no activa si no está paid", async () => {
+    stripeClient.checkout.sessions.retrieve.mockResolvedValue({
+      payment_status: "unpaid",
+      status: "complete",
+      mode: "payment",
+      metadata: { userId: "usr_test_1" },
+    });
+    const session = await service.confirmCheckoutSession("cs_unpaid");
+    expect(session.payment_status).toBe("unpaid");
+    expect(models.User.findByPk).not.toHaveBeenCalled();
+  });
+
+  test("handleStripeEvent checkout.session.completed de pago único activa si paid", async () => {
+    models.User.findByPk.mockResolvedValue(fakeUser());
+    await service.handleStripeEvent({
+      type: "checkout.session.completed",
+      data: {
+        object: {
+          id: "cs_once",
+          payment_status: "paid",
+          mode: "payment",
+          amount_total: 1000,
+          customer: "cus_1",
+          metadata: { userId: "usr_test_1", planId: "plan_1", interval: "once" },
+        },
+      },
+    });
+    expect(models.User.findByPk).toHaveBeenCalledWith("usr_test_1");
   });
 
   test("handleStripeEvent invoice.payment_failed marca pending", async () => {

@@ -51,14 +51,14 @@ function classifyError(err: unknown): ErrorKind {
 }
 
 function isPaid(payload: { status?: string; paymentStatus?: string }) {
-  return payload.paymentStatus === "paid" || payload.status === "complete";
+  return payload.paymentStatus === "paid";
 }
 
 function PagoExito() {
   const { session_id } = Route.useSearch();
   const { refresh, hydrated } = useStore();
   const navigate = useNavigate();
-  const [phase, setPhase] = useState<"loading" | "error">("loading");
+  const [phase, setPhase] = useState<"loading" | "success" | "error">("loading");
   const [errorKind, setErrorKind] = useState<ErrorKind>("timeout");
   const [message, setMessage] = useState("Confirmando tu pago con Stripe…");
   const [attempt, setAttempt] = useState(0);
@@ -91,12 +91,8 @@ function PagoExito() {
           await refresh();
         }
         if (cancelled) return;
-        setMessage("Pago recibido. Entrando a tu panel…");
-        if (getToken()) {
-          navigate({ to: "/eventos", replace: true });
-          return;
-        }
-        navigate({ to: "/iniciar-sesion", replace: true });
+        setMessage("Pago recibido.");
+        setPhase("success");
       } catch (err) {
         if (cancelled) return;
         setErrorKind(classifyError(err));
@@ -106,7 +102,7 @@ function PagoExito() {
     return () => {
       cancelled = true;
     };
-  }, [hydrated, session_id, refresh, navigate, confirm, attempt]);
+  }, [hydrated, session_id, refresh, confirm, attempt]);
 
   const copy = ERROR_COPY[errorKind];
   const loggedIn = Boolean(getToken());
@@ -125,6 +121,25 @@ function PagoExito() {
           <Loader2 className="mt-8 size-6 animate-spin text-gold" />
           <h1 className="mt-4 font-display text-3xl">Activando tu plan</h1>
           <p className="mt-2 text-sm text-muted-foreground">{message}</p>
+        </>
+      ) : phase === "success" ? (
+        <>
+          <h1 className="mt-8 font-display text-3xl">Pago recibido</h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Stripe ya procesó el cargo. En tu banco puede verse en 1 a 3 días
+            hábiles, como STRIPE o Alanna.
+          </p>
+          <div className="mt-6">
+            {loggedIn ? (
+              <Button type="button" onClick={() => navigate({ to: "/eventos" })}>
+                Ir a mi panel
+              </Button>
+            ) : (
+              <Button asChild>
+                <Link to="/iniciar-sesion">Iniciar sesión</Link>
+              </Button>
+            )}
+          </div>
         </>
       ) : (
         <>
