@@ -476,13 +476,11 @@ function Invitados() {
         <PlanLimitBanner session={session} kind="guest" />
       </div>
 
-      <div className="mt-4 min-h-0 min-w-0 max-w-full flex-1 overflow-x-auto overflow-y-auto overscroll-contain rounded-2xl border border-border bg-card shadow-soft [-webkit-overflow-scrolling:touch] [&_.relative]:!overflow-visible">
+      <div className="mt-4 min-h-0 min-w-0 max-w-full flex-1 overflow-x-auto overflow-y-auto overscroll-contain rounded-2xl border border-border bg-card shadow-soft [-webkit-overflow-scrolling:touch] [&_.relative]:w-max [&_.relative]:min-w-full [&_.relative]:overflow-visible">
         <Table className="min-w-[980px]">
-          <TableHeader className="sticky top-0 z-20 bg-card">
+          <TableHeader className="sticky top-0 z-10 bg-card">
             <TableRow className="hover:bg-transparent">
-              <TableHead className="sticky left-0 z-30 whitespace-nowrap border-r border-border bg-card">
-                Representante
-              </TableHead>
+              <TableHead className="whitespace-nowrap">Representante</TableHead>
               {showTableColumn ? (
                 <TableHead className="whitespace-nowrap">Mesa</TableHead>
               ) : null}
@@ -526,7 +524,7 @@ function Invitados() {
                   })
                 }
               >
-                <TableCell className="sticky left-0 z-10 whitespace-nowrap border-r border-border bg-card">
+                <TableCell className="whitespace-nowrap">
                   <div className="flex items-center gap-2.5">
                     <span className="flex size-8 shrink-0 items-center justify-center rounded-full bg-gold-soft text-[11px] font-semibold text-gold-foreground">
                       {g.rep
