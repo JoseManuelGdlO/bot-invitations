@@ -211,6 +211,7 @@ describe("state.service", () => {
       lastMessage: "último",
       lastReply: "respuesta",
       lastReplyAt: "10:01",
+      deliveryError: "Este mensaje no llegó para mantener un ecosistema sano.",
     });
     stubMemberEvent(models, event, {
       role: "Coordinador",
@@ -231,6 +232,7 @@ describe("state.service", () => {
     expect(state.guests[0].lastMessage).toBe("");
     expect(state.guests[0].lastReply).toBe("");
     expect(state.guests[0].lastReplyAt).toBe("");
+    expect(state.guests[0].deliveryError).toBe("");
     expect(state.conversations).toEqual([]);
     expect(models.Conversation.findAll).not.toHaveBeenCalled();
     expect(models.Message.findAll).not.toHaveBeenCalled();

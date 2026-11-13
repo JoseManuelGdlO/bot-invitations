@@ -93,6 +93,21 @@ describe("guest-message.service", () => {
     expect(models.Message.create).not.toHaveBeenCalled();
   });
 
+  test("applyGuestOutboundPatch borra el error de entrega", async () => {
+    const guest = fakeGuest({
+      deliveryError: "Este mensaje no llegó para mantener un ecosistema sano.",
+      lastMessage: "antes",
+    });
+    await service.applyGuestOutboundPatch(guest, {
+      text: "Hola de nuevo",
+      guestPatch: { status: "enviado", whatsapp: "pendiente" },
+    });
+    expect(guest.status).toBe("enviado");
+    expect(guest.lastMessage).toBe("Hola de nuevo");
+    expect(guest.deliveryError).toBeNull();
+    expect(guest.save).toHaveBeenCalled();
+  });
+
   test("sync envía y solo entonces crea el mensaje", async () => {
     const sendMessage = jest.fn(async () => ({
       provider: "stub",

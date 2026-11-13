@@ -93,6 +93,7 @@ export function serializeGuest(guest, eventSlug) {
     lastMessage: guest.lastMessage || "",
     lastReply: guest.lastReply || "",
     lastReplyAt: guest.lastReplyAt || "",
+    deliveryError: guest.deliveryError || "",
     followUp: guest.followUp || "",
   };
 }

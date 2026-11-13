@@ -60,6 +60,18 @@ export const STATUS_FILTER_OPTIONS = (
   Object.keys(STATUS_META) as ConfirmationStatus[]
 ).map((value) => ({ value, label: STATUS_META[value].label }));
 
+export function guestLastResponse(guest?: {
+  lastReply?: string | null;
+  deliveryError?: string | null;
+} | null) {
+  if (!guest) return null;
+  const reply = String(guest.lastReply || "").trim();
+  if (reply) return { kind: "reply" as const, text: reply };
+  const error = String(guest.deliveryError || "").trim();
+  if (error) return { kind: "error" as const, text: error };
+  return null;
+}
+
 export const WHATSAPP_LABEL: Record<string, string> = {
   pendiente: "Pendiente",
   enviado: "Enviado",

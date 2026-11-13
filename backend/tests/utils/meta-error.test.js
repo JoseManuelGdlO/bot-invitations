@@ -1,4 +1,10 @@
-import { summarizeMetaError, summarizeMetaErrors, userFacingMetaCodeMessage } from "../../src/utils/meta-error.js";
+import {
+  deliveryErrorFromFailure,
+  summarizeMetaError,
+  summarizeMetaErrors,
+  userFacingDeliveryError,
+  userFacingMetaCodeMessage,
+} from "../../src/utils/meta-error.js";
 
 describe("summarizeMetaError", () => {
   test("lee Graph error.code error_data.details y fbtrace_id", () => {
@@ -70,5 +76,48 @@ describe("userFacingMetaCodeMessage", () => {
     expect(userFacingMetaCodeMessage(131042, "Business eligibility payment issue")).toBe(
       "Hay un problema de facturación en tu cuenta de WhatsApp Business. Configura el país y la moneda en Meta Business Manager.",
     );
+  });
+
+  test("traduce 131049 al límite de ecosistema", () => {
+    expect(userFacingMetaCodeMessage(131049, "healthy ecosystem")).toBe(
+      "Este mensaje no llegó para mantener un ecosistema sano.",
+    );
+  });
+});
+
+describe("userFacingDeliveryError", () => {
+  test("131049 con reintento avisa que se intentará más tarde", () => {
+    expect(userFacingDeliveryError(131049, { retrying: true })).toBe(
+      "Este mensaje no llegó para mantener un ecosistema sano. Se reintentará más tarde.",
+    );
+  });
+
+  test("131049 sin reintento no promete otro envío", () => {
+    expect(userFacingDeliveryError(131049)).toBe(
+      "Este mensaje no llegó para mantener un ecosistema sano.",
+    );
+  });
+
+  test("otros códigos usan el mapa de Meta", () => {
+    expect(userFacingDeliveryError(131026)).toBe("El número de destino no es un WhatsApp válido.");
+  });
+});
+
+describe("deliveryErrorFromFailure", () => {
+  test("lee el código del webhook de estado", () => {
+    expect(
+      deliveryErrorFromFailure({
+        errors: [{ code: 131049, title: "healthy ecosystem", message: "healthy ecosystem" }],
+      }),
+    ).toBe("Este mensaje no llegó para mantener un ecosistema sano.");
+  });
+
+  test("lee el código de err.meta en un fallo de envío", () => {
+    expect(
+      deliveryErrorFromFailure({
+        message: "healthy ecosystem",
+        meta: { code: 131049 },
+      }),
+    ).toBe("Este mensaje no llegó para mantener un ecosistema sano.");
   });
 });

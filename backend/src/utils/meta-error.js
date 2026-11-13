@@ -43,7 +43,7 @@ const META_CODE_MESSAGES = {
   131026: "El número de destino no es un WhatsApp válido.",
   131042: "Hay un problema de facturación en tu cuenta de WhatsApp Business. Configura el país y la moneda en Meta Business Manager.",
   131047: "Han pasado más de 24 horas. Debes usar una plantilla aprobada.",
-  131049: "WhatsApp no entregó el mensaje para cuidar la frecuencia de contacto. Se reintentará más tarde.",
+  131049: "Este mensaje no llegó para mantener un ecosistema sano.",
   131051: "El tipo de mensaje no está soportado.",
   132000: "La plantilla de WhatsApp fue rechazada o no existe.",
   132001: "La plantilla no está disponible en este idioma.",
@@ -52,4 +52,23 @@ const META_CODE_MESSAGES = {
 
 export function userFacingMetaCodeMessage(code, fallback) {
   return META_CODE_MESSAGES[Number(code)] || fallback || "Error de la API de WhatsApp (Meta).";
+}
+
+const ECOSYSTEM_CODE = 131049;
+const ECOSYSTEM_RETRY_SUFFIX = " Se reintentará más tarde.";
+
+/** Texto para mostrar al planner cuando un envío de WhatsApp no se entregó. */
+export function userFacingDeliveryError(code, { retrying = false, fallback } = {}) {
+  if (Number(code) === ECOSYSTEM_CODE) {
+    const base = userFacingMetaCodeMessage(ECOSYSTEM_CODE);
+    return retrying ? `${base}${ECOSYSTEM_RETRY_SUFFIX}` : base;
+  }
+  return userFacingMetaCodeMessage(code, fallback);
+}
+
+export function deliveryErrorFromFailure(failure = {}, { retrying = false } = {}) {
+  const errors = summarizeMetaErrors(failure.errors);
+  const code = errors[0]?.code ?? failure.meta?.code ?? failure.code ?? null;
+  const fallback = errors[0]?.message || errors[0]?.title || failure.message || null;
+  return userFacingDeliveryError(code, { retrying, fallback });
 }

@@ -69,6 +69,7 @@ export interface Guest {
   lastMessage: string;
   lastReply: string;
   lastReplyAt: string;
+  deliveryError?: string;
   followUp: string;
 }
 

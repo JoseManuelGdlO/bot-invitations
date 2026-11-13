@@ -56,7 +56,7 @@ import {
   matchesConversationFilter,
   matchesConversationSearch,
 } from "@/lib/conversation-search";
-import { STATUS_FILTER_OPTIONS } from "@/lib/mock/format";
+import { STATUS_FILTER_OPTIONS, guestLastResponse } from "@/lib/mock/format";
 import { formatChatDayLabel, formatMessageTime, getZonedDayKey } from "@/lib/datetime";
 import type { Guest } from "@/lib/mock/types";
 import { ApiError } from "@/lib/api/client";
@@ -713,12 +713,22 @@ function Conversaciones() {
                     }
                   />
                 </div>
-                {active.guest.lastReply ? (
+                {guestLastResponse(active.guest) ? (
                   <div className="rounded-xl bg-secondary/60 p-3">
                     <p className="text-xs text-muted-foreground">
                       Última respuesta
                     </p>
-                    <p className="mt-1">“{active.guest.lastReply}”</p>
+                    <p
+                      className={cn(
+                        "mt-1",
+                        guestLastResponse(active.guest)?.kind === "error" &&
+                          "text-destructive",
+                      )}
+                    >
+                      {guestLastResponse(active.guest)?.kind === "reply"
+                        ? `“${guestLastResponse(active.guest)?.text}”`
+                        : guestLastResponse(active.guest)?.text}
+                    </p>
                   </div>
                 ) : null}
                 <div className="flex flex-col gap-2 pt-2">

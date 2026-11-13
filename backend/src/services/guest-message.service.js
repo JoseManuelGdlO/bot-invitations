@@ -42,6 +42,7 @@ async function ensureConversation(event, guest) {
 export async function applyGuestOutboundPatch(guest, { text, guestPatch = {} }) {
   Object.assign(guest, guestPatch || {});
   guest.lastMessage = String(text || "").slice(0, 80);
+  guest.deliveryError = null;
   await guest.save();
 }
 

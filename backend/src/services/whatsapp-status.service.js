@@ -1,6 +1,6 @@
 import { Conversation, Guest, Message } from "../models/index.js";
 import { Logger } from "../utils/logger.js";
-import { summarizeMetaErrors } from "../utils/meta-error.js";
+import { deliveryErrorFromFailure, summarizeMetaErrors } from "../utils/meta-error.js";
 import { recordTestDeliveryStatus } from "./whatsapp-test-delivery.js";
 import {
   ECOSYSTEM_ENGAGEMENT_CODE,
@@ -36,14 +36,21 @@ function canAdvanceWhatsapp(current, next) {
   return (WHATSAPP_RANK[next] || 0) > (WHATSAPP_RANK[current] || 0);
 }
 
-async function revertFailedCampaignGuest(guest) {
+async function revertFailedCampaignGuest(guest, deliveryError) {
   if (guest.whatsapp === "respondido" || guest.lastReply) return false;
-  if (guest.status !== "enviado") return false;
+  if (!["enviado", "reagendado"].includes(guest.status)) return false;
   guest.status = "sin_contactar";
   guest.whatsapp = "pendiente";
   guest.contactedAt = null;
+  if (deliveryError) guest.deliveryError = deliveryError;
   await guest.save();
   return true;
+}
+
+async function persistGuestDeliveryError(guest, status, { retrying = false } = {}) {
+  if (!guest) return;
+  guest.deliveryError = deliveryErrorFromFailure(status, { retrying });
+  await guest.save();
 }
 
 function failedMeta(status, extra = {}) {
@@ -75,6 +82,7 @@ export async function applyWhatsappDeliveryStatus(status = {}) {
     if (delivery === "failed" && isEcosystemEngagement(status)) {
       const scheduled = await rescheduleEcosystemDelivery({ messageId });
       if (scheduled.ok) {
+        await persistGuestDeliveryError(scheduled.guest, status, { retrying: true });
         log.error("status failed", failedMeta(status, {
           rescheduled: true,
           retryAt: scheduled.retryAt instanceof Date ? scheduled.retryAt.toISOString() : scheduled.retryAt || null,
@@ -108,6 +116,7 @@ export async function applyWhatsappDeliveryStatus(status = {}) {
     if (isEcosystemEngagement(status)) {
       const scheduled = await rescheduleEcosystemDelivery({ guest, messageId });
       if (scheduled.ok) {
+        await persistGuestDeliveryError(guest, status, { retrying: true });
         log.error("status failed", failedMeta(status, {
           guestId: guest.id,
           phone: guest.phone || null,
@@ -119,7 +128,7 @@ export async function applyWhatsappDeliveryStatus(status = {}) {
         return { processed: true, reason: "failed_rescheduled" };
       }
     }
-    const reverted = await revertFailedCampaignGuest(guest);
+    const reverted = await revertFailedCampaignGuest(guest, deliveryErrorFromFailure(status));
     log.error("status failed", failedMeta(status, {
       guestId: guest.id,
       phone: guest.phone || null,

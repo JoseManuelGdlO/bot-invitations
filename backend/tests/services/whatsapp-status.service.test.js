@@ -76,10 +76,11 @@ describe("whatsapp-status.service", () => {
     expect(guest.status).toBe("sin_contactar");
     expect(guest.whatsapp).toBe("pendiente");
     expect(guest.contactedAt).toBeNull();
+    expect(guest.deliveryError).toBe("Error de la API de WhatsApp (Meta).");
   });
 
   test("failed loguea código y details de Meta", async () => {
-    await setup(guestRow({ phone: "6181018285", rep: "Ana" }));
+    const guest = await setup(guestRow({ phone: "6181018285", rep: "Ana" }));
     const spy = jest.spyOn(console, "error").mockImplementation(() => {});
     await applyWhatsappDeliveryStatus({
       messageId: "wamid.abc",
@@ -100,13 +101,20 @@ describe("whatsapp-status.service", () => {
     expect(dumped).toContain("131026");
     expect(dumped).toContain("Message Undeliverable");
     expect(dumped).toContain("6181018285");
+    expect(guest.deliveryError).toBe("El número de destino no es un WhatsApp válido.");
   });
 
   test("failed no revierte si ya hubo reply", async () => {
-    const guest = await setup(guestRow({ lastReply: "ok", whatsapp: "enviado" }));
-    const result = await applyWhatsappDeliveryStatus({ messageId: "wamid.abc", status: "failed" });
+    const guest = await setup(guestRow({ lastReply: "ok", whatsapp: "enviado", deliveryError: null }));
+    const result = await applyWhatsappDeliveryStatus({
+      messageId: "wamid.abc",
+      status: "failed",
+      errors: [{ code: 131026, title: "Message undeliverable", message: "Message undeliverable" }],
+    });
     expect(result.reason).toBe("failed");
     expect(guest.status).toBe("enviado");
+    expect(guest.lastReply).toBe("ok");
+    expect(guest.deliveryError).toBeNull();
   });
 
   test("131049 reagenda la plantilla a 24h y marca al invitado", async () => {
@@ -155,6 +163,9 @@ describe("whatsapp-status.service", () => {
     const delay = new Date(created.scheduledAt).getTime() - before;
     expect(delay).toBeGreaterThanOrEqual(24 * 60 * 60 * 1000 - 1000);
     expect(delay).toBeLessThanOrEqual(24 * 60 * 60 * 1000 + 5000);
+    expect(guest.deliveryError).toBe(
+      "Este mensaje no llegó para mantener un ecosistema sano. Se reintentará más tarde.",
+    );
   });
 
   test("131049 no encola dos veces el mismo wamid", async () => {
@@ -199,6 +210,8 @@ describe("whatsapp-status.service", () => {
     });
     expect(result.reason).toBe("failed");
     expect(guest.status).toBe("enviado");
+    expect(guest.lastReply).toBe("sí vamos");
+    expect(guest.deliveryError).toBeUndefined();
     expect(models.OutboundJob.create).not.toHaveBeenCalled();
   });
 
@@ -226,6 +239,7 @@ describe("whatsapp-status.service", () => {
     });
     expect(result.reason).toBe("failed_reverted");
     expect(guest.status).toBe("sin_contactar");
+    expect(guest.deliveryError).toBe("Este mensaje no llegó para mantener un ecosistema sano.");
     expect(models.OutboundJob.create).not.toHaveBeenCalled();
   });
 

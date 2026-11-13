@@ -170,6 +170,7 @@ export function fakeGuest(overrides = {}) {
     lastMessage: "",
     lastReply: "",
     lastReplyAt: "",
+    deliveryError: "",
     followUp: "",
     followUpsSent: [],
     confirmedAt: null,

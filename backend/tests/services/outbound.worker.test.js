@@ -402,6 +402,31 @@ describe("outbound.worker", () => {
     expect(recordCampaignSendResult).toHaveBeenCalledWith("cmp_1");
   });
 
+  test("processJob de campaña fallido guarda el error de Meta y vuelve a sin contactar", async () => {
+    const guest = createInstance({
+      id: "g1",
+      status: "enviado",
+      whatsapp: "pendiente",
+      lastReply: null,
+      contactedAt: new Date("2026-01-01T00:00:00.000Z"),
+    });
+    models.Guest.findByPk.mockResolvedValue(guest);
+    const err = new Error("healthy ecosystem");
+    err.meta = { code: 131049 };
+    sendMessage.mockRejectedValueOnce(err);
+    const job = createInstance({
+      type: "whatsapp.send",
+      attempts: 0,
+      payload: { to: "55", text: "hola", kind: "campaign", guestId: "g1" },
+    });
+    await service.processJob(job);
+    expect(job.update).toHaveBeenCalledWith(expect.objectContaining({ status: "failed", lastError: "healthy ecosystem" }));
+    expect(guest.status).toBe("sin_contactar");
+    expect(guest.whatsapp).toBe("pendiente");
+    expect(guest.contactedAt).toBeNull();
+    expect(guest.deliveryError).toBe("Este mensaje no llegó para mantener un ecosistema sano.");
+  });
+
   test("processJob captura errores como failed", async () => {
     sendMessage.mockRejectedValueOnce(new Error("boom"));
     const job = createInstance({

@@ -250,6 +250,7 @@ function serializeGuestForState(guest, slug, { viewGuests, viewChats }) {
     row.lastMessage = "";
     row.lastReply = "";
     row.lastReplyAt = "";
+    row.deliveryError = "";
   }
   return row;
 }

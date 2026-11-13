@@ -13,6 +13,7 @@ import {
   nextInitialRetryAt,
 } from "./outbound.throttle.js";
 import { recordCampaignSendResult } from "./campaign-progress.js";
+import { deliveryErrorFromFailure } from "../utils/meta-error.js";
 
 const provider = createWhatsAppProvider();
 const workerLog = new Logger("Worker");
@@ -131,7 +132,7 @@ async function discardFailedOutboundMessage(job) {
   await message.destroy();
 }
 
-async function syncWhatsappSendJob(job, { ok, result } = {}) {
+async function syncWhatsappSendJob(job, { ok, result, error } = {}) {
   if (ok) await persistOutboundMessageAfterSend(job, result);
   else await discardFailedOutboundMessage(job);
   const guestId = job.payload?.guestId;
@@ -141,6 +142,7 @@ async function syncWhatsappSendJob(job, { ok, result } = {}) {
       guest.status = "sin_contactar";
       guest.whatsapp = "pendiente";
       guest.contactedAt = null;
+      if (error) guest.deliveryError = deliveryErrorFromFailure(error);
       await guest.save();
     }
   }
@@ -290,7 +292,7 @@ export async function processJob(job) {
         ...(err.meta && { meta: err.meta }),
         stack: err.stack,
       }));
-      await syncWhatsappSendJob(job, { ok: false });
+      await syncWhatsappSendJob(job, { ok: false, error: err });
     } else {
       workerLog.error(`job failed: ${err.message}`, { jobId: job.id, type: job.type, stack: err.stack });
     }

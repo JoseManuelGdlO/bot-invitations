@@ -78,7 +78,7 @@ export async function rescheduleEcosystemDelivery({ guest = null, messageId } = 
 
   if (existing) {
     await markRescheduled(guest);
-    return { ok: true, alreadyQueued: true, retryAt: existing.scheduledAt || null };
+    return { ok: true, alreadyQueued: true, retryAt: existing.scheduledAt || null, guest };
   }
 
   const previous = Number(source.payload.ecosystemRetryCount) || 0;
@@ -111,7 +111,7 @@ export async function rescheduleEcosystemDelivery({ guest = null, messageId } = 
     attempt: nextAttempt,
     retryAt: scheduledAt.toISOString(),
   });
-  return { ok: true, retryAt: scheduledAt, attempt: nextAttempt };
+  return { ok: true, retryAt: scheduledAt, attempt: nextAttempt, guest };
 }
 
 export async function cancelEcosystemRetries(guestId, reason = "reenvío cancelado") {

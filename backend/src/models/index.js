@@ -154,6 +154,7 @@ export const Guest = sequelize.define(
     lastMessage: { type: DataTypes.STRING(240), allowNull: true, defaultValue: "" },
     lastReply: { type: DataTypes.TEXT, allowNull: true },
     lastReplyAt: { type: DataTypes.STRING(80), allowNull: true, defaultValue: "" },
+    deliveryError: { type: DataTypes.TEXT, allowNull: true },
     followUp: { type: DataTypes.STRING(80), allowNull: true, defaultValue: "" },
     followUpsSent: { type: DataTypes.JSON, allowNull: false, defaultValue: [] },
     confirmedAt: { type: DataTypes.DATE, allowNull: true },
@@ -766,6 +767,27 @@ export async function ensureGuestCustomData() {
     console.log("[db] columna guests.customData creada");
   } catch (err) {
     console.error("[db] no se pudo crear guests.customData", err?.message || err);
+  }
+}
+
+export async function ensureGuestDeliveryError() {
+  const qi = sequelize.getQueryInterface();
+  let table;
+  try {
+    table = await qi.describeTable("guests");
+  } catch (err) {
+    console.error("[db] no se pudo describir guests para deliveryError", err?.message || err);
+    return;
+  }
+  if (table.deliveryError) return;
+  try {
+    await qi.addColumn("guests", "deliveryError", {
+      type: DataTypes.TEXT,
+      allowNull: true,
+    });
+    console.log("[db] columna guests.deliveryError creada");
+  } catch (err) {
+    console.error("[db] no se pudo crear guests.deliveryError", err?.message || err);
   }
 }
 

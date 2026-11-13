@@ -54,6 +54,7 @@ import {
   GUEST_TYPE,
   STATUS_FILTER_OPTIONS,
   WHATSAPP_LABEL,
+  guestLastResponse,
   isInitialInvitationStatus,
 } from "@/lib/mock/format";
 import type { Guest } from "@/lib/mock/types";
@@ -582,8 +583,16 @@ function Invitados() {
                 <TableCell>
                   <StatusBadge status={g.status} />
                 </TableCell>
-                <TableCell className="max-w-56 truncate text-muted-foreground">
-                  {g.lastReply || "—"}
+                <TableCell
+                  className={cn(
+                    "max-w-56 truncate",
+                    guestLastResponse(g)?.kind === "error"
+                      ? "text-destructive"
+                      : "text-muted-foreground",
+                  )}
+                  title={guestLastResponse(g)?.text}
+                >
+                  {guestLastResponse(g)?.text || "—"}
                 </TableCell>
                 <TableCell className="text-center font-medium">
                   <span className="text-success">{g.confirmed}</span>
@@ -762,12 +771,22 @@ function Invitados() {
                       updateGuest(selected.id, { notes: e.target.value })
                     }
                   />
-                </div>                {selected.lastReply ? (
+                </div>                {guestLastResponse(selected) ? (
                   <div className="rounded-xl bg-secondary/60 p-3">
                     <p className="text-xs text-muted-foreground">
                       Última respuesta
                     </p>
-                    <p className="mt-1">“{selected.lastReply}”</p>
+                    <p
+                      className={cn(
+                        "mt-1",
+                        guestLastResponse(selected)?.kind === "error" &&
+                          "text-destructive",
+                      )}
+                    >
+                      {guestLastResponse(selected)?.kind === "reply"
+                        ? `“${guestLastResponse(selected)?.text}”`
+                        : guestLastResponse(selected)?.text}
+                    </p>
                   </div>
                 ) : null}
                 <div className="flex flex-wrap gap-2 pt-2">

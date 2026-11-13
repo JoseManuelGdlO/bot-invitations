@@ -221,7 +221,7 @@ export async function executeCampaignLaunch(job) {
 
   for (const guest of guests) {
     const [taken] = await Guest.update(
-      { status: "enviado", whatsapp: "pendiente", contactedAt: now },
+      { status: "enviado", whatsapp: "pendiente", contactedAt: now, deliveryError: null },
       { where: { id: guest.id, status: "sin_contactar" } },
     );
     if (!taken) continue;

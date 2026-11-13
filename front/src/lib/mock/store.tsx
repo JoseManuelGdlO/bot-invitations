@@ -68,7 +68,7 @@ function guestsFingerprint(items: Guest[]) {
   return items
     .map(
       (g) =>
-        `${g.id}:${g.status}:${g.confirmed}:${g.whatsapp}:${g.lastMessage}:${g.lastReply}:${g.lastReplyAt}`,
+        `${g.id}:${g.status}:${g.confirmed}:${g.whatsapp}:${g.lastMessage}:${g.lastReply}:${g.lastReplyAt}:${g.deliveryError ?? ""}`,
     )
     .sort()
     .join("|");
